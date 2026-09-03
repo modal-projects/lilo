@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lilo"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "modal>=1.5.3",
+    "protobuf>=5.29",
+    "pydantic>=2.13.4",
+    "stitch @ git+https://github.com/modal-projects/stitch.git@375a9396a7b05770dc4ed9cc5fe34fc4d5a472d5",
+    "tinker>=0.24.1,<0.25",
+    "uvicorn>=0.52.0",
+    "xxhash>=3.8.1",
+    "zstandard>=0.25.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
