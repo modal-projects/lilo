@@ -33,6 +33,7 @@ from .definitions import (
     qwen3_5_9b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
+    qwen3_8b_deepspeed_full_2k,
 )
 from .engines import ModalEnginePlatform
 from .fft_pool import (
@@ -65,6 +66,7 @@ DEFINITIONS = (
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
+    qwen3_8b_deepspeed_full_2k,
 )
 TRAINER_MAX_CONTAINERS = trainer_max_containers()
 TRAINER_DEPLOYMENT_ENV = trainer_deployment_env()
