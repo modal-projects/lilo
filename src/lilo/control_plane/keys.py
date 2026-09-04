@@ -39,6 +39,32 @@ def model_key(model_id: str) -> str:
     return f"model:{_model_part(model_id)}"
 
 
+def checkpoint_save_submission_key(model_id: str, seq_id: int) -> str:
+    if seq_id <= 0:
+        raise ValueError("seq_id must be positive")
+    return f"checkpoint_save_submission:{_model_part(model_id)}:{seq_id}"
+
+
+def checkpoint_save_result_key(model_id: str, seq_id: int) -> str:
+    if seq_id <= 0:
+        raise ValueError("seq_id must be positive")
+    return f"checkpoint_save_result:{_model_part(model_id)}:{seq_id}"
+
+
+def checkpoint_key(path: str) -> str:
+    if not path:
+        raise ValueError("checkpoint path must be non-empty")
+    digest = hashlib.sha256(path.encode()).hexdigest()
+    return f"checkpoint:{digest}"
+
+
+def checkpoint_deletion_claim_key(path: str) -> str:
+    if not path:
+        raise ValueError("checkpoint path must be non-empty")
+    digest = hashlib.sha256(path.encode()).hexdigest()
+    return f"checkpoint_deletion_claim:{digest}"
+
+
 def placement_key(model_id: str) -> str:
     return f"placement:{_model_part(model_id)}"
 

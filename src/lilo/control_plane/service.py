@@ -30,6 +30,10 @@ from lilo.providers.contracts import (
 )
 
 from .keys import (
+    checkpoint_deletion_claim_key,
+    checkpoint_key,
+    checkpoint_save_result_key,
+    checkpoint_save_submission_key,
     model_creation_key,
     model_key,
     placement_claim_key,
@@ -46,6 +50,10 @@ from .keys import (
     session_last_seen_key,
 )
 from .records import (
+    CheckpointDeletionClaimRecord,
+    CheckpointRecord,
+    CheckpointSaveResultRecord,
+    CheckpointSaveSubmissionRecord,
     ModelCreationRecord,
     ModelRecord,
     PlacementRecord,
@@ -89,6 +97,7 @@ def checkpoint_tinker_path(model_id: str, name: str) -> str:
 
 
 CheckpointListing = Callable[[str | None], Awaitable[Sequence[Mapping[str, object]]]]
+CHECKPOINT_SAVE_GUARD_SECONDS = 24 * 60 * 60
 
 
 class FutureResolutionStatus(StrEnum):
@@ -139,6 +148,10 @@ class ControlPlane:
         trainer_autoscaling: Callable[[str], bool] = lambda _: False,
         list_checkpoints: CheckpointListing | None = None,
         delete_checkpoint: Callable[[str], Awaitable[None]] | None = None,
+        write_checkpoint_expiration: Callable[
+            [str, float | None, int], Awaitable[None]
+        ]
+        | None = None,
         checkpoint_root: str = "/checkpoints",
     ) -> None:
         self.kv = kv
@@ -155,6 +168,7 @@ class ControlPlane:
         self.trainer_autoscaling = trainer_autoscaling
         self.list_checkpoints = list_checkpoints
         self.delete_checkpoint = delete_checkpoint
+        self.write_checkpoint_expiration = write_checkpoint_expiration
         self.checkpoint_root = checkpoint_root
 
     async def create_session(
@@ -282,8 +296,83 @@ class ControlPlane:
         entries = [
             dict(entry) for entry in await self.list_checkpoints(training_run_id)
         ]
+        now = self.clock()
+        records = {
+            record.path: record
+            for _, value in await self.kv.list_items("checkpoint:")
+            for record in (CheckpointRecord.model_validate(value),)
+        }
+        visible = []
+        for entry in entries:
+            expires_at = self._checkpoint_expires_at(entry.get("metadata"))
+            if expires_at is not None and expires_at <= now:
+                continue
+            record = records.get(str(entry["path"]))
+            if record is not None and (
+                record.state != "ready"
+                or (record.expires_at is not None and record.expires_at <= now)
+            ):
+                continue
+            visible.append(entry)
+        entries = visible
         entries.sort(key=lambda entry: float(entry["time"]), reverse=True)
         return entries
+
+    async def submit_checkpoint_save(self, request: Mapping[str, object]) -> str:
+        model_id = str(request["model_id"])
+        seq_id = request["seq_id"]
+        name = path_component(request.get("path") or "latest", "checkpoint name")
+        ttl_seconds = request.get("ttl_seconds")
+        if isinstance(seq_id, bool) or not isinstance(seq_id, int) or seq_id <= 0:
+            raise ValueError("seq_id must be a positive integer")
+        if ttl_seconds is not None and (
+            isinstance(ttl_seconds, bool)
+            or not isinstance(ttl_seconds, int)
+            or ttl_seconds <= 0
+        ):
+            raise ValueError("ttl_seconds must be a positive integer")
+
+        model = await self.get_model(model_id)
+        await self._open_session(model.session_id)
+        engine = await self.engine_for(model_id)
+        engine_request = dict(request)
+        engine_request.pop("ttl_seconds", None)
+        engine_request["path"] = name
+        payload = {
+            "request": engine_request,
+            "ttl_seconds": ttl_seconds,
+        }
+        mark = fingerprint("save_weights", payload)
+        submission = CheckpointSaveSubmissionRecord(
+            model_id=model_id,
+            seq_id=seq_id,
+            name=name,
+            ttl_seconds=ttl_seconds,
+            fingerprint=mark,
+            created_at=self.clock(),
+        )
+        submission_key = checkpoint_save_submission_key(model_id, seq_id)
+        inserted = await self.kv.put_if_absent(
+            submission_key,
+            submission.model_dump(mode="json"),
+        )
+        stored = CheckpointSaveSubmissionRecord.model_validate(inserted.value)
+        if stored.fingerprint != mark:
+            raise SequenceConflict(model_id, seq_id)
+        if await self.kv.get(checkpoint_save_result_key(model_id, seq_id)) is not None:
+            return request_id_for(model_id, seq_id)
+
+        path = self._checkpoint_path(model_id, stored.name)
+        if await self.kv.get(checkpoint_deletion_claim_key(path)) is not None:
+            if inserted.created:
+                await self.kv.delete(submission_key)
+            raise RecordUnavailable("checkpoint", stored.name, "deletion in progress")
+        try:
+            return await engine.save_weights(engine_request)
+        except Exception:
+            if inserted.created:
+                await self.kv.delete(submission_key)
+            raise
 
     async def checkpoint(
         self, training_run_id: str, checkpoint_id: str
@@ -346,7 +435,63 @@ class ControlPlane:
                 "checkpoint", checkpoint_id, "deletion unconfigured"
             )
         entry = await self.checkpoint(training_run_id, checkpoint_id)
-        await self.delete_checkpoint(str(entry["path"]))
+        path = str(entry["path"])
+        key = checkpoint_key(path)
+        value = await self.kv.get(key)
+        record = (
+            CheckpointRecord.model_validate(value)
+            if value is not None
+            else CheckpointRecord(
+                model_id=str(entry["model_id"]),
+                save_seq_id=self._checkpoint_save_seq_id(entry.get("metadata")),
+                name=str(entry["name"]),
+                path=path,
+                created_at=float(entry["time"]),
+                expires_at=self._checkpoint_expires_at(entry.get("metadata")),
+            )
+        )
+        claim = CheckpointDeletionClaimRecord(
+            path=path,
+            save_seq_id=record.save_seq_id,
+            claimed_at=self.clock(),
+        )
+        claimed = await self.kv.put_if_absent(
+            checkpoint_deletion_claim_key(path),
+            claim.model_dump(mode="json"),
+        )
+        if not claimed.created:
+            raise RecordUnavailable("checkpoint", checkpoint_id, "deletion in progress")
+        try:
+            if await self._newer_checkpoint_save(record):
+                raise RecordUnavailable("checkpoint", checkpoint_id, "save in progress")
+            await self.kv.put(
+                key,
+                record.model_copy(update={"state": "deleting"}).model_dump(mode="json"),
+            )
+            await self.delete_checkpoint(path)
+            current = await self.kv.get(key)
+            if (
+                current is not None
+                and CheckpointRecord.model_validate(current).save_seq_id
+                == record.save_seq_id
+            ):
+                await self.kv.put(
+                    key,
+                    record.model_copy(update={"state": "deleted"}).model_dump(
+                        mode="json"
+                    ),
+                )
+        except Exception:
+            current = await self.kv.get(key)
+            if (
+                current is not None
+                and CheckpointRecord.model_validate(current).save_seq_id
+                == record.save_seq_id
+            ):
+                await self.kv.put(key, record.model_dump(mode="json"))
+            raise
+        finally:
+            await self.kv.delete(checkpoint_deletion_claim_key(path))
 
     def resolve_checkpoint_path(self, path: str) -> str:
         parts = path.removeprefix("tinker://").split("/")
@@ -354,19 +499,67 @@ class ControlPlane:
             raise ValueError(f"invalid checkpoint path: {path}")
         path_component(parts[0], "training_run_id")
         path_component(parts[2], "checkpoint name")
-        return f"{self.checkpoint_root}/{'/'.join(parts)}"
+        return self._checkpoint_path(parts[0], parts[2])
+
+    async def checkpoint_path_for_load(self, path: str) -> str:
+        uri = self.resolve_checkpoint_path(path)
+        await self._ensure_checkpoint_record_available(path, uri)
+        if self.read_checkpoint_metadata is not None:
+            try:
+                metadata = await self.read_checkpoint_metadata(uri)
+            except FileNotFoundError:
+                raise RecordNotFound("checkpoint", path) from None
+            expires_at = self._checkpoint_expires_at(metadata)
+            if expires_at is not None and expires_at <= self.clock():
+                raise RecordUnavailable("checkpoint", path, "expired")
+        return uri
+
+    async def _ensure_checkpoint_record_available(self, path: str, uri: str) -> None:
+        value = await self.kv.get(checkpoint_key(uri))
+        if value is None:
+            return
+        record = CheckpointRecord.model_validate(value)
+        if record.path != uri:
+            raise RecordNotFound("checkpoint", path)
+        if record.state != "ready" or (
+            record.expires_at is not None and record.expires_at <= self.clock()
+        ):
+            raise RecordUnavailable("checkpoint", path, "expired")
+
+    @staticmethod
+    def _checkpoint_expires_at(metadata: object) -> float | None:
+        if not isinstance(metadata, Mapping):
+            return None
+        value = metadata.get("expires_at")
+        if value is None:
+            return None
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value < 0
+        ):
+            raise ValueError("checkpoint metadata has invalid expires_at")
+        return float(value)
 
     def tinker_path(self, uri: str) -> str:
         return f"tinker://{PurePosixPath(uri).relative_to(self.checkpoint_root)}"
 
+    def _checkpoint_path(self, model_id: str, name: str) -> str:
+        return str(PurePosixPath(self.checkpoint_root) / model_id / "weights" / name)
+
     async def checkpoint_metadata(self, path: str) -> dict[str, object]:
         if self.read_checkpoint_metadata is None:
             raise RecordUnavailable("checkpoint", path, "metadata unavailable")
+        public_path = path
         path = self.resolve_checkpoint_path(path)
+        await self._ensure_checkpoint_record_available(public_path, path)
         try:
             metadata = dict(await self.read_checkpoint_metadata(path))
         except FileNotFoundError:
             raise RecordNotFound("checkpoint metadata", path) from None
+        expires_at = self._checkpoint_expires_at(metadata)
+        if expires_at is not None and expires_at <= self.clock():
+            raise RecordUnavailable("checkpoint", public_path, "expired")
         schema_version = metadata.get("schema_version")
         if isinstance(schema_version, bool) or schema_version != 1:
             raise ValueError("unsupported checkpoint metadata")
@@ -766,6 +959,15 @@ class ControlPlane:
         model = await self.get_model(model_id)
         if seq_id == 0:
             return await self._retrieve_creation(request_id, model)
+        checkpoint_save = await self._checkpoint_save_submission(model_id, seq_id)
+        if checkpoint_save is not None:
+            completed = await self._completed_checkpoint_save(checkpoint_save)
+            if completed is not None:
+                return FutureResolution(
+                    request_id,
+                    FutureResolutionStatus.COMPLETE,
+                    result=completed,
+                )
         export = await self._sampler_export_submission(model_id, seq_id)
         if export is not None:
             completed = await self._completed_sampler_export(export)
@@ -810,6 +1012,27 @@ class ControlPlane:
         if state.status == FutureStatus.PENDING:
             return FutureResolution(request_id, FutureResolutionStatus.PENDING)
         if state.status == FutureStatus.COMPLETE:
+            if checkpoint_save is not None:
+                try:
+                    receipt = await self._persist_checkpoint_save_result(
+                        checkpoint_save,
+                        state.result,
+                    )
+                    result = await self._finalize_checkpoint_save(
+                        checkpoint_save,
+                        receipt,
+                    )
+                except (TypeError, ValueError) as exc:
+                    return FutureResolution(
+                        request_id,
+                        FutureResolutionStatus.FAILED,
+                        error=str(exc),
+                    )
+                return FutureResolution(
+                    request_id,
+                    FutureResolutionStatus.COMPLETE,
+                    result=result,
+                )
             if export is not None:
                 try:
                     receipt = await self._persist_sampler_export_result(
@@ -849,6 +1072,135 @@ class ControlPlane:
             FutureResolutionStatus.FAILED,
             error=state.error,
         )
+
+    async def _checkpoint_save_submission(
+        self,
+        model_id: str,
+        seq_id: int,
+    ) -> CheckpointSaveSubmissionRecord | None:
+        value = await self.kv.get(checkpoint_save_submission_key(model_id, seq_id))
+        if value is None:
+            return None
+        return CheckpointSaveSubmissionRecord.model_validate(value)
+
+    async def _completed_checkpoint_save(
+        self,
+        submission: CheckpointSaveSubmissionRecord,
+    ) -> dict[str, str] | None:
+        value = await self.kv.get(
+            checkpoint_save_result_key(submission.model_id, submission.seq_id)
+        )
+        if value is None:
+            return None
+        receipt = CheckpointSaveResultRecord.model_validate(value)
+        if (
+            receipt.model_id != submission.model_id
+            or receipt.seq_id != submission.seq_id
+        ):
+            return None
+        return await self._finalize_checkpoint_save(submission, receipt)
+
+    async def _persist_checkpoint_save_result(
+        self,
+        submission: CheckpointSaveSubmissionRecord,
+        result: object,
+    ) -> CheckpointSaveResultRecord:
+        if not isinstance(result, Mapping):
+            raise TypeError("save_weights returned no checkpoint path")
+        path = result.get("path")
+        if not isinstance(path, str) or not path:
+            raise ValueError("save_weights returned an invalid checkpoint path")
+        try:
+            relative = PurePosixPath(path).relative_to(self.checkpoint_root)
+        except ValueError:
+            raise ValueError("save_weights returned an unexpected checkpoint path") from None
+        if (
+            len(relative.parts) != 3
+            or relative.parts[0] != submission.model_id
+            or relative.parts[1] != "weights"
+        ):
+            raise ValueError("save_weights returned an unexpected checkpoint path")
+        receipt = CheckpointSaveResultRecord(
+            model_id=submission.model_id,
+            seq_id=submission.seq_id,
+            path=path,
+            completed_at=self.clock(),
+        )
+        inserted = await self.kv.put_if_absent(
+            checkpoint_save_result_key(submission.model_id, submission.seq_id),
+            receipt.model_dump(mode="json"),
+        )
+        stored = CheckpointSaveResultRecord.model_validate(inserted.value)
+        if (
+            stored.model_id != receipt.model_id
+            or stored.seq_id != receipt.seq_id
+            or stored.path != receipt.path
+        ):
+            raise SequenceConflict(submission.model_id, submission.seq_id)
+        return stored
+
+    async def _finalize_checkpoint_save(
+        self,
+        submission: CheckpointSaveSubmissionRecord,
+        receipt: CheckpointSaveResultRecord,
+    ) -> dict[str, str]:
+        record = CheckpointRecord(
+            model_id=submission.model_id,
+            save_seq_id=submission.seq_id,
+            name=PurePosixPath(receipt.path).name,
+            path=receipt.path,
+            created_at=receipt.completed_at,
+            expires_at=(
+                receipt.completed_at + submission.ttl_seconds
+                if submission.ttl_seconds is not None
+                else None
+            ),
+        )
+        key = checkpoint_key(receipt.path)
+        claim_key = checkpoint_deletion_claim_key(receipt.path)
+        claimed = await self.kv.put_if_absent(
+            claim_key,
+            CheckpointDeletionClaimRecord(
+                path=receipt.path,
+                save_seq_id=record.save_seq_id,
+                claimed_at=self.clock(),
+            ).model_dump(mode="json"),
+        )
+        if not claimed.created:
+            raise RecordUnavailable(
+                "checkpoint",
+                submission.name,
+                "metadata update in progress",
+            )
+        try:
+            current_value = await self.kv.get(key)
+            if current_value is None:
+                inserted = await self.kv.put_if_absent(
+                    key,
+                    record.model_dump(mode="json"),
+                )
+                current = CheckpointRecord.model_validate(inserted.value)
+            else:
+                current = CheckpointRecord.model_validate(current_value)
+            if current.save_seq_id < record.save_seq_id:
+                await self.kv.put(key, record.model_dump(mode="json"))
+                current = record
+            if (
+                current.save_seq_id == record.save_seq_id
+                and current.state == "ready"
+                and self.write_checkpoint_expiration is not None
+            ):
+                await self.write_checkpoint_expiration(
+                    record.path,
+                    record.expires_at,
+                    record.save_seq_id,
+                )
+        finally:
+            await self.kv.delete(claim_key)
+        return {
+            "type": "save_weights",
+            "path": self.tinker_path(receipt.path),
+        }
 
     async def _sampler_export_submission(
         self,
@@ -1501,6 +1853,149 @@ class ControlPlane:
                 await store.delete(f"sampling_call:{task.request_id}")
                 expired.append(key)
         return tuple(expired)
+
+    async def sweep_expired_checkpoints(self) -> tuple[str, ...]:
+        if self.delete_checkpoint is None:
+            return ()
+        await self._reconcile_checkpoint_saves()
+        now = self.clock()
+        records = {
+            checkpoint_key(record.path): record
+            for _, value in await self.kv.list_items("checkpoint:")
+            for record in (CheckpointRecord.model_validate(value),)
+        }
+        candidates = {
+            key: record
+            for key, record in records.items()
+            if (
+                record.state == "ready"
+                and record.expires_at is not None
+                and record.expires_at <= now
+            )
+        }
+        if self.list_checkpoints is not None:
+            for raw_entry in await self.list_checkpoints(None):
+                entry = dict(raw_entry)
+                metadata = entry.get("metadata")
+                expires_at = self._checkpoint_expires_at(metadata)
+                if expires_at is None or expires_at > now:
+                    continue
+                path = str(entry["path"])
+                save_seq_id = self._checkpoint_save_seq_id(metadata)
+                key = checkpoint_key(path)
+                current = records.get(key)
+                if current is not None and current.save_seq_id > save_seq_id:
+                    continue
+                candidates[key] = CheckpointRecord(
+                    model_id=str(entry["model_id"]),
+                    save_seq_id=save_seq_id,
+                    name=str(entry["name"]),
+                    path=path,
+                    created_at=float(entry["time"]),
+                    expires_at=expires_at,
+                )
+
+        expired: list[str] = []
+        for key, record in candidates.items():
+            claim = CheckpointDeletionClaimRecord(
+                path=record.path,
+                save_seq_id=record.save_seq_id,
+                claimed_at=now,
+            )
+            claim_key = checkpoint_deletion_claim_key(record.path)
+            claimed = await self.kv.put_if_absent(
+                claim_key,
+                claim.model_dump(mode="json"),
+            )
+            if not claimed.created:
+                continue
+            try:
+                current_value = await self.kv.get(key)
+                if current_value is not None:
+                    current = CheckpointRecord.model_validate(current_value)
+                    if (
+                        current.path != record.path
+                        or current.state != "ready"
+                        or current.save_seq_id > record.save_seq_id
+                    ):
+                        continue
+                if await self._newer_checkpoint_save(record):
+                    continue
+                deleting = record.model_copy(update={"state": "deleting"})
+                await self.kv.put(key, deleting.model_dump(mode="json"))
+                try:
+                    await self.delete_checkpoint(record.path)
+                except RecordNotFound:
+                    pass
+                current_value = await self.kv.get(key)
+                if current_value is not None:
+                    current = CheckpointRecord.model_validate(current_value)
+                    if (
+                        current.save_seq_id == record.save_seq_id
+                        and current.state == "deleting"
+                    ):
+                        await self.kv.put(
+                            key,
+                            record.model_copy(update={"state": "deleted"}).model_dump(
+                                mode="json"
+                            ),
+                        )
+                expired.append(record.path)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "delete expired checkpoint %s",
+                    record.path,
+                )
+                current_value = await self.kv.get(key)
+                if current_value is not None:
+                    current = CheckpointRecord.model_validate(current_value)
+                    if (
+                        current.save_seq_id == record.save_seq_id
+                        and current.state == "deleting"
+                    ):
+                        await self.kv.put(key, record.model_dump(mode="json"))
+            finally:
+                await self.kv.delete(claim_key)
+        return tuple(expired)
+
+    async def _reconcile_checkpoint_saves(self) -> None:
+        for _, value in await self.kv.list_items("checkpoint_save_submission:"):
+            submission = CheckpointSaveSubmissionRecord.model_validate(value)
+            if (
+                await self.kv.get(
+                    checkpoint_save_result_key(submission.model_id, submission.seq_id)
+                )
+                is not None
+            ):
+                continue
+            try:
+                await self.retrieve(
+                    request_id_for(submission.model_id, submission.seq_id),
+                )
+            except (RecordNotFound, RecordUnavailable):
+                continue
+
+    async def _newer_checkpoint_save(self, record: CheckpointRecord) -> bool:
+        cutoff = self.clock() - CHECKPOINT_SAVE_GUARD_SECONDS
+        for _, value in await self.kv.list_items("checkpoint_save_submission:"):
+            submission = CheckpointSaveSubmissionRecord.model_validate(value)
+            if (
+                submission.model_id == record.model_id
+                and submission.name == record.name
+                and submission.seq_id > record.save_seq_id
+                and submission.created_at > cutoff
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _checkpoint_save_seq_id(metadata: object) -> int:
+        if not isinstance(metadata, Mapping):
+            return 0
+        value = metadata.get("checkpoint_save_seq_id", 0)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("checkpoint metadata has invalid checkpoint_save_seq_id")
+        return value
 
     async def _unload_session_models(self, session_id: str) -> None:
         definitions = set()

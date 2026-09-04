@@ -54,6 +54,38 @@ class ModelRecord(DurableRecord):
     created_at: Timestamp
 
 
+class CheckpointSaveSubmissionRecord(DurableRecord):
+    model_id: ModelIdentifier
+    seq_id: int = Field(gt=0)
+    name: NonEmptyString
+    ttl_seconds: PositiveInteger | None = None
+    fingerprint: NonEmptyString
+    created_at: Timestamp
+
+
+class CheckpointSaveResultRecord(DurableRecord):
+    model_id: ModelIdentifier
+    seq_id: int = Field(gt=0)
+    path: NonEmptyString
+    completed_at: Timestamp
+
+
+class CheckpointRecord(DurableRecord):
+    model_id: ModelIdentifier
+    save_seq_id: int = Field(ge=0)
+    name: NonEmptyString
+    path: NonEmptyString
+    created_at: Timestamp
+    expires_at: Timestamp | None = None
+    state: Literal["ready", "deleting", "deleted"] = "ready"
+
+
+class CheckpointDeletionClaimRecord(DurableRecord):
+    path: NonEmptyString
+    save_seq_id: int = Field(ge=0)
+    claimed_at: Timestamp
+
+
 class PlacementRecord(DurableRecord):
     model_id: ModelIdentifier
     engine_definition_id: Identifier

@@ -13,6 +13,8 @@ from tinker import types
 
 from lilo.client import create_full_training_client
 from lilo.control_plane import ControlPlane, create_control_plane_app
+from lilo.control_plane.keys import checkpoint_key
+from lilo.control_plane.records import CheckpointRecord
 from lilo.engine import OperationKind
 from lilo.providers import SamplingTask
 from lilo.providers.local import (
@@ -363,6 +365,7 @@ def volume_plane(tmp_path, monkeypatch) -> tuple[ControlPlane, object, list[str]
         read_checkpoint_metadata=modal_app._read_checkpoint_metadata,
         list_checkpoints=modal_app._list_checkpoints,
         delete_checkpoint=modal_app._delete_checkpoint,
+        write_checkpoint_expiration=modal_app._write_checkpoint_expiration,
         checkpoint_root=str(root),
     )
     return plane, root, loaded
@@ -377,8 +380,20 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
         service = tinker.ServiceClient(base_url=url, api_key=API_KEY)
         rest = service.create_rest_client()
         training = service.create_lora_training_client(base_model=BASE_MODEL, rank=32)
-        training.save_state("first").result(timeout=30)
+        training.save_state("first", ttl_seconds=60).result(timeout=30)
         saved = training.save_state("second").result(timeout=30)
+        first_path = str(root / training.model_id / "weights" / "first")
+        first_record = CheckpointRecord.model_validate(
+            asyncio.run(plane.kv.get(checkpoint_key(first_path)))
+        )
+        assert first_record.expires_at == first_record.created_at + 60
+        first_metadata = json.loads(
+            (
+                root / training.model_id / "weights" / "first" / "metadata.json"
+            ).read_text()
+        )
+        assert first_metadata["expires_at"] == first_record.expires_at
+        assert first_metadata["checkpoint_save_seq_id"] == 1
 
         listing = rest.list_checkpoints(training.model_id).result(timeout=30)
         assert [c.checkpoint_id for c in listing.checkpoints] == [

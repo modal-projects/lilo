@@ -392,6 +392,15 @@ def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
     assert events == ["reload:ckpt"] * 3
 
     events.clear()
+    asyncio.run(modal_app._write_checkpoint_expiration(str(lora), 1234.0, 7))
+    assert json.loads((lora / "metadata.json").read_text()) == {
+        "base_model": "Qwen/Qwen3-4B",
+        "checkpoint_save_seq_id": 7,
+        "expires_at": 1234.0,
+    }
+    assert events == ["reload:ckpt", "commit:ckpt"]
+
+    events.clear()
     asyncio.run(modal_app._delete_checkpoint(str(lora)))
     assert not lora.exists()
     assert events == ["reload:ckpt", "commit:ckpt"]

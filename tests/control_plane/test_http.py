@@ -146,6 +146,10 @@ def test_training_round_trip_over_http() -> None:
             {"seq_id": 1, "path": "checkpoint", "ttl_seconds": "invalid"},
         ),
         (
+            "/api/v1/save_weights",
+            {"seq_id": 1, "path": "checkpoint", "ttl_seconds": "invalid"},
+        ),
+        (
             "/api/v1/forward_backward",
             {
                 "seq_id": 1,
