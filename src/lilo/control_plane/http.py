@@ -139,6 +139,16 @@ class SaveWeightsForSamplerBody(BaseModel):
     ttl_seconds: int | None = None
 
 
+class SaveWeightsBody(BaseModel):
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
+    model_id: str
+    seq_id: int
+    path: str | None = None
+    ttl_seconds: int | None = None
+    overwrite: bool = False
+
+
 def create_control_plane_app(
     control_plane: ControlPlane,
     definitions: Iterable[Any],
@@ -470,7 +480,7 @@ def create_control_plane_app(
         if body.model_id is None or body.seq_id is None:
             raise ValueError("model_id and seq_id are required")
         engine = await control_plane.engine_for(body.model_id)
-        body.path = control_plane.resolve_checkpoint_path(body.path)
+        body.path = await control_plane.checkpoint_path_for_load(body.path)
         request_id = await engine.load_weights(
             body.model_dump(mode="json", exclude_none=True)
         )
@@ -503,6 +513,13 @@ def create_control_plane_app(
         )
         return {"request_id": request_id, "model_id": body.model_id}
 
+    @app.post("/api/v1/save_weights")
+    async def save_weights(body: SaveWeightsBody) -> dict[str, str]:
+        request_id = await control_plane.submit_checkpoint_save(
+            body.model_dump(mode="json")
+        )
+        return {"request_id": request_id, "model_id": body.model_id}
+
     @app.post("/api/v1/forward_backward")
     async def forward_backward(request: Request) -> dict[str, str]:
         body = await request.body()
@@ -522,6 +539,7 @@ def create_control_plane_app(
     for kind in JSON_OPERATIONS:
         if kind not in {
             OperationKind.LOAD_WEIGHTS,
+            OperationKind.SAVE_WEIGHTS,
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
         }:
             operation_route(kind)

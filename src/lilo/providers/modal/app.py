@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import shutil
 import time
 from dataclasses import asdict
-from pathlib import Path
 
 import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
-from lilo.errors import RecordNotFound
 from lilo.providers.contracts import (
     Parameterization,
     SamplingTask,
@@ -22,6 +18,10 @@ from .checkpoint_storage import (
     CHECKPOINT_ROOT,
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
+    delete_checkpoint,
+    list_checkpoints,
+    read_checkpoint_metadata,
+    write_checkpoint_expiration,
 )
 from .deployment import (
     trainer_deployment_env,
@@ -56,7 +56,6 @@ SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
 FFT_POOL_TOUCH_INTERVAL = 60.0
 SWEEP_PERIOD = modal.Period(minutes=5)
-CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
 
 DEFINITIONS = (
@@ -73,74 +72,42 @@ for definition in DEFINITIONS:
     app.include(definition.app)
 
 
-def _checkpoint_path(uri: str) -> Path:
-    path = Path(uri).resolve()
-    if not path.is_relative_to(Path(CHECKPOINT_ROOT).resolve()):
-        raise ValueError("checkpoint path is outside configured storage")
-    return path
-
-
 async def _read_checkpoint_metadata(uri: str) -> dict[str, object]:
-    path = _checkpoint_path(uri)
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        metadata = json.loads(
-            await asyncio.to_thread(
-                (path / "metadata.json").read_text,
-                encoding="utf-8",
-            )
-        )
-    if not isinstance(metadata, dict):
-        raise ValueError("checkpoint metadata must be an object")
-    return metadata
-
-
-def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
-    files = [file for file in checkpoint.rglob("*") if file.is_file()]
-    metadata_file = checkpoint / "metadata.json"
-    return {
-        "model_id": checkpoint.parent.parent.name,
-        "name": checkpoint.name,
-        "path": str(checkpoint),
-        "time": checkpoint.stat().st_mtime,
-        "size_bytes": sum(file.stat().st_size for file in files),
-        "metadata": (
-            json.loads(metadata_file.read_text(encoding="utf-8"))
-            if metadata_file.is_file()
-            else None
-        ),
-    }
-
-
-def _scan_checkpoints(model_id: str | None) -> list[dict[str, object]]:
-    root = Path(CHECKPOINT_ROOT)
-    if not root.is_dir():
-        return []
-    model_dirs = [root / model_id] if model_id is not None else list(root.iterdir())
-    return [
-        _checkpoint_entry(checkpoint)
-        for model_dir in model_dirs
-        if (model_dir / "weights").is_dir()
-        for checkpoint in (model_dir / "weights").iterdir()
-        if checkpoint.is_dir()
-    ]
+    return await read_checkpoint_metadata(
+        uri,
+        root=CHECKPOINT_ROOT,
+        volume=checkpoint_volume,
+    )
 
 
 async def _list_checkpoints(model_id: str | None) -> list[dict[str, object]]:
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        return await asyncio.to_thread(_scan_checkpoints, model_id)
+    return await list_checkpoints(
+        model_id,
+        root=CHECKPOINT_ROOT,
+        volume=checkpoint_volume,
+    )
 
 
 async def _delete_checkpoint(uri: str) -> None:
-    path = _checkpoint_path(uri)
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        try:
-            await asyncio.to_thread(shutil.rmtree, path)
-        except FileNotFoundError:
-            raise RecordNotFound("checkpoint", uri) from None
-        await asyncio.to_thread(checkpoint_volume.commit)
+    await delete_checkpoint(
+        uri,
+        root=CHECKPOINT_ROOT,
+        volume=checkpoint_volume,
+    )
+
+
+async def _write_checkpoint_expiration(
+    uri: str,
+    expires_at: float | None,
+    save_seq_id: int,
+) -> None:
+    await write_checkpoint_expiration(
+        uri,
+        expires_at,
+        save_seq_id,
+        root=CHECKPOINT_ROOT,
+        volume=checkpoint_volume,
+    )
 
 
 image = (
@@ -401,6 +368,7 @@ def _plane():
         read_checkpoint_metadata=_read_checkpoint_metadata,
         list_checkpoints=_list_checkpoints,
         delete_checkpoint=_delete_checkpoint,
+        write_checkpoint_expiration=_write_checkpoint_expiration,
         checkpoint_root=CHECKPOINT_ROOT,
         reconcile_trainers=kick_trainers,
         trainer_autoscaling=lambda definition_id: (
@@ -493,12 +461,19 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
     return tuple(stopped)
 
 
-@app.function(image=image, env=TRAINER_DEPLOYMENT_ENV, schedule=SWEEP_PERIOD)
+@app.function(
+    image=image,
+    env=TRAINER_DEPLOYMENT_ENV,
+    schedule=SWEEP_PERIOD,
+    max_containers=1,
+    volumes={CHECKPOINT_ROOT: checkpoint_volume},
+)
 def cleaner():
     import asyncio
 
     async def run() -> None:
         plane = _plane()
+        await plane.sweep_expired_checkpoints()
         await plane.sweep_idle_sessions(SESSION_IDLE_TIMEOUT)
         await plane.sweep_idle_models(SESSION_IDLE_TIMEOUT)
         await plane.sweep_idle_engines()
