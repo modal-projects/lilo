@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 import uuid
@@ -411,6 +412,9 @@ class DistributedExecutor:
         try:
             result = getattr(self.backend, method)(*args, **kwargs)
         except Exception as exc:  # noqa: BLE001 - gather backend errors across ranks
+            logging.getLogger(__name__).exception(
+                "rank %d %s failed", current_rank, method
+            )
             error = exc
 
         if group is None or method == "close":

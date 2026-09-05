@@ -329,7 +329,7 @@ def test_executor_errors_fail_the_future() -> None:
         await forward_backward(server, 1)
         state = await server.retrieve_future("model-a:1", timeout=1.0)
         assert state.status == FutureStatus.FAILED
-        assert state.error == "boom"
+        assert state.error == "RuntimeError: boom"
         await server.close()
 
     asyncio.run(run())

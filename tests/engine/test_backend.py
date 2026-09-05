@@ -89,7 +89,7 @@ def test_backend_errors_cross_http() -> None:
         await server.optim_step({"model_id": "model-a", "seq_id": 1, "adam_params": {}})
         state = await server.retrieve_future("model-a:1", timeout=2.0)
         assert state.status == FutureStatus.FAILED
-        assert state.error == "cuda out of memory"
+        assert state.error == "RuntimeError: cuda out of memory"
         await server.close()
         await executor.close()
 

@@ -12,6 +12,9 @@ from ..common.modeling import (
 
 
 def create_fft_model_and_optimizer(config: EngineModelConfig):
+    import torch._dynamo
+
+    torch._dynamo.config.recompile_limit = config.dynamo_recompile_limit
     bridge, provider, _ = model_provider(config)
     provider.finalize()
     model = distributed_model(
