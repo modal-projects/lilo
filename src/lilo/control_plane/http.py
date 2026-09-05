@@ -278,7 +278,7 @@ def create_control_plane_app(
         return {
             "pjwt_auth_enabled": False,
             "credential_default_source": "api_key",
-            "parallel_fwdbwd_chunks": False,
+            "parallel_fwdbwd_chunks": True,
             "proto_write_fwdbwd": False,
             "use_pyqwest_transport": False,
             "create_model_via_load_weights": True,
