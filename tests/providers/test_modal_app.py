@@ -1,4 +1,5 @@
 import asyncio
+import time
 import importlib
 import json
 from types import SimpleNamespace
@@ -293,6 +294,36 @@ def test_cleanup_redeploys_pool_touched_while_stopping(monkeypatch) -> None:
     assert asyncio.run(run()) == (spec.app_name,)
     assert asyncio.run(registry.get(key)) is None
     assert events == [f"stop:{spec.app_name}", f"deploy:{spec.app_name}"]
+
+
+def test_cleanup_stops_long_idle_pool_with_lingering_replicas(monkeypatch) -> None:
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    spec = FFTPoolSpec("definition", "model", False, 3)
+    key = f"fft_pool:{spec.app_name}"
+    registry = InMemoryKeyValueStore()
+    stopped = []
+
+    class Pool:
+        def __init__(self, *args):
+            pass
+
+        async def discover_replicas_async(self):
+            return ["replica"]
+
+    monkeypatch.setattr(modal_app, "fft_pool_kv", lambda: registry)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "ModalFlashPool", Pool)
+    monkeypatch.setattr(modal_app, "stop_pool", lambda s: stopped.append(s.app_name))
+
+    async def run(idle: float) -> tuple[str, ...]:
+        await registry.put(key, {**spec.as_dict(), "touched_at": time.time() - idle})
+        return await modal_app._cleanup_fft_pools()
+
+    assert asyncio.run(run(modal_app.FFT_POOL_IDLE_TIMEOUT + 60)) == ()
+    assert asyncio.run(registry.get(key)) is not None
+    assert asyncio.run(run(modal_app.FFT_POOL_ORPHAN_TIMEOUT + 60)) == (spec.app_name,)
+    assert asyncio.run(registry.get(key)) is None
+    assert stopped == [spec.app_name]
 
 
 def test_cleaner_loses_models_on_removed_definitions(monkeypatch) -> None:
