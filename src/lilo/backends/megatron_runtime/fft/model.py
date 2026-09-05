@@ -19,8 +19,31 @@ def create_fft_model_and_optimizer(config: EngineModelConfig):
         config,
         distributed_optimizer=config.use_distributed_optimizer,
     )
+    if config.fp32_lm_head:
+        for chunk in model:
+            apply_fp32_lm_head(chunk)
     optimizer = create_fft_optimizer(config, model)
     return model, optimizer, bridge
+
+
+def apply_fp32_lm_head(module) -> None:
+    for name, layer in module.named_modules():
+        if not name.endswith("output_layer"):
+            continue
+        impl = layer._forward_impl
+
+        def forward_impl(
+            *, input, weight, bias, gradient_accumulation_fusion, _impl=impl, **kwargs
+        ):
+            return _impl(
+                input=input.float(),
+                weight=weight.float(),
+                bias=None if bias is None else bias.float(),
+                gradient_accumulation_fusion=False,
+                **kwargs,
+            )
+
+        layer._forward_impl = forward_impl
 
 
 def create_fft_optimizer(config: EngineModelConfig, model):

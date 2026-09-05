@@ -863,3 +863,43 @@ def test_fft_sampler_failure_discards_pending_capture(monkeypatch) -> None:
         backend.persist_sampler_snapshot("capture")
 
     assert backend._sampler_captures == {}
+
+
+def test_fp32_lm_head_upcasts_output_projection() -> None:
+    torch = pytest.importorskip("torch")
+
+    from lilo.backends.megatron_runtime.fft.model import apply_fp32_lm_head
+
+    calls: list[dict] = []
+
+    class Layer(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(2, 3, dtype=torch.bfloat16))
+            self._forward_impl = self._impl
+
+        def _impl(self, **kwargs):
+            calls.append(kwargs)
+            return kwargs["input"] @ kwargs["weight"].t()
+
+    model = torch.nn.Module()
+    model.decoder = torch.nn.Linear(3, 3)
+    model.output_layer = Layer()
+    apply_fp32_lm_head(model)
+
+    hidden = torch.ones(4, 3, dtype=torch.bfloat16)
+    out = model.output_layer._forward_impl(
+        input=hidden,
+        weight=model.output_layer.weight,
+        bias=None,
+        gradient_accumulation_fusion=True,
+        sequence_parallel=True,
+    )
+    out.sum().backward()
+
+    assert out.dtype == torch.float32
+    assert calls[0]["input"].dtype == calls[0]["weight"].dtype == torch.float32
+    assert calls[0]["gradient_accumulation_fusion"] is False
+    assert calls[0]["sequence_parallel"] is True
+    assert model.output_layer.weight.grad is not None
+    assert not hasattr(model.decoder, "_forward_impl")

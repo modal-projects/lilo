@@ -7,13 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from tinker import AdamParams, LoraConfig
 from tinker.lib._pydantic_conv import to_pydantic_input
 from tinker.types._pydantic_types.forward_backward_input import (
-    ForwardBackwardInput as ForwardBackwardInputModel,
+    ForwardBackwardInput as TinkerForwardBackwardInputModel,
 )
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
-from lilo.backends.contract import ModelSpec
+from lilo.backends.contract import LossFn, ModelSpec
 
 from .api import OperationKind
+
+
+class ForwardBackwardInputModel(TinkerForwardBackwardInputModel):
+    loss_fn: LossFn  # type: ignore[assignment]
 
 
 class OperationPayloadModel(BaseModel):

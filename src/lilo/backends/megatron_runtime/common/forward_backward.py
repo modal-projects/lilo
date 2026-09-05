@@ -82,6 +82,7 @@ def _loss_config(loss_name: str, config: dict[str, float]) -> dict[str, float]:
         "ppo": frozenset({"clip_low_threshold", "clip_high_threshold"}),
         "cispo": frozenset({"clip_low_threshold", "clip_high_threshold"}),
         "dro": frozenset({"beta"}),
+        "dppo": frozenset({"tv_threshold"}),
     }
     if loss_name not in allowed:
         raise ValueError(f"unsupported loss_fn: {loss_name}")
@@ -106,7 +107,12 @@ def _loss_config(loss_name: str, config: dict[str, float]) -> dict[str, float]:
             raise ValueError("clip thresholds must satisfy 0 <= low <= high")
     if loss_name == "dro" and values.get("beta", 0.05) < 0:
         raise ValueError("beta must be non-negative")
+    if loss_name == "dppo" and values.get("tv_threshold", 0.1) < 0:
+        raise ValueError("tv_threshold must be non-negative")
     return values
+
+
+RL_LOSSES = frozenset({"importance_sampling", "ppo", "cispo", "dro", "dppo"})
 
 
 def build_sequence_batches(
@@ -149,7 +155,7 @@ def build_sequence_batches(
             weights = list(weights_input.data) if weights_input is not None else []
             if loss_name == "cross_entropy":
                 weights = weights or [1.0] * len(input_ids)
-            elif loss_name in {"importance_sampling", "ppo", "cispo", "dro"}:
+            elif loss_name in RL_LOSSES:
                 logprobs = datum.loss_fn_inputs.get("logprobs")
                 advantage_input = datum.loss_fn_inputs.get("advantages")
                 sampling_logprobs = list(logprobs.data) if logprobs is not None else []
@@ -376,12 +382,19 @@ def _loss(
     loss_name = batch["loss_name"]
     if loss_name == "cross_entropy":
         loss = -(logprobs * mask).sum()
-    elif loss_name in {"importance_sampling", "ppo", "cispo", "dro"}:
+    elif loss_name in RL_LOSSES:
         sampling_logprobs = batch["sampling_logprobs"].to(logprobs.device).reshape(-1)
         advantages = batch["advantages"].to(logprobs.device).reshape(-1)
         probability_ratio = torch.exp(logprobs - sampling_logprobs)
         if loss_name == "importance_sampling":
             objective = probability_ratio * advantages
+        elif loss_name == "dppo":
+            threshold = batch["loss_config"].get("tv_threshold", 0.1)
+            ratio = probability_ratio.detach()
+            divergence = (ratio * sampling_logprobs.exp() - sampling_logprobs.exp()).abs()
+            leaving = ((advantages > 0) & (ratio > 1)) | ((advantages < 0) & (ratio < 1))
+            blocked = leaving & (divergence > threshold)
+            objective = probability_ratio * advantages * (~blocked).to(logprobs.dtype)
         elif loss_name == "ppo":
             low = batch["loss_config"].get("clip_low_threshold", 0.8)
             high = batch["loss_config"].get("clip_high_threshold", 1.2)
@@ -694,6 +707,7 @@ def build_outputs(
                     "ppo": "MegatronPPOLoss",
                     "cispo": "MegatronCISPOLoss",
                     "dro": "MegatronDROLoss",
+                    "dppo": "MegatronDPPOLoss",
                 }[str(batch.loss_fn)],
                 loss_fn_outputs=loss_outputs,
                 metrics={

@@ -58,6 +58,7 @@ class EngineModelConfig:
     attention_backend: str = "flash"
     cross_entropy_loss_fusion: bool = False
     defer_fp32_logits: bool = False
+    fp32_lm_head: bool = False
     provider_overrides: dict[str, object] = field(default_factory=dict)
 
     overlap_grad_reduce: bool = False

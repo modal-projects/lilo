@@ -18,6 +18,7 @@ LossFn = Literal[
     "ppo",
     "cispo",
     "dro",
+    "dppo",
 ]
 
 

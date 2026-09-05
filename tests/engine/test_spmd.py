@@ -548,3 +548,25 @@ def test_persistence_does_not_block_command_lane() -> None:
         assert (await persisting)["path"] == "/checkpoints/snapshot-1"
 
     asyncio.run(run())
+
+
+def test_parse_forward_backward_accepts_lilo_loss_fns() -> None:
+    datum = {
+        "model_input": {"chunks": [{"tokens": [1, 2]}]},
+        "loss_fn_inputs": {
+            "target_tokens": [2, 3],
+            "logprobs": [-0.5, -0.5],
+            "advantages": [1.0, -1.0],
+        },
+    }
+    payload = parse_operation_payload(
+        OperationKind.FORWARD_BACKWARD,
+        {"data": [datum], "loss_fn": "dppo", "loss_fn_config": {"tv_threshold": 0.2}},
+    )
+    assert payload.loss_fn == "dppo"
+    assert payload.loss_fn_config == {"tv_threshold": 0.2}
+    with pytest.raises(ValueError, match="loss_fn"):
+        parse_operation_payload(
+            OperationKind.FORWARD_BACKWARD,
+            {"data": [datum], "loss_fn": "nope"},
+        )
