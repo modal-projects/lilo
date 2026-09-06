@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import threading
 import uuid
@@ -28,6 +29,7 @@ from .operations import (
 )
 
 DISTRIBUTED_COLLECTIVE_TIMEOUT = timedelta(hours=1)
+PERSISTENCE_LANE_TIMEOUT = timedelta(days=365)
 
 
 def _serialize_forward_output(output: ForwardBackwardOutput) -> dict[str, Any]:
@@ -71,12 +73,12 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
         else None
     )
     checkpoint_persistence_group = (
-        dist.new_group(backend="gloo", timeout=DISTRIBUTED_COLLECTIVE_TIMEOUT)
+        dist.new_group(backend="gloo", timeout=PERSISTENCE_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
     sampler_persistence_group = (
-        dist.new_group(backend="gloo", timeout=DISTRIBUTED_COLLECTIVE_TIMEOUT)
+        dist.new_group(backend="gloo", timeout=PERSISTENCE_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
@@ -335,6 +337,11 @@ class DistributedExecutor:
                 self._dispatch(group, method, args, kwargs)
                 if method == "close":
                     return
+        except BaseException:
+            logging.getLogger(__name__).exception(
+                "follower %s exited", threading.current_thread().name
+            )
+            raise
         finally:
             if checkpoint_persistence is not None:
                 checkpoint_persistence.join()
