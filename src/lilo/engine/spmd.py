@@ -28,8 +28,7 @@ from .operations import (
     SaveWeightsPayload,
 )
 
-DISTRIBUTED_COLLECTIVE_TIMEOUT = timedelta(hours=1)
-PERSISTENCE_LANE_TIMEOUT = timedelta(days=365)
+COMMAND_LANE_TIMEOUT = timedelta(days=365)
 
 
 def _serialize_forward_output(output: ForwardBackwardOutput) -> dict[str, Any]:
@@ -68,17 +67,17 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
     os.environ.setdefault("MASTER_PORT", "29541")
     dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     command_group = (
-        dist.new_group(backend="gloo", timeout=DISTRIBUTED_COLLECTIVE_TIMEOUT)
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
     checkpoint_persistence_group = (
-        dist.new_group(backend="gloo", timeout=PERSISTENCE_LANE_TIMEOUT)
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
     sampler_persistence_group = (
-        dist.new_group(backend="gloo", timeout=PERSISTENCE_LANE_TIMEOUT)
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
