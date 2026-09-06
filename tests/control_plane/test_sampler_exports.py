@@ -287,3 +287,26 @@ def test_durable_export_result_finalizes_without_engine_future() -> None:
         assert artifact.created_at == 123.0
 
     asyncio.run(run())
+
+
+def test_exports_sharing_a_publish_version_both_finalize() -> None:
+    async def run() -> None:
+        plane, _, model_id = await plane_with_model()
+        first = await plane.submit_sampler_export(
+            export_request(model_id, seq_id=1, path=None, sampling_session_seq_id=0)
+        )
+        resolution = await plane.retrieve(first, timeout=1.0)
+        assert resolution.status == FutureResolutionStatus.COMPLETE
+        second = await plane.submit_sampler_export(
+            export_request(model_id, seq_id=2, path="eval")
+        )
+        resolution = await plane.retrieve(second, timeout=1.0)
+        assert resolution.status == FutureResolutionStatus.COMPLETE
+        artifact = await plane.get_sampler_artifact(resolution.result["path"])
+        assert artifact.publish_version == 7
+        latest = await plane.get_sampler_artifact(
+            f"tinker://{model_id}:train:0/sampler_weights/latest/000007"
+        )
+        assert latest.export_seq_id == 1
+
+    asyncio.run(run())

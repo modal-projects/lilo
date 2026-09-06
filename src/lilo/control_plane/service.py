@@ -985,7 +985,10 @@ class ControlPlane:
             sampler_artifact_key(latest_version_path),
             versioned_latest.model_dump(mode="json"),
         )
-        if SamplerArtifactRecord.model_validate(inserted.value) != versioned_latest:
+        stored_latest = SamplerArtifactRecord.model_validate(inserted.value)
+        if stored_latest.model_copy(
+            update={"export_seq_id": export.seq_id, "created_at": completed_at}
+        ) != versioned_latest:
             raise SequenceConflict(model.model_id, export.seq_id)
         if export.name is not None:
             model_path = self._sampler_model_path(model.model_id, export.name)
