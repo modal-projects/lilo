@@ -7,7 +7,6 @@ import threading
 import uuid
 from collections.abc import Mapping
 from dataclasses import asdict
-from datetime import timedelta
 from typing import Any
 
 from tinker import AdamParams, ForwardBackwardOutput
@@ -27,9 +26,6 @@ from .operations import (
     SaveWeightsForSamplerPayload,
     SaveWeightsPayload,
 )
-
-COMMAND_LANE_TIMEOUT = timedelta(days=365)
-
 
 def _serialize_forward_output(output: ForwardBackwardOutput) -> dict[str, Any]:
     loss_fn_outputs = []
@@ -67,17 +63,17 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
     os.environ.setdefault("MASTER_PORT", "29541")
     dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     command_group = (
-        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
+        dist.new_group(backend="gloo")
         if world_size > 1
         else None
     )
     checkpoint_persistence_group = (
-        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
+        dist.new_group(backend="gloo")
         if world_size > 1
         else None
     )
     sampler_persistence_group = (
-        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
+        dist.new_group(backend="gloo")
         if world_size > 1
         else None
     )

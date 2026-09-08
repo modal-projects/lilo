@@ -370,7 +370,11 @@ def test_initializes_distributed_runtime_from_environment(monkeypatch) -> None:
     assert sampler_persistence_group == "gloo"
     assert calls[0] == ("device", 3)
     assert calls[1][0] == "init"
-    assert [call[0] for call in calls[2:]] == ["group", "group", "group"]
+    assert calls[2:] == [
+        ("group", {"backend": "gloo"}),
+        ("group", {"backend": "gloo"}),
+        ("group", {"backend": "gloo"}),
+    ]
 
 
 def test_persistence_operations_use_separate_groups(monkeypatch) -> None:
