@@ -30,6 +30,7 @@ from .deployment import (
 from .definitions import (
     qwen3_5_35b_a3b_full_64k,
     qwen3_5_4b_full_64k,
+    qwen3_5_9b_base_deepspeed_full_2k,
     qwen3_5_9b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -62,6 +63,7 @@ _pool_touches: dict[str, float] = {}
 
 DEFINITIONS = (
     qwen3_5_4b_full_64k,
+    qwen3_5_9b_base_deepspeed_full_2k,
     qwen3_5_9b_full_64k,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,

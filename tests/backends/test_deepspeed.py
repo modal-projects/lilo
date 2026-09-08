@@ -29,6 +29,7 @@ def deepspeed_runtime_imports():
     deepspeed.initialize = MagicMock()
     transformers = ModuleType("transformers")
     transformers.AutoModelForCausalLM = MagicMock()
+    transformers.AutoModelForImageTextToText = MagicMock()
     with (
         backend_runtime_imports(),
         patch.dict(
@@ -45,7 +46,10 @@ def deepspeed_runtime_imports():
 with deepspeed_runtime_imports():
     from lilo.backends import deepspeed_full
     from lilo.backends.deepspeed_full import DeepSpeedFullBackend
-    from lilo.backends.deepspeed_runtime.training import apply_adam_params
+    from lilo.backends.deepspeed_runtime.training import (
+        _pad_token_id,
+        apply_adam_params,
+    )
 
 
 def test_deepspeed_config_uses_unmanaged_zero_two() -> None:
@@ -82,6 +86,22 @@ def test_deepspeed_config_uses_unmanaged_zero_two() -> None:
 def test_minimal_backend_rejects_zero_three() -> None:
     with pytest.raises(ValueError, match="ZeRO stages 1 and 2"):
         DeepSpeedBackendConfig(hf_checkpoint="/model", zero_stage=3)
+
+
+def test_deepspeed_config_rejects_unknown_auto_model_class() -> None:
+    with pytest.raises(ValueError, match="unsupported auto_model_class"):
+        DeepSpeedBackendConfig(
+            hf_checkpoint="/model",
+            auto_model_class="unknown",
+        )
+
+
+def test_multimodal_config_uses_text_pad_token() -> None:
+    config = SimpleNamespace(
+        text_config=SimpleNamespace(pad_token_id=None, eos_token_id=248044)
+    )
+
+    assert _pad_token_id(config) == 248044
 
 
 def test_adam_params_do_not_replace_engine_gradient_clipping_method() -> None:

@@ -22,7 +22,7 @@ image = (
         "deepspeed",
         "huggingface-hub",
         "safetensors",
-        "transformers>=4.51,<5",
+        "transformers>=5.15,<5.16",
     )
     .add_local_python_source("lilo")
 )

@@ -39,9 +39,7 @@ def run_forward_backward(
         loss_name=batch.loss_fn,
         loss_config=dict(batch.loss_fn_config),
         max_sequence_length=max_sequence_length,
-        pad_token_id=engine.module.config.pad_token_id
-        or engine.module.config.eos_token_id
-        or 0,
+        pad_token_id=_pad_token_id(engine.module.config),
         dummy=is_dummy,
     )
     device = engine.device
@@ -125,6 +123,15 @@ def run_forward_backward(
                 ),
             },
         ),
+    )
+
+
+def _pad_token_id(config) -> int:
+    text_config = getattr(config, "text_config", config)
+    return (
+        getattr(text_config, "pad_token_id", None)
+        or getattr(text_config, "eos_token_id", None)
+        or 0
     )
 
 

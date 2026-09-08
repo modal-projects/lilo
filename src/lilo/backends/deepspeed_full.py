@@ -13,7 +13,7 @@ import modal
 import torch
 import torch.distributed as dist
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
-from transformers import AutoModelForCausalLM
+from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
 
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 from lilo.inference.fft_bulletin import FFTSnapshotBulletin
@@ -85,7 +85,11 @@ class DeepSpeedFullBackend(CommandBackend):
 
     def _create_engine(self, checkpoint: str) -> None:
         dtype = torch.bfloat16 if self.config.bf16 else torch.float32
-        model = AutoModelForCausalLM.from_pretrained(
+        model_loader = {
+            "causal_lm": AutoModelForCausalLM,
+            "image_text_to_text": AutoModelForImageTextToText,
+        }[self.config.auto_model_class]
+        model = model_loader.from_pretrained(
             checkpoint,
             dtype=dtype,
             local_files_only=True,

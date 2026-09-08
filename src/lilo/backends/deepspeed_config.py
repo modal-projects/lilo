@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,7 @@ class DeepSpeedOptimizerConfig:
 @dataclass(frozen=True)
 class DeepSpeedBackendConfig:
     hf_checkpoint: str
+    auto_model_class: Literal["causal_lm", "image_text_to_text"] = "causal_lm"
     zero_stage: int = 2
     micro_batch_size: int = 1
     max_sequence_length: int = 2048
@@ -27,6 +28,8 @@ class DeepSpeedBackendConfig:
     )
 
     def __post_init__(self) -> None:
+        if self.auto_model_class not in {"causal_lm", "image_text_to_text"}:
+            raise ValueError(f"unsupported auto_model_class: {self.auto_model_class}")
         if self.zero_stage not in {1, 2}:
             raise ValueError("minimal DeepSpeed backend supports ZeRO stages 1 and 2")
         if self.micro_batch_size < 1:
