@@ -6,9 +6,11 @@ from tests.support import EchoExecutor, TinkerStubSampler
 from lilo.control_plane import ControlPlane, FutureResolutionStatus
 from lilo.control_plane.keys import (
     sample_task_key,
+    sampling_session_creation_key,
+    sampling_session_key,
     session_key,
 )
-from lilo.errors import SequenceConflict
+from lilo.errors import RecordNotFound, RecordUnavailable, SequenceConflict
 from lilo.providers import SamplingTask
 from lilo.providers.local import (
     InMemoryKeyValueStore,
@@ -82,16 +84,58 @@ def test_sampling_sessions_and_submissions_are_idempotent() -> None:
 def test_session_collection_removes_task_store() -> None:
     async def run() -> None:
         plane, _, session_id, sampling_session_id = await sampling_plane()
-        await plane.submit_sample(sample_request(sampling_session_id))
+        request_id = await plane.submit_sample(sample_request(sampling_session_id))
         task_stores = plane.sampling_task_stores
         assert isinstance(task_stores, InMemorySessionKeyValueStores)
         store = task_stores.for_session(session_id)
         assert await store.get(sample_task_key(sampling_session_id, 0)) is not None
 
         await plane.close_session(session_id, "done")
+        with pytest.raises(RecordUnavailable):
+            await plane.get_sampling_session(sampling_session_id)
+        with pytest.raises(RecordUnavailable):
+            await plane.retrieve(request_id)
         await plane.sweep_idle_sessions(0)
 
         assert session_id not in task_stores.stores
+        assert await plane.kv.get(sampling_session_key(sampling_session_id)) is not None
+        assert await plane.kv.get(sampling_session_creation_key(session_id, 0)) is not None
+        with pytest.raises(RecordNotFound):
+            await plane.get_sampling_session(sampling_session_id)
+        with pytest.raises(RecordNotFound):
+            await plane.submit_sample(sample_request(sampling_session_id))
+        with pytest.raises(RecordNotFound):
+            await plane.retrieve(request_id)
+        assert session_id not in task_stores.stores
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("session_task_stores", [True, False])
+def test_session_sweep_never_lists_sampling_metadata(session_task_stores) -> None:
+    class LifecycleStore(InMemoryKeyValueStore):
+        async def list_items(self, *prefixes):
+            assert set(prefixes) <= {
+                "session:", "session_last_seen:", "session_closed:",
+                "model:", "model_creation:", "placement:",
+            }
+            return await super().list_items(*prefixes)
+
+    async def run() -> None:
+        kv = LifecycleStore()
+        plane = ControlPlane(
+            kv,
+            LocalEnginePlatform(DEFINITION, EchoExecutor),
+            sampling_task_stores=(
+                InMemorySessionKeyValueStores() if session_task_stores else None
+            ),
+        )
+        session = await plane.create_session()
+        for i in range(5000):
+            await kv.put(f"sampling_session:{i}", {"unrelated": "metadata"})
+        assert await plane.sweep_idle_sessions(0) == (session.session_id,)
+        assert await kv.get(session_key(session.session_id)) is None
+        assert await kv.get("sampling_session:0") is not None
 
     asyncio.run(run())
 

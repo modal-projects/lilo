@@ -547,6 +547,7 @@ class ControlPlane:
                 return session
             if stored.session is not None:
                 session = SamplingSessionRecord.model_validate(stored.session)
+                await self._validate_sampling_session(session)
                 await self.kv.put(
                     sampling_session_key(session.sampling_session_id),
                     session.model_dump(mode="json"),
@@ -626,6 +627,7 @@ class ControlPlane:
             raise SequenceConflict(session_id, sampling_session_seq_id)
         if stored.session is not None:
             session = SamplingSessionRecord.model_validate(stored.session)
+        await self._validate_sampling_session(session)
         result = await self.kv.put_if_absent(
             sampling_session_key(session.sampling_session_id),
             session.model_dump(mode="json"),
@@ -646,9 +648,20 @@ class ControlPlane:
         artifact = SamplerArtifactRecord.model_validate(value)
         if artifact.model_path != model_path:
             raise RecordNotFound("sampler artifact", model_path)
-        if artifact.expires_at is not None and artifact.expires_at <= self.clock():
-            raise RecordUnavailable("sampler artifact", model_path, "expired")
+        self._check_expiry("sampler artifact", model_path, artifact.expires_at)
         return artifact
+
+    def _check_expiry(
+        self, kind: str, key: str, expires_at: float | None
+    ) -> None:
+        if expires_at is not None and expires_at <= self.clock():
+            raise RecordUnavailable(kind, key, "expired")
+
+    async def _validate_sampling_session(self, session: SamplingSessionRecord) -> None:
+        self._check_expiry(
+            "sampling session", session.sampling_session_id, session.expires_at
+        )
+        await self._open_session(session.session_id)
 
     async def get_sampling_session(
         self,
@@ -658,15 +671,11 @@ class ControlPlane:
         if value is None:
             raise RecordNotFound("sampling session", sampling_session_id)
         session = SamplingSessionRecord.model_validate(value)
-        if session.expires_at is not None and session.expires_at <= self.clock():
-            raise RecordUnavailable(
-                "sampling session",
-                sampling_session_id,
-                "expired",
-            )
+        await self._validate_sampling_session(session)
         return session
 
     async def _ensure_sampling_pool(self, session: SamplingSessionRecord) -> None:
+        await self._validate_sampling_session(session)
         if self.ensure_sampling_pool is not None:
             await self.ensure_sampling_pool(session)
 
@@ -875,6 +884,7 @@ class ControlPlane:
                     and artifact.model_id == export.model_id
                     and artifact.export_seq_id == export.seq_id
                 ):
+                    self._check_expiry("sampler artifact", path, artifact.expires_at)
                     return {"type": "save_weights_for_sampler", "path": path}
         else:
             assert export.sampling_session_seq_id is not None
@@ -961,6 +971,20 @@ class ControlPlane:
             if export.ttl_seconds is not None
             else None
         )
+        if export.name is not None:
+            self._check_expiry(
+                "sampler artifact",
+                self._sampler_model_path(model.model_id, export.name),
+                expires_at,
+            )
+        else:
+            assert export.sampling_session_seq_id is not None
+            self._check_expiry(
+                "sampling session",
+                self._sampling_session_id(model.session_id, export.sampling_session_seq_id),
+                expires_at,
+            )
+            await self._open_session(model.session_id)
         latest_path = self._sampler_model_path(model.model_id, "latest")
         latest_version_path = self._latest_sampler_model_path(
             model.model_id,
@@ -1324,14 +1348,6 @@ class ControlPlane:
             "model_creation:",
             "placement:",
         )
-        sampling_prefixes = [
-            "sampling_session:",
-            "sampling_session_creation:",
-        ]
-        if self.sampling_task_stores is None:
-            sampling_prefixes.append("sample_task:")
-        sampling_items = await self.kv.list_items(*sampling_prefixes)
-
         sessions: list[str] = []
         last_seen: dict[str, float] = {}
         closed_sessions: set[str] = set()
@@ -1358,22 +1374,6 @@ class ControlPlane:
             elif key.startswith("model:"):
                 model = ModelRecord.model_validate(value)
                 models_by_session[model.session_id].append(model)
-
-        sampling_by_session: dict[str, list[SamplingSessionRecord]] = defaultdict(list)
-        sampling_creations: dict[str, list[str]] = defaultdict(list)
-        tasks_by_sampling: dict[str, list[tuple[str, str]]] = defaultdict(list)
-        for key, value in sampling_items:
-            if key.startswith("sample_task:"):
-                task = SampleTaskRecord.model_validate(value)
-                tasks_by_sampling[task.sampling_session_id].append(
-                    (key, f"sampling_call:{task.request_id}")
-                )
-            elif key.startswith("sampling_session_creation:"):
-                creation = SamplingSessionCreationRecord.model_validate(value)
-                sampling_creations[creation.session_id].append(key)
-            elif key.startswith("sampling_session:"):
-                session = SamplingSessionRecord.model_validate(value)
-                sampling_by_session[session.session_id].append(session)
 
         closed: list[str] = []
         for session_id in sessions:
@@ -1410,17 +1410,6 @@ class ControlPlane:
                 await self.kv.delete(model_key(model.model_id))
                 await self.kv.delete(trainer_demand_key(model.model_id))
             for key in creations_by_session[session_id]:
-                await self.kv.delete(key)
-            for sampling_session in sampling_by_session[session_id]:
-                await self.kv.delete(
-                    sampling_session_key(sampling_session.sampling_session_id)
-                )
-                for task_key, call_key in tasks_by_sampling[
-                    sampling_session.sampling_session_id
-                ]:
-                    await self.kv.delete(task_key)
-                    await self.kv.delete(call_key)
-            for key in sampling_creations[session_id]:
                 await self.kv.delete(key)
             await self.kv.delete(session_last_seen_key(session_id))
             await self.kv.delete(session_key(session_id))
@@ -1477,35 +1466,6 @@ class ControlPlane:
             await self.engines.stop_instance(instance.instance_id)
             stopped.append(instance.instance_id)
         return tuple(stopped)
-
-    async def sweep_expired_sampling(self) -> tuple[str, ...]:
-        now = self.clock()
-        expired: list[str] = []
-        expired_sessions: list[SamplingSessionRecord] = []
-        for key, value in await self.kv.list_items(
-            "sampler_artifact:",
-            "sampling_session:",
-        ):
-            if key.startswith("sampler_artifact:"):
-                record = SamplerArtifactRecord.model_validate(value)
-            else:
-                record = SamplingSessionRecord.model_validate(value)
-            if record.expires_at is None or record.expires_at > now:
-                continue
-            await self.kv.delete(key)
-            expired.append(key)
-            if isinstance(record, SamplingSessionRecord):
-                expired_sessions.append(record)
-        for session in expired_sessions:
-            store = self._sampling_task_store(session.session_id)
-            for key, value in await store.list_items(
-                f"sample_task:{session.sampling_session_id}:"
-            ):
-                task = SampleTaskRecord.model_validate(value)
-                await store.delete(key)
-                await store.delete(f"sampling_call:{task.request_id}")
-                expired.append(key)
-        return tuple(expired)
 
     async def _unload_session_models(self, session_id: str) -> None:
         definitions = set()
