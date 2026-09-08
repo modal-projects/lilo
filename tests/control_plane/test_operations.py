@@ -112,8 +112,24 @@ def test_engine_death_loses_futures_and_rejects_new_work() -> None:
 
         resolution = await plane.retrieve(request_id)
         assert resolution.status == FutureResolutionStatus.LOST
+        assert await plane.kv.get(placement_key(model_id)) is None
+        assert await plane.kv.get(trainer_demand_key(model_id)) is None
         with pytest.raises(ModelLost):
             await plane.engine_for(model_id)
+
+    asyncio.run(run())
+
+
+def test_engine_death_seen_by_creation_future_releases_demand() -> None:
+    async def run() -> None:
+        plane, engines, _, model_id = await plane_with_model()
+        instance = await engines.ensure_instance(DEFINITION)
+        await engines.mark_dead(instance.instance_id)
+
+        creation = await plane.retrieve(f"{model_id}:0")
+        assert creation.status == FutureResolutionStatus.LOST
+        assert await plane.kv.get(placement_key(model_id)) is None
+        assert await plane.kv.get(trainer_demand_key(model_id)) is None
 
     asyncio.run(run())
 

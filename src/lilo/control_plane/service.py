@@ -790,8 +790,9 @@ class ControlPlane:
                     error="model lost before producing a result",
                 )
             return FutureResolution(request_id, FutureResolutionStatus.PENDING)
-        instance = await self.engines.get_instance(placement.engine_instance_id)
-        if instance is None or instance.terminal:
+        try:
+            instance = await self._live_instance(placement)
+        except ModelLost:
             return FutureResolution(
                 request_id,
                 FutureResolutionStatus.LOST,
@@ -1115,8 +1116,9 @@ class ControlPlane:
             )
         if placement is None:
             return FutureResolution(request_id, FutureResolutionStatus.PENDING)
-        instance = await self.engines.get_instance(placement.engine_instance_id)
-        if instance is None or instance.terminal:
+        try:
+            instance = await self._live_instance(placement)
+        except ModelLost:
             return FutureResolution(
                 request_id,
                 FutureResolutionStatus.LOST,
