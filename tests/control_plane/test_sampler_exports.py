@@ -4,7 +4,11 @@ import pytest
 
 from tests.support import TinkerStubExecutor
 from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.control_plane.keys import sampler_export_result_key
+from lilo.control_plane.keys import (
+    sampler_artifact_key,
+    sampler_export_result_key,
+    sampling_session_key,
+)
 from lilo.control_plane.records import SamplerExportResultRecord
 from lilo.engine.api import OperationKind
 from lilo.errors import RecordNotFound, RecordUnavailable, SequenceConflict
@@ -222,20 +226,123 @@ def test_ttl_starts_at_completion_and_propagates_to_session() -> None:
         now = 210.0
         with pytest.raises(RecordUnavailable):
             await plane.get_sampling_session(session.sampling_session_id)
-        assert (
+        with pytest.raises(RecordUnavailable):
             await plane.create_sampling_session(
                 session_id=session_id,
                 sampling_session_seq_id=0,
                 model_path=result.result["path"],
             )
-            == session
+        assert await plane.kv.get(sampler_artifact_key(result.result["path"])) is not None
+        assert await plane.kv.get(sampling_session_key(session.sampling_session_id)) is not None
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("missing_record", [False, True])
+def test_expired_creation_retry_never_ensures_pool(missing_record) -> None:
+    async def run() -> None:
+        now = 100.0
+        plane, session_id, model_id = await plane_with_model(lambda: now)
+        request_id = await plane.submit_sampler_export(export_request(model_id, ttl_seconds=10))
+        result = await plane.retrieve(request_id, timeout=1.0)
+        kwargs = dict(
+            session_id=session_id,
+            sampling_session_seq_id=0,
+            model_path=result.result["path"],
         )
-        expired = await plane.sweep_expired_sampling()
-        assert len(expired) == 2
-        with pytest.raises(RecordNotFound):
-            await plane.get_sampler_artifact(result.result["path"])
-        with pytest.raises(RecordNotFound):
-            await plane.get_sampling_session(session.sampling_session_id)
+        session = await plane.create_sampling_session(**kwargs)
+        if missing_record:
+            await plane.kv.delete(sampling_session_key(session.sampling_session_id))
+
+        async def unexpected_pool(_):
+            pytest.fail("expired creation must not ensure a pool")
+
+        plane.ensure_sampling_pool = unexpected_pool
+        now = 110.0
+        with pytest.raises(RecordUnavailable, match="expired"):
+            await plane.create_sampling_session(**kwargs)
+        if missing_record:
+            assert await plane.kv.get(sampling_session_key(session.sampling_session_id)) is None
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("named", [False, True])
+@pytest.mark.parametrize("missing_record", [False, True])
+def test_expired_export_retry_never_ensures_pool(named, missing_record) -> None:
+    async def run() -> None:
+        now = 100.0
+        plane, _, model_id = await plane_with_model(lambda: now)
+        request = export_request(
+            model_id,
+            path="checkpoint" if named else None,
+            sampling_session_seq_id=None if named else 0,
+            ttl_seconds=10,
+        )
+        request_id = await plane.submit_sampler_export(request)
+        result = await plane.retrieve(request_id, timeout=1.0)
+        key = (
+            sampler_artifact_key(result.result["path"])
+            if named else sampling_session_key(result.result["sampling_session_id"])
+        )
+        if missing_record:
+            await plane.kv.delete(key)
+
+        async def unexpected_pool(_):
+            pytest.fail("expired export must not ensure a pool")
+
+        plane.ensure_sampling_pool = unexpected_pool
+        now = 110.0
+        with pytest.raises(RecordUnavailable, match="expired"):
+            await plane.retrieve(request_id, timeout=1.0)
+        if missing_record:
+            assert await plane.kv.get(key) is None
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("missing_record", [False, True])
+def test_closed_parent_export_retry_never_ensures_pool(missing_record) -> None:
+    async def run() -> None:
+        plane, session_id, model_id = await plane_with_model()
+        request_id = await plane.submit_sampler_export(
+            export_request(model_id, path=None, sampling_session_seq_id=0)
+        )
+        result = await plane.retrieve(request_id, timeout=1.0)
+        key = sampling_session_key(result.result["sampling_session_id"])
+        if missing_record:
+            await plane.kv.delete(key)
+        await plane.close_session(session_id, "done")
+
+        async def unexpected_pool(_):
+            pytest.fail("closed parent must not ensure a pool")
+
+        plane.ensure_sampling_pool = unexpected_pool
+        with pytest.raises(RecordUnavailable, match="closed"):
+            await plane.retrieve(request_id, timeout=1.0)
+        if missing_record:
+            assert await plane.kv.get(key) is None
+
+    asyncio.run(run())
+
+
+def test_expired_named_artifact_remains_reserved() -> None:
+    async def run() -> None:
+        now = 100.0
+        plane, _, model_id = await plane_with_model(lambda: now)
+        request_id = await plane.submit_sampler_export(export_request(model_id, ttl_seconds=10))
+        result = await plane.retrieve(request_id, timeout=1.0)
+        key = sampler_artifact_key(result.result["path"])
+        original = await plane.kv.get(key)
+        now = 110.0
+        await plane.submit_sampler_export(export_request(model_id, seq_id=2))
+        export = await plane._sampler_export_submission(model_id, 2)
+        assert export is not None
+        with pytest.raises(SequenceConflict):
+            await plane._finalize_sampler_export(
+                await plane.get_model(model_id), export, {"publish_version": 8}, now
+            )
+        assert await plane.kv.get(key) == original
 
     asyncio.run(run())
 

@@ -502,7 +502,6 @@ def cleaner():
         await plane.sweep_idle_sessions(SESSION_IDLE_TIMEOUT)
         await plane.sweep_idle_models(SESSION_IDLE_TIMEOUT)
         await plane.sweep_idle_engines()
-        await plane.sweep_expired_sampling()
         await _lose_undefined_models()
         await _cleanup_fft_pools()
 

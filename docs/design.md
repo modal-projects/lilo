@@ -27,6 +27,32 @@ The control plane is a stateless, autoscaling Modal web server. Its replicas are
 The control plane stores sessions, models, engine assignments, and sampling
 state in Modal Dicts so every replica shares the same durable state.
 
+### Sampling retention
+
+Sampling-session records, creation anchors, and sampler-artifact records are
+point-lookup metadata, not a resource inventory. The cleaner never enumerates
+them. Modal reclaims inactive entries using its
+[seven-day read/write inactivity expiry](https://modal.com/docs/guide/dicts).
+Reading or writing an entry can extend that retention; this is not a fixed
+seven-day lifetime or an indefinite idempotency guarantee.
+
+Application `expires_at` deadlines are enforced on reads and retries, including
+before ensuring a sampling pool or recovering an export from its receipt.
+Sampling-session lookup also requires an open parent session. Late lookups reject
+a closed or removed parent before accessing its task Dict. This does not add
+transactional exclusion between requests already in flight and parent cleanup.
+Expired records report `expired` while retained, rather than becoming `not found`
+on the next cleaner pass. Named artifacts remain reserved against conflicting
+exports while their records exist, even after application expiry; callers should
+use unique checkpoint names rather than relying on the cleaner to free a name.
+
+Parent-session cleanup still closes idle sessions, unloads models, removes their
+placement/demand state, and deletes each parent's entire task Dict. Individual
+expired sampling tasks remain until that deletion or storage expiry. Idle-engine
+and sampling-pool shutdown remain unchanged. Dict expiry does not delete weight
+files or stop running resources. The local in-memory provider has no automatic
+entry expiry; it retains this metadata for the lifetime of the store.
+
 ## Training engines
 
 Client sessions are handled by the control plane. Training engines receive only
