@@ -132,6 +132,7 @@ def qwen3_5_4b_full_64k(instance_id: str) -> None:
             "LILO_BULLETIN_VOLUME": BULLETIN_VOLUME_NAME,
             "LILO_DEFINITION_REVISION": config["image_id"],
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
         nproc=GPUS,
         max_models=1,

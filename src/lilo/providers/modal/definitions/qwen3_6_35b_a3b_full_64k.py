@@ -135,6 +135,7 @@ def qwen3_6_35b_a3b_full_64k(instance_id: str) -> None:
         instance_id=instance_id,
         backend_env={
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
             "LILO_BACKEND_CONFIG": json.dumps(backend_config),
             "LILO_BASE_MODEL": MODEL_NAME,
             "LILO_DEFINITION_ID": DEFINITION_ID,
