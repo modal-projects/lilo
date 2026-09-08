@@ -31,6 +31,7 @@ RECOMPUTE_METHOD = "uniform"
 RECOMPUTE_NUM_LAYERS = 1
 LOSS_SCALE = 1.0
 DEFER_FP32_LOGITS = True
+FP32_LM_HEAD = True
 ROLLOUT_GPU_TYPE = "H200"
 ROLLOUT_GPUS = 1
 ROLLOUT_TENSOR_PARALLEL_SIZE = 1
@@ -102,6 +103,7 @@ def qwen3_5_9b_full_64k(instance_id: str) -> None:
             "max_tokens_per_microbatch": MAX_TOKENS_PER_MICROBATCH,
             "seq_length": MAX_CONTEXT_LENGTH,
             "defer_fp32_logits": DEFER_FP32_LOGITS,
+            "fp32_lm_head": FP32_LM_HEAD,
             "use_distributed_optimizer": True,
             "provider_overrides": {
                 "mtp_num_layers": MTP_NUM_LAYERS,

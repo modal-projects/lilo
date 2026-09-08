@@ -175,6 +175,15 @@ def test_full_parameter_microbatches_do_not_include_adapter_routing() -> None:
             {"beta": 0.2},
             -0.392,
         ),
+        (
+            # sampling prob 1.0 each; ratios 0.5, 1.5, 1.05, 0.95, 0.5, 1.5
+            # blocked: A>0 & ratio>1 & tv>0.1 (1.5, A=1); A<0 & ratio<1 & tv>0.1 (0.5, A=-1)
+            "dppo",
+            [math.log(0.5), math.log(1.5), math.log(1.05), math.log(0.95), math.log(0.5), math.log(1.5)],
+            [1.0, 1.0, 1.0, -1.0, -1.0, -1.0],
+            {"tv_threshold": 0.1},
+            -(0.5 + 0.0 + 1.05 - 0.95 - 0.0 - 1.5),
+        ),
     ],
 )
 def test_rl_loss_matches_tinker_formula(
@@ -218,6 +227,8 @@ def test_rl_loss_matches_tinker_formula(
         ),
         ("cispo", {"clip_high_threshold": float("inf")}, "must be finite"),
         ("dro", {"beta": -0.1}, "beta must be non-negative"),
+        ("dppo", {"tv_threshold": -0.1}, "tv_threshold must be non-negative"),
+        ("dppo", {"clip_low_threshold": 0.8}, "unsupported dppo"),
     ],
 )
 def test_loss_config_validation(
