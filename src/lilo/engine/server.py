@@ -26,6 +26,11 @@ PERSISTED_OPERATIONS = {
 }
 
 
+def _failure(exc: BaseException, what: str) -> str:
+    logging.getLogger(__name__).exception("engine %s failed", what)
+    return f"{type(exc).__name__}: {exc}"
+
+
 @dataclass(frozen=True)
 class Operation:
     request_id: str
@@ -350,8 +355,9 @@ class EngineServer:
                     for result in results
                 )
             except Exception as exc:  # noqa: BLE001
+                error = _failure(exc, f"{operation.kind.value} x{len(operations)}")
                 states = tuple(
-                    FutureState(FutureStatus.FAILED, error=str(exc)) for _ in operations
+                    FutureState(FutureStatus.FAILED, error=error) for _ in operations
                 )
             async with self._lock:
                 for item, state in zip(operations, states, strict=True):
@@ -424,7 +430,10 @@ class EngineServer:
             async with self._lock:
                 self._finish(
                     operation,
-                    FutureState(FutureStatus.FAILED, error=str(exc)),
+                    FutureState(
+                        FutureStatus.FAILED,
+                        error=_failure(exc, f"capture:{operation.kind.value}"),
+                    ),
                 )
             return
         await queue.put(_PersistJob(operation, capture))
@@ -442,7 +451,10 @@ class EngineServer:
                     )
                     state = FutureState(FutureStatus.COMPLETE, result=result)
                 except Exception as exc:  # noqa: BLE001
-                    state = FutureState(FutureStatus.FAILED, error=str(exc))
+                    state = FutureState(
+                        FutureStatus.FAILED,
+                        error=_failure(exc, f"persist:{job.operation.kind.value}"),
+                    )
                 async with self._lock:
                     self._finish(job.operation, state)
             finally:

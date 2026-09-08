@@ -34,6 +34,7 @@ class EngineModelConfig:
     sequence_parallel: bool = False
 
     max_lora_slots: int = 16
+    dynamo_recompile_limit: int = 64
     max_lora_rank: int = 32
     default_lora_alpha: int = 32
     lora_dropout: float = 0.0
