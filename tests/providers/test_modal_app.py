@@ -8,8 +8,10 @@ import pytest
 from lilo.errors import RecordNotFound
 from lilo.providers.local import InMemoryKeyValueStore
 from lilo.providers.modal.fft_pool import FFTPoolSpec
+from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 FULL_DEFINITION = "qwen3_5_9b_full_64k"
+LORA_DEFINITION = "qwen3_5_9b_base_miles_lora_2k"
 
 
 def test_definitions_exclude_stale_128k_definition() -> None:
@@ -188,6 +190,70 @@ def test_execute_sample_routes_base_session_without_version(monkeypatch) -> None
     }
     assert specs == [FFTPoolSpec.base(FULL_DEFINITION)]
 
+
+def test_execute_sample_routes_lora_models_to_shared_pool(monkeypatch) -> None:
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    sampling = importlib.import_module("lilo.inference.sampling")
+    ensured = []
+    specs = []
+
+    async def ensure(spec: dict) -> str:
+        ensured.append(spec)
+        return "https://gateway"
+
+    async def gateway(spec: LoraPoolSpec) -> str:
+        specs.append(spec)
+        return "https://gateway"
+
+    async def sample(task, gateway, *, data_parallel_size, **_):
+        return {"gateway": gateway, "model_id": task["model_id"]}
+
+    monkeypatch.setenv("MODAL_PROXY_TOKEN_ID", "wk-a")
+    monkeypatch.setenv("MODAL_PROXY_TOKEN_SECRET", "ws-a")
+    monkeypatch.setattr(
+        modal_app,
+        "ensure_lora_pool",
+        SimpleNamespace(remote=SimpleNamespace(aio=ensure)),
+    )
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", gateway)
+    monkeypatch.setattr(sampling, "sample_task", sample)
+    task = {
+        "engine_definition_id": LORA_DEFINITION,
+        "model_id": "model-a",
+        "publish_version": 3,
+        "latest": False,
+    }
+
+    assert asyncio.run(modal_app.execute_sample.local(task)) == {
+        "gateway": "https://gateway",
+        "model_id": "model-a",
+    }
+    expected = LoraPoolSpec(LORA_DEFINITION)
+    assert ensured == [expected.as_dict()]
+    assert specs == [expected]
+
+
+def test_ensure_lora_pool_records_deployment(monkeypatch) -> None:
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    registry = InMemoryKeyValueStore()
+    spec = LoraPoolSpec(LORA_DEFINITION)
+
+    monkeypatch.setattr(modal_app, "shared_kv", lambda: registry)
+    monkeypatch.setattr(
+        modal_app,
+        "deploy_lora_pool",
+        lambda pool: f"https://{pool.app_name}",
+    )
+
+    gateway = asyncio.run(modal_app.ensure_lora_pool.local(spec.as_dict()))
+
+    assert gateway == f"https://{spec.app_name}"
+    record = asyncio.run(registry.get(f"lora_pool:{spec.app_name}"))
+    assert record["touched_at"] > 0
+    record.pop("touched_at")
+    assert record == spec.as_dict()
+
+
 def test_checkpoint_metadata_reader_reloads_existing_volume(
     tmp_path,
     monkeypatch,
@@ -293,6 +359,44 @@ def test_cleanup_redeploys_pool_touched_while_stopping(monkeypatch) -> None:
     assert asyncio.run(run()) == (spec.app_name,)
     assert asyncio.run(registry.get(key)) is None
     assert events == [f"stop:{spec.app_name}", f"deploy:{spec.app_name}"]
+
+
+def test_cleanup_stops_superseded_lora_pool(monkeypatch) -> None:
+    from lilo.control_plane.keys import model_key
+    from lilo.control_plane.records import ModelRecord
+
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    registry = InMemoryKeyValueStore()
+    current = LoraPoolSpec(LORA_DEFINITION)
+    superseded = LoraPoolSpec(LORA_DEFINITION, revision="superseded")
+    stopped = []
+
+    model = ModelRecord(
+        model_id="model-a",
+        session_id="session",
+        model_seq_id=0,
+        engine_definition_id=LORA_DEFINITION,
+        spec={},
+        created_at=1.0,
+    )
+
+    monkeypatch.setattr(modal_app, "shared_kv", lambda: registry)
+    monkeypatch.setattr(
+        modal_app,
+        "stop_lora_pool",
+        lambda spec: stopped.append(spec.app_name),
+    )
+
+    async def run() -> tuple[str, ...]:
+        await registry.put(model_key(model.model_id), model.model_dump(mode="json"))
+        await registry.put(f"lora_pool:{current.app_name}", current.as_dict())
+        await registry.put(f"lora_pool:{superseded.app_name}", superseded.as_dict())
+        return await modal_app._cleanup_lora_pools()
+
+    assert asyncio.run(run()) == (superseded.app_name,)
+    assert stopped == [superseded.app_name]
+    assert asyncio.run(registry.get(f"lora_pool:{current.app_name}")) is not None
+    assert asyncio.run(registry.get(f"lora_pool:{superseded.app_name}")) is None
 
 
 def test_cleaner_loses_models_on_removed_definitions(monkeypatch) -> None:

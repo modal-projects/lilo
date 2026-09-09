@@ -30,6 +30,7 @@ from .deployment import (
 from .definitions import (
     qwen3_5_35b_a3b_full_64k,
     qwen3_5_4b_full_64k,
+    qwen3_5_9b_base_miles_lora_2k,
     qwen3_5_9b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -48,12 +49,19 @@ from .kv import (
     fft_pool_kv,
     shared_kv,
 )
+from .lora_pool import (
+    LoraPoolSpec,
+    deploy_pool as deploy_lora_pool,
+    pool_gateway as lora_pool_gateway,
+    stop_pool as stop_lora_pool,
+)
 from .sampling import ModalSamplingTaskPlatform
 
 APP_NAME = "lilo"
 ROUTING_REGION = "us-west"
 SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
+LORA_POOL_IDLE_TIMEOUT = 300.0
 FFT_POOL_TOUCH_INTERVAL = 60.0
 SWEEP_PERIOD = modal.Period(minutes=5)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
@@ -62,6 +70,7 @@ _pool_touches: dict[str, float] = {}
 DEFINITIONS = (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_full_64k,
+    qwen3_5_9b_base_miles_lora_2k,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -189,6 +198,17 @@ async def ensure_fft_pool(spec: dict) -> str:
     return gateway
 
 
+@app.function(image=image, max_containers=1, timeout=20 * 60, retries=2)
+async def ensure_lora_pool(spec: dict) -> str:
+    pool = LoraPoolSpec.from_dict(spec)
+    gateway = await asyncio.to_thread(deploy_lora_pool, pool)
+    await shared_kv().put(
+        f"lora_pool:{pool.app_name}",
+        {**pool.as_dict(), "touched_at": time.time()},
+    )
+    return gateway
+
+
 @app.function(
     image=image,
     min_containers=0,
@@ -201,7 +221,8 @@ async def execute_sample(task: dict) -> dict:
     from lilo.inference.sampling import sample_task
 
     definition_id = str(task["engine_definition_id"])
-    if parameterization_for(definition_id) != "full":
+    parameterization = parameterization_for(definition_id)
+    if parameterization not in {"full", "lora"}:
         raise ValueError(f"unsupported sampling definition: {definition_id}")
     definition = module_for(definition_id)
     rollout_world_size = definition.ROLLOUT_GPUS
@@ -209,6 +230,16 @@ async def execute_sample(task: dict) -> dict:
     if rollout_world_size % rollout_tensor_parallel_size:
         raise ValueError("rollout GPU count must be divisible by tensor parallel size")
     rollout_data_parallel_size = rollout_world_size // rollout_tensor_parallel_size
+    if parameterization == "lora":
+        spec = LoraPoolSpec(definition_id)
+        await ensure_lora_pool.remote.aio(spec.as_dict())
+        return await sample_task(
+            task,
+            await lora_pool_gateway(spec),
+            data_parallel_size=rollout_data_parallel_size,
+            headers=proxy_auth_headers(),
+            context_length=definition.MAX_CONTEXT_LENGTH,
+        )
     spec = (
         FFTPoolSpec.base(definition_id)
         if task["model_id"] is None
@@ -349,12 +380,21 @@ def _plane():
         return call.object_id
 
     async def prepare_model(model) -> None:
-        if parameterization_for(model.engine_definition_id) == "full":
+        parameterization = parameterization_for(model.engine_definition_id)
+        if parameterization == "full":
             await ensure_fft_pool.spawn.aio(_latest_pool(model).as_dict())
+        elif parameterization == "lora":
+            await ensure_lora_pool.spawn.aio(
+                LoraPoolSpec(model.engine_definition_id).as_dict()
+            )
 
     async def ensure_pool(session) -> None:
         definition_id = session.engine_definition_id
-        if parameterization_for(definition_id) != "full":
+        parameterization = parameterization_for(definition_id)
+        if parameterization == "lora":
+            await ensure_lora_pool.remote.aio(LoraPoolSpec(definition_id).as_dict())
+            return
+        if parameterization != "full":
             return
         if session.model_id is None:
             pool = FFTPoolSpec.base(definition_id)
@@ -493,6 +533,29 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
     return tuple(stopped)
 
 
+async def _cleanup_lora_pools() -> tuple[str, ...]:
+    from lilo.control_plane.records import ModelRecord
+
+    registry = shared_kv()
+    active = {
+        LoraPoolSpec(model.engine_definition_id).app_name
+        for _, value in await registry.list_items("model:")
+        for model in (ModelRecord.model_validate(value),)
+        if parameterization_for(model.engine_definition_id) == "lora"
+    }
+    stopped = []
+    for key, value in await registry.list_items("lora_pool:"):
+        spec = LoraPoolSpec.from_dict(value)
+        if spec.app_name in active:
+            continue
+        if float(value.get("touched_at", 0.0)) > (time.time() - LORA_POOL_IDLE_TIMEOUT):
+            continue
+        await asyncio.to_thread(stop_lora_pool, spec)
+        await registry.delete(key)
+        stopped.append(spec.app_name)
+    return tuple(stopped)
+
+
 @app.function(image=image, env=TRAINER_DEPLOYMENT_ENV, schedule=SWEEP_PERIOD)
 def cleaner():
     import asyncio
@@ -504,5 +567,6 @@ def cleaner():
         await plane.sweep_idle_engines()
         await _lose_undefined_models()
         await _cleanup_fft_pools()
+        await _cleanup_lora_pools()
 
     asyncio.run(run())
