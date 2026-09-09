@@ -20,7 +20,7 @@ clients do not need Modal deployment credentials or sampler proxy tokens.
 With [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
-uv init --bare --vcs none --python '>=3.11,<3.13' my-lilo-project
+uv init my-lilo-project
 cd my-lilo-project
 uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'
 ```
