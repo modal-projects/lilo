@@ -54,6 +54,7 @@ APP_NAME = "lilo"
 ROUTING_REGION = "us-west"
 SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
+FFT_POOL_ORPHAN_TIMEOUT = 1800.0
 FFT_POOL_TOUCH_INTERVAL = 60.0
 SWEEP_PERIOD = modal.Period(minutes=5)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
@@ -469,9 +470,8 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
             if spec.app_name in active_latest:
                 continue
         else:
-            if await _last_touched(registry, spec, value) > (
-                time.time() - FFT_POOL_IDLE_TIMEOUT
-            ):
+            idle = time.time() - await _last_touched(registry, spec, value)
+            if idle < FFT_POOL_IDLE_TIMEOUT:
                 continue
             try:
                 replicas = await ModalFlashPool(
@@ -482,7 +482,7 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
                 await registry.delete(key)
                 await registry.delete(_touch_key(spec))
                 continue
-            if replicas:
+            if replicas and idle < FFT_POOL_ORPHAN_TIMEOUT:
                 continue
             await registry.delete(_touch_key(spec))
         await asyncio.to_thread(stop_pool, spec)
