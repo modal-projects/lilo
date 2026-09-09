@@ -159,7 +159,7 @@ a connectivity and training smoke test, not a model-quality evaluation. It does
 not save a checkpoint; read [Working with Full Fine-Tunes](docs/full-fine-tunes.md)
 for checkpointing, sampling, and longer runs.
 
-### 5. Finish the smoke test
+### 5. Clean up
 
 After the script exits, session heartbeats stop. Lilo's periodic cleaner reclaims
 idle training models and their latest sampler pools; cleanup is not immediate.
