@@ -456,6 +456,10 @@ async def run(
         )
 
     async def save_supported_checkpoint(*args, **kwargs):
+        # Cookbook's kind="both" waits for state persistence and publication.
+        # This benchmark publishes sampler weights only, without recovery
+        # checkpoints. To retain state saves while overlapping persistence, see:
+        # docs/full-fine-tunes.md#persist-checkpoints-without-blocking-every-training-step
         if kwargs.get("kind") == "both":
             kwargs["kind"] = "sampler"
         return await save_checkpoint(*args, **kwargs)

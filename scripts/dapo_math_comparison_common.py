@@ -216,6 +216,11 @@ async def _run_recipe(
         if evaluators and config.eval_every:
             raise ValueError("cohort async training does not support evaluators")
 
+        # With full-state saves enabled, kind="both" waits for checkpoint
+        # persistence AND sampler publication before returning. The wrapper
+        # below uses sampler-only saves when full and save_every == 0; these
+        # do not create recovery checkpoints. To overlap state persistence:
+        # docs/full-fine-tunes.md#persist-checkpoints-without-blocking-every-training-step
         path_dict = await checkpoint_utils.save_checkpoint_async(
             training_client=training_client,
             name=f"{start_batch:06d}",
