@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 import threading
+from datetime import timedelta
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -369,12 +370,15 @@ def test_initializes_distributed_runtime_from_environment(monkeypatch) -> None:
     assert checkpoint_persistence_group == "gloo"
     assert sampler_persistence_group == "gloo"
     assert calls[0] == ("device", 3)
-    assert calls[1][0] == "init"
-    assert calls[2:] == [
-        ("group", {"backend": "gloo"}),
-        ("group", {"backend": "gloo"}),
-        ("group", {"backend": "gloo"}),
-    ]
+    # Compute collectives retain their own timeout policy.
+    assert calls[1] == ("init", {"backend": "nccl", "world_size": 2, "rank": 1})
+    assert len(calls[2:]) == 3
+    for kind, options in calls[2:]:
+        assert kind == "group"
+        assert options["backend"] == "gloo"
+        # Idle command/checkpoint/sampler waits must outlive a trainer, rather
+        # than inheriting Gloo's 30-minute default.
+        assert options["timeout"] > timedelta(hours=24)
 
 
 def test_persistence_operations_use_separate_groups(monkeypatch) -> None:
