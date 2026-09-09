@@ -17,24 +17,13 @@ clients do not need Modal deployment credentials or sampler proxy tokens.
 
 ### 1. Install into your project
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then create
-an isolated project using Lilo's supported Python range (3.11 or 3.12):
+With [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
 uv init --bare --vcs none --python '>=3.11,<3.13' my-lilo-project
 cd my-lilo-project
 uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'
 ```
-
-Keep `pyproject.toml` and `uv.lock` in version control. The lockfile records the
-resolved Lilo Git commit and local dependencies. On subsequent setups, run
-`uv sync --locked`; use `uv run --locked` for Python and Modal commands. There
-is no need to activate the virtual environment or invoke its executables directly.
-The lockfile covers the local environment; Modal images have their own dependency
-specifications in Lilo.
-
-To select a particular Lilo revision, use
-`uv add 'lilo @ git+https://github.com/modal-projects/lilo.git@<commit-sha>'`.
 
 ### 2. Configure Modal and secrets once
 
@@ -43,9 +32,9 @@ deploy apps and create secrets in your chosen environment. Authenticate if you
 have not already configured credentials for that workspace:
 
 ```bash
-uv run --locked modal token new
+uv run modal token new
 export MODAL_ENVIRONMENT=your-environment
-uv run --locked modal environment list
+uv run modal environment list
 ```
 
 Replace `your-environment` with an existing environment name. Set it **before**
@@ -64,8 +53,8 @@ There are three separate credentials:
 For a new deployment, generate a Lilo API key and store it in Modal:
 
 ```bash
-export TINKER_API_KEY=$(uv run --locked python -c 'import secrets; print(f"tml-lilo-{secrets.token_urlsafe(42)}")')
-uv run --locked modal secret create lilo-api \
+export TINKER_API_KEY=$(uv run python -c 'import secrets; print(f"tml-lilo-{secrets.token_urlsafe(42)}")')
+uv run modal secret create lilo-api \
   TINKER_API_KEY="$TINKER_API_KEY"
 ```
 
@@ -80,7 +69,7 @@ set `MODAL_PROXY_TOKEN_ID` and `MODAL_PROXY_TOKEN_SECRET` to that pair and skip
 the token-creation block below.
 
 ```bash
-read -r MODAL_PROXY_TOKEN_ID MODAL_PROXY_TOKEN_SECRET < <(uv run --locked python -c '
+read -r MODAL_PROXY_TOKEN_ID MODAL_PROXY_TOKEN_SECRET < <(uv run python -c '
 import os
 import modal
 tokens = modal.Workspace.from_context().proxy_tokens
@@ -93,7 +82,7 @@ print(token.token_id, token.token_secret)
 Store the token in the same environment:
 
 ```bash
-uv run --locked modal secret create lilo-proxy \
+uv run modal secret create lilo-proxy \
   MODAL_PROXY_TOKEN_ID="$MODAL_PROXY_TOKEN_ID" \
   MODAL_PROXY_TOKEN_SECRET="$MODAL_PROXY_TOKEN_SECRET"
 ```
@@ -101,7 +90,7 @@ uv run --locked modal secret create lilo-proxy \
 ### 3. Deploy the installed package
 
 ```bash
-uv run --locked modal deploy -m lilo.providers.modal.app
+uv run modal deploy -m lilo.providers.modal.app
 ```
 
 This deploys the control plane and bundled model definitions from the installed
@@ -161,7 +150,7 @@ print("Optimizer metrics:", optimizer.result(timeout=3600).metrics)
 Run it with:
 
 ```bash
-uv run --locked python sft_smoke.py
+uv run python sft_smoke.py
 ```
 
 Expect a supported-model list followed by training and optimizer metrics.
@@ -178,12 +167,12 @@ idle training models and their latest sampler pools; cleanup is not immediate.
 Check the apps and running containers in your Modal dashboard or list apps with:
 
 ```bash
-uv run --locked modal app list
+uv run modal app list
 ```
 
 For immediate teardown of a disposable deployment, stop its separately deployed
 `lilo-fft-...` sampler apps and then the `lilo` app. Use the exact app IDs shown
-by the list command with `uv run --locked modal app stop <app-id>`. Stopping
+by the list command with `uv run modal app stop <app-id>`. Stopping
 `lilo` alone does not stop separately deployed sampler apps. Do not stop a shared
 deployment that other users are using. App shutdown leaves persisted Volumes
 and secrets in place.
@@ -198,4 +187,4 @@ policy update. Copy examples you want to run into your project; repository
 
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture. For changes to Lilo itself, check out this repository and run
-`uv sync --locked` to install its development dependencies.
+`uv sync` to install its development dependencies.
