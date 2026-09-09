@@ -8,8 +8,7 @@ jobs and publish weights to autoscaling sampling infrastructure based on
 ## Quick start
 
 Install Lilo into your own Python project, deploy it once to Modal, then call
-its API from your training scripts. **You only need a Lilo repository checkout
-if you want to modify Lilo itself.** The commands below work in Bash or Zsh.
+its API from your training scripts. The commands below work in Bash or Zsh.
 
 If someone has already deployed Lilo for you, install the package in step 1,
 then skip to step 4 with the server URL and Lilo API key they provide. API
@@ -186,5 +185,4 @@ policy update. Copy examples you want to run into your project; repository
 `scripts/` are not installed with the package.
 
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
-architecture. For changes to Lilo itself, check out this repository and run
-`uv sync` to install its development dependencies.
+architecture.
