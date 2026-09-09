@@ -169,12 +169,8 @@ Check the apps and running containers in your Modal dashboard or list apps with:
 uv run modal app list
 ```
 
-For immediate teardown of a disposable deployment, stop its separately deployed
-`lilo-fft-...` sampler apps and then the `lilo` app. Use the exact app IDs shown
-by the list command with `uv run modal app stop <app-id>`. Stopping
-`lilo` alone does not stop separately deployed sampler apps. Do not stop a shared
-deployment that other users are using. App shutdown leaves persisted Volumes
-and secrets in place.
+To tear down the deployment, stop its `lilo-fft-...` sampler apps, then `lilo`,
+using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler apps.
 
 ## Next steps
 
