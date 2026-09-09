@@ -181,6 +181,29 @@ def start_fft_sidecar(
     return subprocess.Popen(command, start_new_session=True)
 
 
+def start_lora_sidecar(
+    *,
+    port: int,
+    sglang_port: int,
+    bulletin_root: str,
+    bulletin_volume: str,
+) -> subprocess.Popen:
+    command = [
+        sys.executable,
+        "-m",
+        "lilo.inference.lora_sidecar",
+        "--port",
+        str(port),
+        "--upstream-url",
+        f"http://127.0.0.1:{sglang_port}",
+        "--bulletin-root",
+        bulletin_root,
+        "--bulletin-volume",
+        bulletin_volume,
+    ]
+    return subprocess.Popen(command, start_new_session=True)
+
+
 def wait_http(url: str, process: subprocess.Popen, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     error: BaseException | None = None
