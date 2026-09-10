@@ -20,6 +20,10 @@ MODEL = os.environ.get("LILO_VALIDATION_MODEL", "Qwen/Qwen3-0.6B")
 CONTEXT_LENGTH = int(os.environ.get("LILO_VALIDATION_CONTEXT_LENGTH", "4096"))
 GPU = os.environ.get("LILO_VALIDATION_GPU", "H100")
 REPLICAS = int(os.environ.get("LILO_VALIDATION_REPLICAS", "8"))
+IGNORE_EOS = os.environ.get(
+    "LILO_VALIDATION_IGNORE_EOS",
+    "1",
+).lower() not in {"0", "false", "no"}
 DISABLE_CUDA_GRAPH = os.environ.get(
     "LILO_VALIDATION_DISABLE_CUDA_GRAPH",
     "1",
@@ -31,6 +35,7 @@ validation_env = {
     "LILO_VALIDATION_MODEL": MODEL,
     "LILO_VALIDATION_CONTEXT_LENGTH": str(CONTEXT_LENGTH),
     "LILO_VALIDATION_REPLICAS": str(REPLICAS),
+    "LILO_VALIDATION_IGNORE_EOS": "1" if IGNORE_EOS else "0",
     "LILO_VALIDATION_DISABLE_CUDA_GRAPH": (
         "1" if DISABLE_CUDA_GRAPH else "0"
     ),
@@ -122,6 +127,9 @@ def proxy_app():
 
     @proxy.post("/generate")
     async def generate(body: dict) -> Response:
+        sampling_params = body.get("sampling_params")
+        if IGNORE_EOS and isinstance(sampling_params, dict):
+            sampling_params["ignore_eos"] = True
         async with httpx.AsyncClient(
             base_url=f"http://127.0.0.1:{SGLANG_PORT}",
             timeout=TIMEOUT,
