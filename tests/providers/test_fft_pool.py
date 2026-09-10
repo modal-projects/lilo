@@ -76,3 +76,29 @@ def test_pool_spec_round_trips_sizing_through_dict_and_env() -> None:
     assert env["LILO_FFT_POOL_MIN_CONTAINERS"] == "2"
     assert env["LILO_FFT_POOL_MAX_CONTAINERS"] == "8"
     assert "LILO_FFT_POOL_SCALEDOWN_WINDOW" not in env
+
+
+def test_stop_pool_accepts_already_stopped_but_propagates_other_errors(monkeypatch):
+    import subprocess
+
+    import pytest
+
+    spec = fft_pool.FFTPoolSpec("definition", "model", True, 0)
+    monkeypatch.setattr(fft_pool.shutil, "which", lambda _: "/bin/modal")
+    monkeypatch.setenv("MODAL_ENVIRONMENT", "test-env")
+    calls = []
+    result = subprocess.CompletedProcess([], 1, "", "App is already stopped. (Stopped yesterday).\n")
+
+    def run(command, **kwargs):
+        calls.append(command)
+        assert kwargs == {"capture_output": True, "text": True}
+        return result
+
+    monkeypatch.setattr(fft_pool.subprocess, "run", run)
+    fft_pool.stop_pool(spec)
+    assert calls == [["/bin/modal", "app", "stop", "-y", spec.app_name, "--env", "test-env"]]
+    result = subprocess.CompletedProcess([], 0, "Stopped", "")
+    fft_pool.stop_pool(spec)
+    result = subprocess.CompletedProcess([], 1, "", "Permission denied")
+    with pytest.raises(subprocess.CalledProcessError):
+        fft_pool.stop_pool(spec)

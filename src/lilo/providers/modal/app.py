@@ -464,32 +464,36 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
     stopped = []
     registry = fft_pool_kv()
     for key, value in await registry.list_items("fft_pool:"):
-        spec = FFTPoolSpec.from_dict(value)
-        if spec.latest:
-            if spec.app_name in active_latest:
-                continue
-        else:
-            if await _last_touched(registry, spec, value) > (
-                time.time() - FFT_POOL_IDLE_TIMEOUT
-            ):
-                continue
-            try:
-                replicas = await ModalFlashPool(
-                    spec.app_name,
-                    "Server",
-                ).discover_replicas_async()
-            except modal.exception.NotFoundError:
-                await registry.delete(key)
+        try:
+            spec = FFTPoolSpec.from_dict(value)
+            if spec.latest:
+                if spec.app_name in active_latest:
+                    continue
+            else:
+                if await _last_touched(registry, spec, value) > (
+                    time.time() - FFT_POOL_IDLE_TIMEOUT
+                ):
+                    continue
+                try:
+                    replicas = await ModalFlashPool(
+                        spec.app_name,
+                        "Server",
+                    ).discover_replicas_async()
+                except modal.exception.NotFoundError:
+                    await registry.delete(key)
+                    await registry.delete(_touch_key(spec))
+                    continue
+                if replicas:
+                    continue
                 await registry.delete(_touch_key(spec))
-                continue
-            if replicas:
-                continue
-            await registry.delete(_touch_key(spec))
-        await asyncio.to_thread(stop_pool, spec)
-        await registry.delete(key)
-        stopped.append(spec.app_name)
-        if not spec.latest and await registry.get(_touch_key(spec)) is not None:
-            await ensure_fft_pool.spawn.aio(spec.as_dict())
+            await asyncio.to_thread(stop_pool, spec)
+            await registry.delete(key)
+            stopped.append(spec.app_name)
+            if not spec.latest and await registry.get(_touch_key(spec)) is not None:
+                await ensure_fft_pool.spawn.aio(spec.as_dict())
+        except Exception:
+            # Retain failed entries for retry without starving unrelated pools.
+            logging.getLogger(__name__).exception("Failed to clean FFT pool %s", key)
     return tuple(stopped)
 
 
