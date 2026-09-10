@@ -399,3 +399,69 @@ def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
         asyncio.run(modal_app._delete_checkpoint(str(lora)))
     with pytest.raises(ValueError):
         asyncio.run(modal_app._delete_checkpoint(str(tmp_path / "elsewhere")))
+
+
+def test_pool_cleanup_continues_after_failure_and_retries_entry(monkeypatch, caplog):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+
+    class FailureFirstRegistry(InMemoryKeyValueStore):
+        async def list_items(self, *prefixes):
+            items = await super().list_items(*prefixes)
+            return tuple(sorted(items, key=lambda item: item[1]["model_id"] != "failed"))
+
+    registry = FailureFirstRegistry()
+    pools = [FFTPoolSpec("definition", model, True, 0) for model in ("failed", "healthy")]
+    calls = []
+    fail = True
+
+    def stop(spec):
+        calls.append(spec.model_id)
+        if spec.model_id == "failed" and fail:
+            raise RuntimeError("stop unavailable")
+
+    monkeypatch.setattr(modal_app, "fft_pool_kv", lambda: registry)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "stop_pool", stop)
+
+    async def run():
+        nonlocal fail
+        for spec in pools:
+            await registry.put(f"fft_pool:{spec.app_name}", spec.as_dict())
+        assert await modal_app._cleanup_fft_pools() == (pools[1].app_name,)
+        assert await registry.get(f"fft_pool:{pools[0].app_name}") is not None
+        assert await registry.get(f"fft_pool:{pools[1].app_name}") is None
+        fail = False
+        assert await modal_app._cleanup_fft_pools() == (pools[0].app_name,)
+        assert not await registry.list_items("fft_pool:")
+
+    asyncio.run(run())
+    assert calls == ["failed", "healthy", "failed"]
+    assert "stop unavailable" in caplog.text
+
+
+def test_cleanup_removes_already_stopped_pool_from_registry(monkeypatch):
+    import subprocess
+
+    from lilo.providers.modal import fft_pool
+
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    registry = InMemoryKeyValueStore()
+    spec = FFTPoolSpec("definition", "stopped", True, 0)
+    key = f"fft_pool:{spec.app_name}"
+    monkeypatch.setattr(modal_app, "fft_pool_kv", lambda: registry)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(fft_pool.shutil, "which", lambda _: "/bin/modal")
+    monkeypatch.setattr(
+        fft_pool.subprocess, "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 1, "", "App is already stopped. (Stopped yesterday).\n"
+        ),
+    )
+
+    async def run():
+        await registry.put(key, spec.as_dict())
+        assert await modal_app._cleanup_fft_pools() == (spec.app_name,)
+        assert await registry.get(key) is None
+        assert await modal_app._cleanup_fft_pools() == ()
+
+    asyncio.run(run())
