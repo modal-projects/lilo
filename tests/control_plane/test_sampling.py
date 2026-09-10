@@ -81,6 +81,21 @@ def test_sampling_sessions_and_submissions_are_idempotent() -> None:
     asyncio.run(run())
 
 
+def test_cache_affinity_key_participates_in_sample_idempotency() -> None:
+    async def run() -> None:
+        plane, _, _, sampling_session_id = await sampling_plane()
+        request = sample_request(sampling_session_id)
+        request["cache_affinity_key"] = "trajectory-a"
+        request_id = await plane.submit_sample(request)
+
+        assert await plane.submit_sample(request) == request_id
+        conflicting = {**request, "cache_affinity_key": "trajectory-b"}
+        with pytest.raises(SequenceConflict):
+            await plane.submit_sample(conflicting)
+
+    asyncio.run(run())
+
+
 def test_session_collection_removes_task_store() -> None:
     async def run() -> None:
         plane, _, session_id, sampling_session_id = await sampling_plane()
@@ -174,10 +189,13 @@ def test_sampling_task_carries_engine_definition() -> None:
             return {"type": "sample", "sequences": []}
 
         plane, _, _, sampling_session_id = await sampling_plane(capture)
-        request_id = await plane.submit_sample(sample_request(sampling_session_id))
+        request = sample_request(sampling_session_id)
+        request["cache_affinity_key"] = "trajectory-a"
+        request_id = await plane.submit_sample(request)
         await plane.retrieve(request_id, timeout=1.0)
         assert seen[0].engine_definition_id == DEFINITION
         assert seen[0].session_id
+        assert seen[0].payload["cache_affinity_key"] == "trajectory-a"
 
     asyncio.run(run())
 

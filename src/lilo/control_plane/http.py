@@ -127,6 +127,17 @@ class SampleEnvelope(BaseModel):
 
     sampling_session_id: str
     seq_id: int
+    cache_affinity_key: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+    )
+
+    @model_validator(mode="after")
+    def _nonblank_cache_affinity_key(self) -> SampleEnvelope:
+        if self.cache_affinity_key is not None and not self.cache_affinity_key.strip():
+            raise ValueError("cache_affinity_key must not be blank")
+        return self
 
 
 class SaveWeightsForSamplerBody(BaseModel):
@@ -395,7 +406,10 @@ def create_control_plane_app(
 
     @app.post("/api/v1/asample")
     async def asample(body: SampleEnvelope) -> dict[str, str]:
-        request_id = await control_plane.submit_sample(body.model_dump(mode="json"))
+        request = body.model_dump(mode="json")
+        if body.cache_affinity_key is None:
+            request.pop("cache_affinity_key")
+        request_id = await control_plane.submit_sample(request)
         return {"request_id": request_id}
 
     @app.get("/api/v1/samplers/{sampling_session_id}")
