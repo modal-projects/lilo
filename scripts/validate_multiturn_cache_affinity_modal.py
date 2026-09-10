@@ -18,12 +18,20 @@ APP_NAME = os.environ.get(
 )
 MODEL = os.environ.get("LILO_VALIDATION_MODEL", "Qwen/Qwen3-0.6B")
 CONTEXT_LENGTH = int(os.environ.get("LILO_VALIDATION_CONTEXT_LENGTH", "4096"))
+GPU = os.environ.get("LILO_VALIDATION_GPU", "H100")
+DISABLE_CUDA_GRAPH = os.environ.get(
+    "LILO_VALIDATION_DISABLE_CUDA_GRAPH",
+    "1",
+).lower() not in {"0", "false", "no"}
 PROXY_PORT = 8000
 SGLANG_PORT = 8001
 TIMEOUT = 20 * 60
 validation_env = {
     "LILO_VALIDATION_MODEL": MODEL,
     "LILO_VALIDATION_CONTEXT_LENGTH": str(CONTEXT_LENGTH),
+    "LILO_VALIDATION_DISABLE_CUDA_GRAPH": (
+        "1" if DISABLE_CUDA_GRAPH else "0"
+    ),
 }
 
 image = (
@@ -129,7 +137,7 @@ def proxy_app():
 
 @app.server(
     image=image,
-    gpu="L4",
+    gpu=GPU,
     min_containers=2,
     max_containers=2,
     target_concurrency=2,
@@ -142,28 +150,30 @@ def proxy_app():
 class Server:
     @modal.enter()
     def start(self) -> None:
+        command = [
+            sys.executable,
+            "-m",
+            "sglang.launch_server",
+            "--model-path",
+            MODEL,
+            "--host",
+            "0.0.0.0",
+            "--port",
+            str(SGLANG_PORT),
+            "--context-length",
+            str(CONTEXT_LENGTH),
+            "--mem-fraction-static",
+            "0.75",
+            "--max-running-requests",
+            "8",
+            "--schedule-policy",
+            "lpm",
+            "--skip-server-warmup",
+        ]
+        if DISABLE_CUDA_GRAPH:
+            command.append("--disable-cuda-graph")
         self.sglang = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "sglang.launch_server",
-                "--model-path",
-                MODEL,
-                "--host",
-                "0.0.0.0",
-                "--port",
-                str(SGLANG_PORT),
-                "--context-length",
-                str(CONTEXT_LENGTH),
-                "--mem-fraction-static",
-                "0.75",
-                "--max-running-requests",
-                "8",
-                "--schedule-policy",
-                "lpm",
-                "--disable-cuda-graph",
-                "--skip-server-warmup",
-            ],
+            command,
             start_new_session=True,
         )
         self.proxy = subprocess.Popen(
