@@ -19,6 +19,7 @@ APP_NAME = os.environ.get(
 MODEL = os.environ.get("LILO_VALIDATION_MODEL", "Qwen/Qwen3-0.6B")
 CONTEXT_LENGTH = int(os.environ.get("LILO_VALIDATION_CONTEXT_LENGTH", "4096"))
 GPU = os.environ.get("LILO_VALIDATION_GPU", "H100")
+REPLICAS = int(os.environ.get("LILO_VALIDATION_REPLICAS", "8"))
 DISABLE_CUDA_GRAPH = os.environ.get(
     "LILO_VALIDATION_DISABLE_CUDA_GRAPH",
     "1",
@@ -29,6 +30,7 @@ TIMEOUT = 20 * 60
 validation_env = {
     "LILO_VALIDATION_MODEL": MODEL,
     "LILO_VALIDATION_CONTEXT_LENGTH": str(CONTEXT_LENGTH),
+    "LILO_VALIDATION_REPLICAS": str(REPLICAS),
     "LILO_VALIDATION_DISABLE_CUDA_GRAPH": (
         "1" if DISABLE_CUDA_GRAPH else "0"
     ),
@@ -95,7 +97,10 @@ def proxy_app():
 
     @proxy.get("/ready")
     async def ready() -> Response:
-        return Response(status_code=204)
+        return Response(
+            content=json.dumps({"status": "ready", "replica_id": replica_id}),
+            media_type="application/json",
+        )
 
     @proxy.get("/health")
     async def health() -> Response:
@@ -138,8 +143,8 @@ def proxy_app():
 @app.server(
     image=image,
     gpu=GPU,
-    min_containers=2,
-    max_containers=2,
+    min_containers=REPLICAS,
+    max_containers=REPLICAS,
     target_concurrency=2,
     scaledown_window=5 * 60,
     startup_timeout=TIMEOUT,
@@ -207,6 +212,7 @@ class Server:
 async def _wait_for_pool(
     gateway: str,
     headers: dict[str, str],
+    expected_replicas: int,
 ) -> set[str]:
     import httpx
 
@@ -216,19 +222,20 @@ async def _wait_for_pool(
         headers=headers,
         timeout=30,
     ) as client:
+        probe_count = max(128, expected_replicas * 16)
         while time.monotonic() < deadline:
-            responses = await asyncio.gather(
+            ready_responses = await asyncio.gather(
                 *(
                     client.get(
-                        "/health",
-                        headers={"Modal-Session-ID": f"pool-ready-{index}"},
+                        "/ready",
+                        headers={"Modal-Session-ID": f"pool-probe-{index}"},
                     )
-                    for index in range(16)
+                    for index in range(probe_count)
                 ),
                 return_exceptions=True,
             )
-            replicas = set()
-            for response in responses:
+            sessions_by_replica = {}
+            for index, response in enumerate(ready_responses):
                 if not isinstance(response, httpx.Response):
                     continue
                 try:
@@ -236,21 +243,47 @@ async def _wait_for_pool(
                 except ValueError:
                     continue
                 if response.status_code == 200 and replica_id:
-                    replicas.add(str(replica_id))
-            if all(
-                isinstance(response, httpx.Response) and response.status_code == 200
-                for response in responses
-            ) and len(replicas) >= 2:
+                    sessions_by_replica.setdefault(
+                        str(replica_id),
+                        f"pool-probe-{index}",
+                    )
+            if len(sessions_by_replica) < expected_replicas:
+                await asyncio.sleep(2)
+                continue
+
+            health_responses = await asyncio.gather(
+                *(
+                    client.get(
+                        "/health",
+                        headers={"Modal-Session-ID": session_id},
+                    )
+                    for session_id in sessions_by_replica.values()
+                ),
+                return_exceptions=True,
+            )
+            healthy_replicas = set()
+            for response in health_responses:
+                if not isinstance(response, httpx.Response):
+                    continue
+                try:
+                    replica_id = response.json().get("replica_id")
+                except ValueError:
+                    continue
+                if response.status_code == 200 and replica_id:
+                    healthy_replicas.add(str(replica_id))
+            if len(healthy_replicas) >= expected_replicas:
                 print(
                     json.dumps(
-                        {"live_modal_replicas": sorted(replicas)},
+                        {"live_modal_replicas": sorted(healthy_replicas)},
                         sort_keys=True,
                     ),
                     flush=True,
                 )
-                return replicas
+                return healthy_replicas
             await asyncio.sleep(2)
-    raise TimeoutError("the fixed two-replica pool did not become ready")
+    raise TimeoutError(
+        f"the fixed {expected_replicas}-replica pool did not become ready"
+    )
 
 
 async def _run_trajectory(
@@ -417,7 +450,7 @@ async def _validate(
     minimum_lift: float,
     headers: dict[str, str],
 ) -> None:
-    replicas = await _wait_for_pool(gateway, headers)
+    replicas = await _wait_for_pool(gateway, headers, REPLICAS)
     results_by_arm = {"no_affinity": [], "affinity": []}
     arm_configs = (("no_affinity", False), ("affinity", True))
     for trajectory in range(trajectories):
