@@ -12,11 +12,19 @@ import urllib.request
 
 import modal
 
-APP_NAME = "lilo-multiturn-kv-ablation-v3"
-MODEL = "Qwen/Qwen3-0.6B"
+APP_NAME = os.environ.get(
+    "LILO_VALIDATION_APP_NAME",
+    "lilo-multiturn-kv-ablation-v3",
+)
+MODEL = os.environ.get("LILO_VALIDATION_MODEL", "Qwen/Qwen3-0.6B")
+CONTEXT_LENGTH = int(os.environ.get("LILO_VALIDATION_CONTEXT_LENGTH", "4096"))
 PROXY_PORT = 8000
 SGLANG_PORT = 8001
 TIMEOUT = 20 * 60
+validation_env = {
+    "LILO_VALIDATION_MODEL": MODEL,
+    "LILO_VALIDATION_CONTEXT_LENGTH": str(CONTEXT_LENGTH),
+}
 
 image = (
     modal.Image.from_registry("lmsysorg/sglang:v0.5.17")
@@ -25,6 +33,7 @@ image = (
         {
             "HF_XET_HIGH_PERFORMANCE": "1",
             "SGLANG_DISABLE_CUDNN_CHECK": "1",
+            **validation_env,
         }
     )
 )
@@ -32,6 +41,7 @@ client_image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git")
     .pip_install_from_pyproject("pyproject.toml")
+    .env(validation_env)
     .add_local_python_source("lilo")
 )
 app = modal.App(APP_NAME)
@@ -144,7 +154,7 @@ class Server:
                 "--port",
                 str(SGLANG_PORT),
                 "--context-length",
-                "4096",
+                str(CONTEXT_LENGTH),
                 "--mem-fraction-static",
                 "0.75",
                 "--max-running-requests",
@@ -288,7 +298,7 @@ async def _run_trajectory(
                 "payload": payload,
             },
             gateway,
-            context_length=4096,
+            context_length=CONTEXT_LENGTH,
             headers=headers,
         )
         request_duration = time.perf_counter() - started
