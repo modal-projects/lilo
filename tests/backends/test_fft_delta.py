@@ -14,8 +14,8 @@ from stitch.types import VersionKind, VersionManifest, VersionRef
 from lilo.inference.fft_bulletin import FFTSnapshotBulletin
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_runtime.fft import delta as delta_module
-    from lilo.backends.megatron_runtime.fft.delta import FFTDeltaWriter
+    from lilo.inference import full_delta as delta_module
+    from lilo.inference.full_delta import FullDeltaWriter
 
 
 class Tensor:
@@ -178,9 +178,9 @@ def test_delta_writer_publishes_first_delta_from_base(tmp_path, monkeypatch) -> 
                 "decoder.layers.0.weight",
             )
 
-    writer = FFTDeltaWriter()
+    writer = FullDeltaWriter()
     snapshot = writer.capture(
-        bridge=Bridge(),
+        exporter=Bridge(),
         model="model",
         model_id="run-a",
         publish_version=1,
@@ -278,9 +278,9 @@ def test_delta_writer_recovers_after_failed_publish(tmp_path, monkeypatch) -> No
                 "decoder.layers.0.weight",
             )
 
-    writer = FFTDeltaWriter()
+    writer = FullDeltaWriter()
     first = writer.capture(
-        bridge=Bridge(),
+        exporter=Bridge(),
         model="model",
         model_id="run-a",
         publish_version=1,
@@ -297,7 +297,7 @@ def test_delta_writer_recovers_after_failed_publish(tmp_path, monkeypatch) -> No
 
     current[:] = [4.0, 3.0]
     second = writer.capture(
-        bridge=Bridge(),
+        exporter=Bridge(),
         model="model",
         model_id="run-a",
         publish_version=2,
@@ -329,7 +329,7 @@ def test_delta_writer_recovers_after_failed_publish(tmp_path, monkeypatch) -> No
 
     monkeypatch.setattr(delta_module, "stitch_publish_version", publish_version)
     retry = writer.capture(
-        bridge=Bridge(),
+        exporter=Bridge(),
         model="model",
         model_id="run-a",
         publish_version=2,
@@ -344,7 +344,7 @@ def test_delta_writer_recovers_after_failed_publish(tmp_path, monkeypatch) -> No
         bulletin_volume="test-bulletin",
     )
 
-    restored = FFTDeltaWriter()
+    restored = FullDeltaWriter()
     restored._load_parent(
         board,
         VersionRef("run-a", 2),
@@ -396,9 +396,9 @@ def test_delta_writer_publishes_unchanged_base_as_version_one(
                 "decoder.layers.0.weight",
             )
 
-    writer = FFTDeltaWriter()
+    writer = FullDeltaWriter()
     snapshot = writer.capture(
-        bridge=Bridge(),
+        exporter=Bridge(),
         model="model",
         model_id="run-a",
         publish_version=1,
@@ -462,7 +462,7 @@ def test_delta_writer_loads_bfloat16_parent_as_raw_bytes(tmp_path, monkeypatch) 
         lambda _path, _names: {"model.weight": Tensor(np.frombuffer(data, np.uint8))},
     )
 
-    writer = FFTDeltaWriter()
+    writer = FullDeltaWriter()
     writer._load_full(board.resolve(ref), ref)
 
     assert writer._snapshot["model.weight"].value.tobytes() == data

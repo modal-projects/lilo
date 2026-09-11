@@ -14,6 +14,7 @@ from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 from lilo.inference.fft_bulletin import FFTSnapshotBulletin
+from lilo.inference.full_delta import FullDeltaWriter
 
 from .contract import (
     CommandBackend,
@@ -42,7 +43,6 @@ from .megatron_runtime.fft.checkpoint import (
     synchronize_checkpoint_preflight,
     write_fft_checkpoint,
 )
-from .megatron_runtime.fft.delta import FFTDeltaWriter
 from .megatron_runtime.fft.model import (
     create_fft_model_and_optimizer,
     create_fft_optimizer,
@@ -231,9 +231,9 @@ class FFTMegatronBackend(CommandBackend):
         publish_version = durable_version + 1
 
         if self._delta_writer is None:
-            self._delta_writer = FFTDeltaWriter()
+            self._delta_writer = FullDeltaWriter()
         snapshot = self._delta_writer.capture(
-            bridge=self.bridge,
+            exporter=self.bridge,
             model=self.model,
             model_id=model_id,
             publish_version=publish_version,
