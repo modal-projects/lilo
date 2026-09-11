@@ -8,6 +8,14 @@ import statistics
 from pathlib import Path
 
 
+def current_records(records, metric):
+    """Select the consumed batch when rollback left older rollout files behind."""
+    ticket = metric.get("pipeline", {}).get("sampling_ticket")
+    if ticket is None:
+        return records
+    return [r for r in records if r.get("sampling_ticket") == ticket]
+
+
 def diagnostics(root: Path):
     import matplotlib
 
@@ -24,6 +32,7 @@ def diagnostics(root: Path):
             json.loads(p.read_text())
             for p in sorted((root / "rollouts" / f"step-{step:04d}").glob("*.json"))
         ]
+        records = current_records(records, metric)
         samples = [r for g in records for r in g["rows"]]
         if len(samples) != metric["samples"]:
             continue
