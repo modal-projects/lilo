@@ -16,9 +16,7 @@ def test_miles_definition_uses_one_lilo_driver_for_all_ray_workers() -> None:
     calls = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "run_engine_with_backend"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "run_engine_with_backend"
     ]
     assert len(calls) == 1
     call = calls[0]
@@ -29,3 +27,14 @@ def test_miles_definition_uses_one_lilo_driver_for_all_ray_workers() -> None:
     assert keywords["nproc"].value == 1
     assert isinstance(keywords["max_models"], ast.Name)
     assert keywords["max_models"].id == "MAX_LORA_SLOTS"
+
+
+def test_long_context_miles_definition_supports_twenty_step_sampling():
+    from lilo.providers.modal.definitions import qwen3_5_9b_base_miles_lora_16k as long
+
+    assert long.MAX_CONTEXT_LENGTH >= 8192 + 2048
+    assert long.MAX_LORA_SLOTS >= 2
+    assert long.ROLLOUT_MAX_LOADED_LORAS >= 2 * (20 + 2)
+    assert long.ROLLOUT_MAX_CONTAINERS == 2
+    assert long.CATALOG_VISIBLE
+    assert not definition.CATALOG_VISIBLE

@@ -1,8 +1,7 @@
 import asyncio
+import pytest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-
-import pytest
 
 from lilo.providers.modal import kv
 
@@ -63,9 +62,7 @@ def test_list_items_retries_terminated_stream(monkeypatch) -> None:
         monkeypatch.setattr(kv, "StreamTerminatedError", RetryableStreamError)
         monkeypatch.setattr(kv.asyncio, "sleep", sleep)
 
-        assert await store.list_items("placement:") == (
-            ("placement:model-a", {"instance": "engine-a"}),
-        )
+        assert await store.list_items("placement:") == (("placement:model-a", {"instance": "engine-a"}),)
         assert items.attempts == 3
         assert [call.args[0] for call in sleep.await_args_list] == [0.2, 0.4]
 
@@ -128,5 +125,22 @@ def test_list_items_reraises_after_retry_limit(monkeypatch) -> None:
         with pytest.raises(RetryableStreamError):
             await store.list_items("engine_instance:")
         assert items.attempts == 3
+
+    asyncio.run(run())
+
+
+def test_lora_pool_registry_supports_publication_and_cleanup():
+    async def run():
+        from lilo.providers.local.kv import InMemoryKeyValueStore
+
+        stores = {name: InMemoryKeyValueStore() for name in kv.STORE_NAMES}
+        routed = kv.RoutedKeyValueStore(stores)
+        key = "lora_pool:lilo-test"
+        value = {"definition_id": "test", "touched_at": 1.0}
+        await routed.put(key, value)
+        assert await routed.get(key) == value
+        assert await routed.list_items("lora_pool:") == ((key, value),)
+        await routed.delete(key)
+        assert await routed.list_items("lora_pool:") == ()
 
     asyncio.run(run())

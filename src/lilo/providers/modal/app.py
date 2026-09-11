@@ -9,9 +9,9 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
+import modal
 from lilo.errors import RecordNotFound
 from lilo.providers.contracts import (
     Parameterization,
@@ -23,17 +23,18 @@ from .checkpoint_storage import (
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
 )
+from .definitions import (
+    qwen3_5_4b_full_64k,
+    qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_base_miles_lora_16k,
+    qwen3_5_9b_full_64k,
+    qwen3_5_35b_a3b_full_64k,
+    qwen3_6_27b_full_64k,
+    qwen3_6_35b_a3b_full_64k,
+)
 from .deployment import (
     trainer_deployment_env,
     trainer_max_containers,
-)
-from .definitions import (
-    qwen3_5_35b_a3b_full_64k,
-    qwen3_5_4b_full_64k,
-    qwen3_5_9b_base_miles_lora_2k,
-    qwen3_5_9b_full_64k,
-    qwen3_6_27b_full_64k,
-    qwen3_6_35b_a3b_full_64k,
 )
 from .engines import ModalEnginePlatform
 from .fft_pool import (
@@ -71,6 +72,7 @@ DEFINITIONS = (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_full_64k,
     qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_base_miles_lora_16k,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -113,11 +115,7 @@ def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
         "path": str(checkpoint),
         "time": checkpoint.stat().st_mtime,
         "size_bytes": sum(file.stat().st_size for file in files),
-        "metadata": (
-            json.loads(metadata_file.read_text(encoding="utf-8"))
-            if metadata_file.is_file()
-            else None
-        ),
+        "metadata": (json.loads(metadata_file.read_text(encoding="utf-8")) if metadata_file.is_file() else None),
     }
 
 
@@ -324,9 +322,7 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
                 ModalEnginePlatform(shared_kv(), _spawn_engine),
                 definition_id,
                 revision=None,
-                maximum_instances=(
-                    int(maximum_instances) if maximum_instances is not None else None
-                ),
+                maximum_instances=(int(maximum_instances) if maximum_instances is not None else None),
                 models_per_instance=module.TRAINER_MODELS_PER_INSTANCE,
                 scale_up=parameterization == "full",
             )
@@ -340,9 +336,7 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
 
     pending = await pending_reconciliations()
     try:
-        await asyncio.gather(
-            *(run(definition_id, token) for definition_id, token in pending.items())
-        )
+        await asyncio.gather(*(run(definition_id, token) for definition_id, token in pending.items()))
     finally:
         await release_reconcile_call(call_id)
     remaining = await pending_reconciliations()
@@ -384,9 +378,7 @@ def _plane():
         if parameterization == "full":
             await ensure_fft_pool.spawn.aio(_latest_pool(model).as_dict())
         elif parameterization == "lora":
-            await ensure_lora_pool.spawn.aio(
-                LoraPoolSpec(model.engine_definition_id).as_dict()
-            )
+            await ensure_lora_pool.spawn.aio(LoraPoolSpec(model.engine_definition_id).as_dict())
 
     async def ensure_pool(session) -> None:
         definition_id = session.engine_definition_id
@@ -425,10 +417,9 @@ def _plane():
         if maximum is None:
             return True
         instances = await engines.list_instances()
-        return sum(
-            instance.definition_id == definition_id and not instance.terminal
-            for instance in instances
-        ) < int(maximum)
+        return sum(instance.definition_id == definition_id and not instance.terminal for instance in instances) < int(
+            maximum
+        )
 
     return ControlPlane(
         kv,
@@ -443,9 +434,7 @@ def _plane():
         delete_checkpoint=_delete_checkpoint,
         checkpoint_root=CHECKPOINT_ROOT,
         reconcile_trainers=kick_trainers,
-        trainer_autoscaling=lambda definition_id: (
-            parameterization_for(definition_id) == "full"
-        ),
+        trainer_autoscaling=lambda definition_id: (parameterization_for(definition_id) == "full"),
     )
 
 
@@ -509,9 +498,7 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
             if spec.app_name in active_latest:
                 continue
         else:
-            if await _last_touched(registry, spec, value) > (
-                time.time() - FFT_POOL_IDLE_TIMEOUT
-            ):
+            if await _last_touched(registry, spec, value) > (time.time() - FFT_POOL_IDLE_TIMEOUT):
                 continue
             try:
                 replicas = await ModalFlashPool(

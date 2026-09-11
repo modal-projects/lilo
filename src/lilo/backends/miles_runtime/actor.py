@@ -35,6 +35,28 @@ _preserve_advantages_in_dp_shards()
 class LiloMilesTrainRayActor(MegatronTrainRayActor):
     """Miles training actor with one filesystem PEFT export command."""
 
+    def init(self, args, role, **kwargs):
+        # Miles's LoRA builder inherits checkpoint MTP heads without honoring
+        # enable_mtp_training. Qwen3.5 then injects an auxiliary backward loss
+        # even for a client datum whose weights are all zero.
+        from megatron.bridge import AutoBridge
+
+        if args.enable_mtp_training:
+            return super().init(args, role, **kwargs)
+        original = AutoBridge.to_megatron_provider
+
+        def provider_without_mtp(bridge, *provider_args, **provider_kwargs):
+            provider = original(bridge, *provider_args, **provider_kwargs)
+            provider.mtp_num_layers = None
+            provider.mtp_hybrid_override_pattern = None
+            return provider
+
+        AutoBridge.to_megatron_provider = provider_without_mtp
+        try:
+            return super().init(args, role, **kwargs)
+        finally:
+            AutoBridge.to_megatron_provider = original
+
     def export_slot_peft(
         self,
         *,

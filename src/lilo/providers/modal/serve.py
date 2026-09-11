@@ -12,8 +12,8 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 import httpx
-import modal
 
+import modal
 from lilo.engine import EngineServer
 from lilo.engine.backend import HttpExecutor
 from lilo.engine.http import create_engine_app
@@ -64,9 +64,7 @@ async def serve_engine(
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)
         with modal.forward(ENGINE_PORT) as tunnel:
-            record = record.model_copy(
-                update={"state": "running", "url": tunnel.url, "token": token}
-            )
+            record = record.model_copy(update={"state": "running", "url": tunnel.url, "token": token})
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
             try:
                 await _kick_trainer_reconciler(definition_id)
@@ -75,9 +73,7 @@ async def serve_engine(
                     "trainer reconcile %s",
                     definition_id,
                 )
-            server = uvicorn.Server(
-                uvicorn.Config(engine_app, host="0.0.0.0", port=ENGINE_PORT)
-            )
+            server = uvicorn.Server(uvicorn.Config(engine_app, host="0.0.0.0", port=ENGINE_PORT))
             await server.serve()
     finally:
         try:
@@ -98,16 +94,17 @@ def run_engine_with_backend(
     backend_env: dict[str, str] | None = None,
     nproc: int = 1,
     max_models: int = 8,
+    sampler_persistence_concurrency: int = 1,
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
 ) -> None:
+    if sampler_persistence_concurrency > 1 and nproc != 1:
+        raise ValueError("parallel sampler persistence requires a single-process executor")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     env = {**os.environ, **(backend_env or {})}
-    env["PYTHONPATH"] = os.pathsep.join(
-        [entry for entry in (env.get("PYTHONPATH"), *sys.path) if entry]
-    )
+    env["PYTHONPATH"] = os.pathsep.join([entry for entry in (env.get("PYTHONPATH"), *sys.path) if entry])
     env.setdefault("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
     env.setdefault("TORCH_NCCL_DUMP_ON_TIMEOUT", "1")
     env.setdefault("TORCH_NCCL_ENABLE_MONITORING", "1")
@@ -147,12 +144,14 @@ def run_engine_with_backend(
             async with asyncio.timeout(startup_timeout):
                 while True:
                     if backend.poll() is not None:
-                        raise RuntimeError(
-                            f"backend exited with code {backend.returncode}"
-                        )
+                        raise RuntimeError(f"backend exited with code {backend.returncode}")
                     try:
                         if (await executor.http.get("/healthz")).is_success:
-                            return EngineServer(executor, max_models=max_models)
+                            return EngineServer(
+                                executor,
+                                max_models=max_models,
+                                sampler_persistence_concurrency=sampler_persistence_concurrency,
+                            )
                     except httpx.TransportError:
                         pass
                     await asyncio.sleep(2)

@@ -1,11 +1,116 @@
 import asyncio
 import json
-
 import pytest
 
-from tests.support import EchoExecutor
 from lilo.engine import EngineServer, FutureStatus, OperationKind
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
+
+from tests.support import EchoExecutor
+
+
+def test_parallel_sampler_persistence_backpressure_keeps_training_ready() -> None:
+    async def run():
+        started = {model: asyncio.Event() for model in ["a", "b", "c"]}
+        release = {model: asyncio.Event() for model in started}
+        captures = []
+
+        class Executor(EchoExecutor):
+            async def capture_operation(self, model_id, kind, payload):
+                captures.append(model_id)
+                return {"model_id": model_id}
+
+            async def persist_operation(self, model_id, kind, payload, capture):
+                assert capture["model_id"] == model_id
+                started[model_id].set()
+                await release[model_id].wait()
+                return {"publish_version": payload.publish_version}
+
+        server = EngineServer(Executor(), sampler_persistence_concurrency=2)
+        for model in ["a", "b", "c", "d"]:
+            await server.accept_model(model, {})
+        saves = {}
+        for model in started:
+            saves[model] = await server.save_weights_for_sampler({"model_id": model, "seq_id": 1, "publish_version": 1})
+        await asyncio.wait_for(asyncio.gather(started["a"].wait(), started["b"].wait()), 1)
+        train = await forward_backward(server, 1, model_id="d")
+        assert (await server.retrieve_future(train, timeout=1)).status == FutureStatus.COMPLETE
+        assert captures == ["a", "b"]
+        assert not started["c"].is_set()
+        release["a"].set()
+        await asyncio.wait_for(started["c"].wait(), 1)
+        assert not release["b"].is_set()
+        closing = asyncio.create_task(server.close())
+        await asyncio.sleep(0)
+        assert not closing.done()
+        release["b"].set()
+        release["c"].set()
+        await asyncio.wait_for(closing, 1)
+        assert not server._sampler_inflight
+
+    asyncio.run(run())
+
+
+def test_parallel_sampler_publications_preserve_per_client_order() -> None:
+    async def run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        captures = []
+
+        class Executor(EchoExecutor):
+            async def capture_operation(self, model_id, kind, payload):
+                captures.append(payload.publish_version)
+                return payload.publish_version
+
+            async def persist_operation(self, model_id, kind, payload, capture):
+                if capture == 1:
+                    started.set()
+                    await release.wait()
+                return {"publish_version": capture}
+
+        server = EngineServer(Executor(), sampler_persistence_concurrency=2)
+        await server.accept_model("model-a", {})
+        await server.accept_model("model-b", {})
+        first = await server.save_weights_for_sampler({"model_id": "model-a", "seq_id": 1, "publish_version": 1})
+        await asyncio.wait_for(started.wait(), 1)
+        train = await forward_backward(server, 2)
+        second = await server.save_weights_for_sampler({"model_id": "model-a", "seq_id": 3, "publish_version": 2})
+        other = await forward_backward(server, 1, model_id="model-b")
+        assert (await server.retrieve_future(train, timeout=1)).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future(other, timeout=1)).status == FutureStatus.COMPLETE
+        assert captures == [1]
+        release.set()
+        assert (await server.retrieve_future(first, timeout=1)).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future(second, timeout=1)).result == {"publish_version": 2}
+        assert captures == [1, 2]
+        await server.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("failure_phase", ["capture", "persist"])
+def test_parallel_sampler_failure_releases_capacity(failure_phase) -> None:
+    async def run():
+        class Executor(EchoExecutor):
+            async def capture_operation(self, model_id, kind, payload):
+                if failure_phase == "capture" and payload.publish_version == 1:
+                    raise RuntimeError("capture failed")
+                return payload.publish_version
+
+            async def persist_operation(self, model_id, kind, payload, capture):
+                if failure_phase == "persist" and capture == 1:
+                    raise RuntimeError("persist failed")
+                return {"publish_version": capture}
+
+        server = EngineServer(Executor(), sampler_persistence_concurrency=2)
+        await server.accept_model("model-a", {})
+        first = await server.save_weights_for_sampler({"model_id": "model-a", "seq_id": 1, "publish_version": 1})
+        second = await server.save_weights_for_sampler({"model_id": "model-a", "seq_id": 2, "publish_version": 2})
+        assert (await server.retrieve_future(first, timeout=1)).status == FutureStatus.FAILED
+        assert (await server.retrieve_future(second, timeout=1)).result == {"publish_version": 2}
+        assert not server._sampler_inflight
+        await server.close()
+
+    asyncio.run(run())
 
 
 async def forward_backward(
@@ -74,12 +179,8 @@ def test_accept_loads_checkpoint_before_model_is_ready() -> None:
         assert calls[1][0:2] == ("load_weights", "session:train:0")
         assert calls[1][2].uri == "/checkpoints/snapshot"
         assert calls[1][2].restore_optimizer
-        request_id = await server.optim_step(
-            {"model_id": "session:train:0", "seq_id": 1, "adam_params": {}}
-        )
-        assert (await server.retrieve_future(request_id, timeout=1)).status == (
-            FutureStatus.COMPLETE
-        )
+        request_id = await server.optim_step({"model_id": "session:train:0", "seq_id": 1, "adam_params": {}})
+        assert (await server.retrieve_future(request_id, timeout=1)).status == (FutureStatus.COMPLETE)
 
     asyncio.run(run())
 
@@ -114,16 +215,10 @@ def test_executes_in_order_across_gaps() -> None:
         server = EngineServer(EchoExecutor())
         await server.accept_model("model-a", {})
         assert await forward_backward(server, 2) == "model-a:2"
-        assert (
-            await server.retrieve_future("model-a:2", timeout=0.05)
-        ).status == FutureStatus.PENDING
+        assert (await server.retrieve_future("model-a:2", timeout=0.05)).status == FutureStatus.PENDING
         await forward_backward(server, 1)
-        assert (
-            await server.retrieve_future("model-a:1", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
-        assert (
-            await server.retrieve_future("model-a:2", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:1", timeout=1.0)).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:2", timeout=1.0)).status == FutureStatus.COMPLETE
         assert await server.retrieve_future("model-a:3") is None
         await server.close()
 
@@ -140,9 +235,7 @@ def test_skip_sequence_advances_across_rejected_operation() -> None:
         skipped = await server.retrieve_future(request_id, timeout=1.0)
         assert skipped.status == FutureStatus.FAILED
         assert skipped.error == "invalid request"
-        assert (
-            await server.retrieve_future("model-a:2", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:2", timeout=1.0)).status == FutureStatus.COMPLETE
         await server.close()
 
     asyncio.run(run())
@@ -169,9 +262,7 @@ def test_deduplicates_and_detects_conflicts() -> None:
         await server.accept_model("model-a", {})
         first = await forward_backward(server, 1)
         assert await forward_backward(server, 1) == first
-        assert (
-            await server.retrieve_future("model-a:1", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:1", timeout=1.0)).status == FutureStatus.COMPLETE
         with pytest.raises(SequenceConflict):
             await forward_backward(server, 1, data=[999])
         with pytest.raises(RecordNotFound):
@@ -248,9 +339,7 @@ def test_save_weights_rejects_paths_outside_model_directory(name: str) -> None:
         server = EngineServer(EchoExecutor())
         await server.accept_model("model-a", {})
         with pytest.raises(ValueError, match="single path component"):
-            await server.save_weights(
-                {"model_id": "model-a", "seq_id": 1, "path": name}
-            )
+            await server.save_weights({"model_id": "model-a", "seq_id": 1, "path": name})
 
     asyncio.run(run())
 
@@ -342,19 +431,13 @@ def test_oldest_results_evicted_beyond_cap() -> None:
         await server.accept_model("model-b", {})
         await forward_backward(server, 1, model_id="model-b")
         await forward_backward(server, 1)
-        assert (
-            await server.retrieve_future("model-a:1", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:1", timeout=1.0)).status == FutureStatus.COMPLETE
         await forward_backward(server, 2)
-        assert (
-            await server.retrieve_future("model-a:2", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-a:2", timeout=1.0)).status == FutureStatus.COMPLETE
         assert await server.retrieve_future("model-a:1") is None
         with pytest.raises(SequenceConflict):
             await forward_backward(server, 1)
-        assert (
-            await server.retrieve_future("model-b:1", timeout=1.0)
-        ).status == FutureStatus.COMPLETE
+        assert (await server.retrieve_future("model-b:1", timeout=1.0)).status == FutureStatus.COMPLETE
         await server.close()
 
     asyncio.run(run())
@@ -457,9 +540,7 @@ def test_batches_compatible_forward_backward_across_models() -> None:
         for request_id in ("model-a:1", "model-b:1"):
             state = await server.retrieve_future(request_id, timeout=1.0)
             assert state.status == FutureStatus.COMPLETE
-        assert [[item.model_id for item in batch] for batch in executor.batches] == [
-            ["model-a", "model-b"]
-        ]
+        assert [[item.model_id for item in batch] for batch in executor.batches] == [["model-a", "model-b"]]
         await server.close()
 
     asyncio.run(run())
@@ -473,12 +554,7 @@ def test_batches_consecutive_forward_backward_for_one_model() -> None:
 
         class RecordingExecutor(EchoExecutor):
             async def execute_batch(self, executions):
-                batches.append(
-                    [
-                        (item.model_id, *item.payload.data[0].model_input.to_ints())
-                        for item in executions
-                    ]
-                )
+                batches.append([(item.model_id, *item.payload.data[0].model_input.to_ints()) for item in executions])
                 if len(batches) == 1:
                     first_started.set()
                     await release_first.wait()
@@ -492,9 +568,7 @@ def test_batches_consecutive_forward_backward_for_one_model() -> None:
         await first_started.wait()
         await forward_backward(server, 2)
         await forward_backward(server, 3)
-        await server.optim_step(
-            {"model_id": "model-a", "seq_id": 4, "adam_params": {"learning_rate": 0.1}}
-        )
+        await server.optim_step({"model_id": "model-a", "seq_id": 4, "adam_params": {"learning_rate": 0.1}})
         await forward_backward(server, 5)
         await forward_backward(server, 1, model_id="model-b")
         await forward_backward(server, 2, model_id="model-b")
@@ -568,9 +642,7 @@ def test_close_waits_for_active_capture_and_persistence() -> None:
 
         server = EngineServer(CheckpointExecutor())
         await server.accept_model("model-a", {})
-        await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"}
-        )
+        await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"})
         await capture_started.wait()
 
         closing = asyncio.create_task(server.close())
@@ -607,9 +679,7 @@ def test_checkpoint_persistence_overlaps_later_gpu_operations() -> None:
 
         server = EngineServer(CheckpointExecutor())
         await server.accept_model("model-a", {})
-        save_id = await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"}
-        )
+        save_id = await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"})
         forward_id = await forward_backward(server, 2)
 
         await asyncio.wait_for(persist_started.wait(), 1.0)
@@ -660,9 +730,7 @@ def test_checkpoint_persistence_does_not_block_sampler_publication() -> None:
 
         server = EngineServer(SplitPersistenceExecutor())
         await server.accept_model("model-a", {})
-        checkpoint_id = await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"}
-        )
+        checkpoint_id = await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"})
         sampler_id = await server.save_weights_for_sampler(
             {
                 "model_id": "model-a",
@@ -673,12 +741,8 @@ def test_checkpoint_persistence_does_not_block_sampler_publication() -> None:
 
         await asyncio.wait_for(checkpoint_started.wait(), timeout=1.0)
         await asyncio.wait_for(sampler_completed.wait(), timeout=1.0)
-        assert (await server.retrieve_future(checkpoint_id)).status == (
-            FutureStatus.PENDING
-        )
-        assert (await server.retrieve_future(sampler_id)).status == (
-            FutureStatus.COMPLETE
-        )
+        assert (await server.retrieve_future(checkpoint_id)).status == (FutureStatus.PENDING)
+        assert (await server.retrieve_future(sampler_id)).status == (FutureStatus.COMPLETE)
 
         release_checkpoint.set()
         await server.close()
@@ -705,23 +769,15 @@ def test_next_capture_waits_for_previous_persistence() -> None:
 
         server = EngineServer(CheckpointExecutor())
         await server.accept_model("model-a", {})
-        first = await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "first"}
-        )
-        second = await server.save_weights(
-            {"model_id": "model-a", "seq_id": 2, "name": "second"}
-        )
+        first = await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "first"})
+        second = await server.save_weights({"model_id": "model-a", "seq_id": 2, "name": "second"})
         await persist_started.wait()
         await asyncio.sleep(0.01)
         assert captures == ["first"]
 
         release_persist.set()
-        assert (await server.retrieve_future(first, timeout=1)).status == (
-            FutureStatus.COMPLETE
-        )
-        assert (await server.retrieve_future(second, timeout=1)).status == (
-            FutureStatus.COMPLETE
-        )
+        assert (await server.retrieve_future(first, timeout=1)).status == (FutureStatus.COMPLETE)
+        assert (await server.retrieve_future(second, timeout=1)).status == (FutureStatus.COMPLETE)
         assert captures == ["first", "second"]
         await server.close()
 
@@ -751,9 +807,7 @@ def test_load_waits_for_pending_persistence() -> None:
 
         server = EngineServer(CheckpointExecutor())
         await server.accept_model("model-a", {})
-        await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"}
-        )
+        await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"})
         load_id = await server.load_weights(
             {
                 "model_id": "model-a",
@@ -797,9 +851,7 @@ def test_unload_waits_for_pending_persistence() -> None:
 
         server = EngineServer(CheckpointExecutor())
         await server.accept_model("model-a", {})
-        await server.save_weights(
-            {"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"}
-        )
+        await server.save_weights({"model_id": "model-a", "seq_id": 1, "name": "snapshot-1"})
         await asyncio.wait_for(persist_started.wait(), 1.0)
 
         unloading = asyncio.create_task(server.unload_model("model-a"))

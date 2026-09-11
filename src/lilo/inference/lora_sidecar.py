@@ -56,14 +56,20 @@ def create_app(
         served_version = None
         if run_id is not None:
             try:
-                ref = await _resolve(bulletin, str(run_id), constraint)
-                registration_error = await _ensure_adapter(
-                    app,
-                    ref.identity,
-                    str(bulletin.resolve(ref)),
+                ref = (
+                    VersionRef(str(run_id), constraint.exact_version) if constraint.exact_version is not None else None
                 )
-                if registration_error is not None:
-                    return _passthrough(registration_error)
+                if ref is None or ref.identity not in app.state.registered_adapters:
+                    # Reload and registration share a lock because reload can
+                    # temporarily hide paths that SGLang is reading.
+                    async with app.state.adapter_lock:
+                        # Another request may have registered this exact version
+                        # while this request waited for the lock.
+                        if ref is None or ref.identity not in app.state.registered_adapters:
+                            ref = await _resolve(bulletin, str(run_id), constraint)
+                            registration_error = await _ensure_adapter(app, ref.identity, str(bulletin.resolve(ref)))
+                            if registration_error is not None:
+                                return _passthrough(registration_error)
                 payload["lora_path"] = ref.identity
                 served_version = ref.version
             except (SnapshotNotFound, ValueError) as exc:
@@ -93,20 +99,19 @@ async def _ensure_adapter(
     name: str,
     path: str,
 ) -> httpx.Response | None:
-    async with app.state.adapter_lock:
-        registered = app.state.registered_adapters
-        if registered.get(name) == path:
-            return None
-        if name in registered:
-            raise RuntimeError(f"adapter {name!r} changed its immutable path")
-        response = await app.state.client.post(
-            "/load_lora_adapter",
-            json={"lora_name": name, "lora_path": path, "pinned": False},
-        )
-        if response.is_error:
-            return response
-        registered[name] = path
+    registered = app.state.registered_adapters
+    if registered.get(name) == path:
         return None
+    if name in registered:
+        raise RuntimeError(f"adapter {name!r} changed its immutable path")
+    response = await app.state.client.post(
+        "/load_lora_adapter",
+        json={"lora_name": name, "lora_path": path, "pinned": False},
+    )
+    if response.is_error:
+        return response
+    registered[name] = path
+    return None
 
 
 async def _post_generate(
@@ -164,9 +169,7 @@ async def _resolve(
     if latest is None:
         raise SnapshotNotFound(run_id)
     if constraint.min_version is not None and latest.version < constraint.min_version:
-        raise SnapshotNotFound(
-            f"{run_id} latest={latest.version} required={constraint.min_version}"
-        )
+        raise SnapshotNotFound(f"{run_id} latest={latest.version} required={constraint.min_version}")
     return latest
 
 

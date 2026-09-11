@@ -13,12 +13,12 @@ from ..deployment import trainer_max_containers
 
 MODEL_NAME = "Qwen/Qwen3.5-9B-Base"
 HF_CHECKPOINT = "/assets/Qwen3.5-9B-Base"
-DEFINITION_ID = "qwen3_5_9b_base_miles_lora_2k"
+DEFINITION_ID = "qwen3_5_9b_base_miles_lora_16k"
 PARAMETERIZATION = "lora"
-CATALOG_VISIBLE = False
-MAX_CONTEXT_LENGTH = 2048
+CATALOG_VISIBLE = True
+MAX_CONTEXT_LENGTH = 16_384
 
-GPU_TYPE = "H200"
+GPU_TYPE = "H100"
 GPUS = 4
 TENSOR_MODEL_PARALLEL_SIZE = 4
 MAX_LORA_SLOTS = 4
@@ -42,7 +42,8 @@ ROLLOUT_MEMORY_FRACTION = 0.8
 ROLLOUT_MAX_RUNNING_REQUESTS = 32
 ROLLOUT_MAX_QUEUED_REQUESTS = 8
 ROLLOUT_TARGET_CONCURRENCY = 16
-ROLLOUT_MAX_LOADED_LORAS = 32
+ROLLOUT_MAX_LOADED_LORAS = 64
+ROLLOUT_MAX_CONTAINERS = 2
 ROLLOUT_MAX_LORAS_PER_BATCH = 8
 ROLLOUT_LORA_TARGET_MODULES = (
     "q_proj",
@@ -94,7 +95,7 @@ proxy_secret = modal.Secret.from_name(
     max_containers=trainer_max_containers(),
     single_use_containers=True,
 )
-def qwen3_5_9b_base_miles_lora_2k(instance_id: str) -> None:
+def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
     import json
 
     from huggingface_hub import snapshot_download
@@ -118,6 +119,8 @@ def qwen3_5_9b_base_miles_lora_2k(instance_id: str) -> None:
             "target_modules": TARGET_MODULES,
             "max_tokens_per_gpu": MAX_CONTEXT_LENGTH,
             "extra_args": (
+                "--seq-length",
+                str(MAX_CONTEXT_LENGTH),
                 "--recompute-granularity",
                 "full",
                 "--recompute-method",
@@ -151,4 +154,4 @@ def qwen3_5_9b_base_miles_lora_2k(instance_id: str) -> None:
     )
 
 
-ENGINE_FUNCTION = qwen3_5_9b_base_miles_lora_2k
+ENGINE_FUNCTION = qwen3_5_9b_base_miles_lora_16k

@@ -99,4 +99,6 @@ print(optimizer.result(timeout=600).metrics)
 See [Validation](docs/validation.md) for end-to-end Lilo and Miles training
 runs. Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) before
 running a job. See [Design](docs/design.md) for the control-plane,
-training-engine, and sampling architecture.
+training-engine, and sampling architecture. For two concurrent Tinker LoRA clients
+sharing one Miles trainer and publishing through the Lilo sampler path, see
+[Multi-LoRA E2E](docs/multi-lora-e2e.md).

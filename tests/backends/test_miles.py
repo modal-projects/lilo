@@ -1,14 +1,15 @@
 import json
-from pathlib import Path
-
 import pytest
-from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from lilo.backends import ForwardBatch, ForwardItem, ModelSpec
 from lilo.backends.miles_config import MilesBackendConfig, parse_backend_config
 from lilo.backends.miles_lora import MilesCommandBackend
 from lilo.inference.bulletin import SnapshotBulletin
 from stitch.types import VersionRef
+from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 
 
 class FakeMilesRuntime:
@@ -25,9 +26,7 @@ class FakeMilesRuntime:
         checkpoint=None,
         restore_optimizer=True,
     ):
-        self.calls.append(
-            ("load_slot", slot, rank, alpha, checkpoint, restore_optimizer)
-        )
+        self.calls.append(("load_slot", slot, rank, alpha, checkpoint, restore_optimizer))
 
     def unload_slot(self, slot):
         self.calls.append(("unload_slot", slot))
@@ -275,6 +274,34 @@ def test_sampler_capture_publishes_existing_lilo_format(tmp_path, monkeypatch) -
     resolved = SnapshotBulletin(bulletin_root).resolve(VersionRef("model-a", 7))
     assert (resolved / "adapter_model.safetensors").read_bytes() == b"adapter"
     assert "capture-a" not in backend._sampler_captures
+
+
+def test_sampler_snapshots_persist_concurrently_without_crossing_adapters(tmp_path, monkeypatch) -> None:
+    from lilo.backends import miles_lora
+
+    backend = _backend(tmp_path, FakeMilesRuntime())
+    root = tmp_path / "bulletin"
+    monkeypatch.setenv("LILO_BULLETIN_ROOT", str(root))
+    monkeypatch.setenv("LILO_BULLETIN_VOLUME", "test-volume")
+    committing = threading.Barrier(2, timeout=5)
+    monkeypatch.setattr(miles_lora, "_commit_volume", lambda name: committing.wait())
+    for model in ["model-a", "model-b"]:
+        backend.accept_model(model, _spec())
+        backend.capture_sampler_snapshot(model, model, 1)
+        capture = backend._sampler_captures[model]
+        (capture["path"] / "adapter_model.safetensors").write_bytes(model.encode())
+
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        futures = [workers.submit(backend.persist_sampler_snapshot, model) for model in ["model-a", "model-b"]]
+        for future in futures:
+            future.result(timeout=10)
+
+    bulletin = SnapshotBulletin(root)
+    for model in ["model-a", "model-b"]:
+        ref = VersionRef(model, 1)
+        assert bulletin.read_latest(model) == ref
+        assert (bulletin.resolve(ref) / "adapter_model.safetensors").read_bytes() == model.encode()
+    assert not backend._sampler_captures
 
 
 def test_backend_rejects_unsupported_per_model_miles_options(tmp_path) -> None:

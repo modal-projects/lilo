@@ -1,11 +1,11 @@
+import asyncio
 import json
 
 import httpx
 from fastapi.testclient import TestClient
-from stitch.types import VersionRef
-
 from lilo.inference.bulletin import SnapshotBulletin
 from lilo.inference.lora_sidecar import create_app
+from stitch.types import VersionRef
 
 
 def _publish(tmp_path, version):
@@ -192,3 +192,80 @@ def test_sidecar_propagates_adapter_registration_failure(tmp_path) -> None:
 
     assert response.status_code == 400
     assert response.json()["error"] == "invalid adapter"
+
+
+def test_volume_refresh_cannot_overlap_adapter_loading(tmp_path) -> None:
+    bulletin = _publish(tmp_path, 7)
+
+    async def scenario():
+        loading = asyncio.Event()
+        release = asyncio.Event()
+        refreshes = []
+
+        async def refresh():
+            assert not loading.is_set(), "volume refreshed during SGLang file reads"
+            refreshes.append(True)
+
+        bulletin._refresh = refresh
+
+        async def upstream(request):
+            if request.url.path == "/load_lora_adapter":
+                loading.set()
+                await release.wait()
+                loading.clear()
+            return httpx.Response(200, json={"meta_info": {}})
+
+        app = create_app(bulletin, "http://sglang", transport=httpx.MockTransport(upstream))
+        payload = {
+            "input_ids": [1],
+            "weight_run_id": "model-a",
+            "weight_version": {"exact_version": 7},
+        }
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://sidecar") as client:
+                first = asyncio.create_task(client.post("/generate", json=payload))
+                await asyncio.wait_for(loading.wait(), 2)
+                second = asyncio.create_task(client.post("/generate", json=payload))
+                await asyncio.sleep(0.05)
+                assert len(refreshes) == 1
+                release.set()
+                results = await asyncio.wait_for(asyncio.gather(first, second), 2)
+                assert all(result.status_code == 200 for result in results)
+                assert len(refreshes) == 1
+
+    asyncio.run(scenario())
+
+
+def test_loaded_exact_version_bypasses_refresh_and_registration_lock(tmp_path) -> None:
+    bulletin = _publish(tmp_path, 8)
+
+    async def scenario():
+        refreshes = []
+        loads = []
+
+        async def refresh():
+            refreshes.append(True)
+
+        bulletin._refresh = refresh
+
+        def upstream(request):
+            if request.url.path == "/load_lora_adapter":
+                loads.append(True)
+            return httpx.Response(200, json={"meta_info": {}})
+
+        app = create_app(bulletin, "http://sglang", transport=httpx.MockTransport(upstream))
+        payload = {"input_ids": [1], "weight_run_id": "model-a", "weight_version": {"exact_version": 8}}
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://sidecar") as client:
+                assert (await client.post("/generate", json=payload)).status_code == 200
+                async with app.state.adapter_lock:
+                    response = await asyncio.wait_for(client.post("/generate", json=payload), 2)
+                assert response.status_code == 200
+                assert response.json()["meta_info"]["weight_version_start"] == 8
+                assert len(refreshes) == len(loads) == 1
+                payload["weight_version"] = {"min_version": 8}
+                assert (await client.post("/generate", json=payload)).status_code == 200
+                assert len(refreshes) == 2
+                assert len(loads) == 1
+
+    asyncio.run(scenario())

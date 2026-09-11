@@ -79,11 +79,16 @@ class EngineServer:
         max_models: int = 8,
         max_buffered: int = 256,
         max_results: int = 128,
+        sampler_persistence_concurrency: int = 1,
     ) -> None:
+        if sampler_persistence_concurrency < 1:
+            raise ValueError("sampler_persistence_concurrency must be positive")
         self.executor = executor
         self.max_models = max_models
         self.max_buffered = max_buffered
         self.max_results = max_results
+        self.sampler_persistence_concurrency = sampler_persistence_concurrency
+        self._sampler_inflight: set[str] = set()
         self.draining = False
         self._models: dict[str, _ModelState] = {}
         self._futures: dict[str, FutureState] = {}
@@ -183,11 +188,7 @@ class EngineServer:
             while True:
                 state = self._futures.get(request_id)
                 remaining = deadline - asyncio.get_running_loop().time()
-                if (
-                    state is None
-                    or state.status != FutureStatus.PENDING
-                    or remaining <= 0
-                ):
+                if state is None or state.status != FutureStatus.PENDING or remaining <= 0:
                     return state
                 try:
                     await asyncio.wait_for(self._completed.wait(), remaining)
@@ -239,14 +240,13 @@ class EngineServer:
             tasks, self._tasks = self._tasks, ()
             self._work.notify_all()
         if tasks:
-            command_task, checkpoint_task, sampler_task = tasks
+            command_task, *persistence_tasks = tasks
             await asyncio.gather(command_task, return_exceptions=True)
             await self._join_persistence()
-            checkpoint_task.cancel()
-            sampler_task.cancel()
+            for task in persistence_tasks:
+                task.cancel()
             await asyncio.gather(
-                checkpoint_task,
-                sampler_task,
+                *persistence_tasks,
                 return_exceptions=True,
             )
         for model in self._models.values():
@@ -301,7 +301,10 @@ class EngineServer:
         self._tasks = (
             asyncio.create_task(self._run_loop()),
             asyncio.create_task(self._persistence_loop(self._checkpoint_persistence)),
-            asyncio.create_task(self._persistence_loop(self._sampler_persistence)),
+            *(
+                asyncio.create_task(self._persistence_loop(self._sampler_persistence))
+                for _ in range(self.sampler_persistence_concurrency)
+            ),
         )
 
     async def _run_loop(self) -> None:
@@ -333,10 +336,7 @@ class EngineServer:
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
                     results = await self.executor.execute_batch(
-                        tuple(
-                            Execution(item.model_id, item.kind, item.payload)
-                            for item in operations
-                        )
+                        tuple(Execution(item.model_id, item.kind, item.payload) for item in operations)
                     )
                     if len(results) != len(operations):
                         raise RuntimeError("executor returned the wrong result count")
@@ -350,15 +350,10 @@ class EngineServer:
                             operation.payload,
                         ),
                     )
-                states = tuple(
-                    FutureState(FutureStatus.COMPLETE, result=result)
-                    for result in results
-                )
+                states = tuple(FutureState(FutureStatus.COMPLETE, result=result) for result in results)
             except Exception as exc:  # noqa: BLE001
                 error = _failure(exc, f"{operation.kind.value} x{len(operations)}")
-                states = tuple(
-                    FutureState(FutureStatus.FAILED, error=error) for _ in operations
-                )
+                states = tuple(FutureState(FutureStatus.FAILED, error=error) for _ in operations)
             async with self._lock:
                 for item, state in zip(operations, states, strict=True):
                     self._finish(item, state)
@@ -415,11 +410,15 @@ class EngineServer:
 
     async def _capture_for_persistence(self, operation: Operation) -> None:
         queue = (
-            self._checkpoint_persistence
-            if operation.kind == OperationKind.SAVE_WEIGHTS
-            else self._sampler_persistence
+            self._checkpoint_persistence if operation.kind == OperationKind.SAVE_WEIGHTS else self._sampler_persistence
         )
-        await queue.join()
+        parallel_sampler = queue is self._sampler_persistence and self.sampler_persistence_concurrency > 1
+        if parallel_sampler:
+            # Reservation covers capture and persistence; eligibility is checked
+            # before consuming the operation so backpressure cannot stall dispatch.
+            self._sampler_inflight.add(operation.model_id)
+        else:
+            await queue.join()
         try:
             capture = await self.executor.capture_operation(
                 operation.model_id,
@@ -428,6 +427,9 @@ class EngineServer:
             )
         except Exception as exc:  # noqa: BLE001
             async with self._lock:
+                if parallel_sampler:
+                    self._sampler_inflight.remove(operation.model_id)
+                    self._work.notify_all()
                 self._finish(
                     operation,
                     FutureState(
@@ -457,6 +459,9 @@ class EngineServer:
                     )
                 async with self._lock:
                     self._finish(job.operation, state)
+                    if queue is self._sampler_persistence and self.sampler_persistence_concurrency > 1:
+                        self._sampler_inflight.remove(job.operation.model_id)
+                        self._work.notify_all()
             finally:
                 queue.task_done()
 
@@ -495,6 +500,17 @@ class EngineServer:
                 continue
             operation = model.buffered.get(model.next_seq)
             if operation is not None:
+                if (
+                    operation.kind == OperationKind.SAVE_WEIGHTS_FOR_SAMPLER
+                    and self.sampler_persistence_concurrency > 1
+                    and (
+                        operation.model_id in self._sampler_inflight
+                        or len(self._sampler_inflight) >= self.sampler_persistence_concurrency
+                    )
+                ):
+                    # Serialize versions of one adapter while letting other
+                    # adapters train or publish using independent snapshots.
+                    continue
                 ready.append(operation)
         if not ready:
             return None

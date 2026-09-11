@@ -42,9 +42,7 @@ async def sample_task(
     prompt = _prompt_tokens(request["prompt"])
     params = _sampling_params(
         request.get("sampling_params") or {},
-        remaining_context=(
-            context_length - len(prompt) - 1 if context_length is not None else None
-        ),
+        remaining_context=(context_length - len(prompt) - 1 if context_length is not None else None),
     )
     model_id = task.get("model_id")
     version = task.get("publish_version")
@@ -101,16 +99,10 @@ async def sample_task(
     sequences = [_sequence(output) for output in outputs]
     response: dict[str, Any] = {"type": "sample", "sequences": sequences}
     if prompt_logprobs:
-        response["prompt_logprobs"] = _logprobs(
-            (outputs[0].get("meta_info") or {}).get("input_token_logprobs")
-        )
+        response["prompt_logprobs"] = _logprobs((outputs[0].get("meta_info") or {}).get("input_token_logprobs"))
     if topk_prompt_logprobs:
-        response["topk_prompt_logprobs"] = _topk_logprobs(
-            (outputs[0].get("meta_info") or {}).get("input_top_logprobs")
-        )
-    response["prompt_cache_hit_tokens"] = int(
-        (outputs[0].get("meta_info") or {}).get("cached_tokens") or 0
-    )
+        response["topk_prompt_logprobs"] = _topk_logprobs((outputs[0].get("meta_info") or {}).get("input_top_logprobs"))
+    response["prompt_cache_hit_tokens"] = int((outputs[0].get("meta_info") or {}).get("cached_tokens") or 0)
     return response
 
 
@@ -157,25 +149,19 @@ async def _sample_one(
     waiting_logged = False
     while True:
         cause: httpx.TransportError | None = None
-        resolved = (
-            (gateway.rstrip("/"),) if isinstance(gateway, str) else await gateway()
-        )
+        resolved = (gateway.rstrip("/"),) if isinstance(gateway, str) else await gateway()
         gateways = tuple(item for item in resolved if item not in rejected)
         if not gateways:
             reason = "no compatible rollout replicas"
             if index == 0 and not waiting_logged:
                 print(
-                    "execute_sample route_wait "
-                    f"request={group_session_id} model={model_id} "
-                    f"version={version}",
+                    f"execute_sample route_wait request={group_session_id} model={model_id} version={version}",
                     flush=True,
                 )
                 waiting_logged = True
             remaining = deadline - loop.time()
             if remaining <= 0:
-                raise RuntimeError(
-                    f"rollout generate unavailable after {retry_timeout:g}s: {reason}"
-                )
+                raise RuntimeError(f"rollout generate unavailable after {retry_timeout:g}s: {reason}")
             if on_wait is not None:
                 await on_wait()
             await asyncio.sleep(min(remaining, delay * random.uniform(0.8, 1.2)))
@@ -218,10 +204,7 @@ async def _sample_one(
             retryable = response.status_code == 409 or response.status_code >= 500
             if not retryable:
                 if response.is_error:
-                    raise RuntimeError(
-                        f"rollout generate returned {response.status_code}: "
-                        f"{response.text[:500]}"
-                    )
+                    raise RuntimeError(f"rollout generate returned {response.status_code}: {response.text[:500]}")
                 result = response.json()
                 if not isinstance(result, dict):
                     raise ValueError("SGLang returned a non-object response")
@@ -261,9 +244,7 @@ async def _sample_one(
         remaining = deadline - loop.time()
         if remaining <= 0:
             state = "saturated" if reason.startswith("HTTP 503") else "unavailable"
-            raise RuntimeError(
-                f"rollout {state} after {retry_timeout:g}s: {reason}"
-            ) from cause
+            raise RuntimeError(f"rollout {state} after {retry_timeout:g}s: {reason}") from cause
         if on_wait is not None:
             await on_wait()
         await asyncio.sleep(min(remaining, delay * random.uniform(0.8, 1.2)))
@@ -289,18 +270,12 @@ def _sampling_params(
     *,
     remaining_context: int | None = None,
 ) -> dict[str, Any]:
-    output = {
-        key: params[key]
-        for key in ("temperature", "top_k", "top_p", "seed")
-        if params.get(key) is not None
-    }
+    output = {key: params[key] for key in ("temperature", "top_k", "top_p", "seed") if params.get(key) is not None}
     stop = params.get("stop")
     if (
         isinstance(stop, list)
         and stop
-        and all(
-            not isinstance(token, bool) and isinstance(token, int) for token in stop
-        )
+        and all(not isinstance(token, bool) and isinstance(token, int) for token in stop)
     ):
         output["stop_token_ids"] = stop
     elif stop is not None:
@@ -330,10 +305,7 @@ def _response_version_error(
         if not minimum and start == end == expected:
             return None
     relation = "at least" if minimum else "exactly"
-    return (
-        f"rollout generated weight versions {start!r}..{end!r}, "
-        f"expected {relation} {expected}"
-    )
+    return f"rollout generated weight versions {start!r}..{end!r}, expected {relation} {expected}"
 
 
 def _sequence(output: dict[str, Any]) -> dict[str, Any]:
@@ -368,15 +340,16 @@ def _logprob(item: Any) -> float:
 def _logprobs(items: Any) -> list[float | None]:
     if not items:
         return []
-    return [None if item is None else _logprob(item) for item in items]
+    values = []
+    for item in items:
+        value = None if item is None else item["logprob"] if isinstance(item, dict) else item[0]
+        values.append(None if value is None else float(value))
+    return values
 
 
 def _topk_logprobs(items: Any) -> list[list[tuple[int, float]] | None]:
     if not items:
         return []
     return [
-        None
-        if item is None
-        else [(_token(candidate), _logprob(candidate)) for candidate in item]
-        for item in items
+        None if item is None else [(_token(candidate), _logprob(candidate)) for candidate in item] for item in items
     ]

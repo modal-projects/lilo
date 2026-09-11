@@ -1,11 +1,10 @@
 import asyncio
 import json
+import pytest
 import socket
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import pytest
-
 from lilo.inference import sampling
 from lilo.inference.sampling import sample_task
 
@@ -61,6 +60,23 @@ def test_exact_sampling_pins_version() -> None:
     assert body["weight_run_id"] == "model-a"
     assert body["weight_version"] == {"min_version": None, "exact_version": 7}
     assert result["sequences"][0]["tokens"] == [5]
+
+
+@pytest.mark.parametrize("first", [None, [None, 1], {"logprob": None, "token_id": 1}])
+def test_prompt_logprobs_preserve_undefined_first_token(first) -> None:
+    request = task()
+    request["payload"]["prompt_logprobs"] = True
+    request["payload"]["prompt"]["chunks"][0]["tokens"] = [1, 2]
+    body = response(7).json()
+    body["meta_info"]["input_token_logprobs"] = [first, [-0.25, 2]]
+    result = asyncio.run(
+        sample_task(
+            request,
+            "http://rollout",
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body)),
+        )
+    )
+    assert result["prompt_logprobs"] == [None, -0.25]
 
 
 def test_grouped_sampling_shares_session_and_dp_rank() -> None:
@@ -284,9 +300,7 @@ def test_sampling_reports_saturation_and_touches_while_waiting() -> None:
                 task(),
                 "http://rollout",
                 retry_timeout=0,
-                transport=httpx.MockTransport(
-                    lambda _: httpx.Response(503, text="queue full")
-                ),
+                transport=httpx.MockTransport(lambda _: httpx.Response(503, text="queue full")),
                 on_wait=on_wait,
             )
         )

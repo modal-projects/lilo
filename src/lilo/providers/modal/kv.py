@@ -4,8 +4,9 @@ import asyncio
 import hashlib
 from collections.abc import Awaitable, Callable
 
-import modal
 from grpclib.exceptions import StreamTerminatedError
+
+import modal
 
 from ..contracts import InsertResult
 
@@ -39,6 +40,7 @@ KEY_STORES = {
     "placement_claim": "models",
     "trainer_demand": "models",
     "engine_instance": "engines",
+    "lora_pool": "engines",
     "engine_call": "engines",
     "engine_current": "engines",
     "trainer_plan": "engines",
@@ -154,16 +156,11 @@ class RoutedKeyValueStore:
         except KeyError:
             raise ValueError(f"unknown key family: {family}") from None
 
-    def _matching_stores(
-        self, prefixes: tuple[str, ...]
-    ) -> tuple[ModalKeyValueStore, ...]:
+    def _matching_stores(self, prefixes: tuple[str, ...]) -> tuple[ModalKeyValueStore, ...]:
         domains = {
             domain
             for family, domain in KEY_STORES.items()
-            if any(
-                f"{family}:".startswith(prefix) or prefix.startswith(f"{family}:")
-                for prefix in prefixes
-            )
+            if any(f"{family}:".startswith(prefix) or prefix.startswith(f"{family}:") for prefix in prefixes)
         }
         if not domains:
             raise ValueError(f"unknown key prefixes: {prefixes}")
