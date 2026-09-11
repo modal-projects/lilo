@@ -6,8 +6,9 @@ correctness and brevity. The model has no execution tool.
 
 ## Asynchronous execution
 
-The default `async-v5` overlaps rollout generation and judging with learner
-updates. Four producers prefill a bounded four-batch ready queue, then keep
+The default `async-v6` overlaps rollout generation and judging with learner
+updates. The historical `async-v5` variant retains a four-batch queue.
+Four producers prefill a bounded two-batch ready queue, then keep
 producing while a single consumer serializes trainer mutations. Sampling requests
 4–8 inference replicas and up to 64 concurrent judge sandboxes. Trainer topology
 is unchanged. `reward-v4` selects the original synchronous loop.
@@ -144,8 +145,8 @@ run can resume with a larger `--steps` target.
 For a reward fork, stop and release the source controller's model resources, then:
 
 ```bash
-uv run --env-file .env python fork_checkpoint.py SOURCE_RUN NEW_RUN --step 150 --variant async-v5
-uv run --env-file .env codegolf launch --run NEW_RUN --variant async-v5
+uv run --env-file .env python fork_checkpoint.py SOURCE_RUN NEW_RUN --step 150 --variant async-v6
+uv run --env-file .env codegolf launch --run NEW_RUN --variant async-v6
 ```
 
 The helper requires the source's current committed checkpoint to match and rejects

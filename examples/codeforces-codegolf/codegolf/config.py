@@ -6,9 +6,9 @@ import os
 APP_NAME = os.environ.get("CODEGOLF_APP", "lilo-codegolf-example")
 VOLUME_NAME = os.environ.get("CODEGOLF_VOLUME", APP_NAME)
 DEFAULT_RUN = "golf"
-DEFAULT_VARIANT = "async-v5"
+DEFAULT_VARIANT = "async-v6"
 DEFAULT_STEPS = 500
-VARIANTS = ("async-v5", "reward-v3", "reward-v4")
+VARIANTS = ("async-v6", "async-v5", "reward-v3", "reward-v4")
 
 
 @dataclasses.dataclass
@@ -42,9 +42,17 @@ class AsyncConfig(Config):
     judge_concurrency: int = 64
 
 
+@dataclasses.dataclass
+class TunedAsyncConfig(AsyncConfig):
+    buffer_batches: int = 2
+    prefill_batches: int = 2
+
+
 def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS):
     if steps <= 0:
         raise ValueError("steps must be positive")
+    if variant == "async-v6":
+        return TunedAsyncConfig(steps=steps)
     if variant == "async-v5":
         return AsyncConfig(steps=steps)
     if variant == "reward-v4":
