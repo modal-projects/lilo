@@ -84,6 +84,14 @@ clear reductions and are not a random sample.
 
 ## Reward and configuration
 
+The recorded snapshot below uses `async-v6` (the default). The experimental
+`--variant async-v7` doubles the passing-code bonus to 0.30 and increases the
+output-token penalty to 0.20, keeping the scales, trainer and async pipeline
+unchanged. The live v7 continuation forks checkpoint 750 and targets 1,000; its
+results are not included in the step-748 snapshot. Passing still earns at least
+0.80 and failing at most zero. Compare correctness and lengths across the fork,
+not raw reward.
+
 ```text
 penalty = 0.08 * min(output_tokens / 16384, 1)
 reward  = 1 + 0.15 * exp(-code_utf8_bytes / 2048) - penalty  # all tests pass
