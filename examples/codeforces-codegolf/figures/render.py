@@ -1,4 +1,5 @@
 import json
+import math
 import statistics
 from pathlib import Path
 
@@ -38,6 +39,7 @@ def marks(axes):
         ax.axvline(50, color="tab:red", ls="--", alpha=0.6)
         ax.axvline(150, color="tab:purple", ls="--", alpha=0.8)
         ax.axvline(350, color="gray", ls=":", alpha=0.8)
+        ax.axvline(450, color="tab:cyan", ls=":", alpha=0.8)
         ax.set_xlim(0, last + 2)
         ax.grid(alpha=0.18)
         ax.set_xlabel("Trainer step")
@@ -49,7 +51,7 @@ def finish(fig, axes, title, file):
     fig.text(
         0.5,
         0.012,
-        "Faint: individual steps · Solid: trailing 10-step mean · Dots: held-out evaluation\nRed: 16K output limit at 50 · Purple: reward change at 150 · Gray: restored checkpoint 350",
+        "Faint: individual steps · Solid: trailing 10-step mean · Dots: held-out evaluation\nRed: 16K output limit at 50 · Purple: reward change at 150 · Gray: async at 350 · Cyan: smaller buffer at 450",
         ha="center",
         fontsize=9,
     )
@@ -129,3 +131,76 @@ finish(
     f"diagnostics-0-{last}.png",
 )
 print("Wrote full-history plots through", last)
+
+
+series = [
+    [r for r in rows if 350 < r["step"] <= 450],
+    [r for r in rows if r["step"] > 450],
+]
+fig, axs = plt.subplots(2, 2, figsize=(12, 8))
+last = series[-1][-1]["step"]
+for rows, start, label, color in zip(
+    series,
+    [350, 450],
+    ["4 ready batches", "2 ready batches"],
+    ["tab:blue", "tab:orange"],
+    strict=True,
+):
+    x = [r["step"] for r in rows]
+    timing = [
+        r["seconds"] + r["pipeline"]["publish_seconds"]
+        if "publish_seconds" in r["pipeline"]
+        else math.nan
+        for r in rows
+    ]
+    axs[0, 0].plot(x, timing, color=color, alpha=0.2)
+    axs[0, 0].plot(
+        x,
+        [statistics.mean(timing[max(0, i - 9) : i + 1]) for i in range(len(x))],
+        label=label,
+        color=color,
+    )
+    axs[0, 1].plot(
+        x,
+        [r["pipeline"]["policy_lag_upper_bound"] for r in rows],
+        color=color,
+        label=label,
+    )
+    axs[1, 0].plot(
+        x, [r["pipeline"]["ready_batches"] for r in rows], color=color, label=label
+    )
+    d = [r["pipeline"]["discarded_stale_batches"] for r in rows]
+    axs[1, 1].plot(
+        x,
+        [100 * n / (n + r["step"] - start) for n, r in zip(d, rows, strict=True)],
+        color=color,
+        label=label,
+    )
+for a, title in zip(
+    axs.flat,
+    [
+        "Ordinary step time incl. publication · seconds",
+        "Consumed policy lag upper bound · updates",
+        "Ready batches at update completion",
+        "Cumulative stale discards / consumed + discarded · %",
+    ],
+    strict=True,
+):
+    a.set_title(title)
+    a.set_xlabel("Trainer step")
+    a.axvline(450, color="gray", ls=":")
+    a.grid(alpha=0.2)
+    a.legend(fontsize=8)
+axs[0, 1].axhline(4, color="red", ls="--", alpha=0.5)
+axs[0, 1].set_ylim(-0.2, 4.5)
+axs[1, 0].set_ylim(-0.2, 4.5)
+fig.suptitle(f"Async buffer comparison · steps 351–{last}")
+fig.text(
+    0.5,
+    0.015,
+    "Faint timings: individual steps; solid: trailing 10-step mean. Startup updates included.\nTiming excludes checkpoint saves, evaluation and recovery. Discard counters restart at the handoff.",
+    ha="center",
+    fontsize=9,
+)
+fig.tight_layout(rect=(0, 0.065, 1, 0.96))
+fig.savefig(out / f"throughput-{last}.png", dpi=150)

@@ -29,25 +29,58 @@ promise continuous GPU utilization if sampling throughput is insufficient.
 
 ## Recorded results
 
-![Reward, correctness and lengths](figures/reward-0-355.png)
+Snapshot through **step 748**, from an ongoing run targeting **1,000** steps.
+The validated split contains **123 training problems and 16 held-out problems**.
 
-![Entropy, diversity, truncation and gradients](figures/diagnostics-0-355.png)
+![Reward, correctness and lengths](figures/reward-0-748.png)
 
-These figures describe the original **synchronous** run, before the async change.
-They are recorded steps 0–355, not a completed 500-step benchmark. Step 0 is
-held-out evaluation. The output limit increased to 16,384 at step 50; the reward
-changed at checkpoint 150. Raw reward values across that boundary are not
-comparable. At 350, recovery discarded updates through 397; discarded attempts
-are excluded. The fixed evaluation has only 16 stochastic samples. Passing-code
-averages also change when the set of solved problems changes.
+![Entropy, diversity, truncation and gradients](figures/diagnostics-0-748.png)
 
-The small [aggregate snapshot](figures/metrics.json) and
-[renderer](figures/render.py) reproduce these images without prompts, solutions,
-hidden tests, credentials or raw rollouts:
+![Async throughput, queue depth, policy lag and discards](figures/throughput-748.png)
+
+The last 20 recorded updates average 95.2% training correctness and 40 seconds
+per ordinary step including weight publication. Held-out evaluation at 740 passes
+15/16 problems, with passing code averaging 737 UTF-8 bytes. These timings exclude
+checkpoint saves, evaluation, GPU allocation and recovery. They are client wall
+times, not measured GPU utilization or a controlled throughput benchmark.
+
+The run is synchronous through step 350, uses async rollouts with a four-batch
+ready queue at 351–450, then a two-batch queue from 451. Both async variants keep
+four producers and enforce a maximum policy lag of four. At 748 the smaller-buffer
+controller has trained on 298 batches and discarded 130 stale batches (30.4% of
+consumed plus discarded batches), compared with 43.5% before the buffer change.
+Pending work and discarded work from rolled-back attempts are excluded from
+these percentages. Smaller queues reduced waste but did not eliminate it.
+
+Step 0 is held-out evaluation only. The output limit increased to 16,384 at 50;
+the reward changed at 150, so raw reward across that boundary is not comparable.
+Recovery and planned handoffs restored checkpoints 350 and 450; discarded attempts
+are excluded from the canonical curves. Startup and handoff downtime are not
+visible on the step axis. An early async attempt replayed steps 351–369 after a
+restore; diagnostics select each metric's consumed sampling ticket so retained
+files from the old attempt cannot create gaps or double-count samples.
+
+The fixed evaluation has only 16 stochastic samples; one answer changes accuracy
+by 6.25 percentage points. Passing-code averages also change when the solved set
+changes. Repeated exposure to the small training set and falling sampled entropy
+make generalization worth checking; these results do not establish convergence
+or rule out overfitting. Code diversity is the exact-string distinct fraction
+among eight submissions per problem, including incorrect submissions.
+
+The [aggregate snapshot](figures/metrics.json) and [renderer](figures/render.py)
+reproduce all three figures without prompts, hidden tests, credentials or raw
+training rollouts:
 
 ```bash
 uv run python figures/render.py
 ```
+
+[Compare generated outputs at steps 150 and 620](figures/output-comparison.html):
+three selected held-out problems, with both versions passing the retained tests.
+The standalone page embeds the exact generated responses and Python code; choose
+a problem and toggle full response versus extracted code. Download/open the HTML
+in a browser (GitHub's source view does not execute it). These examples illustrate
+clear reductions and are not a random sample.
 
 ## Reward and configuration
 
@@ -64,7 +97,7 @@ keeps tiny length differences from becoming unit-sized updates. `reward-v3`
 retains the previous `1 + 0.1 * exp(-bytes / 256)` passing reward without an
 output penalty. Neither reward guarantees stability.
 
-[Configuration](codegolf/config.py): 500 total steps, 4×8 samples per step,
+[Configuration](codegolf/config.py): 500 steps by default (`--steps 1000` for the recorded target), 4×8 samples per step,
 16,384 output tokens, temperature 1, Adam learning rate 1e-6, PPO clipping
 [0.8, 1.2], full model + optimizer checkpoints every 50 steps and at completion,
 held-out evaluation every 20. Prompt targets are masked and sampled solutions
@@ -92,7 +125,7 @@ uv run python -m codegolf.data
 uv run --env-file .env modal volume put lilo-codegolf-example data/problems.json /problems.json
 uv run --env-file .env modal run -m codegolf.app --smoke
 uv run --env-file .env modal run -m codegolf.app::judge_transport_smoke
-uv run --env-file .env codegolf launch --run golf
+uv run --env-file .env codegolf launch --run golf --steps 1000
 ```
 
 The local API URL is captured when deploying. Customize `CODEGOLF_APP` and
