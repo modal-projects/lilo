@@ -182,3 +182,9 @@ policy update. Copy examples you want to run into your project; repository
 
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
+
+## Examples
+
+[Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
+with GRPO rewards for correctness and short solutions. It includes an isolated
+judge, checkpoint recovery, reward forks, plotting tools and learning curves.

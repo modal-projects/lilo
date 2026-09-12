@@ -1,0 +1,1441 @@
+<!doctype html>
+<html lang="en" data-visualize-standalone>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Public Comparison</title>
+<style>:root{color-scheme:light dark;background:light-dark(rgb(255 255 255), rgb(24 24 24))}html,body{margin:0}body{box-sizing:border-box;padding:1rem;background:inherit}iframe{display:block;width:100%;height:calc(100vh - 2rem);margin:0 auto;border:0}</style>
+</head>
+<body>
+<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="Public Comparison" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;en&quot; data-visualize-standalone&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;
+&lt;meta http-equiv=&quot;Content-Security-Policy&quot; content=&quot;default-src &#x27;none&#x27;; script-src &#x27;unsafe-inline&#x27; &#x27;unsafe-eval&#x27; &#x27;wasm-unsafe-eval&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src &#x27;unsafe-inline&#x27; blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src &#x27;none&#x27;; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;none&#x27;&quot;&gt;
+&lt;title&gt;Public Comparison&lt;/title&gt;
+&lt;style&gt;:root {
+  color-scheme: light dark;
+  background-color: var(
+    --background,
+    var(--color-background-primary, light-dark(rgb(255 255 255), rgb(24 24 24)))
+  ) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: var(
+    --color-background-primary,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --card: color-mix(in oklab, var(--foreground) 5%, var(--background));
+  --card-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --popover: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255), rgb(45 45 45))
+  );
+  --popover-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --primary: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --primary-foreground: var(
+    --color-text-inverse,
+    light-dark(rgb(255 255 255), rgb(13 13 13))
+  );
+  --secondary: var(
+    --color-background-secondary,
+    light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%))
+  );
+  --secondary-foreground: var(
+    --color-text-primary,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: var(
+    --color-text-secondary,
+    light-dark(rgb(26 28 31 / 49.4%), rgb(255 255 255 / 49.8%))
+  );
+  --accent: var(
+    --color-background-info,
+    light-dark(rgb(229 242 255), rgb(13 39 63))
+  );
+  --accent-foreground: var(
+    --color-text-info,
+    light-dark(rgb(51 156 255), rgb(131 195 255))
+  );
+  --destructive: var(
+    --color-text-warning,
+    light-dark(rgb(226 85 7), rgb(255 133 73))
+  );
+  --border: var(
+    --color-border-secondary,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+  --input: var(
+    --color-border-primary,
+    light-dark(
+      rgb(26 28 31 / 11.8%),
+      color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+    )
+  );
+  --ring: var(
+    --color-ring-primary,
+    light-dark(rgb(51 156 255), rgb(131 195 255 / 76%))
+  );
+  --font-size-base: var(--font-text-md-size, 14px);
+  --blue: light-dark(rgb(51 156 255), rgb(51 156 255));
+  --orange: light-dark(rgb(226 85 7), rgb(251 106 34));
+  --green: light-dark(rgb(0 162 64), rgb(64 201 119));
+  --red: light-dark(rgb(224 46 42), rgb(255 103 100));
+  --purple: light-dark(rgb(146 79 247), rgb(173 123 249));
+  --yellow: light-dark(rgb(255 195 0), rgb(255 210 64));
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, &quot;Segoe UI&quot;, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, &quot;Liberation Mono&quot;,
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --icon-size: 16px;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --corner-shape: round;
+  --radius: var(--border-radius-lg, 10px);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url(&quot;data:image/svg+xml,%3Csvg xmlns=&#x27;http://www.w3.org/2000/svg&#x27; viewBox=&#x27;0 0 17 17&#x27;%3E%3Cpath d=&#x27;M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z&#x27;/%3E%3C/svg%3E&quot;);
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+}
+
+:root[data-theme=&quot;light&quot;] {
+  color-scheme: light;
+}
+
+:root[data-theme=&quot;dark&quot;] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html &gt; body {
+  /* Preserve MCP aliases for older inline renderers without creating :root cycles. */
+  --color-background-primary: var(
+    --background,
+    light-dark(rgb(255 255 255), rgb(24 24 24))
+  );
+  --color-text-primary: var(
+    --foreground,
+    light-dark(rgb(26 28 31), rgb(255 255 255))
+  );
+  --color-border-secondary: var(
+    --border,
+    light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%))
+  );
+
+  margin: 0;
+  padding: var(--visualize-paint-gutter, 0px);
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans) !important;
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--font-weight-medium, 500);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive &gt; .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align=&quot;right&quot;]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align=&quot;center&quot;]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: var(--corner-shape);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget &gt; :not(.card, .progress) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+hr {
+  width: 100%;
+  height: 1px;
+  margin-block: 6px;
+  border: 0;
+  background: var(--border);
+}
+
+.nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress {
+  display: flex;
+  height: 8px;
+  margin-block: calc((var(--line-height-normal, 1.5em) - 8px) / 2);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+}
+
+.progress-bar:only-child {
+  border-radius: var(--radius-full);
+}
+
+.progress-bar {
+  height: 100%;
+  flex-shrink: 0;
+  border: 0;
+  background: var(--viz-series-1);
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls &gt; .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls &gt; .form-label &gt; :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.nav-link,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn,
+.nav-link {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover,
+.nav-link:not(:disabled):not([aria-disabled=&quot;true&quot;]):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.nav-pills .nav-link {
+  min-width: 0;
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.nav-justified .nav-link {
+  flex: 1 1 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.nav-pills .nav-link.active {
+  color: var(--foreground);
+  background: var(--muted);
+}
+
+.btn:disabled,
+.nav-link:disabled,
+.nav-link[aria-disabled=&quot;true&quot;] {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type=&quot;file&quot;] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type=&quot;file&quot;]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type=&quot;file&quot;]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type=&quot;color&quot;] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type=&quot;color&quot;]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: var(--corner-shape);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: var(--corner-shape);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: var(--corner-shape);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type=&quot;checkbox&quot;]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type=&quot;checkbox&quot;]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: &quot;&quot;;
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type=&quot;radio&quot;] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type=&quot;radio&quot;]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: &quot;&quot;;
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+  [aria-pressed=&quot;true&quot;],
+  [aria-selected=&quot;true&quot;],
+  .is-selected
+) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed=&quot;true&quot;], [aria-selected=&quot;true&quot;], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible,
+.nav-link:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .btn,
+  .nav-link,
+  .form-control,
+  .form-select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Keep small-screen WebKit from zooming when a text field receives focus. */
+  .form-control,
+  .form-select {
+    font-size: max(16px, var(--font-size-normal));
+  }
+
+  .form-control[type=&quot;file&quot;]::file-selector-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .form-control-color[type=&quot;color&quot;] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .form-control:is(
+    [type=&quot;date&quot;],
+    [type=&quot;datetime-local&quot;],
+    [type=&quot;month&quot;],
+    [type=&quot;time&quot;],
+    [type=&quot;week&quot;]
+  ) {
+    min-width: 0;
+    max-width: 100%;
+    padding-block: 8px;
+  }
+
+  .form-check {
+    min-height: 44px;
+    padding-inline: 15px;
+  }
+
+  .form-check-input {
+    position: relative;
+  }
+
+  .form-check-input::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    content: &quot;&quot;;
+    transform: translate(-50%, -50%);
+  }
+
+  .form-check-label {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .form-range {
+    height: 44px;
+    touch-action: pan-y;
+  }
+
+  .form-range::-webkit-slider-runnable-track {
+    height: 44px;
+  }
+
+  .form-range::-moz-range-track {
+    height: 44px;
+  }
+
+  .form-range::-webkit-slider-thumb {
+    margin-top: 12px;
+  }
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget &gt; svg {
+  width: 100%;
+}
+
+/* Model-authored chart rules can otherwise stretch icons after these styles load. */
+svg.lucide {
+  display: block;
+  width: var(--icon-size) !important;
+  height: var(--icon-size) !important;
+  flex: none;
+  margin: 0 !important;
+  stroke-width: 1.6;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html&gt;body{padding:0}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div id=&quot;codegolf-outputs&quot;&gt;
+  &lt;div class=&quot;viz-controls&quot;&gt;
+    &lt;label class=&quot;form-label&quot;&gt;Problem
+      &lt;select class=&quot;form-select&quot; id=&quot;golf-problem&quot;&gt;
+        &lt;option value=&quot;0&quot;&gt;Magnets&lt;/option&gt;
+        &lt;option value=&quot;1&quot;&gt;Negative Prefixes&lt;/option&gt;
+        &lt;option value=&quot;2&quot;&gt;Number of Triplets&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+    &lt;label class=&quot;form-label&quot;&gt;Show
+      &lt;select class=&quot;form-select&quot; id=&quot;golf-content&quot;&gt;
+        &lt;option value=&quot;text&quot;&gt;Full generated response&lt;/option&gt;
+        &lt;option value=&quot;code&quot;&gt;Extracted Python code&lt;/option&gt;
+      &lt;/select&gt;
+    &lt;/label&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;golf-columns&quot;&gt;
+    &lt;section&gt;&lt;h3&gt;Earlier · step 150&lt;/h3&gt;&lt;p id=&quot;golf-before-stats&quot; class=&quot;tabular-nums&quot;&gt;&lt;/p&gt;&lt;textarea class=&quot;form-control&quot; rows=&quot;24&quot; readonly aria-label=&quot;Earlier response&quot; id=&quot;golf-before&quot;&gt;&lt;/textarea&gt;&lt;/section&gt;
+    &lt;section&gt;&lt;h3&gt;Recent comparison · step 620&lt;/h3&gt;&lt;p id=&quot;golf-after-stats&quot; class=&quot;tabular-nums&quot;&gt;&lt;/p&gt;&lt;textarea class=&quot;form-control&quot; rows=&quot;24&quot; readonly aria-label=&quot;Recent response&quot; id=&quot;golf-after&quot;&gt;&lt;/textarea&gt;&lt;/section&gt;
+  &lt;/div&gt;
+  &lt;script type=&quot;application/json&quot; id=&quot;golf-output-data&quot;&gt;[{&quot;slug&quot;: &quot;magnets&quot;, &quot;earlier&quot;: {&quot;step&quot;: 150, &quot;tokens&quot;: 8990, &quot;code_bytes&quot;: 1771, &quot;passed&quot;: true, &quot;tests_run&quot;: 73, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to understand how the magnets form groups.\n\n**Problem Analysis:**\n1.  **Magnet Configuration**: Each magnet is placed horizontally and has two poles. The input gives us the orientation as a string of two characters: \&quot;01\&quot; (plus-minus) or \&quot;10\&quot; (minus-plus). Let&#x27;s map &#x27;0&#x27; to minus and &#x27;1&#x27; to plus for clarity, though the specific mapping doesn&#x27;t matter as much as the relative order.\n    *   \&quot;01\&quot;: Left side is 0, Right side is 1.\n    *   \&quot;10\&quot;: Left side is 1, Right side is 0.\n2.  **Interaction Rule**:\n    *   Magnets are added to the right end of the row.\n    *   If the right pole of the current magnet attracts the left pole of the next magnet, they link up (forming the same group).\n    *   If they repel, the new magnet starts a new group.\n    *   Wait, let&#x27;s re-read the physics description carefully: \&quot;like poles will repel each other and the opposite poles will attract each other.\&quot;\n    *   However, the problem statement simplifies the condition for grouping: \&quot;Depending on how Mike puts the magnet on the table, it is either attracted to the previous one (forming a group of multiple magnets linked together) or repelled by it (then Mike lays this magnet at some distance to the right from the previous one).\&quot;\n    *   Let&#x27;s look at the connection point. The connection happens between the **right pole of the $i$-th magnet** and the **left pole of the $(i+1)$-th magnet**.\n    *   If the right pole of magnet $i$ is different from the left pole of magnet $i+1$, they attract -&gt; same group.\n    *   If the right pole of magnet $i$ is the same as the left pole of magnet $i+1$, they repel -&gt; new group.\n\nLet&#x27;s trace the examples to verify this logic.\n\n**Example 1:**\nInput:\n6 magnets\n1. `10` (Left: 1, Right: 0)\n2. `10` (Left: 1, Right: 0)\n   - Connection between mag 1 (Right: 0) and mag 2 (Left: 1). 0 and 1 are opposite -&gt; Attract. Same group.\n3. `10` (Left: 1, Right: 0)\n   - Connection between mag 2 (Right: 0) and mag 3 (Left: 1). 0 and 1 are opposite -&gt; Attract. Same group.\n4. `01` (Left: 0, Right: 1)\n   - Connection between mag 3 (Right: 0) and mag 4 (Left: 0). 0 and 0 are like -&gt; Repel. New group starts here.\n5. `10` (Left: 1, Right: 0)\n   - Connection between mag 4 (Right: 1) and mag 5 (Left: 1). 1 and 1 are like -&gt; Repel. New group starts here.\n6. `10` (Left: 1, Right: 0)\n   - Connection between mag 5 (Right: 0) and mag 6 (Left: 1). 0 and 1 are opposite -&gt; Attract. Same group.\n\nGroups formed:\n- Group 1: Magnets 1, 2, 3\n- Group 2: Magnet 4\n- Group 3: Magnets 5, 6\nTotal groups: 3.\nThis matches the example output.\n\n**Example 2:**\nInput:\n4 magnets\n1. `01` (L:0, R:1)\n2. `01` (L:0, R:1)\n   - Mag 1 Right (1) vs Mag 2 Left (0). Opposite -&gt; Attract. Same group.\n3. `10` (L:1, R:0)\n   - Mag 2 Right (1) vs Mag 3 Left (1). Like -&gt; Repel. New group.\n4. `10` (L:1, R:0)\n   - Mag 3 Right (0) vs Mag 4 Left (1). Opposite -&gt; Attract. Same group.\n\nGroups:\n- Group 1: Magnets 1, 2\n- Group 2: Magnets 3, 4\nTotal groups: 2.\nMatches example output.\n\n**General Logic:**\nA new group starts with the first magnet (index 0). For every subsequent magnet $i$ (from 1 to $n-1$), we check if it forms a new group compared to magnet $i-1$.\nIt forms a new group if the configuration changes such that the right pole of $i-1$ equals the left pole of $i$.\nLet&#x27;s denote the string for magnet $j$ as $S_j$.\n$S_j$ is either \&quot;01\&quot; or \&quot;10\&quot;.\nRight pole of $S_{i-1}$ is $S_{i-1}[1]$.\nLeft pole of $S_i$ is $S_i[0]$.\nIf $S_{i-1}[1] == S_i[0]$, then they repel, and a new group starts.\nOtherwise ($S_{i-1}[1] \\neq S_i[0]$), they attract, and the current group continues.\n\nNotice a pattern:\n- \&quot;01\&quot; ends with &#x27;1&#x27;.\n- \&quot;10\&quot; ends with &#x27;0&#x27;.\n- If current is \&quot;01\&quot; and next is \&quot;01\&quot;: &#x27;1&#x27; == &#x27;0&#x27;? No. Connect.\n- If current is \&quot;01\&quot; and next is \&quot;10\&quot;: &#x27;1&#x27; == &#x27;1&#x27;? Yes. Break.\n- If current is \&quot;10\&quot; and next is \&quot;01\&quot;: &#x27;0&#x27; == &#x27;0&#x27;? Yes. Break.\n- If current is \&quot;10\&quot; and next is \&quot;10\&quot;: &#x27;0&#x27; == &#x27;1&#x27;? No. Connect.\n\nWait, let&#x27;s re-evaluate the condition $S_{i-1}[1] == S_i[0]$.\nCase 1: $S_{i-1} = \&quot;01\&quot;$, $S_i = \&quot;01\&quot;$. $S_{i-1}[1] = &#x27;1&#x27;$, $S_i[0] = &#x27;0&#x27;$. &#x27;1&#x27; != &#x27;0&#x27;. Connect.\nCase 2: $S_{i-1} = \&quot;01\&quot;$, $S_i = \&quot;10\&quot;$. $S_{i-1}[1] = &#x27;1&#x27;$, $S_i[0] = &#x27;1&#x27;$. &#x27;1&#x27; == &#x27;1&#x27;. Break (New Group).\nCase 3: $S_{i-1} = \&quot;10\&quot;$, $S_i = \&quot;01\&quot;$. $S_{i-1}[1] = &#x27;0&#x27;$, $S_i[0] = &#x27;0&#x27;$. &#x27;0&#x27; == &#x27;0&#x27;. Break (New Group).\nCase 4: $S_{i-1} = \&quot;10\&quot;$, $S_i = \&quot;10\&quot;$. $S_{i-1}[1] = &#x27;0&#x27;$, $S_i[0] = &#x27;1&#x27;$. &#x27;0&#x27; != &#x27;1&#x27;. Connect.\n\nSo, a new group starts when the string changes from \&quot;01\&quot; to \&quot;10\&quot; OR from \&quot;10\&quot; to \&quot;01\&quot;.\nEssentially, whenever $S_i \\neq S_{i-1}$, does that mean a new group?\nLet&#x27;s check Case 1: \&quot;01\&quot; -&gt; \&quot;01\&quot;. Strings are equal. Connect. Correct.\nCase 4: \&quot;10\&quot; -&gt; \&quot;10\&quot;. Strings are equal. Connect. Correct.\nCase 2: \&quot;01\&quot; -&gt; \&quot;10\&quot;. Strings are different. Break. Correct.\nCase 3: \&quot;10\&quot; -&gt; \&quot;01\&quot;. Strings are different. Break. Correct.\n\nHypothesis: The number of groups is simply $1 + \\text{count of indices } i \\text{ where } S_i \\neq S_{i-1}$.\nOr simply, count how many times the configuration changes. Since the first magnet always starts group #1, the total groups = $1 + \\sum_{i=1}^{n-1} (S_i \\neq S_{i-1})$.\n\nLet&#x27;s double check with Example 1:\nSequence: 10, 10, 10, 01, 10, 10\ni=1: 10 vs 10 (Same) -&gt; count=0\ni=2: 10 vs 10 (Same) -&gt; count=0\ni=3: 10 vs 01 (Diff) -&gt; count=1\ni=4: 01 vs 10 (Diff) -&gt; count=2\ni=5: 10 vs 10 (Same) -&gt; count=2\nTotal groups = 1 + 2 = 3. Correct.\n\nExample 2:\nSequence: 01, 01, 10, 10\ni=1: 01 vs 01 (Same)\ni=2: 01 vs 10 (Diff) -&gt; count=1\ni=3: 10 vs 10 (Same)\nTotal groups = 1 + 1 = 2. Correct.\n\n**Algorithm:**\n1. Read $n$.\n2. Read the first magnet string. Initialize `groups = 1`.\n3. Loop $n-1$ times to read the remaining magnets.\n4. For each new magnet, compare it with the previous one.\n5. If different, increment `groups`.\n6. Update previous magnet to the current one.\n7. Print `groups`.\n\n**Complexity:**\nTime Complexity: $O(n)$ to read and process $n$ lines. Given $n \\le 100000$, this is well within limits for Python.\nSpace Complexity: $O(1)$ if we process line by line without storing the whole list, just keeping the previous string.\n\n**Implementation Details:**\n- Use `sys.stdin.read().split()` to get all tokens efficiently.\n- The first token is $n$.\n- The subsequent $n$ tokens are the magnet strings.\n- Iterate through the list of strings starting from index 1, comparing with index $i-1$.\n\nLet&#x27;s write the code.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    \n    if not data:\n        return\n    \n    n = int(data[0])\n    # The magnets are from data[1] to data[n]\n    # We can iterate through them directly\n    \n    # If n is 0, though constraints say n &gt;= 1\n    if n == 0:\n        print(0)\n        return\n        \n    # Start with the first magnet\n    prev_magnet = data[1]\n    groups = 1\n    \n    # Iterate through the rest\n    for i in range(2, n + 1):\n        curr_magnet = data[i]\n        if curr_magnet != prev_magnet:\n            groups += 1\n        prev_magnet = curr_magnet\n        \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nWait, let me re-verify the logic one more time. Is it possible that the condition \&quot;right pole == left pole\&quot; (repel) is exactly equivalent to \&quot;string current != string previous\&quot;?\nString \&quot;01\&quot;: Left=0, Right=1.\nString \&quot;10\&quot;: Left=1, Right=0.\n\nScenario A: Prev=\&quot;01\&quot;, Curr=\&quot;01\&quot;\nPrev Right = 1\nCurr Left = 0\n1 != 0 -&gt; Attract -&gt; Same group.\nStrings equal? Yes. Logic holds (Same string -&gt; Same group).\n\nScenario B: Prev=\&quot;01\&quot;, Curr=\&quot;10\&quot;\nPrev Right = 1\nCurr Left = 1\n1 == 1 -&gt; Repel -&gt; New group.\nStrings equal? No (01 != 10). Logic holds (Diff string -&gt; New group).\n\nScenario C: Prev=\&quot;10\&quot;, Curr=\&quot;01\&quot;\nPrev Right = 0\nCurr Left = 0\n0 == 0 -&gt; Repel -&gt; New group.\nStrings equal? No (10 != 01). Logic holds.\n\nScenario D: Prev=\&quot;10\&quot;, Curr=\&quot;10\&quot;\nPrev Right = 0\nCurr Left = 1\n0 != 1 -&gt; Attract -&gt; Same group.\nStrings equal? Yes. Logic holds.\n\nThe logic holds perfectly. The number of groups is simply the number of contiguous blocks of identical strings in the input sequence.\n\nCorner cases:\n- $n=1$: Loop range(2, 2) is empty. Groups = 1. Correct.\n- All same: Groups = 1. Correct.\n- Alternating: 01, 10, 01, 10... Groups = n. Correct.\n\nThe solution seems robust.\n\nOne minor optimization/simplification:\nInstead of manually indexing, we can just use `itertools` or a simple loop. Since $N$ is up to 100,000, `sys.stdin.read().split()` creates a list of ~100,001 strings, which is fine memory-wise (a few MBs).\n\nCode structure:\n```python\nimport sys\n\ndef main():\n    input_data = sys.stdin.read().split()\n    if not input_data:\n        return\n    \n    n = int(input_data[0])\n    magnets = input_data[1:]\n    \n    if n == 0:\n        print(0)\n        return\n    \n    count = 1\n    for i in range(1, n):\n        if magnets[i] != magnets[i-1]:\n            count += 1\n    print(count)\n\nif __name__ == \&quot;__main__\&quot;:\n    main()\n```\nThis is clean and efficient.\n\nDouble check constraints: $n \\le 100000$. Python list of 100k strings is fine. Time limit is usually 1-2 seconds, $O(N)$ is trivial.\n\nFinal check on the problem statement details:\n\&quot;The i-th line ... contains either characters \&quot;01\&quot; ... or characters \&quot;10\&quot;\&quot;.\nSo the input format is strictly one string per line after the first line. `split()` handles newlines and spaces correctly, so it will flatten the input into a list of tokens. Token 0 is $n$, tokens 1..n are the magnets. This works regardless of whether they are on separate lines or not, but the problem says they are on separate lines. `split()` is safe.\n\nOne edge case to consider: Is it possible for the input to have extra whitespace? `split()` handles arbitrary whitespace.\nIs it possible for $n$ to be large causing recursion depth issues? No recursion used.\nMemory usage: Storing 100k strings of length 2. Each string object in Python has overhead, but 100k * 50 bytes approx = 5MB. Totally safe.\n\nThe logic is solid.\n\n```python\nimport sys\n\ndef solve():\n    # Read all tokens from standard input\n    # The first token is n, the rest are the magnet configurations\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    # n is the first element, but we don&#x27;t strictly need it as a separate variable\n    # if we just iterate over the rest, though we should be careful with indexing.\n    n = int(input_data[0])\n    \n    # The magnet configurations start from index 1 to n\n    # We can extract them or just iterate indices\n    # Using a list slice might copy data, but for 10^5 it&#x27;s acceptable.\n    # To be more memory efficient, we can iterate indices on the original list.\n    \n    # However, splitting creates the list anyway.\n    # Let&#x27;s just iterate.\n    \n    if n == 0:\n        print(0)\n        return\n        \n    # The first magnet is at input_data[1]\n    # We count groups. Initially 1 group for the first magnet.\n    groups = 1\n    \n    # Compare each subsequent magnet with the previous one\n    # Magnet i corresponds to input_data[i+1] in 0-based indexing of data list?\n    # No, data[0] is n. data[1] is magnet 1. data[i] is magnet i-1? No.\n    # data[1] = magnet 1\n    # data[2] = magnet 2\n    # ...\n    # data[k] = magnet k\n    \n    # We need to compare data[i] with data[i-1] for i from 2 to n\n    # Range in Python range(start, stop) stops before stop.\n    # So range(2, n + 1) covers indices 2, 3, ..., n.\n    \n    for i in range(2, n + 1):\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nWait, if $n=1$, range(2, 2) is empty. `groups` remains 1. Correct.\nIf $n=6$, range(2, 7) -&gt; 2,3,4,5,6. Compares (2,1), (3,2), ..., (6,5). Correct.\n\nThe logic holds.\n\nOne tiny thing: The problem says \&quot;The i-th line ... contains ...\&quot;.\nInput:\n6\n10\n10\n...\n`sys.stdin.read().split()` will produce `[&#x27;6&#x27;, &#x27;10&#x27;, &#x27;10&#x27;, &#x27;10&#x27;, &#x27;01&#x27;, &#x27;10&#x27;, &#x27;10&#x27;]`.\nIndex 0: &#x27;6&#x27;\nIndex 1: &#x27;10&#x27; (Mag 1)\nIndex 2: &#x27;10&#x27; (Mag 2)\n...\nIndex 6: &#x27;10&#x27; (Mag 6)\nLoop `i` from 2 to 6.\ni=2: compare data[2] (&#x27;10&#x27;) vs data[1] (&#x27;10&#x27;) -&gt; equal.\n...\ni=4: compare data[4] (&#x27;01&#x27;) vs data[3] (&#x27;10&#x27;) -&gt; diff. groups=2.\n...\nCorrect.\n\nThe solution is ready.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin at once\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n    \n    # The first element is n, the number of magnets\n    n = int(input_data[0])\n    \n    # If there are no magnets, output 0 (though constraint says n &gt;= 1)\n    if n == 0:\n        print(0)\n        return\n    \n    # The magnets are stored in input_data from index 1 to n\n    # We start with the first magnet forming the first group\n    groups = 1\n    \n    # Iterate from the second magnet (index 2 in input_data) up to the n-th magnet\n    for i in range(2, n + 1):\n        # Compare the current magnet with the previous one\n        # If they are different, it means the orientation changed such that\n        # the right pole of the previous magnet equals the left pole of the current one,\n        # causing repulsion and starting a new group.\n        # As analyzed, input_data[i] != input_data[i-1] captures exactly this condition.\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis looks complete and correct.\n\nOne final check on constraints: $N=100000$. Python&#x27;s `read().split()` consumes memory for the whole input string and the list of strings.\nInput size roughly: $10^5 \\times 3$ bytes $\\approx 300$ KB.\nList overhead: $10^5$ pointers + string objects. Maybe 5-10 MB.\nLimit is usually 256MB. Safe.\nTime: Linear scan. Safe.\n\nI will provide the concise version.\n\n```python\nimport sys\n\ndef main():\n    # Read all tokens from standard input\n    data = sys.stdin.read().split()\n    \n    if not data:\n        return\n    \n    # The first token is n, the number of magnets\n    n = int(data[0])\n    \n    # According to constraints 1 \u003c= n \u003c= 100000, so n is at least 1.\n    # The magnets start from data[1] to data[n].\n    \n    # Initialize group count to 1 because the first magnet always starts a group.\n    groups = 1\n    \n    # Iterate through the magnets starting from the second one (index 2 in data list)\n    # Comparing each magnet with the previous one to detect a change in configuration.\n    for i in range(2, n + 1):\n        if data[i] != data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    main()\n```\nThis is the final code.\n\nWait, I should confirm the variable names and style are appropriate. Standard competitive programming style in Python usually avoids function definitions if keeping it extremely short, but `if __name__ == \&quot;__main__\&quot;:` is good practice. The prompt asks for \&quot;executable Python code\&quot;.\n\nOne edge case: What if `data` has fewer than `n+1` elements? The problem statement guarantees `n` lines follow. So `len(data)` will be `n+1`. No need to worry.\n\nFinal verification of logic with a tricky case.\nMagnets: 01, 01, 01.\ni=2: 01 vs 01 (same) -&gt; groups=1\ni=3: 01 vs 01 (same) -&gt; groups=1\nOutput 1. Correct (one big group).\n\nMagnets: 01, 10, 01.\ni=2: 10 vs 01 (diff) -&gt; groups=2\ni=3: 01 vs 10 (diff) -&gt; groups=3\nOutput 3. Correct. Each is isolated.\n\nMagnets: 10, 01, 10.\ni=2: 01 vs 10 (diff) -&gt; groups=2\ni=3: 10 vs 01 (diff) -&gt; groups=3\nOutput 3. Correct.\n\nThe logic `data[i] != data[i-1]` is mathematically equivalent to checking if the transition causes repulsion based on the problem description.\nTransition logic recap:\nRepulsion happens if Right(Prev) == Left(Curr).\n\&quot;01\&quot;: R=1. \&quot;10\&quot;: L=1. (01-&gt;10 repels) -&gt; Strings differ.\n\&quot;10\&quot;: R=0. \&quot;01\&quot;: L=0. (10-&gt;01 repels) -&gt; Strings differ.\n\&quot;01\&quot;: R=1. \&quot;01\&quot;: L=0. (01-&gt;01 attracts) -&gt; Strings same.\n\&quot;10\&quot;: R=0. \&quot;10\&quot;: L=1. (10-&gt;10 attracts) -&gt; Strings same.\nYes, equivalence is exact.\n\nThe code is optimal.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input data from stdin\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n    \n    # The first element is n\n    n = int(input_data[0])\n    \n    # If n is 0, though constraints say n &gt;= 1\n    if n == 0:\n        print(0)\n        return\n        \n    # We start with 1 group (the first magnet)\n    groups = 1\n    \n    # The magnets are located at indices 1 to n in the input_data list\n    # We compare each magnet with the previous one\n    for i in range(2, n + 1):\n        # If the current magnet&#x27;s configuration is different from the previous one,\n        # it means the right pole of the previous magnet and the left pole of the current magnet\n        # are identical (e.g., 1 and 1, or 0 and 0), causing repulsion.\n        # This starts a new group.\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis is the solution.\n\nOne final check on import. `sys` is needed.\nThe code reads everything, processes, prints.\nNo external libraries.\nPython 3 compatible.\nShort and efficient.\n\nI&#x27;ll remove comments to make it cleaner as per \&quot;make the correct program as short as possible\&quot;, but keeping some comments explaining the logic is usually helpful and doesn&#x27;t hurt length significantly. I&#x27;ll keep it minimal.\n\n```python\nimport sys\n\ndef main():\n    # Read all tokens from standard input\n    data = sys.stdin.read().split()\n    \n    if not data:\n        return\n    \n    n = int(data[0])\n    \n    # According to constraints, n &gt;= 1.\n    # The magnets are in data[1] ... data[n].\n    # We start counting groups with 1 (for the first magnet).\n    groups = 1\n    \n    # Iterate through the magnets starting from the second one.\n    # A new group is formed whenever the current magnet&#x27;s orientation is different\n    # from the previous one.\n    for i in range(2, n + 1):\n        if data[i] != data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    main()\n```\nThis looks perfect.\n\nWait, I should confirm the memory limit again. 100,000 strings. In Python, `split()` creates a list of strings. Each string is small.\nIs there a way to do it with less memory? We could iterate line by line using a generator, but `sys.stdin.read().split()` is standard and fast enough for 10^5. The overhead is negligible.\nActually, `sys.stdin` is an iterator. We can do:\n```python\nimport sys\n\ndef main():\n    # Create an iterator over stdin lines/tokens\n    # Since we need to compare adjacent pairs, keeping the previous value is enough.\n    # But reading token by token might be slightly slower in pure python loop if not careful, \n    # but split() is very optimized in C.\n    # Let&#x27;s stick to split() for simplicity and speed.\n    pass\n```\nActually, doing `for _ in sys.stdin:` gives lines.\n```python\nimport sys\n\ndef main():\n    # First line is n\n    # We can skip storing all tokens if we process on the fly?\n    # But we need to read n first.\n    # Let&#x27;s try an iterator approach to be super lean on memory.\n    \n    iterator = iter(sys.stdin.read().split())\n    n = int(next(iterator))\n    \n    if n == 0:\n        print(0)\n        return\n        \n    prev = next(iterator)\n    groups = 1\n    \n    for _ in range(n - 1):\n        curr = next(iterator)\n        if curr != prev:\n            groups += 1\n        prev = curr\n    print(groups)\n```\nThis is effectively the same logic but avoids indexing a huge list. `sys.stdin.read().split()` still loads everything into memory though because `split()` returns a list. To avoid loading the whole list, we should use `sys.stdin` line iteration or a custom generator.\nHowever, for $N=100000$, the list approach is standard and totally acceptable (takes \u003c 50MB RAM usually). The problem limits are likely generous (standard 256MB).\nGiven the instruction \&quot;as short as possible\&quot;, the list indexing version is shorter and more concise than managing an iterator manually. I will stick with the list version.\n\nWait, `sys.stdin.read().split()` creates the list. The memory is already used. The iterator approach `iter(sys.stdin.read().split())` still creates the list first. To truly avoid the list, we would need `for line in sys.stdin:` but handling the tokens inside lines is slightly more verbose.\nGiven the constraints and typical CP environment, `read().split()` is the idiomatic \&quot;short\&quot; solution in Python.\n\nFinal check on the generated code.\nIt handles the input format correctly.\nIt implements the O(N) logic correctly.\nIt prints the correct output.\n\nOne detail: `range(2, n + 1)`. If `n=1`, loop doesn&#x27;t run, prints 1. Correct.\nIf `n=2`, loop runs for `i=2`. Compares `data[2]` and `data[1]`. Correct.\n\nReady to output.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    \n    if not data:\n        return\n    \n    # The first token is n\n    n = int(data[0])\n    \n    # If there are no magnets, output 0 (though constraints say n &gt;= 1)\n    if n == 0:\n        print(0)\n        return\n    \n    # The magnets start from index 1 in the data list\n    # We initialize the group count to 1 because the first magnet always starts a group\n    groups = 1\n    \n    # Iterate through the magnets starting from the second one (index 2)\n    # Compare each magnet with the previous one\n    for i in range(2, n + 1):\n        # If the current magnet configuration is different from the previous one,\n        # it implies a repulsion (right pole of prev == left pole of curr),\n        # forming a new group.\n        if data[i] != data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis is the final solution.\n\nOne tiny optimization: `sys.setrecursionlimit` is not needed. `input()` vs `sys.stdin.read()`: `read()` is faster for bulk input.\nThe solution is optimal.\n\nI will remove the extensive comments in the final block to keep it clean, as requested \&quot;short as possible\&quot;.\n\n```python\nimport sys\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    n = int(data[0])\n    if n == 0:\n        print(0)\n        return\n        \n    groups = 1\n    # data[1] is the first magnet\n    # data[2] is the second magnet, etc.\n    for i in range(2, n + 1):\n        if data[i] != data[i-1]:\n            groups += 1\n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    main()\n```\nThis is concise and correct.\n\nOne last check: Does the problem guarantee valid input? Yes.\nDoes it guarantee `n` matches the number of lines? Yes.\nIs `1 \u003c= i \u003c= n` for lines? Yes.\nSo `data` will have length `n+1`.\nIndices `1` to `n` exist.\n`range(2, n+1)` accesses `2` to `n`.\n`data[i-1]` accesses `1` to `n-1`.\nAll within bounds.\n\nFinal confirmation on logic:\nThe problem asks for number of groups.\nA group is a sequence of magnets where each adjacent pair attracts.\nAttraction happens if orientations are same (\&quot;01\&quot;+\&quot;01\&quot; or \&quot;10\&quot;+\&quot;10\&quot;).\nRepulsion happens if orientations are different (\&quot;01\&quot;+\&quot;10\&quot; or \&quot;10\&quot;+\&quot;01\&quot;).\nWait, re-reading my earlier derivation.\n\&quot;01\&quot; -&gt; Right is 1.\n\&quot;01\&quot; -&gt; Left is 0.\n1 vs 0 -&gt; Attract. Same orientation -&gt; Attract.\n\&quot;01\&quot; -&gt; Right is 1.\n\&quot;10\&quot; -&gt; Left is 1.\n1 vs 1 -&gt; Repel. Different orientation -&gt; Repel.\n\&quot;10\&quot; -&gt; Right is 0.\n\&quot;01\&quot; -&gt; Left is 0.\n0 vs 0 -&gt; Repel. Different orientation -&gt; Repel.\n\&quot;10\&quot; -&gt; Right is 0.\n\&quot;10\&quot; -&gt; Left is 1.\n0 vs 1 -&gt; Attract. Same orientation -&gt; Attract.\n\nConclusion: Same string -&gt; Attract (Same Group). Different string -&gt; Repel (New Group).\nLogic `data[i] != data[i-1]` -&gt; New Group is correct.\n\nWait, let&#x27;s re-read the Note in the problem.\n\&quot;The first testcase corresponds to the figure. The testcase has three groups consisting of three, one and two magnets.\&quot;\nInput:\n6\n10\n10\n10\n01\n10\n10\n\nMy trace:\n10, 10, 10 -&gt; Group 1 (size 3) because 10==10==10.\n01 -&gt; Group 2 (size 1) because 10 != 01.\n10, 10 -&gt; Group 3 (size 2) because 01 != 10 (break), then 10==10 (continue).\nTotal 3 groups.\nMatches example output.\n\n\&quot;The second testcase has two groups, each consisting of two magnets.\&quot;\nInput:\n4\n01\n01\n10\n10\n\nMy trace:\n01, 01 -&gt; Group 1 (size 2) because 01==01.\n10 -&gt; Group 2 (size 1) because 01 != 10.\n10 -&gt; Group 2 continued (size 2) because 10==10.\nTotal 2 groups.\nMatches example output.\n\nEverything is consistent.\n\n```python\nimport sys\n\n# Set up fast I/O\ninput = sys.stdin.read\n\ndef solve():\n    data = input().split()\n    if not data:\n        return\n    \n    n = int(data[0])\n    # According to constraints 1 \u003c= n \u003c= 100000\n    \n    # If n is 0, output 0 (though constraints say n &gt;= 1)\n    if n == 0:\n        print(0)\n        return\n    \n    # The magnets are stored in data[1] to data[n]\n    # We start with 1 group for the first magnet\n    groups = 1\n    \n    # Iterate from the second magnet to the last\n    for i in range(2, n + 1):\n        # If the current magnet is different from the previous one,\n        # it starts a new group.\n        if data[i] != data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nI&#x27;ll output this without the `input = ...` alias to avoid confusion, just use `sys.stdin.read`.\n\nOne detail: \&quot;Make the correct program as short as possible in UTF-8 bytes.\&quot;\nThe solution above is quite short.\n\n```python\nimport sys\n\ndef main():\n    # Read all input data\n    data = sys.stdin.read().split()\n    \n    if not data:\n        return\n        \n    n = int(data[0])\n    if n == 0:\n        print(0)\n        return\n        \n    # Initial group count is 1 (for the first magnet)\n    groups = 1\n    \n    # Check subsequent magnets\n    for i in range(2, n + 1):\n        # A new group starts if the magnet configuration changes\n        if data[i] != data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    main()\n```\nThis is good.\n\nOne final check: The problem statement says \&quot;The i-th line (1 \u2264 i \u2264 n) contains ...\&quot;.\nSo there are exactly n lines of magnets.\n`data` will have `n+1` elements.\n`data[0]` is n.\n`data[1]` is i=1.\n`data[n]` is i=n.\nIndices are correct.\n\nI am confident.\n\nOne edge case: `n` is large, recursion depth? No recursion.\nTime limit? 1 sec usually. 10^5 operations in Python takes ~0.05s. Safe.\n\nI will formulate the response now.\n\n```python\nimport sys\n\ndef solve():\n    # Read all content from standard input\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n    \n    # The first element is the number of magnets n\n    n = int(input_data[0])\n    \n    # If there are no magnets, the answer is 0 (though constraints say n &gt;= 1)\n    if n == 0:\n        print(0)\n        return\n    \n    # We start with the first magnet, which forms the first group\n    groups = 1\n    \n    # The magnets are located from index 1 to n in the input_data list\n    # We iterate from the second magnet (index 2) to the last magnet (index n)\n    for i in range(2, n + 1):\n        # Compare the current magnet with the previous one\n        # If they are different, the orientation has changed such that the poles\n        # facing each other are like poles (repulsion), forming a new group.\n        # As derived, input_data[i] != input_data[i-1] correctly identifies this.\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis is the code I will provide.\n\u003c/think&gt;\n\n```python\nimport sys\n\ndef solve():\n    # Read all content from standard input\n    # The input format consists of &#x27;n&#x27; followed by &#x27;n&#x27; lines of magnet strings.\n    # split() handles all whitespace (newlines and spaces) automatically.\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n    \n    # The first element is the number of magnets n\n    n = int(input_data[0])\n    \n    # According to constraints 1 \u003c= n \u003c= 100000, so n is at least 1.\n    # However, handling n=0 gracefully is good practice.\n    if n == 0:\n        print(0)\n        return\n    \n    # The magnets are stored in input_data from index 1 to n.\n    # The first magnet (input_data[1]) always starts the first group.\n    groups = 1\n    \n    # Iterate through the magnets starting from the second one (index 2) up to the n-th magnet (index n).\n    # We compare each magnet with the previous one to determine if a new group is formed.\n    for i in range(2, n + 1):\n        # Logic explanation:\n        # Two magnets attract (forming the same group) if the right pole of the previous magnet\n        # is opposite to the left pole of the current magnet.\n        # In terms of strings \&quot;01\&quot; and \&quot;10\&quot;:\n        # - \&quot;01\&quot; ends with &#x27;1&#x27;, \&quot;01\&quot; starts with &#x27;0&#x27; -&gt; Attract (Same string)\n        # - \&quot;10\&quot; ends with &#x27;0&#x27;, \&quot;10\&quot; starts with &#x27;1&#x27; -&gt; Attract (Same string)\n        # - \&quot;01\&quot; ends with &#x27;1&#x27;, \&quot;10\&quot; starts with &#x27;1&#x27; -&gt; Repel (Different string)\n        # - \&quot;10\&quot; ends with &#x27;0&#x27;, \&quot;01\&quot; starts with &#x27;0&#x27; -&gt; Repel (Different string)\n        # Thus, a new group starts exactly when the current magnet string is different \n        # from the previous magnet string.\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```&quot;, &quot;code&quot;: &quot;import sys\n\ndef solve():\n    # Read all content from standard input\n    # The input format consists of &#x27;n&#x27; followed by &#x27;n&#x27; lines of magnet strings.\n    # split() handles all whitespace (newlines and spaces) automatically.\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n    \n    # The first element is the number of magnets n\n    n = int(input_data[0])\n    \n    # According to constraints 1 \u003c= n \u003c= 100000, so n is at least 1.\n    # However, handling n=0 gracefully is good practice.\n    if n == 0:\n        print(0)\n        return\n    \n    # The magnets are stored in input_data from index 1 to n.\n    # The first magnet (input_data[1]) always starts the first group.\n    groups = 1\n    \n    # Iterate through the magnets starting from the second one (index 2) up to the n-th magnet (index n).\n    # We compare each magnet with the previous one to determine if a new group is formed.\n    for i in range(2, n + 1):\n        # Logic explanation:\n        # Two magnets attract (forming the same group) if the right pole of the previous magnet\n        # is opposite to the left pole of the current magnet.\n        # In terms of strings \&quot;01\&quot; and \&quot;10\&quot;:\n        # - \&quot;01\&quot; ends with &#x27;1&#x27;, \&quot;01\&quot; starts with &#x27;0&#x27; -&gt; Attract (Same string)\n        # - \&quot;10\&quot; ends with &#x27;0&#x27;, \&quot;10\&quot; starts with &#x27;1&#x27; -&gt; Attract (Same string)\n        # - \&quot;01\&quot; ends with &#x27;1&#x27;, \&quot;10\&quot; starts with &#x27;1&#x27; -&gt; Repel (Different string)\n        # - \&quot;10\&quot; ends with &#x27;0&#x27;, \&quot;01\&quot; starts with &#x27;0&#x27; -&gt; Repel (Different string)\n        # Thus, a new group starts exactly when the current magnet string is different \n        # from the previous magnet string.\n        if input_data[i] != input_data[i-1]:\n            groups += 1\n            \n    print(groups)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()&quot;}, &quot;recent&quot;: {&quot;step&quot;: 620, &quot;tokens&quot;: 2309, &quot;code_bytes&quot;: 247, &quot;passed&quot;: true, &quot;tests_run&quot;: 73, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to determine the number of groups of magnets formed by a sequence of placed magnets.\n\nLet&#x27;s analyze the properties of the magnets and how they form groups.\nEach magnet has two poles: positive (&#x27;1&#x27;) and negative (&#x27;0&#x27;). The input represents the state of each magnet as a string of two characters.\n- \&quot;01\&quot; means the left pole is &#x27;0&#x27; (minus) and the right pole is &#x27;1&#x27; (plus).\n- \&quot;10\&quot; means the left pole is &#x27;1&#x27; (plus) and the right pole is &#x27;0&#x27; (minus).\n\nWhen a new magnet is added to the right of the existing row, it interacts with the last magnet in the row.\n- If the right pole of the previous magnet is the same as the left pole of the current magnet, they will attract each other (opposite poles attract: &#x27;1&#x27; attracts &#x27;0&#x27;, &#x27;0&#x27; attracts &#x27;1&#x27;). Wait, let&#x27;s re-read the problem statement carefully.\n\&quot;If two magnets are put together at a close distance, then the like poles will repel each other and the opposite poles will attract each other.\&quot;\n\nSo, if the right end of the previous magnet is &#x27;1&#x27; and the left end of the new magnet is &#x27;1&#x27;, they repel. If the right end is &#x27;0&#x27; and the left end is &#x27;0&#x27;, they repel. If the right end is &#x27;1&#x27; and the left end is &#x27;0&#x27;, they attract. If the right end is &#x27;0&#x27; and the left end is &#x27;1&#x27;, they attract.\n\nLet&#x27;s look at the examples to confirm the grouping logic.\nExample 1:\nn = 6\nMagnets:\n1. \&quot;10\&quot; (Right pole is &#x27;0&#x27;)\n2. \&quot;10\&quot; (Left pole is &#x27;1&#x27;, Right pole is &#x27;0&#x27;)\n3. \&quot;10\&quot; (Left pole is &#x27;1&#x27;, Right pole is &#x27;0&#x27;)\n4. \&quot;01\&quot; (Left pole is &#x27;0&#x27;, Right pole is &#x27;1&#x27;)\n5. \&quot;10\&quot; (Left pole is &#x27;1&#x27;, Right pole is &#x27;0&#x27;)\n6. \&quot;10\&quot; (Left pole is &#x27;1&#x27;, Right pole is &#x27;0&#x27;)\n\nLet&#x27;s trace the interaction:\n- Magnet 1: \&quot;10\&quot;. Ends with &#x27;0&#x27;.\n- Magnet 2: \&quot;10\&quot;. Starts with &#x27;1&#x27;. The previous magnet ended with &#x27;0&#x27;, and this one starts with &#x27;1&#x27;. Opposite poles attract. So Magnet 2 is attracted to Magnet 1. They form a group.\n- Magnet 3: \&quot;10\&quot;. Starts with &#x27;1&#x27;. The previous magnet (Magnet 2) ended with &#x27;0&#x27;. Opposite poles attract. So Magnet 3 is attracted to Magnet 2. They are in the same group.\n- Magnet 4: \&quot;01\&quot;. Starts with &#x27;0&#x27;. The previous magnet (Magnet 3) ended with &#x27;0&#x27;. Like poles repel (&#x27;0&#x27; and &#x27;0&#x27;). So Magnet 4 is repelled and forms a new group.\n- Magnet 5: \&quot;10\&quot;. Starts with &#x27;1&#x27;. The previous magnet (Magnet 4) ended with &#x27;1&#x27;. Opposite poles attract (&#x27;1&#x27; and &#x27;0&#x27; from previous? No, previous ended with &#x27;1&#x27;, current starts with &#x27;1&#x27;). Wait, let&#x27;s re-check the poles.\n  - Magnet 4 is \&quot;01\&quot;, so right pole is &#x27;1&#x27;.\n  - Magnet 5 is \&quot;10\&quot;, so left pole is &#x27;1&#x27;.\n  - Right pole of Magnet 4 is &#x27;1&#x27;, Left pole of Magnet 5 is &#x27;1&#x27;. Like poles repel. So Magnet 5 should form a new group.\n- Magnet 6: \&quot;10\&quot;. Starts with &#x27;1&#x27;. Previous magnet (Magnet 5) ended with &#x27;0&#x27;. Opposite poles attract. So Magnet 6 is attracted to Magnet 5. They are in the same group.\n\nSo the groups would be:\nGroup 1: Magnets 1, 2, 3\nGroup 2: Magnet 4\nGroup 3: Magnets 5, 6\nTotal groups: 3. This matches the example output.\n\nLet&#x27;s re-evaluate the condition for forming a new group.\nA new group starts when the current magnet is *repelled* by the previous one.\nRepulsion happens when like poles are adjacent. That is:\n- Previous magnet ends with &#x27;0&#x27; AND Current magnet starts with &#x27;0&#x27;.\n- Previous magnet ends with &#x27;1&#x27; AND Current magnet starts with &#x27;1&#x27;.\n\nIn terms of the string representation:\n- Previous magnet string `s_prev`, current magnet string `s_curr`.\n- `s_prev` ends with the last character. `s_curr` starts with the first character.\n- If `s_prev[-1] == s_curr[0]`, then they repel, and a new group starts.\n- Otherwise, they attract, and the current magnet joins the existing group.\n\nLet&#x27;s re-trace Example 1 with this logic:\n1. Magnet 1: \&quot;10\&quot;. Group count = 1. Last magnet was \&quot;10\&quot;.\n2. Magnet 2: \&quot;10\&quot;. Check: last char of prev (\&quot;10\&quot;) is &#x27;0&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;0&#x27; != &#x27;1&#x27;, so they attract. Same group.\n3. Magnet 3: \&quot;10\&quot;. Check: last char of prev (\&quot;10\&quot;) is &#x27;0&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;0&#x27; != &#x27;1&#x27;, so they attract. Same group.\n4. Magnet 4: \&quot;01\&quot;. Check: last char of prev (\&quot;10\&quot;) is &#x27;0&#x27;, first char of curr (\&quot;01\&quot;) is &#x27;0&#x27;. &#x27;0&#x27; == &#x27;0&#x27;, so they repel. New group! Group count becomes 2.\n5. Magnet 5: \&quot;10\&quot;. Check: last char of prev (\&quot;01\&quot;) is &#x27;1&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;1&#x27; == &#x27;1&#x27;, so they repel. New group! Group count becomes 3.\n6. Magnet 6: \&quot;10\&quot;. Check: last char of prev (\&quot;10\&quot;) is &#x27;0&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;0&#x27; != &#x27;1&#x27;, so they attract. Same group.\n\nTotal groups: 3. This matches the example.\n\nLet&#x27;s check Example 2:\nn = 4\nMagnets:\n1. \&quot;01\&quot;\n2. \&quot;01\&quot;\n3. \&quot;10\&quot;\n4. \&quot;10\&quot;\n\nTrace:\n1. Magnet 1: \&quot;01\&quot;. Group count = 1.\n2. Magnet 2: \&quot;01\&quot;. Check: last char of prev (\&quot;01\&quot;) is &#x27;1&#x27;, first char of curr (\&quot;01\&quot;) is &#x27;0&#x27;. &#x27;1&#x27; != &#x27;0&#x27;, so they attract. Same group.\n3. Magnet 3: \&quot;10\&quot;. Check: last char of prev (\&quot;01\&quot;) is &#x27;1&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;1&#x27; == &#x27;1&#x27;, so they repel. New group! Group count becomes 2.\n4. Magnet 4: \&quot;10\&quot;. Check: last char of prev (\&quot;10\&quot;) is &#x27;0&#x27;, first char of curr (\&quot;10\&quot;) is &#x27;1&#x27;. &#x27;0&#x27; != &#x27;1&#x27;, so they attract. Same group.\n\nTotal groups: 2. This matches the example output.\n\nSo the algorithm is:\nInitialize `groups = 1`.\nIterate from the second magnet to the n-th magnet.\nFor each magnet i, compare the last character of magnet i-1 with the first character of magnet i.\nIf they are equal, increment `groups`.\nOtherwise, do nothing.\nPrint `groups`.\n\nLet&#x27;s implement this logic.\n\n```python\nn = int(input())\nmagnets = []\nfor _ in range(n):\n    magnets.append(input())\n\ngroups = 1\nfor i in range(1, n):\n    prev_magnet = magnets[i-1]\n    curr_magnet = magnets[i]\n    if prev_magnet[-1] == curr_magnet[0]:\n        groups += 1\n\nprint(groups)\n```\n\nLet&#x27;s double-check the constraints. n can be up to 100,000. The loop runs n-1 times, which is efficient enough.\n\nLet&#x27;s re-verify the logic one more time with the first example.\nInput:\n6\n10\n10\n10\n01\n10\n10\n\ni=1: prev=\&quot;10\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;0&#x27;, curr[0]=&#x27;1&#x27;. Not equal. groups=1.\ni=2: prev=\&quot;10\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;0&#x27;, curr[0]=&#x27;1&#x27;. Not equal. groups=1.\ni=3: prev=\&quot;10\&quot;, curr=\&quot;01\&quot;. prev[-1]=&#x27;0&#x27;, curr[0]=&#x27;0&#x27;. Equal. groups=2.\ni=4: prev=\&quot;01\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;1&#x27;, curr[0]=&#x27;1&#x27;. Equal. groups=3.\ni=5: prev=\&quot;10\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;0&#x27;, curr[0]=&#x27;1&#x27;. Not equal. groups=3.\n\nFinal answer: 3. Correct.\n\nSecond example:\nInput:\n4\n01\n01\n10\n10\n\ni=1: prev=\&quot;01\&quot;, curr=\&quot;01\&quot;. prev[-1]=&#x27;1&#x27;, curr[0]=&#x27;0&#x27;. Not equal. groups=1.\ni=2: prev=\&quot;01\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;1&#x27;, curr[0]=&#x27;1&#x27;. Equal. groups=2.\ni=3: prev=\&quot;10\&quot;, curr=\&quot;10\&quot;. prev[-1]=&#x27;0&#x27;, curr[0]=&#x27;1&#x27;. Not equal. groups=2.\n\nFinal answer: 2. Correct.\n\nThe logic seems solid.\n\nOne edge case: n=1. The loop range(1, 1) is empty, so groups remains 1. Correct.\n\nThe code looks good.\n\n```python\nn = int(input())\nmagnets = []\nfor _ in range(n):\n    magnets.append(input())\n\ngroups = 1\nfor i in range(1, n):\n    prev_magnet = magnets[i-1]\n    curr_magnet = magnets[i]\n    if prev_magnet[-1] == curr_magnet[0]:\n        groups += 1\n\nprint(groups)\n```\n\nThis is the final solution.&quot;, &quot;code&quot;: &quot;n = int(input())\nmagnets = []\nfor _ in range(n):\n    magnets.append(input())\n\ngroups = 1\nfor i in range(1, n):\n    prev_magnet = magnets[i-1]\n    curr_magnet = magnets[i]\n    if prev_magnet[-1] == curr_magnet[0]:\n        groups += 1\n\nprint(groups)&quot;}, &quot;problem&quot;: &quot;344_A. Magnets&quot;}, {&quot;slug&quot;: &quot;negative-prefixes&quot;, &quot;earlier&quot;: {&quot;step&quot;: 150, &quot;tokens&quot;: 12899, &quot;code_bytes&quot;: 1542, &quot;passed&quot;: true, &quot;tests_run&quot;: 87, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to rearrange the unlocked elements of an array such that the index of the last negative prefix sum (denoted as $k$) is minimized. If all prefix sums are non-negative, $k=0$.\n\n### Understanding the Problem\n\nLet the array be $a$ of size $n$.\nSome positions are locked (fixed values), and others are unlocked (can be permuted).\nLet $p_i = \\sum_{x=1}^i a_x$ be the prefix sums.\n$k = \\max \\{ j \\mid p_j \u003c 0 \\}$. If no such $j$ exists, $k=0$.\nOur goal is to minimize $k$.\n\nMinimizing $k$ means we want the prefix sums to become non-negative ($\\ge 0$) as early as possible. Ideally, we want all prefix sums to be $\\ge 0$, which would make $k=0$. If it&#x27;s impossible to make all prefix sums non-negative due to locked negative numbers appearing early, we want the *last* index where the prefix sum is negative to be as small as possible.\n\nWait, let&#x27;s re-read the definition carefully.\n$k$ is the **maximum** $j$ such that $p_j \u003c 0$.\nWe want to minimize this maximum index.\nThis implies we want the set of indices $\\{j \\mid p_j \u003c 0\\}$ to be a prefix of indices $1, 2, \\dots, k$ where $k$ is as small as possible.\nIn other words, we want $p_j \\ge 0$ for all $j &gt; k$. Since we want to minimize $k$, we ideally want $k=0$, meaning $p_j \\ge 0$ for all $j=1 \\dots n$.\nIf we cannot achieve $k=0$, we want the largest index with a negative sum to be as small as possible.\n\nActually, thinking about the structure of prefix sums:\n$p_j = p_{j-1} + a_j$.\nIf we have a choice of where to put large positive numbers and small negative numbers (among unlocked positions), how does it affect the prefix sums?\n\nTo keep prefix sums high (non-negative), we generally want to put larger numbers earlier. However, we have constraints from locked positions.\nConsider the locked positions. They force certain values at certain indices. This creates \&quot;obstacles\&quot;.\nBetween locked positions, we can place unlocked numbers.\nLet&#x27;s analyze the effect of ordering the unlocked numbers.\nWe have a set of available numbers $U$ for the unlocked positions.\nWe need to assign elements of $U$ to the unlocked indices $idx_1, idx_2, \\dots, idx_m$ in some order $\\sigma$.\nThe prefix sums at any point $i$ will be $L_i + \\text{sum of assigned unlocked values up to } i$, where $L_i$ is the sum of locked values up to $i$.\n\nLet&#x27;s look at the objective again: minimize the largest index $j$ where $p_j \u003c 0$.\nThis is equivalent to maximizing the smallest index $j$ where $p_j \\ge 0$? No.\nIt means we want the condition $p_j \\ge 0$ to hold for all $j &gt; k$. So we want the sequence of prefix sums to stay non-negative for the longest possible suffix.\nActually, if we can make $p_j \\ge 0$ for all $j$, then $k=0$.\nIf we cannot, say the minimum possible maximum negative prefix index is $K$, it means for any arrangement, there is some $j \\le K$ with $p_j \u003c 0$, and for all $j &gt; K$, $p_j \\ge 0$ is guaranteed achievable? Not necessarily guaranteed for all, but we want to find an arrangement where $\\max \\{j : p_j \u003c 0\\}$ is minimized.\n\nLet&#x27;s consider the strategy. To keep prefix sums as large as possible for as long as possible, we should intuitively place the **largest** available numbers first, and the **smallest** (most negative) numbers later?\nLet&#x27;s test this hypothesis.\nSuppose we have unlocked values $\\{-5, 10\\}$ and locked values such that we need to place them at indices 1 and 2.\nOption 1: $[-5, 10]$. Prefixes: $-5, 5$. Max negative index: 1.\nOption 2: $[10, -5]$. Prefixes: $10, 5$. Max negative index: 0 (none).\nClearly, putting the larger number first is better. It keeps the running sum higher.\nWhat if we have $\\{-5, -2\\}$?\nOption 1: $[-5, -2]$. Prefixes: $-5, -7$. Max neg idx: 2.\nOption 2: $[-2, -5]$. Prefixes: $-2, -7$. Max neg idx: 2.\nSame result here.\nWhat if we have $\\{-10, 5, 2\\}$ and slots 1, 2, 3.\nOrder $\\{5, 2, -10\\}$: prefixes $5, 7, -3$. Max neg idx 3.\nOrder $\\{5, -10, 2\\}$: prefixes $5, -5, -3$. Max neg idx 3.\nOrder $\\{2, 5, -10\\}$: prefixes $2, 7, -3$. Max neg idx 3.\nIt seems the position of the single large negative number at the end determines the last negative prefix sum if the sum eventually drops.\nHowever, the definition of $k$ is the maximum $j$ such that $p_j \u003c 0$.\nSo we care about the *last* time the prefix sum is negative.\nTo minimize the last time it is negative, we want the prefix sum to become non-negative and *stay* non-negative for the rest of the array.\nOnce $p_j \\ge 0$, if we add more non-negative numbers, it stays $\\ge 0$. If we add negative numbers, it might drop below 0 again.\nTo prevent $p_j$ from dropping below 0 again after becoming non-negative, we should perhaps group negative numbers together at the beginning? Or mix them?\n\nLet&#x27;s reconsider the example cases.\nExample 3:\n$a = [-8, 4, -2, -6, 4, 7, 1]$\n$l = [1, 0, 0, 0, 1, 1, 0]$\nLocked indices: 1 (val -8), 5 (val 4), 6 (val 7).\nUnlocked indices: 2, 3, 4, 7.\nUnlocked values: $4, -2, -6, 1$. (Original values at 2,3,4,7 are 4, -2, -6, 1).\nWait, original array:\nidx: 1 2 3 4 5 6 7\nval: -8 4 -2 -6 4 7 1\nlocked mask: 1 0 0 0 1 1 0\nSo locked values are at 1 (-8), 5 (4), 6 (7).\nUnlocked values are at 2, 3, 4, 7 which are $\\{4, -2, -6, 1\\}$.\nSorted unlocked: $-6, -2, 1, 4$.\nLocked prefix sums so far (including locked):\nidx 1: -8\nidx 5: -8 + 4 = -4\nidx 6: -4 + 7 = 3\nTotal sum = -8+4-2-6+4+7+1 = 0.\n\nOutput given: `-8 -6 1 4 4 7 -2`\nLet&#x27;s trace prefix sums:\n1: -8 (neg)\n2: -8 + (-6) = -14 (neg)\n3: -14 + 1 = -13 (neg)\n4: -13 + 4 = -9 (neg)\n5: -9 + 4 = -5 (neg)\n6: -5 + 7 = 2 (pos)\n7: 2 + (-2) = 0 (pos)\nNegative indices: 1, 2, 3, 4, 5. Max $j = 5$. $k=5$.\n\nCould we do better?\nWe need to minimize the largest index with negative sum.\nNotice that at index 6, the locked value is 7. The prefix sum before index 6 is $S_5$. $S_6 = S_5 + 7$.\nWe want $S_6 \\ge 0$ as soon as possible? Or maybe we just want to avoid negative sums at large indices.\nIf we can make $S_j \\ge 0$ for all $j \\ge X$, then $k \u003c X$. To minimize $k$, we want the smallest $X$ such that we can make $S_j \\ge 0$ for all $j \\ge X$. Actually, $k$ is simply the max index with $S_j \u003c 0$. So if we make $S_j \\ge 0$ for all $j &gt; k$, then $k$ is the answer. We want minimal $k$.\nEssentially, we want the prefix sums to be non-negative for the suffix of the array.\nTo achieve $S_j \\ge 0$ for large $j$, we need the cumulative sum to recover.\nRecovering is hard if we put big negative numbers late.\nSo, intuitively, to keep the running sum high, we should put **positive** numbers early and **negative** numbers late?\nWait, if we put positive numbers early, the sum grows. Then if we put negative numbers, it drops.\nIf we put negative numbers early, the sum starts low. Then positive numbers bring it up.\nWhich one helps minimize the *last* index with a negative sum?\nScenario A: Negatives early, Positives late.\nPrefixes start very low, maybe negative for indices 1..m. Then positive numbers bring sum up to positive. Once positive, if remaining are positive, stay positive. If remaining have negatives, they might dip again.\nScenario B: Positives early, Negatives late.\nPrefixes start high. Might never go negative. Or go negative only at the very end when we dump all negatives.\nIf we dump all negatives at the end, the last negative prefix sum could be very large (close to n).\nIf we distribute negatives or put them early, the negative indices are concentrated at the start, so the *maximum* index of a negative prefix sum might be smaller.\nExample: Values $\\{-10, 20\\}$. Slots 1, 2.\nOrder $[-10, 20]$: $S_1 = -10$ (neg), $S_2 = 10$ (pos). Max neg index = 1.\nOrder $[20, -10]$: $S_1 = 20$ (pos), $S_2 = 10$ (pos). Max neg index = 0.\nHere, putting negative last gave $k=0$, putting negative first gave $k=1$. So putting negatives last was better?\nWait, the example 3 output put negative numbers at 2, 3, 4, 7?\nUnlocked values: $4, -2, -6, 1$.\nOutput arrangement at unlocked pos 2,3,4,7: $-6, 1, 4, -2$.\nValues: -6, 1, 4, -2.\nPrefix sums at unlocked steps:\nAfter 2: -14\nAfter 3: -13\nAfter 4: -9\nAfter 7: 0\nThe negatives are pushed as far right as possible? No, -6 is at 2, -2 is at 7.\nWhy is $k=5$?\nBecause at index 5 (locked, val 4), the sum was -5.\nIndices 1,2,3,4,5 had negative sums. Index 6 had sum 2 (positive). Index 7 had sum 0.\nSo max neg index is 5.\nCan we make $S_5 \\ge 0$?\n$S_5 = \\text{locked}_1 + \\text{locked}_5 + \\text{sum(unlocked at 2,3,4)}$.\nLocked sum at 5 (including locks at 1,5) = -8 + 4 = -4.\nWe need sum(unlocked at 2,3,4) &gt;= 4 to make $S_5 \\ge 0$.\nAvailable unlocked values: $-6, -2, 1, 4$.\nWe need to pick 3 values for positions 2,3,4 such that their sum is &gt;= 4.\nPossible subsets of size 3:\n$\\{-6, -2, 1\\} \\to -7$\n$\\{-6, -2, 4\\} \\to -4$\n$\\{-6, 1, 4\\} \\to -1$\n$\\{-2, 1, 4\\} \\to 3$\nMax sum of 3 values is 3.\nSo $S_5 = -4 + 3 = -1 \u003c 0$.\nThus, $S_5$ will always be negative regardless of arrangement. So $k \\ge 5$.\nSince we found an arrangement where $k=5$, and we proved $S_5$ must be negative, $k=5$ is optimal.\nThe output arrangement achieved this.\nHow was the assignment done?\nUnlocked values sorted: $-6, -2, 1, 4$.\nPositions: 2, 3, 4, 7.\nAssignment in output: 2:-6, 3:1, 4:4, 7:-2.\nNotice the order of unlocked values placed: -6, 1, 4, -2.\nThis doesn&#x27;t look sorted ascending or descending.\nHowever, notice the pattern of the example solution logic.\nUsually in these problems, to minimize the \&quot;last negative prefix\&quot;, we want the prefix sums to be non-negative for all $j &gt; k$.\nTo make $S_j$ large for large $j$, we should put larger numbers earlier?\nLet&#x27;s re-evaluate the $\\{-10, 20\\}$ case.\nIf we put 20 then -10: $S_1=20, S_2=10$. $k=0$.\nIf we put -10 then 20: $S_1=-10, S_2=10$. $k=1$.\nWe preferred 20 then -10. Large first.\nIn Example 3, we had to have $S_5 \u003c 0$. So we couldn&#x27;t avoid negatives up to 5.\nBut we wanted to ensure $S_6 \\ge 0$ and $S_7 \\ge 0$.\n$S_6 = S_5 + 7$. Since $S_5 \\ge -1$, $S_6 \\ge 6$. So $S_6$ is definitely positive.\n$S_7 = S_6 + a_7$. We need $S_7 \\ge 0$.\nIn the output, $a_7 = -2$. $S_6 = 2$, $S_7 = 0$. Good.\nCould we have put a positive number at 7?\nAvailable values for 7: $-6, -2, 1, 4$.\nIf we put 4 at 7: then we need to fill 2,3,4 with $\\{-6, -2, 1\\}$.\nSum of $\\{-6, -2, 1\\}$ is -7.\n$S_5 = -4 + (-7) = -11$.\n$S_6 = -11 + 7 = -4$. Negative!\nSo $S_6$ would be negative. Then $k \\ge 6$.\nBut we want to minimize $k$. $k=5$ is better than $k=6$.\nSo we must avoid making $S_6$ negative.\nTo keep $S_6 \\ge 0$, we need $S_5 + 7 \\ge 0 \\implies S_5 \\ge -7$.\nRecall $S_5 = -4 + \\text{sum}(2,3,4)$.\nSo we need $-4 + \\text{sum}(2,3,4) \\ge -7 \\implies \\text{sum}(2,3,4) \\ge -3$.\nMax sum of 3 values: $\\{-2, 1, 4\\} \\to 3 \\ge -3$. OK.\nNext best: $\\{-6, 1, 4\\} \\to -1 \\ge -3$. OK.\nNext: $\\{-6, -2, 4\\} \\to -4 \u003c -3$. Fail.\nNext: $\\{-6, -2, 1\\} \\to -7 \u003c -3$. Fail.\nSo we must pick $\\{-2, 1, 4\\}$ or $\\{-6, 1, 4\\}$ for positions 2,3,4.\nThe remaining value goes to 7.\nCase 1: Use $\\{-2, 1, 4\\}$ at 2,3,4. Remaining $-6$ at 7.\n$S_5 = -4 + 3 = -1$. $S_6 = 6$. $S_7 = 0$. Max neg idx = 5.\nCase 2: Use $\\{-6, 1, 4\\}$ at 2,3,4. Remaining $-2$ at 7.\n$S_5 = -4 + (-1) = -5$. $S_6 = 2$. $S_7 = 0$. Max neg idx = 5.\nBoth give $k=5$.\nThe example output used Case 2 (remaining -2 at 7).\nWhy did it choose that? Maybe because it sorts unlocked values in a specific way?\nLet&#x27;s look at the example output values for unlocked positions 2,3,4,7: -6, 1, 4, -2.\nSorted unlocked: -6, -2, 1, 4.\nThe sequence used is -6, 1, 4, -2.\nNot sorted.\nIs there a general strategy?\nHypothesis: Sort unlocked values in **ascending** order?\nSorted: -6, -2, 1, 4.\nIf we place them in order of unlocked positions:\nPos 2: -6\nPos 3: -2\nPos 4: 1\nPos 7: 4\nLet&#x27;s trace this:\n$S_1 = -8$\n$S_2 = -14$\n$S_3 = -16$\n$S_4 = -15$\n$S_5 = -11$\n$S_6 = -4$ (Negative!)\n$S_7 = 0$\nMax neg idx = 6. Worse than 5.\nSo ascending order is bad.\n\nHypothesis: Sort unlocked values in **descending** order?\nSorted desc: 4, 1, -2, -6.\nPlace at 2,3,4,7:\nPos 2: 4\nPos 3: 1\nPos 4: -2\nPos 7: -6\nTrace:\n$S_1 = -8$\n$S_2 = -4$\n$S_3 = -3$\n$S_4 = -5$\n$S_5 = -1$\n$S_6 = 6$\n$S_7 = 0$\nMax neg idx = 5. This works!\nAnd it&#x27;s simpler.\nLet&#x27;s check the $\\{-10, 20\\}$ case with descending order.\nValues: 20, -10.\nPos 1: 20, Pos 2: -10.\n$S_1=20, S_2=10$. $k=0$. Optimal.\nCheck $\\{-5, -2\\}$.\nValues: -2, -5.\nPos 1: -2, Pos 2: -5.\n$S_1=-2, S_2=-7$. $k=2$.\nOrder -5, -2: $S_1=-5, S_2=-7$. $k=2$.\nSame.\nCheck $\\{-10, 5, 2\\}$.\nValues: 5, 2, -10.\nPos 1,2,3.\nOrder 5, 2, -10: 5, 7, -3. $k=3$.\nOrder 2, 5, -10: 2, 7, -3. $k=3$.\nOrder 5, -10, 2: 5, -5, -3. $k=3$.\nSeems consistent.\n\nIs the strategy simply: **Collect all unlocked values, sort them in descending order, and place them into the unlocked positions from left to right?**\nLet&#x27;s try to prove or find a counterexample.\nWe want to minimize $\\max \\{j \\mid S_j \u003c 0\\}$.\nLet the sequence of unlocked values placed be $u_1, u_2, \\dots, u_m$ at indices $idx_1 \u003c idx_2 \u003c \\dots \u003c idx_m$.\nThe prefix sum at any index $x$ depends on the sum of unlocked values placed at indices $\\le x$.\nLet $L_x$ be the sum of locked values in $1..x$.\nLet $U_x$ be the sum of unlocked values placed in $1..x$.\n$S_x = L_x + U_x$.\nWe want to choose the permutation of $U$ to minimize the largest $x$ where $L_x + U_x \u003c 0$.\nNote that $L_x$ is fixed. $U_x$ is a prefix sum of the subsequence of unlocked values selected to be placed in $1..x$.\nSince we place unlocked values in increasing order of their indices, $U_x$ is simply the sum of the first $k$ elements of our chosen permutation, where $k$ is the number of unlocked positions $\\le x$.\nLet the permutation of unlocked values be $v_1, v_2, \\dots, v_m$.\nFor any $x$, let $cnt(x)$ be the number of unlocked positions in $1..x$. Then $U_x = \\sum_{i=1}^{cnt(x)} v_i$.\nWe want to minimize $\\max \\{ x \\mid L_x + \\sum_{i=1}^{cnt(x)} v_i \u003c 0 \\}$.\nLet $T_x = L_x$. We want $\\sum_{i=1}^{cnt(x)} v_i \\ge -T_x$ for as many large $x$ as possible?\nActually, we want the condition $T_x + \\text{sum}(v_{1..cnt(x)}) \u003c 0$ to be false for large $x$.\nSo we want $T_x + \\text{sum}(v_{1..cnt(x)}) \\ge 0$ for large $x$.\nThis looks like we want the partial sums of $v$ to be as large as possible whenever $cnt(x)$ is large.\nSince $cnt(x)$ increases with $x$, the term $\\sum_{i=1}^{cnt(x)} v_i$ changes only at unlocked indices.\nBetween unlocked indices, $T_x$ might change (if there are locked values), but the unlocked sum stays constant.\nSo the most \&quot;critical\&quot; points are the unlocked indices themselves, and maybe the locked ones if $T_x$ drops sharply.\nWait, $T_x$ is the cumulative sum of locked values. It can go up or down.\nHowever, if we sort $v$ in descending order, the prefix sums of $v$ are maximized at every step $k$.\ni.e., for any $k$, $\\sum_{i=1}^k v_i$ is maximized when $v$ is sorted descending.\nProof: Rearrangement inequality / exchange argument. If $a &gt; b$ and we have ..., a, ..., b, ..., swapping to put b before a changes the prefix sum at the position of b by adding b and removing a later? No.\nConsider two adjacent elements in the sequence of unlocked values, $v_i, v_{i+1}$. Suppose $v_i \u003c v_{i+1}$.\nThe contribution to $S_x$ for $x \\ge idx_{i+1}$ is the same regardless of order.\nFor $x$ in $[idx_{i+1}, idx_{i+1})$, i.e., after $idx_i$ but before $idx_{i+1}$, the sum includes $v_i$ but not $v_{i+1}$.\nIf we swap $v_i$ and $v_{i+1}$, then in the range $[idx_i, idx_{i+1})$, the sum increases by $(v_{i+1} - v_i) &gt; 0$.\nSince $v_{i+1} &gt; v_i$, the sum of unlocked values in the intermediate range becomes larger.\nThis makes $S_x = L_x + \\text{unlocked\\_sum}$ larger in that range.\nLarger $S_x$ means it&#x27;s less likely to be negative.\nIf we make $S_x$ non-negative in a range, it helps.\nWhat about indices after $idx_{i+1}$? The total sum is invariant.\nBut the condition \&quot;max j such that $S_j \u003c 0$\&quot; is determined by the latest index.\nIf we make the intermediate sums larger, we might turn some negative $S_x$ into non-negative. This could potentially eliminate some negative indices.\nDoes it affect the *last* negative index?\nSuppose the last negative index is at $X$.\nIf we increase sums in earlier ranges, maybe $S_X$ also increases?\nActually, the total sum of unlocked values is constant.\n$S_n = L_n + \\sum v_i$. This is constant regardless of permutation.\nSo the final prefix sum is fixed.\nThe question is about the path.\nIf we sort descending, the unlocked partial sums are lexicographically\u6700\u5927 (largest at every step).\nSpecifically, for any $k$, $\\sum_{i=1}^k v_i$ is maximized.\nLet $K(x)$ be the count of unlocked positions in $1..x$.\nThen $S_x = L_x + \\sum_{i=1}^{K(x)} v_i$.\nSince $\\sum_{i=1}^{K(x)} v_i$ is maximized when $v$ is sorted descending, $S_x$ is maximized for every $x$ individually!\nWait, is this true?\nYes, because $K(x)$ is a fixed number for each $x$. The sum of the first $K(x)$ elements of a sequence is maximized if the sequence is sorted descending.\nTherefore, for every $x$, $S_x$ achieves its global maximum possible value (over all permutations of unlocked values) when unlocked values are sorted descending.\nIf $S_x$ is maximized for all $x$, then the set of indices where $S_x \u003c 0$ will be a subset of what it would be in any other configuration.\nConsequently, the maximum such index $k$ will be minimized.\nLogic:\nLet $S_x(P)$ be the prefix sum at $x$ under permutation $P$.\n$S_x(P) = L_x + \\sum_{i=1}^{K(x)} v_i^{(P)}$.\nTo minimize $\\max \\{x \\mid S_x(P) \u003c 0\\}$, we want to make $S_x(P) \\ge 0$ for as many large $x$ as possible.\nSince $S_x(P)$ is maximized pointwise by sorting $v$ descending, the condition $S_x(P) \u003c 0$ is least likely to be true.\nSpecifically, let $x^*$ be the largest index such that $S_{x^*}(P) \u003c 0$.\nIf we use the descending sort $P^*$, then $S_x(P^*) \\ge S_x(P)$ for all $x$.\nTherefore, if $S_x(P) \u003c 0$, it doesn&#x27;t directly imply $S_x(P^*) \u003c 0$. But if $S_x(P^*) \\ge 0$, we know $x$ is not in the set for $P^*$.\nMore strongly: The set of indices $x$ where $S_x(P^*) \u003c 0$ is a subset of $\\{x \\mid S_x(P) \u003c 0\\}$?\nNot necessarily a subset, because the values are different. But since $S_x(P^*) \\ge S_x(P)$, whenever $S_x(P) \u003c 0$, it&#x27;s possible $S_x(P^*) \\ge 0$. Whenever $S_x(P^*) \u003c 0$, then $S_x(P) \\le S_x(P^*) \u003c 0$, so $S_x(P) \u003c 0$ is definitely true.\nThus, $\\{x \\mid S_x(P^*) \u003c 0\\} \\subseteq \\{x \\mid S_x(P) \u003c 0\\}$.\nTherefore, $\\max \\{x \\mid S_x(P^*) \u003c 0\\} \\le \\max \\{x \\mid S_x(P) \u003c 0\\}$.\nSo sorting the unlocked values in descending order minimizes $k$.\n\nAlgorithm:\n1. Identify locked positions and their values.\n2. Collect values at unlocked positions into a list `unlocked_vals`.\n3. Sort `unlocked_vals` in descending order.\n4. Reconstruct the array: iterate $i$ from 0 to $n-1$. If $i$ is locked, keep original value. If unlocked, take the next value from the sorted `unlocked_vals` list.\n5. Output the reconstructed array.\n\nLet&#x27;s double check with Example 4.\n$n=5$\n$a = [0, 1, -4, 6, 3]$\n$l = [0, 0, 0, 1, 1]$\nLocked: indices 4, 5 (values 6, 3). Note 1-based indexing in problem, 0-based in code.\nIndices 3, 4 (0-based) are locked.\nUnlocked: 0, 1, 2. Values: 0, 1, -4.\nSorted unlocked descending: $1, 0, -4$.\nReconstruction:\n0: unlocked -&gt; 1\n1: unlocked -&gt; 0\n2: unlocked -&gt; -4\n3: locked -&gt; 6\n4: locked -&gt; 3\nResult: $[1, 0, -4, 6, 3]$.\nPrefix sums:\n1\n1+0=1\n1-4=-3\n-3+6=3\n3+3=6\nNegative indices: 3. Max $k=3$.\nWait, example output says: `-4 0 1 6 3`.\nLet&#x27;s check their output.\nValues: -4, 0, 1, 6, 3.\nPrefixes:\n-4\n-4\n-3\n3\n6\nNegative indices: 1, 2, 3. Max $k=3$.\nBoth give $k=3$.\nIs my output valid? \&quot;If there are multiple answers then print any of them.\&quot;\nMy output gives $k=3$. Example output gives $k=3$.\nWait, did I sort correctly? $1, 0, -4$. Yes.\nWhy did the example output choose $-4, 0, 1$?\nMaybe they sorted ascending?\nAscending: $-4, 0, 1$.\nResult: $-4, 0, 1, 6, 3$. Prefixes: -4, -4, -3, 3, 6. Max neg 3.\nSame $k$.\nIs it possible to get $k \u003c 3$?\n$S_3 = L_3 + \\text{sum(unlocked)}$.\nLocked sum up to 3 (indices 1,2,3? No, values at 4,5 are locked).\nIndices 1,2,3 are unlocked. So $L_3 = 0$.\n$S_3 = \\text{sum(unlocked)} = 0+1-4 = -3$.\nSo $S_3$ is always -3. Thus $k \\ge 3$.\nSo $k=3$ is optimal.\nMy logic holds.\n\nExample 5:\n$n=6$\n$a = [-1, 7, 10, 4, -8, -1]$\n$l = [1, 0, 0, 0, 0, 1]$\nLocked: 1 (-1), 6 (-1).\nUnlocked: 2,3,4,5. Values: 7, 10, 4, -8.\nSorted unlocked desc: $10, 7, 4, -8$.\nReconstruction:\n1: -1\n2: 10\n3: 7\n4: 4\n5: -8\n6: -1\nArray: $[-1, 10, 7, 4, -8, -1]$.\nPrefixes:\n-1\n9\n16\n20\n12\n11\nNegative indices: 1. Max $k=1$.\nExample output: `-1 4 7 -8 10 -1`.\nPrefixes:\n-1\n3\n10\n2\n12\n11\nNegative indices: 1. Max $k=1$.\nBoth give $k=1$.\nMy output is valid.\n\nOne edge case: what if $S_x$ is maximized but still negative, and we can&#x27;t avoid $k=5$? The logic holds, we just find the arrangement that minimizes the set of negative indices, thus minimizing the maximum.\n\nWait, is there any case where maximizing $S_x$ for all $x$ is not the goal?\nThe goal is to minimize $\\max \\{x \\mid S_x \u003c 0\\}$.\nLet $A = \\{x \\mid S_x(P) \u003c 0\\}$. We want to minimize $\\max(A)$.\nWe know $S_x(P^*) \\ge S_x(P)$ for all $x$.\nSo if $x \\in A(P^*)$, then $S_x(P^*) \u003c 0 \\implies S_x(P) \u003c 0 \\implies x \\in A(P)$.\nSo $A(P^*) \\subseteq A(P)$.\nThus $\\max(A(P^*)) \\le \\max(A(P))$.\nThis proves that sorting descending is optimal.\n\nImplementation details:\n- Read t.\n- Loop t times.\n- Read n.\n- Read a.\n- Read l.\n- Separate locked and unlocked values. Be careful to keep track of which positions are locked to fill them back, but actually we just need to know the sequence of unlocked values to fill the gaps.\n- Store locked values in a list or just keep the original array and overwrite unlocked positions.\n- Better: Create a result array `res` initialized with locked values at correct positions and 0 elsewhere? No, easier:\n  - Identify indices where $l_i == 0$.\n  - Collect $a_i$ for these indices into a list `unlocked_vals`.\n  - Sort `unlocked_vals` descending.\n  - Iterate $i$ from 0 to $n-1$.\n    - If $l_i == 1$: `res[i] = a[i]`\n    - If $l_i == 0$: `res[i] = unlocked_vals.pop()` (since we sorted, pop from end or use an index).\n  - Print `res`.\n\nConstraints: $n \\le 100$. $O(n \\log n)$ is trivial.\nValues up to $10^5$, sums fit in integer (max sum $100 \\times 10^5 = 10^7$, fits in 32-bit int). Python handles large ints anyway.\n\nLet&#x27;s write the code.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    iterator = iter(data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = []\n        for _ in range(n):\n            a.append(int(next(iterator)))\n        l = []\n        for _ in range(n):\n            l.append(int(next(iterator)))\n        \n        # Identify unlocked values\n        unlocked_vals = []\n        locked_indices = [] # not strictly needed if we just iterate\n        \n        # We need to reconstruct the array\n        # First, collect unlocked values\n        unlocked_values_list = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_values_list.append(a[i])\n        \n        # Sort unlocked values in descending order\n        unlocked_values_list.sort(reverse=True)\n        \n        # Build the result array\n        res = [0] * n\n        unlocked_ptr = 0\n        for i in range(n):\n            if l[i] == 1:\n                res[i] = a[i]\n            else:\n                res[i] = unlocked_values_list[unlocked_ptr]\n                unlocked_ptr += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    print(\&quot;\\n\&quot;.join(results))\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nLet&#x27;s double check the logic with the provided examples again manually.\nExample 1:\n3\n1 3 2\n0 0 0\nUnlocked: 1, 3, 2. Sorted desc: 3, 2, 1.\nRes: 3 2 1.\nPrefixes: 3, 5, 6. k=0.\nOutput example: 1 2 3. k=0. Both valid.\n\nExample 2:\n4\n2 -3 4 -1\n1 1 1 1\nAll locked. Res: 2 -3 4 -1. k determined by original. Correct.\n\nExample 3:\n7\n-8 4 -2 -6 4 7 1\n1 0 0 0 1 1 0\nUnlocked at 2,3,4,7 (indices 1,2,3,6 0-based). Values: 4, -2, -6, 1.\nSorted desc: 4, 1, -2, -6.\nWait, my manual trace earlier used 4, 1, -2, -6?\nEarlier trace: \&quot;Sorted desc: 4, 1, -2, -6. Place at 2,3,4,7... Trace... Max neg idx = 5.\&quot;\nLet&#x27;s re-verify the trace with 4, 1, -2, -6.\nOriginal indices 0..6.\nLocked: 0 (-8), 4 (4), 5 (7).\nUnlocked: 1, 2, 3, 6. Values from original: a[1]=4, a[2]=-2, a[3]=-6, a[6]=1.\nList: [4, -2, -6, 1].\nSorted desc: [4, 1, -2, -6].\nFill:\ni=0 (L): -8\ni=1 (U): 4\ni=2 (U): 1\ni=3 (U): -2\ni=4 (L): 4\ni=5 (L): 7\ni=6 (U): -6\nArray: [-8, 4, 1, -2, 4, 7, -6]\nPrefixes:\n-8\n-4\n-3\n-5\n-1\n6\n0\nNegative indices: 0, 1, 2, 3, 4. (1-based: 1,2,3,4,5). Max k=5.\nMatches optimal k=5.\nNote: The example output was `-8 -6 1 4 4 7 -2`.\nTheir unlocked order: -6, 1, 4, -2.\nMy order: 4, 1, -2, -6.\nBoth yield k=5.\nMy logic is sound.\n\nExample 4:\n5\n0 1 -4 6 3\n0 0 0 1 1\nUnlocked: 0,1,2 (vals 0,1,-4). Sorted: 1, 0, -4.\nRes: 1, 0, -4, 6, 3.\nPrefixes: 1, 1, -3, 3, 6. Max neg 3.\nExample output: -4 0 1 6 3. Max neg 3.\nBoth valid.\n\nExample 5:\n6\n-1 7 10 4 -8 -1\n1 0 0 0 0 1\nUnlocked: 7, 10, 4, -8. Sorted: 10, 7, 4, -8.\nRes: -1, 10, 7, 4, -8, -1.\nPrefixes: -1, 9, 16, 20, 12, 11. Max neg 1.\nExample output: -1 4 7 -8 10 -1. Max neg 1.\nBoth valid.\n\nThe logic holds. The strategy of sorting unlocked values in descending order and placing them left-to-right maximizes every prefix sum $S_x$ compared to any other permutation, thus minimizing the set of indices where $S_x \u003c 0$, and consequently minimizing the maximum such index.\n\nFinal check on constraints and types.\n$t \\le 1000$, $n \\le 100$. Total operations roughly $1000 \\times 100 \\log 100$, very fast.\nInput reading using `sys.stdin.read().split()` is efficient.\nOutput formatting is correct.\n\nOne small detail: `unlocked_ptr` logic. Since we sort the list, we iterate and pop or index. Indexing is safer/easier than popping if we don&#x27;t want to modify the list, but popping is fine too. I used indexing in the code snippet (`unlocked_values_list[unlocked_ptr]`). This is correct.\n\n```python\nimport sys\n\n# Set up fast I/O\ninput = sys.stdin.read\n\ndef solve():\n    data = input().split()\n    if not data:\n        return\n    \n    iterator = iter(data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        # Collect unlocked values\n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort unlocked values in descending order\n        unlocked_vals.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                res.append(a[i])\n            else:\n                res.append(unlocked_vals[unlocked_idx])\n                unlocked_idx += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThe code looks solid.\n\nOne edge case: $n=1$.\nIf $l=[0]$, val $x$. Sorted $[x]$. Res $x$. $k=0$ if $x \\ge 0$, else $k=1$. Correct.\nIf $l=[1]$, val $x$. Res $x$. Correct.\n\nThe problem statement says \&quot;Output the array a after the rearrangement\&quot;.\nMy code outputs the space-separated integers.\nThe format matches the example output.\n\nOne final check on the definition of $k$: \&quot;maximum j (1 \u2264 j \u2264 n) such that p_j \u003c 0\&quot;.\nMy reasoning about minimizing the max index relies on $S_x$ being maximized.\n$S_x(P^*) \\ge S_x(P)$ for all $x$.\nLet $K(P) = \\max \\{x \\mid S_x(P) \u003c 0\\}$.\nWe know $\\{x \\mid S_x(P^*) \u003c 0\\} \\subseteq \\{x \\mid S_x(P) \u003c 0\\}$.\nTherefore $\\max (\\dots P^* \\dots) \\le \\max (\\dots P \\dots)$.\nSo $K(P^*) \\le K(P)$.\nSince we want to minimize $K$, choosing $P^*$ is optimal.\nThe logic is mathematically sound.\n\nThe solution seems complete.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input at once\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    iterator = iter(data)\n    num_test_cases = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(num_test_cases):\n        n = int(next(iterator))\n        a = []\n        for _ in range(n):\n            a.append(int(next(iterator)))\n        l = []\n        for _ in range(n):\n            l.append(int(next(iterator)))\n        \n        # Extract values at unlocked positions\n        unlocked_values = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_values.append(a[i])\n        \n        # Sort unlocked values in descending order\n        # This strategy maximizes the prefix sums at every index compared to any other permutation,\n        # thereby minimizing the index of the last negative prefix sum.\n        unlocked_values.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_ptr = 0\n        for i in range(n):\n            if l[i] == 1:\n                # Locked position, keep original value\n                res.append(a[i])\n            else:\n                # Unlocked position, take next largest available value\n                res.append(unlocked_values[unlocked_ptr])\n                unlocked_ptr += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis is the final code.\n\nOne minor thing: `sys.setrecursionlimit` is not needed.\nMemory usage is minimal.\nTime complexity is dominated by sorting, which is negligible for N=100.\n\nDouble check the example output format.\n\&quot;Print n integers \u2014 the array a after the rearrangement.\&quot;\nMy code prints one line per test case with space-separated integers.\nThis matches the example output block.\n\nReady.\n\n```python\n# Final check of the code structure\nimport sys\n\n# Increase recursion depth just in case, though not needed here\nsys.setrecursionlimit(2000)\n\ndef solve():\n    # Use fast I/O\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    iterator = iter(input_data)\n    t = int(next(iterator))\n    \n    output_lines = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        unlocked_vals = []\n        for x in range(n):\n            if l[x] == 0:\n                unlocked_vals.append(a[x])\n        \n        # Sort descending\n        unlocked_vals.sort(reverse=True)\n        \n        res = []\n        idx = 0\n        for x in range(n):\n            if l[x] == 1:\n                res.append(a[x])\n            else:\n                res.append(unlocked_vals[idx])\n                idx += 1\n        \n        output_lines.append(\&quot; \&quot;.join(map(str, res)))\n    \n    print(&#x27;\\n&#x27;.join(output_lines))\n\nif __name__ == &#x27;__main__&#x27;:\n    solve()\n```\nThe logic is verified. The code is concise.\n\nOne thought: The problem statement says \&quot;If there are multiple answers then print any of them.\&quot;\nMy solution prints one specific optimal answer.\nThe constraints are small enough.\nNo external libraries needed.\nUTF-8 is default.\n\nI will formulate the response now.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from standard input\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    iterator = iter(input_data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        # Collect values from unlocked positions\n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort unlocked values in descending order.\n        # Placing larger values earlier maximizes the prefix sums at every step,\n        # which helps in making the prefix sums non-negative as early as possible\n        # and keeps them non-negative for the longest suffix. This minimizes k.\n        unlocked_vals.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                # Locked position: keep the original value\n                res.append(a[i])\n            else:\n                # Unlocked position: take the next largest available value\n                res.append(unlocked_vals[unlocked_idx])\n                unlocked_idx += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    # Print all results\n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis looks perfect.\n\nOne final verification on the imports and function calls.\n`sys` is imported. `solve` is called. `sys.stdin.read` works.\nThe constraints $N \\le 100$ mean efficiency is not a concern, correctness is key.\nThe logic derived (sort unlocked descending) is proven by the property that it maximizes every prefix sum $S_x$, thus minimizing the set of indices where $S_x \u003c 0$.\n\nThe solution is ready.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from standard input efficiently\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    iterator = iter(input_data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        # Collect values from unlocked positions\n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort unlocked values in descending order.\n        # To minimize the maximum index j where the prefix sum p_j \u003c 0, we want the prefix sums\n        # to be as large as possible for as long as possible.\n        # Placing the largest available numbers first in the unlocked positions maximizes the \n        # prefix sum at every index i compared to any other permutation of the unlocked values.\n        # Specifically, for any index i, let c be the count of unlocked positions in 1..i.\n        # The prefix sum at i is L_i + sum(unlocked values placed in 1..i).\n        # The sum of the first c elements of the unlocked sequence is maximized when the sequence is sorted descending.\n        # Therefore, sorting unlocked values in descending order minimizes the index of the last negative prefix sum.\n        unlocked_vals.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                # Locked position: keep the original value\n                res.append(a[i])\n            else:\n                # Unlocked position: take the next largest available value\n                res.append(unlocked_vals[unlocked_idx])\n                unlocked_idx += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    # Print all results separated by newlines\n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\u003c/think&gt;\n\nTo solve this problem, we need to rearrange the values at the unlocked positions of the array such that the index of the last negative prefix sum ($k$) is minimized.\n\n### Approach\n\n1.  **Understand the Goal**: We want to minimize $k$, where $k = \\max \\{ j \\mid p_j \u003c 0 \\}$. If all prefix sums are non-negative, $k=0$. Minimizing $k$ means we want the prefix sums to become non-negative as early as possible and stay non-negative for the rest of the array.\n2.  **Analyze Prefix Sums**: The prefix sum at any index $i$, denoted $p_i$, is the sum of all elements from index 1 to $i$. This can be split into the sum of locked elements up to $i$ (which is fixed) and the sum of unlocked elements placed up to $i$ (which we can control).\n3.  **Optimization Strategy**: To maximize the prefix sums for as many indices as possible, we should place larger values earlier in the sequence of unlocked positions. Specifically, if we sort all unlocked values in **descending order** and place them into the unlocked positions from left to right, the cumulative sum of the unlocked values placed so far will be maximized at every step.\n4.  **Proof of Optimality**: Let $S_i$ be the prefix sum at index $i$. $S_i = (\\text{sum of locked elements } \\le i) + (\\text{sum of unlocked elements placed } \\le i)$. The term \&quot;sum of locked elements $\\le i$\&quot; is constant regardless of our rearrangement. The term \&quot;sum of unlocked elements placed $\\le i$\&quot; depends on which unlocked values we put in the first $c$ unlocked slots, where $c$ is the count of unlocked positions up to $i$. According to the rearrangement inequality, for any fixed count $c$, the sum of the first $c$ elements of a sequence is maximized when the sequence is sorted in descending order. Therefore, sorting the unlocked values in descending order maximizes $S_i$ for every $i$. Maximizing $S_i$ for all $i$ ensures that the condition $S_i \u003c 0$ is least likely to be true, and specifically, the largest $i$ for which $S_i \u003c 0$ will be minimized.\n\n### Algorithm\n\n1.  Read the number of test cases.\n2.  For each test case:\n    *   Read $n$, the array $a$, and the lock status array $l$.\n    *   Identify the values at all unlocked positions (where $l_i = 0$) and store them in a list.\n    *   Sort this list of values in descending order.\n    *   Reconstruct the array: iterate from $i = 0$ to $n-1$. If position $i$ is locked, keep the original value $a_i$. If unlocked, take the next value from the sorted list.\n    *   Print the reconstructed array.\n\n### Python Code\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from standard input efficiently\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    iterator = iter(input_data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        # Collect values from unlocked positions\n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort unlocked values in descending order.\n        # Placing larger values earlier maximizes the prefix sums at every step,\n        # which helps in making the prefix sums non-negative as early as possible\n        # and keeps them non-negative for the longest suffix. This minimizes k.\n        unlocked_vals.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                # Locked position: keep the original value\n                res.append(a[i])\n            else:\n                # Unlocked position: take the next largest available value\n                res.append(unlocked_vals[unlocked_idx])\n                unlocked_idx += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    # Print all results separated by newlines\n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```&quot;, &quot;code&quot;: &quot;import sys\n\ndef solve():\n    # Read all input from standard input efficiently\n    input_data = sys.stdin.read().split()\n    \n    if not input_data:\n        return\n\n    iterator = iter(input_data)\n    t = int(next(iterator))\n    \n    results = []\n    \n    for _ in range(t):\n        n = int(next(iterator))\n        a = [int(next(iterator)) for _ in range(n)]\n        l = [int(next(iterator)) for _ in range(n)]\n        \n        # Collect values from unlocked positions\n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort unlocked values in descending order.\n        # Placing larger values earlier maximizes the prefix sums at every step,\n        # which helps in making the prefix sums non-negative as early as possible\n        # and keeps them non-negative for the longest suffix. This minimizes k.\n        unlocked_vals.sort(reverse=True)\n        \n        # Reconstruct the array\n        res = []\n        unlocked_idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                # Locked position: keep the original value\n                res.append(a[i])\n            else:\n                # Unlocked position: take the next largest available value\n                res.append(unlocked_vals[unlocked_idx])\n                unlocked_idx += 1\n        \n        results.append(\&quot; \&quot;.join(map(str, res)))\n    \n    # Print all results separated by newlines\n    sys.stdout.write(\&quot;\\n\&quot;.join(results) + \&quot;\\n\&quot;)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()&quot;}, &quot;recent&quot;: {&quot;step&quot;: 620, &quot;tokens&quot;: 4609, &quot;code_bytes&quot;: 756, &quot;passed&quot;: true, &quot;tests_run&quot;: 87, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to rearrange the unlocked elements of the array `a` such that the value `k` is minimized. The value `k` is defined as the maximum index `j` (1-based) such that the prefix sum `p_j` is less than 0. If no such `j` exists, `k = 0`.\n\nLet&#x27;s break down the logic:\n1. We have an array `a` and a binary array `l` indicating which positions are locked (`l_i = 1`) and which are unlocked (`l_i = 0`).\n2. The locked positions must retain their original values. The unlocked positions can be filled with the set of values originally at unlocked positions, in any order.\n3. We want to minimize `k`. Minimizing `k` means we want the prefix sums to stay non-negative for as long as possible. Specifically, we want the first time a prefix sum becomes negative to happen as late as possible, or never happen.\n\nLet&#x27;s denote the sorted version of the available (unlocked) values as `u`. Suppose we place these values in some order at the unlocked positions. Let the final array be `b`. The prefix sums are `p_i = sum(b_1 ... b_i)`. We want to find an ordering of `u` such that the largest `i` with `p_i \u003c 0` is minimized.\n\nConsider the strategy: To keep prefix sums as large as possible (or non-negative), we should place larger values earlier in the sequence of unlocked positions. Why? Because adding a larger number early will increase the cumulative sum more, helping it stay above zero longer. Conversely, placing smaller (more negative) numbers later will delay the point where the sum drops below zero.\n\nLet&#x27;s verify this hypothesis. Suppose we have unlocked values `[-5, 2, 3]`. The locked positions are fixed. Let&#x27;s say the unlocked positions are indices 1, 2, 3.\n- If we order them as `[-5, 2, 3]`, the prefix sums at these positions would be `-5`, `-3`, `0`. The first negative prefix sum is at index 1, so `k=1`.\n- If we order them as `[3, 2, -5]`, the prefix sums would be `3`, `5`, `0`. No negative prefix sums, so `k=0`.\n- If we order them as `[2, 3, -5]`, the prefix sums would be `2`, `5`, `0`. No negative prefix sums, so `k=0`.\n\nIt seems clear that sorting the unlocked values in descending order is the optimal strategy. By placing the largest available numbers first, we maximize the partial sums at each step, making it less likely for the sum to drop below zero early on.\n\nLet&#x27;s formalize the algorithm:\n1. Identify the values at unlocked positions and collect them into a list `unlocked_values`.\n2. Sort `unlocked_values` in descending order.\n3. Create a new array `result` of size `n`.\n4. Iterate through the original array `a` from `i = 0` to `n-1`:\n   - If position `i` is locked (`l[i] == 1`), set `result[i] = a[i]`.\n   - If position `i` is unlocked (`l[i] == 0`), assign the next value from the sorted `unlocked_values` list to `result[i]`.\n5. Output the `result` array.\n\nLet&#x27;s trace the example from the problem statement:\nExample 3: `n = 7`, `a = [-8, 4, -2, -6, 4, 7, 1]`, `l = [1, 0, 0, 0, 1, 1, 0]`\n- Locked positions (0-based index): 0, 4, 5. Values: `a[0]=-8`, `a[4]=4`, `a[5]=7`.\n- Unlocked positions: 1, 2, 3, 6. Values from `a` at these positions: `a[1]=4`, `a[2]=-2`, `a[3]=-6`, `a[6]=1`.\n- Collect unlocked values: `[4, -2, -6, 1]`.\n- Sort them in descending order: `[4, 1, -2, -6]`.\n- Construct the result array:\n  - i=0 (locked): `result[0] = -8`\n  - i=1 (unlocked): take first from sorted list -&gt; `result[1] = 4`\n  - i=2 (unlocked): take second from sorted list -&gt; `result[2] = 1`\n  - i=3 (unlocked): take third from sorted list -&gt; `result[3] = -2`\n  - i=4 (locked): `result[4] = 4`\n  - i=5 (locked): `result[5] = 7`\n  - i=6 (unlocked): take fourth from sorted list -&gt; `result[6] = -6`\n- Final array: `[-8, 4, 1, -2, 4, 7, -6]`\n\nLet&#x27;s calculate the prefix sums for this result:\n- p1 = -8 (negative, k &gt;= 1)\n- p2 = -8 + 4 = -4 (negative, k &gt;= 2)\n- p3 = -4 + 1 = -3 (negative, k &gt;= 3)\n- p4 = -3 + (-2) = -5 (negative, k &gt;= 4)\n- p5 = -5 + 4 = -1 (negative, k &gt;= 5)\n- p6 = -1 + 7 = 6 (non-negative)\n- p7 = 6 + (-6) = 0 (non-negative)\n\nThe maximum j such that p_j \u003c 0 is j=5. So k=5.\nThe example output for this case is: `-8 -6 1 4 4 7 -2`. Let&#x27;s check its prefix sums:\n- p1 = -8\n- p2 = -14\n- p3 = -13\n- p4 = -9\n- p5 = -5\n- p6 = 2\n- p7 = 0\nHere, the maximum j with p_j \u003c 0 is also 5. So both arrangements yield k=5.\n\nIs there a way to get a smaller k? The example note says \&quot;There are no arrangements such that k \u003c 5.\&quot; This confirms that our strategy of sorting descending is correct or at least leads to an optimal solution.\n\nLet&#x27;s check another example from the problem statement to be sure.\nExample 4: `n = 5`, `a = [0, 1, -4, 6, 3]`, `l = [0, 0, 0, 1, 1]`\n- Locked positions: 3, 4. Values: `a[3]=6`, `a[4]=3`.\n- Unlocked positions: 0, 1, 2. Values: `a[0]=0`, `a[1]=1`, `a[2]=-4`.\n- Unlocked values: `[0, 1, -4]`.\n- Sorted descending: `[1, 0, -4]`.\n- Construct result:\n  - i=0 (unlocked): `1`\n  - i=1 (unlocked): `0`\n  - i=2 (unlocked): `-4`\n  - i=3 (locked): `6`\n  - i=4 (locked): `3`\n- Result: `[1, 0, -4, 6, 3]`\nPrefix sums:\n- p1 = 1\n- p2 = 1\n- p3 = -3 (negative, k &gt;= 3)\n- p4 = 3\n- p5 = 6\nMaximum j with p_j \u003c 0 is 3. So k=3.\nThe example output is: `-4 0 1 6 3`. Let&#x27;s check its prefix sums:\n- p1 = -4\n- p2 = -4\n- p3 = -3\n- p4 = 3\n- p5 = 6\nHere, the maximum j with p_j \u003c 0 is also 3. So k=3 again.\n\nWait, the example output for case 4 is `-4 0 1 6 3`. My constructed array is `1 0 -4 6 3`. Both give k=3. The problem statement says \&quot;If there are multiple answers then print any of them.\&quot; So my strategy is valid.\n\nLet&#x27;s re-examine the logic. Is it always optimal to sort unlocked values in descending order?\nSuppose we have unlocked values `x1, x2, x3` with `x1 &gt; x2 &gt; x3`. We place them at positions `p1, p2, p3`. The contribution to the prefix sums at these positions will be cumulative. By placing the largest value first, we ensure the earliest prefix sums are as large as possible. Since we want to avoid negative prefix sums as much as possible and push the first negative one as far right as possible, maximizing the intermediate sums is the right approach.\n\nTherefore, the algorithm is:\n1. Read `t`.\n2. For each testcase:\n   a. Read `n`.\n   b. Read array `a`.\n   c. Read array `l`.\n   d. Extract values from `a` where `l[i] == 0` into a list `unlocked_vals`.\n   e. Sort `unlocked_vals` in descending order.\n   f. Create a result array `res` of size `n`.\n   g. Use an index `idx = 0` to track the position in `unlocked_vals`.\n   h. For `i` from 0 to `n-1`:\n      - If `l[i] == 1`: `res[i] = a[i]`\n      - Else: `res[i] = unlocked_vals[idx]`, increment `idx`.\n   i. Print elements of `res` separated by spaces.\n\nLet&#x27;s implement this in Python.\n\n```python\nimport sys\n\ndef solve():\n    t = int(sys.stdin.readline())\n    for _ in range(t):\n        n = int(sys.stdin.readline())\n        a = list(map(int, sys.stdin.readline().split()))\n        l = list(map(int, sys.stdin.readline().split()))\n        \n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort in descending order\n        unlocked_vals.sort(reverse=True)\n        \n        res = []\n        idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                res.append(a[i])\n            else:\n                res.append(unlocked_vals[idx])\n                idx += 1\n        \n        print(\&quot; \&quot;.join(map(str, res)))\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nLet&#x27;s double-check with the provided examples.\n\nExample 1:\nn=3, a=[1, 3, 2], l=[0, 0, 0]\nunlocked_vals = [1, 3, 2]\nsorted descending = [3, 2, 1]\nres = [3, 2, 1]\nPrefix sums: 3, 5, 6. No negative sums, k=0. Correct.\n\nExample 2:\nn=4, a=[2, -3, 4, -1], l=[1, 1, 1, 1]\nunlocked_vals = []\nres = [2, -3, 4, -1] (since all are locked)\nCorrect.\n\nExample 3:\nn=7, a=[-8, 4, -2, -6, 4, 7, 1], l=[1, 0, 0, 0, 1, 1, 0]\nunlocked_vals = [4, -2, -6, 1] (from indices 1, 2, 3, 6)\nsorted descending = [4, 1, -2, -6]\nres construction:\ni=0 (l=1): res[0] = -8\ni=1 (l=0): res[1] = 4 (first from unlocked)\ni=2 (l=0): res[2] = 1 (second)\ni=3 (l=0): res[3] = -2 (third)\ni=4 (l=1): res[4] = 4\ni=5 (l=1): res[5] = 7\ni=6 (l=0): res[6] = -6 (fourth)\nres = [-8, 4, 1, -2, 4, 7, -6]\nThis matches my manual trace. The example output is different but yields the same k. The problem allows any valid arrangement.\n\nExample 4:\nn=5, a=[0, 1, -4, 6, 3], l=[0, 0, 0, 1, 1]\nunlocked_vals = [0, 1, -4] (from indices 0, 1, 2)\nsorted descending = [1, 0, -4]\nres construction:\ni=0 (l=0): res[0] = 1\ni=1 (l=0): res[1] = 0\ni=2 (l=0): res[2] = -4\ni=3 (l=1): res[3] = 6\ni=4 (l=1): res[4] = 3\nres = [1, 0, -4, 6, 3]\nMatches my manual trace.\n\nExample 5:\nn=6, a=[-1, 7, 10, 4, -8, -1], l=[1, 0, 0, 0, 0, 1]\nunlocked_vals = [7, 10, 4, -8, -1] (from indices 1, 2, 3, 4, 5? No, wait. l=[1, 0, 0, 0, 0, 1]. So unlocked indices are 1, 2, 3, 4. Values at these indices: a[1]=7, a[2]=10, a[3]=4, a[4]=-8. Wait, index 5 is locked (l[5]=1). So unlocked values are [7, 10, 4, -8].\nLet&#x27;s re-read the input for example 5.\na = [-1, 7, 10, 4, -8, -1]\nl = [1, 0, 0, 0, 0, 1]\nIndices: 0, 1, 2, 3, 4, 5\nl[0]=1 (locked), l[1]=0 (unlocked), l[2]=0 (unlocked), l[3]=0 (unlocked), l[4]=0 (unlocked), l[5]=1 (locked).\nUnlocked positions: 1, 2, 3, 4.\nValues at unlocked positions: a[1]=7, a[2]=10, a[3]=4, a[4]=-8.\nunlocked_vals = [7, 10, 4, -8]\nSorted descending: [10, 7, 4, -8]\nres construction:\ni=0 (l=1): res[0] = -1\ni=1 (l=0): res[1] = 10\ni=2 (l=0): res[2] = 7\ni=3 (l=0): res[3] = 4\ni=4 (l=0): res[4] = -8\ni=5 (l=1): res[5] = -1\nres = [-1, 10, 7, 4, -8, -1]\nLet&#x27;s check prefix sums:\np1 = -1 (negative, k&gt;=1)\np2 = 9\np3 = 16\np4 = 20\np5 = 12\np6 = 11\nMax j with p_j \u003c 0 is 1. So k=1.\nThe example output is: `-1 4 7 -8 10 -1`. Let&#x27;s check its prefix sums:\np1 = -1\np2 = 3\np3 = 10\np4 = 2\np5 = 12\np6 = 11\nMax j with p_j \u003c 0 is 1. So k=1. Both are valid.\n\nThe logic seems solid. The code implements the strategy correctly.\n\nOne edge case: what if `unlocked_vals` is empty? The code handles it correctly because the loop for `i` will only hit the `if l[i] == 1` branch, and `idx` will never be incremented, but it&#x27;s never accessed either.\n\nAnother edge case: all unlocked. The code sorts all values and places them in order.\n\nThe constraints are `n \u003c= 100`, so O(n log n) per test case is perfectly fine.\n\nFinal check on the logic: We want to minimize k, the index of the last negative prefix sum. By placing larger numbers earlier, we make the prefix sums larger earlier, which helps prevent them from being negative. If a prefix sum becomes negative, we want that to happen as late as possible. Maximizing the partial sums at each step achieves this.\n\nImplementation details:\n- Use `sys.stdin.readline` for fast I/O.\n- Convert inputs to appropriate types.\n- Print the result as space-separated integers.\n\nThe code looks good.\n\n```python\nimport sys\n\ndef solve():\n    t = int(sys.stdin.readline())\n    for _ in range(t):\n        n = int(sys.stdin.readline())\n        a = list(map(int, sys.stdin.readline().split()))\n        l = list(map(int, sys.stdin.readline().split()))\n        \n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort in descending order\n        unlocked_vals.sort(reverse=True)\n        \n        res = []\n        idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                res.append(a[i])\n            else:\n                res.append(unlocked_vals[idx])\n                idx += 1\n        \n        print(\&quot; \&quot;.join(map(str, res)))\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nThis is the final code.\n\nOne more check on the example 3 output from the problem statement: `-8 -6 1 4 4 7 -2`.\nLet&#x27;s see if this corresponds to a different strategy. Maybe they are trying to make the prefix sums as \&quot;smooth\&quot; as possible? Or maybe they are just listing one valid answer. The problem says \&quot;print any of them\&quot;. So my answer `[-8, 4, 1, -2, 4, 7, -6]` is also correct.\n\nWait, let&#x27;s re-read the problem statement carefully. \&quot;Your goal is to rearrange the values in such a way that k is minimum possible.\&quot;\nIn example 3, the note says: \&quot;The maximum j is 5, thus k = 5. There are no arrangements such that k \u003c 5.\&quot;\nMy arrangement also gives k=5. So it&#x27;s correct.\n\nI am confident in the solution.\n\n```python\nimport sys\n\ndef solve():\n    t = int(sys.stdin.readline())\n    for _ in range(t):\n        n = int(sys.stdin.readline())\n        a = list(map(int, sys.stdin.readline().split()))\n        l = list(map(int, sys.stdin.readline().split()))\n        \n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort in descending order\n        unlocked_vals.sort(reverse=True)\n        \n        res = []\n        idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                res.append(a[i])\n            else:\n                res.append(unlocked_vals[idx])\n                idx += 1\n        \n        print(\&quot; \&quot;.join(map(str, res)))\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```&quot;, &quot;code&quot;: &quot;import sys\n\ndef solve():\n    t = int(sys.stdin.readline())\n    for _ in range(t):\n        n = int(sys.stdin.readline())\n        a = list(map(int, sys.stdin.readline().split()))\n        l = list(map(int, sys.stdin.readline().split()))\n        \n        unlocked_vals = []\n        for i in range(n):\n            if l[i] == 0:\n                unlocked_vals.append(a[i])\n        \n        # Sort in descending order\n        unlocked_vals.sort(reverse=True)\n        \n        res = []\n        idx = 0\n        for i in range(n):\n            if l[i] == 1:\n                res.append(a[i])\n            else:\n                res.append(unlocked_vals[idx])\n                idx += 1\n        \n        print(\&quot; \&quot;.join(map(str, res)))\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()&quot;}, &quot;problem&quot;: &quot;1418_B. Negative Prefixes&quot;}, {&quot;slug&quot;: &quot;number-of-triplets&quot;, &quot;earlier&quot;: {&quot;step&quot;: 150, &quot;tokens&quot;: 10258, &quot;code_bytes&quot;: 2185, &quot;passed&quot;: true, &quot;tests_run&quot;: 82, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to find the number of triplets of points $(A, B, C)$ from a given set of $n$ points such that $B$ is the midpoint of the segment $AC$. The problem states that the groups are unordered, meaning $(A, B, C)$ is the same as $(C, B, A)$. However, since $B$ is uniquely defined as the midpoint, once we pick $B$ and another point $A$, $C$ is determined. Specifically, if $B$ is the midpoint of $AC$, then the coordinate relationship is:\n$$ x_B = \\frac{x_A + x_C}{2} \\quad \\text{and} \\quad y_B = \\frac{y_A + y_C}{2} $$\nThis can be rewritten as:\n$$ x_C = 2x_B - x_A $$\n$$ y_C = 2y_B - y_A $$\n\nSo, for every pair of points $(A, B)$, we can calculate where $C$ would need to be for $B$ to be the midpoint. If this calculated point $C$ exists in our original set of points, and $C$ is distinct from $A$ and $B$ (which is guaranteed if $A \\neq B$ and the points are distinct), then we have found a valid triplet.\n\nSince the problem asks for the number of different *groups* of three points $\\{A, B, C\\}$ where $B$ is the middle, and the group is unordered, each valid geometric configuration corresponds to exactly one unique triplet where the middle element is specified. Note that in a set of three collinear points where one is the midpoint of the other two, there is only one such midpoint. For example, if points are at 0, 2, and 4 on a line, only 2 is the midpoint of 0 and 4. 0 is not the midpoint of 2 and 4, and 4 is not the midpoint of 0 and 2. Thus, each valid set of three collinear points contributes exactly 1 to the count.\n\nAlgorithm:\n1. Store all $n$ points in a data structure that allows fast lookups, such as a set of tuples or a hash map. Since $n$ is up to 3000, an $O(n^2)$ approach is acceptable ($3000^2 = 9,000,000$, which is well within time limits for typical competitive programming constraints of 1-2 seconds).\n2. Iterate through every point $B$ in the set (considering it as the potential midpoint).\n3. Iterate through every other point $A$ in the set (considering it as one endpoint).\n4. Calculate the required coordinates for $C$: $cx = 2x_B - x_A$, $cy = 2y_B - y_A$.\n5. Check if the point $(cx, cy)$ exists in our set of points.\n6. If it exists, we have found a valid triplet $(A, B, C)$. Increment our counter.\n7. Important: Does this count each group once or twice?\n   - We iterate over $B$ (the middle) and $A$ (one side).\n   - For a specific group $\\{A, B, C\\}$ where $B$ is the midpoint, our loops will encounter:\n     - $B$ as the center, $A$ as the first iterator -&gt; finds $C$. Counts 1.\n     - $B$ as the center, $C$ as the first iterator -&gt; finds $A$. Counts 1.\n   - This would count the same group twice if we simply sum up all occurrences.\n   - Wait, let&#x27;s re-read the definition carefully: \&quot;groups of three points (A, B, C) such that point B is the middle of segment AC\&quot;. And \&quot;groups ... are considered unordered\&quot;.\n   - So the group is defined by the set of three points $\\{P_1, P_2, P_3\\}$. The condition implies one of the points is the midpoint of the other two. In any set of three distinct collinear points, there is at most one point that is the midpoint of the other two.\n   - Therefore, for each valid set $\\{A, B, C\\}$ with $B$ as midpoint, we want to count it exactly once.\n   - In our nested loop structure:\n     - Outer loop: $B$ (candidate midpoint)\n     - Inner loop: $A$ (candidate endpoint)\n     - Check if $C = 2B - A$ exists.\n   - If we do this, for a valid set $\\{A, B, C\\}$, we will count it twice: once when $A$ is the inner loop variable (finding $C$), and once when $C$ is the inner loop variable (finding $A$).\n   - To avoid double counting, we can simply divide the final total by 2.\n   - Alternatively, we can impose an ordering on $A$ and $C$ to count only once per pair $(A, C)$ for a fixed $B$. But since we don&#x27;t know $C$ beforehand, dividing by 2 at the end is easier.\n   - Is there any case where $A = C$? No, because all points are distinct. If $A = C$, then $B = A$, which contradicts distinct points.\n   - Is there any case where we count the same group with a different middle point? No, because a segment has a unique midpoint.\n   - So the strategy: Iterate all pairs $(B, A)$, check existence of $C$, count matches. Result / 2.\n\nComplexity Analysis:\n- Storing points: $O(n \\log n)$ or $O(n)$ with hash set.\n- Nested loops: $n$ choices for $B$, $n-1$ choices for $A$. Total $n(n-1)$ iterations.\n- Inside loop: Hash lookup is $O(1)$ on average.\n- Total time complexity: $O(n^2)$.\n- With $n=3000$, $n^2 = 9 \\times 10^6$ operations, which is very fast.\n\nLet&#x27;s refine the implementation details.\n- Read $n$.\n- Read $n$ lines of coordinates. Store them in a list `points` and also in a `set` of tuples for $O(1)$ lookup.\n- Initialize `count = 0`.\n- Loop `i` from 0 to `n-1` (for point B).\n  - Loop `j` from 0 to `n-1` (for point A).\n    - If `i == j`, continue (A and B must be distinct).\n    - Let $B = (x_B, y_B)$ and $A = (x_A, y_A)$.\n    - Calculate $C = (2x_B - x_A, 2y_B - y_A)$.\n    - Check if $C$ is in the set.\n    - If yes, `count += 1`.\n- Final answer is `count // 2`.\n\nWait, let&#x27;s double check the constraints and types. Coordinates are between -1000 and 1000. The calculated coordinate $2x_B - x_A$ will be between $2(-1000) - 1000 = -3000$ and $2(1000) - (-1000) = 3000$. These fit easily within standard integer types.\n\nExample 1:\nPoints: (1,1), (2,2), (3,3).\nSet = {(1,1), (2,2), (3,3)}.\ni=0, B=(1,1):\n  j=1, A=(2,2) -&gt; C=(2*1-2, 2*1-2) = (0,0). Not in set.\n  j=2, A=(3,3) -&gt; C=(2*1-3, 2*1-3) = (-1,-1). Not in set.\ni=1, B=(2,2):\n  j=0, A=(1,1) -&gt; C=(4-1, 4-1) = (3,3). In set! count=1.\n  j=2, A=(3,3) -&gt; C=(4-3, 4-3) = (1,1). In set! count=2.\ni=2, B=(3,3):\n  j=0, A=(1,1) -&gt; C=(6-1, 6-1) = (5,5). No.\n  j=1, A=(2,2) -&gt; C=(6-2, 6-2) = (4,4). No.\nTotal count = 2. Answer = 2 // 2 = 1. Correct.\n\nExample 2:\nPoints: (0,0), (-1,0), (0,1).\nSet = {(0,0), (-1,0), (0,1)}.\nCheck all pairs.\nB=(0,0):\n  A=(-1,0) -&gt; C=(1,0). No.\n  A=(0,1) -&gt; C=(0,-1). No.\nB=(-1,0):\n  A=(0,0) -&gt; C=(-2,0). No.\n  A=(0,1) -&gt; C=(-3,2). No.\nB=(0,1):\n  A=(0,0) -&gt; C=(0,2). No.\n  A=(-1,0) -&gt; C=(1,2). No.\nTotal count = 0. Answer = 0. Correct.\n\nEdge cases:\n- $n=3$ minimum.\n- All points collinear but no midpoint relationships (e.g., 0, 1, 3). Then count 0.\n- All points same? Problem says \&quot;All points are different\&quot;.\n- Coordinates negative? Handled correctly by arithmetic.\n\nOptimization note:\nUsing a Python `set` of tuples is efficient.\nThe loop runs roughly $3000^2 / 2$ times effectively since $i \\neq j$. $4.5 \\times 10^6$ iterations. Inside is simple arithmetic and set lookup. Python should handle this in under a second.\n\nOne small optimization: we can enforce an order on indices to avoid dividing by 2 at the end, but it&#x27;s slightly more complex because for a fixed B, we need to ensure we only process pair (A, C) once.\nIf we iterate $i$ (for B) and $j$ (for A), and check for $C$, we find both $(A, C)$ and $(C, A)$.\nTo count each unique pair $\\{A, C\\}$ exactly once for a fixed $B$, we could check if index $j$ \u003c index $k$ where $k$ is the index of $C$. But finding the index of $C$ requires a reverse mapping or another search.\nDividing by 2 is simpler and less error-prone. Given the constraints and operations, the overhead of division is negligible.\n\nWait, is it possible that for different $B$&#x27;s we count the same group?\nNo. A group of 3 points has exactly one midpoint. If $B_1$ is the midpoint of $A, C$, then $B_1$ is the unique center. $B_2$ cannot be the midpoint of the same pair $A, C$ unless $B_1 = B_2$. Could $B_2$ be the midpoint of $A, B_1$? That would form a different group $\\{A, B_2, B_1\\}$. These are distinct groups because the sets of points are different (one contains $C$, the other contains $B_2$). Since all input points are distinct, the sets $\\{A, B, C\\}$ and $\\{A, B&#x27;, C&#x27;\\}$ are distinct if the points are not identical. Since we iterate over all possible midpoints $B$ from the input set, and for each $B$ we look for pairs summing to $2B$, each valid triplet is identified exactly twice (once for each direction along the line segment relative to the midpoint).\n\nImplementation structure:\n```python\nimport sys\n\ndef solve():\n    # Read n\n    n_line = sys.stdin.read().split()\n    if not n_line:\n        return\n    n = int(n_line[0])\n    points = []\n    # The rest of the tokens are coordinates\n    # There are 2*n integers following\n    idx = 1\n    for _ in range(n):\n        x = int(n_line[idx])\n        y = int(n_line[idx+1])\n        idx += 2\n        points.append((x, y))\n    \n    # Create a set for O(1) lookups\n    point_set = set(points)\n    \n    count = 0\n    # Iterate over each point as B (midpoint)\n    for i in range(n):\n        bx, by = points[i]\n        # Iterate over each point as A (one endpoint)\n        for j in range(n):\n            if i == j:\n                continue\n            ax, ay = points[j]\n            # Calculate C\n            cx = 2 * bx - ax\n            cy = 2 * by - ay\n            if (cx, cy) in point_set:\n                count += 1\n    \n    # Each group is counted twice (once for A-&gt;C and once for C-&gt;A)\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nWait, `sys.stdin.read().split()` reads all tokens at once. This is efficient and handles whitespace (newlines/spaces) uniformly.\nThe constraints $n \\le 3000$ mean the input size is roughly $3000 \\times 2$ integers, very small. Reading all at once is fine.\nMemory usage: storing 3000 tuples is trivial.\nTime complexity: $O(N^2)$ with fast lookup. $3000^2 = 9 \\times 10^6$ ops. In Python, a simple loop with set lookup might take around 1-2 seconds if the constant factor is high. Let&#x27;s verify.\nTypical Python limit is roughly $10^7$ - $10^8$ operations per second depending on complexity. Simple integer arithmetic and dictionary/set lookup are quite fast.\nHowever, 9 million iterations in pure Python might be close to the 1-2 second limit if the logic inside is heavy.\nLet&#x27;s optimize slightly.\nInstead of `points.append` inside a loop which is fine, we can parse directly.\nInside the loop:\n`if (cx, cy) in point_set:` involves tuple creation and hashing.\nCreating a tuple `(cx, cy)` 9 million times might be the bottleneck.\nIs there a way to avoid tuple creation?\nWe could use a 2D array or a boolean matrix since coordinates are small (-1000 to 1000).\nRange of coordinates: $x \\in [-1000, 1000]$, $y \\in [-1000, 1000]$.\nOffset by 1000 to make indices non-negative: $0$ to $2000$.\nSize of grid: $2001 \\times 2001 \\approx 4 \\times 10^6$.\nThis fits in memory (4 million booleans/bytes is ~4MB).\nUsing a 2D array `grid[x_offset][y_offset]` might be faster than a hash set because it avoids hashing overhead, but accessing a 2D list in Python is also not super fast compared to a direct array access? Actually, a flat list or even a set might be comparable.\nHowever, the set approach is $O(1)$ amortized. The constant factor for hashing tuples is non-trivial.\nGiven $N=3000$, maybe the $O(N^2)$ with set is acceptable. Many competitive programming solutions in Python for $N=3000$ $O(N^2)$ pass if the inner body is light.\nLet&#x27;s consider the coordinate range approach.\nMap $(x, y)$ to an index? No, just a set is fine.\nWait, if coordinates were larger, we&#x27;d need a map or set. Since they are small, a 2D boolean array is technically faster for lookup, but initializing a $2000 \\times 2000$ array takes some time and memory.\nActually, the maximum coordinate difference is 2000.\nLet&#x27;s stick to the set. It&#x27;s standard and likely fast enough. The constraints $N=3000$ are on the edge for Python $O(N^2)$ but usually accepted if the logic is simple.\nWait, is there any optimization?\nWe only need to check pairs.\nFor each $B$, we iterate all $A$.\nCan we iterate only half?\nFor a fixed $B$, if we find a valid $C$, the pair $(A, C)$ is valid. Since order of $A$ and $C$ doesn&#x27;t matter for the *pair* but we iterate all $A$, we count both.\nCould we restrict $A$? No, we don&#x27;t know which $A$ works without checking.\nBut we know that for a fixed $B$, we are looking for pairs $(A, C)$ such that $A+C = 2B$.\nThis is equivalent to finding pairs in the list of points that sum to a specific vector.\nAlgorithm:\nFor each $B$:\n  Target sum $S = (2x_B, 2y_B)$.\n  We need to find number of pairs $(A, C)$ in the set such that $A + C = S$ and $A \\neq C$ (implicitly satisfied if points distinct and $A+C=2B \\implies A=C \\implies B=A$, but $A \\neq B$).\n  Instead of iterating all $A$, we could iterate only $j \u003c i$? No, because $B$ is fixed.\n  Actually, iterating all $A$ is the most direct way.\n  To speed up, notice that for a fixed $B$, we just need the count of $A$ such that $2B-A$ is in the set.\n  This is exactly what the loop does.\n  \n  Is there a case where $O(N^2)$ TLEs?\n  In C++, $9 \\times 10^6$ is instant (~0.05s). In Python, loop overhead is significant.\n  Let&#x27;s try to minimize work inside the loop.\n  Precompute points list.\n  Use a set for existence.\n  Maybe avoid tuple creation for `points[i]` by storing x and y in separate lists? Accessing `xs[i]` and `ys[i]` might be slightly faster than `points[i][0]`.\n  Also, avoid checking `i == j` by range? `range(n)` then skip? Or `range(n)` and inside `if i==j: continue`. The `if` check is cheap.\n  \n  Let&#x27;s write the code cleanly.\n  \n  One more thing: The problem statement says \&quot;groups of three points\&quot;.\n  My logic: Count pairs $(A, B, C)$ where $B$ is midpoint. Since $(A, B, C)$ and $(C, B, A)$ are the same group, and my loop counts both (once with $A$ as inner, once with $C$ as inner), dividing by 2 is correct.\n  \n  Wait, what if $A=C$?\n  $2B - A = A \\implies 2B = 2A \\implies B = A$.\n  But we skip `i == j`, so $A \\neq B$. Thus $A \\neq C$.\n  So no self-loops.\n  \n  Let&#x27;s reconsider the performance.\n  $N=3000$.\n  Python `for` loop overhead.\n  Let&#x27;s assume the time limit is standard (1s or 2s).\n  If it&#x27;s tight, we might need the 2D array optimization.\n  Coordinates: -1000 to 1000.\n  Offset = 1000. Range 0 to 2000.\n  `exists = [[False] * 2001 for _ in range(2001)]`\n  Mark existing points.\n  Inside loop:\n    `if exists[cx + offset][cy + offset]:`\n  This avoids tuple hashing. Tuple hashing involves iterating tuple items. Integer lookup is very fast.\n  Creating the 2D list: $2000 \\times 2000 = 4,000,000$ elements. Initialization takes maybe 0.5s?\n  Actually, creating a list of lists of booleans in Python might take a bit of time, but it&#x27;s done once.\n  Accessing `arr[x][y]` is two pointer lookups.\n  Tuple creation and hashing: creating a tuple of 2 ints, computing hash (sum of ints etc), checking in hash table.\n  The 2D array might be faster per access but slower to initialize?\n  Wait, $2000 \\times 2000$ list creation in Python:\n  `[[False]*2001 for _ in range(2001)]`\n  This involves creating 2001 list objects, each with 2001 False values.\n  `False` is a singleton, so it&#x27;s just pointers.\n  Time estimate: ~0.2 - 0.4 seconds.\n  Then the loop runs 9 million times. Each iteration does 2 list lookups.\n  List lookup in Python is fast but not as fast as a C array.\n  However, compared to `set` which involves object creation (tuple) and hashing, the list might be competitive.\n  But wait, we only need to know if a point exists.\n  A dictionary mapping `(x, y)` to something? Same as set.\n  What about a flat list of size $2001 \\times 2001 = 4,000,001$? `exists[x*2001 + y]`.\n  This avoids double indexing overhead.\n  Index calculation: `(cx + 1000) * 2001 + (cy + 1000)`.\n  Multiplication and addition in Python are fast.\n  This seems robust.\n  \n  Let&#x27;s refine the solution with the 1D array for lookup to ensure we pass within time limits.\n  Max coord 1000, min -1000. Range size 2001.\n  Offset 1000.\n  Size = 2001 * 2001 = 4004001.\n  \n  Steps:\n  1. Parse input.\n  2. Create a boolean array `present` of size 4004001, initialized to False.\n  3. For each point $(x, y)$, set `present[(x + 1000) * 2001 + (y + 1000)] = True`.\n  4. Loop $i$ from 0 to $n-1$, $j$ from 0 to $n-1$.\n     If $i == j$ continue.\n     $x_B, y_B = points[i]$\n     $x_A, y_A = points[j]$\n     $x_C = 2x_B - x_A$\n     $y_C = 2y_B - y_A$\n     idx = $(x_C + 1000) * 2001 + (y_C + 1000)$\n     If `present[idx]`: count += 1\n  5. Print `count // 2`.\n  \n  Wait, is `2001` the correct multiplier?\n  Yes, if indices are 0..2000, the stride must be 2001 to avoid overlap.\n  $x_{min} = -1000 \\to 0$. $x_{max} = 1000 \\to 2000$.\n  $y_{min} = -1000 \\to 0$. $y_{max} = 1000 \\to 2000$.\n  Max index = $2000 * 2001 + 2000 = 4002000 + 2000 = 4004000$.\n  Size 4004001 is sufficient.\n  \n  This approach removes tuple allocation and hashing, likely making it 2-3x faster than the set approach.\n  \n  Let&#x27;s double check input reading. `sys.stdin.read().split()` creates a list of strings.\n  Convert to ints.\n  Store points in a list of tuples or two lists `X` and `Y` for faster access?\n  Accessing `points[i][0]` involves tuple unpacking or indexing.\n  Two lists `xs` and `ys` might be slightly faster for the loop body: `xb = xs[i]`, `yb = ys[i]`.\n  \n  Code structure:\n  ```python\n  import sys\n\n  def solve():\n      data = sys.stdin.read().split()\n      if not data:\n          return\n      n = int(data[0])\n      # points data starts at index 1\n      # Convert all to integers first? Or on demand?\n      # Converting all to ints at once is faster than one by one in loop?\n      # map(int, data) creates an iterator in Python 3. list() consumes it.\n      # data[1:] contains 2*n integers.\n      \n      # Let&#x27;s extract x and y lists\n      # Using an iterator to avoid slicing copy\n      it = iter(data)\n      next(it) # skip n\n      xs = []\n      ys = []\n      # Preallocate? No need.\n      # Just loop n times\n      # Actually, converting the whole rest to ints might be easier\n      # ints = list(map(int, data)) # This creates a list of all ints [n, x1, y1, x2, y2...]\n      # But data is already a list of strings. mapping is efficient.\n      \n      # To save memory and time, we can just iterate.\n      # But creating xs and ys lists is good.\n      \n      # Re-reading logic:\n      # data[0] is n\n      # data[1] is x1, data[2] is y1, ...\n      \n      # Efficient parsing\n      # Total integers = 2*n + 1\n      # Let&#x27;s create a flat list of ints first?\n      # ints = [int(x) for x in data] # This is O(N)\n      # n = ints[0]\n      # xs = ints[1::2]\n      # ys = ints[2::2]\n      # This is very concise and fast in Python.\n      \n      ints = list(map(int, data))\n      n = ints[0]\n      xs = ints[1::2]\n      ys = ints[2::2]\n      \n      # Determine offset and size for grid\n      # Coordinates are -1000 to 1000\n      OFFSET = 1000\n      SIZE = 2001\n      GRID_SIZE = SIZE * SIZE\n      \n      # Initialize grid\n      # Using a bytearray might be slightly more memory efficient and init faster?\n      # bytearray(GRID_SIZE) initializes to zeros (False).\n      present = bytearray(GRID_SIZE) # 0 or 1\n      \n      # Fill grid\n      for k in range(n):\n          x = xs[k] + OFFSET\n          y = ys[k] + OFFSET\n          present[x * SIZE + y] = 1\n          \n      count = 0\n      # Loop\n      for i in range(n):\n          bx = xs[i]\n          by = ys[i]\n          # Optimization: calculate 2*B once\n          # target_x = 2*bx\n          # target_y = 2*by\n          # But we need 2*bx - ax\n          # So for each a, cx = 2*bx - ax\n          two_bx = 2 * bx\n          two_by = 2 * by\n          \n          for j in range(n):\n              if i == j:\n                  continue\n              ax = xs[j]\n              ay = ys[j]\n              \n              cx = two_bx - ax\n              cy = two_by - ay\n              \n              # Check bounds? cx, cy should be within -3000 to 3000?\n              # Wait, if cx is outside -1000..1000, it won&#x27;t be in present grid anyway.\n              # But our grid only covers -1000..1000.\n              # If cx is -1500, index calculation would be negative or out of bounds if not checked.\n              # x = cx + OFFSET. If cx = -1500, x = -500.\n              # Negative index in Python wraps around! Danger!\n              # We must check if cx and cy are within [-1000, 1000] before accessing grid.\n              # Or make the offset large enough and handle range?\n              # Actually, the points in the set are all within [-1000, 1000].\n              # If the calculated C is not in [-1000, 1000], it cannot be in the set (since all input points are in that range).\n              # So we can simply check if cx in [-1000, 1000] and cy in [-1000, 1000].\n              \n              # Check range\n              # cx + OFFSET must be between 0 and 2000 inclusive\n              # =&gt; -1000 \u003c= cx \u003c= 1000\n              \n              idx = 0\n              if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                  idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                  if present[idx]:\n                      count += 1\n      \n      print(count // 2)\n\n  if __name__ == \&quot;__main__\&quot;:\n      solve()\n  ```\n  Wait, the range check `if -1000 \u003c= cx \u003c= 1000` is necessary because Python lists support negative indexing which would incorrectly access `present[len - 500]` instead of \&quot;error\&quot;.\n  Is the check expensive? It&#x27;s 2 comparisons. Probably negligible compared to list access.\n  \n  Wait, `present` is bytearray. `idx` access is fast.\n  The logic holds.\n  \n  One detail: The problem says \&quot;All points are different\&quot;.\n  So we don&#x27;t need to worry about duplicate points in input affecting the count logic (though our logic relies on distinctness implicitly for the \&quot;unique group\&quot; part).\n  \n  Final check on constraints:\n  $N=3000$.\n  Loop $3000 \\times 3000 = 9,000,000$.\n  Inside: 2 comparisons, 2 subtractions, 2 mults, 2 adds, 1 array access.\n  This is very light. Python should handle this in \u003c 1s easily.\n  \n  Example 1 trace with code logic:\n  Points: (1,1), (2,2), (3,3). Offset=1000.\n  Present marked at 1001*, 1001, etc.\n  i=1 (B=2,2): j=0 (A=1,1) -&gt; C=(3,3). In range. idx valid. present True. count=1.\n  j=2 (A=3,3) -&gt; C=(1,1). In range. idx valid. present True. count=2.\n  Result 1. Correct.\n  \n  The range check handles cases where C falls outside the domain of given points. Even if the domain was larger, C wouldn&#x27;t be in `present` anyway, but the index out of bounds or wrap-around would be a bug. The check fixes that.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    # Parse integers\n    # data[0] is n\n    # data[1], data[2] is x1, y1\n    # ...\n    # Convert all to integers once\n    ints = list(map(int, data))\n    n = ints[0]\n    xs = ints[1::2]\n    ys = ints[2::2]\n    \n    # Coordinates are between -1000 and 1000.\n    # We can use a 1D array (bytearray) to represent the 2D grid of points for O(1) lookup.\n    # Offset to handle negative coordinates.\n    OFFSET = 1000\n    SIZE = 2001  # Range 0 to 2000 inclusive\n    GRID_SIZE = SIZE * SIZE\n    \n    # Initialize the grid with 0s\n    present = bytearray(GRID_SIZE)\n    \n    # Mark the given points\n    for k in range(n):\n        x = xs[k] + OFFSET\n        y = ys[k] + OFFSET\n        present[x * SIZE + y] = 1\n        \n    count = 0\n    \n    # Iterate over each point B\n    for i in range(n):\n        bx = xs[i]\n        by = ys[i]\n        \n        # Precompute 2*B coordinates (without offset yet, as we subtract ax which is raw)\n        # cx = 2*bx - ax\n        two_bx = 2 * bx\n        two_by = 2 * by\n        \n        # Iterate over each point A\n        for j in range(n):\n            if i == j:\n                continue\n            \n            ax = xs[j]\n            ay = ys[j]\n            \n            # Calculate C coordinates\n            cx = two_bx - ax\n            cy = two_by - ay\n            \n            # Since all input points are within [-1000, 1000], if C is outside this range,\n            # it cannot be one of the input points. We check bounds to avoid index errors or wrap-around.\n            if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                # Calculate index in the flattened grid\n                idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                if present[idx]:\n                    count += 1\n    \n    # Each valid group {A, B, C} is counted twice: once when A is the inner loop point (finding C),\n    # and once when C is the inner loop point (finding A).\n    # Therefore, we divide the total count by 2.\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nThis solution uses $O(N^2)$ time complexity and $O(N + K)$ space complexity where $K$ is the coordinate grid size ($2000 \\times 2000$). Given $N \\le 3000$ and small coordinates, this is optimal and efficient enough for Python.\n\nOne final verification on memory: `bytearray(4004001)` takes about 4MB. `ints` list takes $9000 \\times 28$ bytes $\\approx 250$ KB. `xs` and `ys` lists similar. Total memory is well within limits (usually 256MB).\n\nThe logic seems solid.\n\nOne tiny edge case: $n \u003c 3$? The problem says $3 \\le n \\le 3000$. So no issue.\nDistinct points guaranteed.\n\nThe code looks complete.\n\n```python\n# Final check of the code structure\nimport sys\n\n# ... (code as written above)\n```\nI will output the solution now.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin at once\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    # Convert all data to integers\n    # The first integer is n, followed by pairs of (x, y)\n    ints = list(map(int, data))\n    n = ints[0]\n    xs = ints[1::2]\n    ys = ints[2::2]\n    \n    # Coordinates are between -1000 and 1000.\n    # We use a 1D bytearray to represent a 2D grid for O(1) existence checks.\n    # Offset by 1000 to map [-1000, 1000] to [0, 2000].\n    OFFSET = 1000\n    SIZE = 2001  # Size of one dimension (0 to 2000 inclusive)\n    GRID_SIZE = SIZE * SIZE\n    \n    # Initialize the grid\n    present = bytearray(GRID_SIZE)\n    \n    # Mark the presence of each given point\n    for k in range(n):\n        x = xs[k] + OFFSET\n        y = ys[k] + OFFSET\n        present[x * SIZE + y] = 1\n        \n    count = 0\n    \n    # Iterate through each point B, assuming it is the midpoint\n    for i in range(n):\n        bx = xs[i]\n        by = ys[i]\n        \n        # We need to find A such that C = 2*B - A exists in the set.\n        two_bx = 2 * bx\n        two_by = 2 * by\n        \n        # Iterate through each point A\n        for j in range(n):\n            if i == j:\n                continue\n            \n            ax = xs[j]\n            ay = ys[j]\n            \n            # Calculate the required coordinates for C\n            cx = two_bx - ax\n            cy = two_by - ay\n            \n            # Check if C is within the valid coordinate range.\n            # If C is outside [-1000, 1000], it cannot be in the set of input points.\n            # This check also prevents index out of bounds or negative indexing issues.\n            if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                if present[idx]:\n                    count += 1\n    \n    # Each valid triplet {A, B, C} is counted twice in the loops:\n    # once when A is the inner loop variable (finding C), and once when C is the inner loop variable (finding A).\n    # Since the problem considers groups unordered, we divide by 2.\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\nDouble check indentation and imports. Looks good.\nThe logic handles the unordered condition correctly by counting ordered pairs (A,C) for a fixed B and dividing by 2. Since for a fixed set {A,B,C} with B midpoint, A and C are distinct (points are distinct), there are exactly 2 ordered pairs (A,C) and (C,A). Thus dividing by 2 yields exactly 1 per group.\n\nFinal confirmation on time limit. 3000^2 = 9*10^6 iterations. In Python, a simple loop with basic arithmetic and array access runs roughly 10-20 million iterations per second on modern judges. This should pass comfortably within 1-2 seconds. Using `bytearray` and avoiding tuple creation makes it faster than the list/set approach.\n\nOne minor thing: `ints = list(map(int, data))` might be slightly heavy if input is huge, but here input is small (3000 points -&gt; ~15000 ints). It&#x27;s fine.\n\nReady to generate output.\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    # Parse integers\n    # data[0] is n\n    # data[1], data[2] is x1, y1\n    # ...\n    # Convert all to integers\n    ints = list(map(int, data))\n    n = ints[0]\n    xs = ints[1::2]\n    ys = ints[2::2]\n    \n    # Coordinates are between -1000 and 1000.\n    # We use a 1D bytearray to represent a 2D grid for O(1) existence checks.\n    # Offset by 1000 to map [-1000, 1000] to [0, 2000].\n    OFFSET = 1000\n    SIZE = 2001  # Size of one dimension (0 to 2000 inclusive)\n    GRID_SIZE = SIZE * SIZE\n    \n    # Initialize the grid\n    present = bytearray(GRID_SIZE)\n    \n    # Mark the presence of each given point\n    for k in range(n):\n        x = xs[k] + OFFSET\n        y = ys[k] + OFFSET\n        present[x * SIZE + y] = 1\n        \n    count = 0\n    \n    # Iterate through each point B, assuming it is the midpoint\n    for i in range(n):\n        bx = xs[i]\n        by = ys[i]\n        \n        # We need to find A such that C = 2*B - A exists in the set.\n        two_bx = 2 * bx\n        two_by = 2 * by\n        \n        # Iterate through each point A\n        for j in range(n):\n            if i == j:\n                continue\n            \n            ax = xs[j]\n            ay = ys[j]\n            \n            # Calculate the required coordinates for C\n            cx = two_bx - ax\n            cy = two_by - ay\n            \n            # Check if C is within the valid coordinate range.\n            # If C is outside [-1000, 1000], it cannot be in the set of input points.\n            # This check also prevents index out of bounds or negative indexing issues.\n            if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                if present[idx]:\n                    count += 1\n    \n    # Each valid triplet {A, B, C} is counted twice in the loops:\n    # once when A is the inner loop variable (finding C), and once when C is the inner loop variable (finding A).\n    # Since the problem considers groups unordered, we divide by 2.\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\u003c/think&gt;\n\n```python\nimport sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    # Parse integers\n    # data[0] is n\n    # data[1], data[2] is x1, y1\n    # ...\n    # Convert all to integers\n    ints = list(map(int, data))\n    n = ints[0]\n    xs = ints[1::2]\n    ys = ints[2::2]\n    \n    # Coordinates are between -1000 and 1000.\n    # We use a 1D bytearray to represent a 2D grid for O(1) existence checks.\n    # Offset by 1000 to map [-1000, 1000] to [0, 2000].\n    OFFSET = 1000\n    SIZE = 2001  # Size of one dimension (0 to 2000 inclusive)\n    GRID_SIZE = SIZE * SIZE\n    \n    # Initialize the grid\n    present = bytearray(GRID_SIZE)\n    \n    # Mark the presence of each given point\n    for k in range(n):\n        x = xs[k] + OFFSET\n        y = ys[k] + OFFSET\n        present[x * SIZE + y] = 1\n        \n    count = 0\n    \n    # Iterate through each point B, assuming it is the midpoint\n    for i in range(n):\n        bx = xs[i]\n        by = ys[i]\n        \n        # We need to find A such that C = 2*B - A exists in the set.\n        two_bx = 2 * bx\n        two_by = 2 * by\n        \n        # Iterate through each point A\n        for j in range(n):\n            if i == j:\n                continue\n            \n            ax = xs[j]\n            ay = ys[j]\n            \n            # Calculate the required coordinates for C\n            cx = two_bx - ax\n            cy = two_by - ay\n            \n            # Check if C is within the valid coordinate range.\n            # If C is outside [-1000, 1000], it cannot be in the set of input points.\n            # This check also prevents index out of bounds or negative indexing issues.\n            if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                if present[idx]:\n                    count += 1\n    \n    # Each valid triplet {A, B, C} is counted twice in the loops:\n    # once when A is the inner loop variable (finding C), and once when C is the inner loop variable (finding A).\n    # Since the problem considers groups unordered, we divide by 2.\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```&quot;, &quot;code&quot;: &quot;import sys\n\ndef solve():\n    # Read all input from stdin\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    \n    # Parse integers\n    # data[0] is n\n    # data[1], data[2] is x1, y1\n    # ...\n    # Convert all to integers\n    ints = list(map(int, data))\n    n = ints[0]\n    xs = ints[1::2]\n    ys = ints[2::2]\n    \n    # Coordinates are between -1000 and 1000.\n    # We use a 1D bytearray to represent a 2D grid for O(1) existence checks.\n    # Offset by 1000 to map [-1000, 1000] to [0, 2000].\n    OFFSET = 1000\n    SIZE = 2001  # Size of one dimension (0 to 2000 inclusive)\n    GRID_SIZE = SIZE * SIZE\n    \n    # Initialize the grid\n    present = bytearray(GRID_SIZE)\n    \n    # Mark the presence of each given point\n    for k in range(n):\n        x = xs[k] + OFFSET\n        y = ys[k] + OFFSET\n        present[x * SIZE + y] = 1\n        \n    count = 0\n    \n    # Iterate through each point B, assuming it is the midpoint\n    for i in range(n):\n        bx = xs[i]\n        by = ys[i]\n        \n        # We need to find A such that C = 2*B - A exists in the set.\n        two_bx = 2 * bx\n        two_by = 2 * by\n        \n        # Iterate through each point A\n        for j in range(n):\n            if i == j:\n                continue\n            \n            ax = xs[j]\n            ay = ys[j]\n            \n            # Calculate the required coordinates for C\n            cx = two_bx - ax\n            cy = two_by - ay\n            \n            # Check if C is within the valid coordinate range.\n            # If C is outside [-1000, 1000], it cannot be in the set of input points.\n            # This check also prevents index out of bounds or negative indexing issues.\n            if -1000 \u003c= cx \u003c= 1000 and -1000 \u003c= cy \u003c= 1000:\n                idx = (cx + OFFSET) * SIZE + (cy + OFFSET)\n                if present[idx]:\n                    count += 1\n    \n    # Each valid triplet {A, B, C} is counted twice in the loops:\n    # once when A is the inner loop variable (finding C), and once when C is the inner loop variable (finding A).\n    # Since the problem considers groups unordered, we divide by 2.\n    print(count // 2)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()&quot;}, &quot;recent&quot;: {&quot;step&quot;: 620, &quot;tokens&quot;: 2894, &quot;code_bytes&quot;: 658, &quot;passed&quot;: true, &quot;tests_run&quot;: 82, &quot;truncated&quot;: false, &quot;text&quot;: &quot;To solve this problem, we need to find the number of different groups of three points (A, B, C) such that point B is the midpoint of the segment AC. The order of the group doesn&#x27;t matter, meaning (A, B, C) is the same as (C, B, A).\n\nLet&#x27;s denote the coordinates of the points as $(x_i, y_i)$ for $i = 1, \\dots, n$.\n\nFor a triplet of points (A, B, C) to satisfy the condition that B is the midpoint of AC, the following must hold:\n- The x-coordinate of B must be the average of the x-coordinates of A and C: $x_B = \\frac{x_A + x_C}{2}$\n- The y-coordinate of B must be the average of the y-coordinates of A and C: $y_B = \\frac{y_A + y_C}{2}$\n\nThis can be rewritten as:\n- $2x_B = x_A + x_C$\n- $2y_B = y_A + y_C$\n\nSince we are dealing with integers, this implies that $(x_A + x_C)$ and $(y_A + y_C)$ must be even numbers, and their sums divided by 2 must match the coordinates of B.\n\nWe can iterate through all possible triplets (A, B, C) where A, B, and C are distinct indices from the set of n points. However, since the problem states that the groups are unordered, we should be careful not to double-count. Specifically, if we fix B as the midpoint, we just need to check if there exist two other points A and C such that B is their midpoint.\n\nA more efficient approach is to iterate through each point B (from index 1 to n) and consider it as the potential midpoint. Then, we check all pairs of other points (A, C) to see if B is their midpoint.\n\nLet&#x27;s formalize the algorithm:\n1. Initialize a counter `count` to 0.\n2. Read n and the list of points.\n3. For each point B (let&#x27;s say with index `j` from 0 to n-1):\n    a. For each pair of distinct points A and C (with indices `i` and `k` where `i \u003c k` and both are not `j`):\n        i. Check if B is the midpoint of A and C.\n        ii. If yes, increment `count`.\n4. Print `count`.\n\nWait, the constraint is n \u003c= 3000. An O(n^3) algorithm would be too slow (3000^3 = 27 billion operations). We need a more efficient approach, likely O(n^2).\n\nLet&#x27;s rephrase: Instead of iterating over all triplets, let&#x27;s iterate over all pairs (A, C) and check if their midpoint is one of the given points B.\n1. Initialize `count` to 0.\n2. For each pair of points (A, C) with indices `i` and `j` (where `i \u003c j`):\n    a. Calculate the potential midpoint M: $M_x = \\frac{x_i + x_j}{2}$, $M_y = \\frac{y_i + y_j}{2}$.\n    b. Check if $M_x$ and $M_y$ are integers. This is true if $(x_i + x_j)$ is even and $(y_i + y_j)$ is even.\n    c. If they are integers, check if there exists a point B in our list with coordinates $(M_x, M_y)$.\n    d. If such a point B exists, increment `count`.\n\nSince the points are distinct, for a given pair (A, C), there can be at most one midpoint B. Also, the pair (A, C) is the same as (C, A), so we only consider each pair once.\n\nLet&#x27;s refine the steps:\n- Store the points in a list `points`.\n- Create a set `point_set` for O(1) lookups of coordinates. Each element in the set will be a tuple `(x, y)`.\n- Iterate `i` from 0 to n-1.\n- Iterate `j` from `i+1` to n-1.\n  - Let A = `points[i]`, C = `points[j]`.\n  - Calculate `mid_x = (A.x + C.x)`, `mid_y = (A.y + C.y)`.\n  - If `mid_x` is even and `mid_y` is even:\n      - `target_x = mid_x // 2`\n      - `target_y = mid_y // 2`\n      - If `(target_x, target_y)` is in `point_set`:\n          - We found a valid triplet. Increment `count`.\n\nThis approach is O(n^2) because we have two nested loops for the pairs, and the set lookup is O(1) on average. With n=3000, n^2 is 9 million, which is well within the time limit (typically 1-2 seconds).\n\nLet&#x27;s trace with an example:\nInput:\n3\n1 1\n2 2\n3 3\n\nPoints: P1=(1,1), P2=(2,2), P3=(3,3)\nSet: {(1,1), (2,2), (3,3)}\n\nPair (P1, P2): A=(1,1), C=(2,2). Sum = (3, 3). Not both even. Skip.\nPair (P1, P3): A=(1,1), C=(3,3). Sum = (4, 4). Both even. Target = (2, 2). Is (2,2) in set? Yes. Count = 1.\nPair (P2, P3): A=(2,2), C=(3,3). Sum = (5, 5). Not both even. Skip.\n\nFinal count: 1. Correct.\n\nAnother example:\nInput:\n3\n0 0\n-1 0\n0 1\n\nPoints: P1=(0,0), P2=(-1,0), P3=(0,1)\nSet: {(0,0), (-1,0), (0,1)}\n\nPair (P1, P2): A=(0,0), C=(-1,0). Sum = (-1, 0). x is odd. Skip.\nPair (P1, P3): A=(0,0), C=(0,1). Sum = (0, 1). y is odd. Skip.\nPair (P2, P3): A=(-1,0), C=(0,1). Sum = (-1, 1). Both odd. Skip.\n\nFinal count: 0. Correct.\n\nImplementation details:\n- Read n.\n- Read n lines of coordinates. Store as a list of tuples or lists.\n- Create a set of these coordinates.\n- Initialize count = 0.\n- Loop i from 0 to n-1.\n- Loop j from i+1 to n-1.\n  - Extract x1, y1 from points[i] and x2, y2 from points[j].\n  - Check if (x1 + x2) % 2 == 0 and (y1 + y2) % 2 == 0.\n  - If true, compute mid_x = (x1 + x2) // 2, mid_y = (y1 + y2) // 2.\n  - Check if (mid_x, mid_y) is in the set.\n  - If yes, count += 1.\n- Print count.\n\nOne edge case: What if n is large? The logic holds. The constraints are manageable.\n\nLet&#x27;s write the code.\n\n```python\nimport sys\n\ndef solve():\n    n = int(sys.stdin.readline())\n    points = []\n    for _ in range(n):\n        x, y = map(int, sys.stdin.readline().split())\n        points.append((x, y))\n    \n    point_set = set(points)\n    count = 0\n    \n    for i in range(n):\n        for j in range(i + 1, n):\n            x1, y1 = points[i]\n            x2, y2 = points[j]\n            \n            if (x1 + x2) % 2 == 0 and (y1 + y2) % 2 == 0:\n                mid_x = (x1 + x2) // 2\n                mid_y = (y1 + y2) // 2\n                if (mid_x, mid_y) in point_set:\n                    count += 1\n                    \n    print(count)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nThis looks correct. Let&#x27;s double check the logic again.\nThe problem asks for the number of different groups of three points (A, B, C) such that B is the middle of segment AC.\nMy logic iterates over all unique pairs (A, C) and checks if their midpoint B exists in the set of points. Since each valid triplet {A, B, C} corresponds to exactly one pair (A, C) (because B is uniquely determined by A and C), counting these pairs gives the correct number of triplets. The order of A and C doesn&#x27;t matter because we iterate with `j &gt; i`, so each pair is considered once.\n\nIs it possible that A, B, C are not distinct? The problem statement says \&quot;All points are different\&quot;, so A, B, and C will always be distinct indices. Even if coordinates were somehow repeated (which they aren&#x27;t per the guarantee), the logic would still hold as long as we&#x27;re checking existence in the set. But since all points are distinct, we don&#x27;t have to worry about A or C being the same as B.\n\nWait, could B be the same as A or C? No, because B is the midpoint. If A and C are distinct points, their midpoint can only be equal to A or C if A and C are the same point, which they aren&#x27;t. Or if the midpoint coincides with one of the endpoints, which implies the distance between A and C is 0, again impossible for distinct points. So A, B, C are always distinct.\n\nThe logic is sound.\n\n```python\nimport sys\n\ndef solve():\n    n = int(sys.stdin.readline())\n    points = []\n    for _ in range(n):\n        x, y = map(int, sys.stdin.readline().split())\n        points.append((x, y))\n    \n    point_set = set(points)\n    count = 0\n    \n    for i in range(n):\n        for j in range(i + 1, n):\n            x1, y1 = points[i]\n            x2, y2 = points[j]\n            \n            if (x1 + x2) % 2 == 0 and (y1 + y2) % 2 == 0:\n                mid_x = (x1 + x2) // 2\n                mid_y = (y1 + y2) // 2\n                if (mid_x, mid_y) in point_set:\n                    count += 1\n                    \n    print(count)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```\n\nThis is the final code.\n\nOne more check on constraints: n \u003c= 3000. The nested loop runs approximately n^2/2 times. For n=3000, that&#x27;s 4.5 million iterations. Inside the loop, we do constant time operations. This should pass comfortably within 1 second.\n\nLet&#x27;s consider an alternative interpretation. Could the problem be asking for ordered triplets? \&quot;The groups of three points are considered unordered, that is, if point B is the middle of segment AC, then groups (A, B, C) and (C, B, A) are considered the same.\&quot; This confirms we are counting sets {A, B, C}, not sequences. Our method counts each set exactly once because we fix the pair (A, C) and find B. Since (A, C) is the same pair as (C, A), and we only process each pair once (i \u003c j), we count each valid configuration exactly once.\n\nCorrect.\n\n```python\nimport sys\n\ndef solve():\n    n = int(sys.stdin.readline())\n    points = []\n    for _ in range(n):\n        x, y = map(int, sys.stdin.readline().split())\n        points.append((x, y))\n    \n    point_set = set(points)\n    count = 0\n    \n    for i in range(n):\n        for j in range(i + 1, n):\n            x1, y1 = points[i]\n            x2, y2 = points[j]\n            \n            if (x1 + x2) % 2 == 0 and (y1 + y2) % 2 == 0:\n                mid_x = (x1 + x2) // 2\n                mid_y = (y1 + y2) // 2\n                if (mid_x, mid_y) in point_set:\n                    count += 1\n                    \n    print(count)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()\n```&quot;, &quot;code&quot;: &quot;import sys\n\ndef solve():\n    n = int(sys.stdin.readline())\n    points = []\n    for _ in range(n):\n        x, y = map(int, sys.stdin.readline().split())\n        points.append((x, y))\n    \n    point_set = set(points)\n    count = 0\n    \n    for i in range(n):\n        for j in range(i + 1, n):\n            x1, y1 = points[i]\n            x2, y2 = points[j]\n            \n            if (x1 + x2) % 2 == 0 and (y1 + y2) % 2 == 0:\n                mid_x = (x1 + x2) // 2\n                mid_y = (y1 + y2) // 2\n                if (mid_x, mid_y) in point_set:\n                    count += 1\n                    \n    print(count)\n\nif __name__ == \&quot;__main__\&quot;:\n    solve()&quot;}, &quot;problem&quot;: &quot;181_B. Number of Triplets&quot;}]&lt;/script&gt;
+&lt;/div&gt;
+&lt;style&gt;
+  #codegolf-outputs .golf-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:20px; }
+  #codegolf-outputs section { min-width:0; }
+  @media(max-width:520px) { #codegolf-outputs .golf-columns { grid-template-columns:minmax(0,1fr); } }
+&lt;/style&gt;
+&lt;script&gt;
+(() =&gt; {
+  const root = document.getElementById(&#x27;codegolf-outputs&#x27;);
+  const data = JSON.parse(root.querySelector(&#x27;#golf-output-data&#x27;).textContent);
+  const problem = root.querySelector(&#x27;#golf-problem&#x27;);
+  const content = root.querySelector(&#x27;#golf-content&#x27;);
+  function render() {
+    const selected = data[Number(problem.value)];
+    for (const [side, field] of [[&#x27;before&#x27;,&#x27;earlier&#x27;], [&#x27;after&#x27;,&#x27;recent&#x27;]]) {
+      const row = selected[field];
+      root.querySelector(&#x27;#golf-&#x27; + side + &#x27;-stats&#x27;).textContent = `${row.tokens.toLocaleString()} tokens · ${row.code_bytes.toLocaleString()} code bytes · ${row.tests_run}/${row.tests_run} tests passed`;
+      const code = root.querySelector(&#x27;#golf-&#x27; + side);
+      code.value = row[content.value];
+      code.scrollTop = 0;
+    }
+  }
+  problem.addEventListener(&#x27;change&#x27;, render);
+  content.addEventListener(&#x27;change&#x27;, render);
+  render();
+})();
+&lt;/script&gt;
+
+&lt;script src=&quot;https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script src=&quot;https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set([&quot;top&quot;, &quot;right&quot;, &quot;bottom&quot;, &quot;left&quot;]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+  let lastPointerWasTouch = false;
+  let pinnedByTouch = false;
+
+  const getTrigger = (target) =&gt;
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest(&quot;[data-tooltip]&quot;)
+      : null;
+  const containsTarget = (trigger, target) =&gt;
+    target?.nodeType != null &amp;&amp; trigger.contains(target);
+  const getContent = (trigger) =&gt;
+    trigger.getAttribute(&quot;data-tooltip&quot;)?.trim() ?? &quot;&quot;;
+  const getPlacement = (trigger) =&gt; {
+    const placement = trigger.getAttribute(&quot;data-tooltip-placement&quot;);
+    return tooltipPlacements.has(placement) ? placement : &quot;top&quot;;
+  };
+  const getTooltip = () =&gt; {
+    if (tooltip == null) {
+      tooltip = document.createElement(&quot;div&quot;);
+      tooltip.id = tooltipId;
+      tooltip.className = &quot;tooltip&quot;;
+      tooltip.setAttribute(&quot;role&quot;, &quot;tooltip&quot;);
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) =&gt; {
+    const ids = new Set(
+      (trigger.getAttribute(&quot;aria-describedby&quot;) ?? &quot;&quot;)
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute(&quot;aria-describedby&quot;);
+    } else {
+      trigger.setAttribute(&quot;aria-describedby&quot;, [...ids].join(&quot; &quot;));
+    }
+  };
+  const clearOpenTimeout = () =&gt; {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) =&gt; {
+    clearOpenTimeout();
+    pinnedByTouch = false;
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) =&gt; {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-width&quot;,
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              &quot;--tooltip-available-height&quot;,
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: &quot;fixed&quot;,
+    })
+      .then(({ x, y }) =&gt; {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = &quot;visible&quot;;
+      })
+      .catch(() =&gt; {
+        if (activeTrigger === trigger &amp;&amp; request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) =&gt; {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = &quot;hidden&quot;;
+    floating.style.transform = &quot;translate(0, 0)&quot;;
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () =&gt; {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) =&gt; {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() &lt; skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() =&gt; {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) =&gt; {
+    if (event.pointerType === &quot;touch&quot;) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handlePointer = (event) =&gt; {
+    lastPointerWasTouch =
+      event.type === &quot;pointerdown&quot; &amp;&amp; event.pointerType === &quot;touch&quot;;
+  };
+  const handleTouchClick = (event) =&gt; {
+    const isTouch = event.pointerType === &quot;touch&quot; || lastPointerWasTouch;
+    lastPointerWasTouch = false;
+    if (!isTouch || event.detail === 0) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (
+      trigger == null ||
+      !trigger.isConnected ||
+      getContent(trigger).length === 0 ||
+      (pinnedByTouch &amp;&amp; activeTrigger === trigger)
+    ) {
+      if (pinnedByTouch) {
+        closeTooltip();
+      }
+      return;
+    }
+    openTooltip(trigger);
+    pinnedByTouch = activeTrigger === trigger;
+    window.setTimeout(() =&gt; {
+      if (activeTrigger === trigger &amp;&amp; !trigger.isConnected) {
+        closeTooltip(false);
+      }
+    }, 0);
+  };
+  const handleLeave = (event) =&gt; {
+    if (pinnedByTouch) {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) =&gt; {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(&quot;:focus-visible&quot;)) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) =&gt; {
+    if (event.key === &quot;Escape&quot;) {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) =&gt; {
+    lastPointerWasTouch = false;
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () =&gt; {
+    closeTooltip(false);
+    lastPointerWasTouch = false;
+    document.removeEventListener(&quot;pointerover&quot;, handlePointerOpen);
+    document.removeEventListener(&quot;pointerdown&quot;, handlePointer);
+    document.removeEventListener(&quot;pointercancel&quot;, handlePointer);
+    document.removeEventListener(&quot;click&quot;, handleTouchClick);
+    document.removeEventListener(&quot;pointerout&quot;, handleLeave);
+    document.removeEventListener(&quot;focusin&quot;, handleFocusIn);
+    document.removeEventListener(&quot;focusout&quot;, handleLeave);
+    document.removeEventListener(&quot;keydown&quot;, handleKeyDown);
+    document.removeEventListener(&quot;contextmenu&quot;, handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener(&quot;pointerover&quot;, handlePointerOpen);
+  document.addEventListener(&quot;pointerdown&quot;, handlePointer);
+  document.addEventListener(&quot;pointercancel&quot;, handlePointer);
+  document.addEventListener(&quot;click&quot;, handleTouchClick);
+  document.addEventListener(&quot;pointerout&quot;, handleLeave);
+  document.addEventListener(&quot;focusin&quot;, handleFocusIn);
+  document.addEventListener(&quot;focusout&quot;, handleLeave);
+  document.addEventListener(&quot;keydown&quot;, handleKeyDown);
+  document.addEventListener(&quot;contextmenu&quot;, handleContextMenu);
+  window.addEventListener(&quot;pagehide&quot;, destroy, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-tabs&quot;&gt;
+(() =&gt; {
+  const selector = &#x27;.nav[role=&quot;tablist&quot;] [role=&quot;tab&quot;]&#x27;;
+  const disabled = &#x27;:disabled,[aria-disabled=&quot;true&quot;]&#x27;;
+  const selectTab = (selected) =&gt; {
+    const panelId = selected.getAttribute(&quot;aria-controls&quot;);
+    for (const tab of selected.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;)) {
+      const active = tab === selected;
+      tab.classList.toggle(&quot;active&quot;, active);
+      tab.setAttribute(&quot;aria-selected&quot;, String(active));
+      const id = tab.getAttribute(&quot;aria-controls&quot;);
+      const panel = id &amp;&amp; document.getElementById(id);
+      if (panel != null) {
+        panel.hidden = id !== panelId;
+        if (!panel.hidden &amp;&amp; selected.id) {
+          panel.setAttribute(&quot;aria-labelledby&quot;, selected.id);
+        }
+      }
+    }
+  };
+  const interact = (event) =&gt; {
+    const tab = event.target?.closest?.(selector);
+    if (event.defaultPrevented || tab == null || tab.matches(disabled)) {
+      return;
+    }
+    if (event.type === &quot;click&quot;) {
+      selectTab(tab);
+      return;
+    }
+    const tabs = Array.from(
+      tab.closest(&#x27;[role=&quot;tablist&quot;]&#x27;).querySelectorAll(&#x27;[role=&quot;tab&quot;]&#x27;),
+    ).filter((candidate) =&gt; !candidate.matches(disabled));
+    const current = tabs.indexOf(tab);
+    let next;
+    if (event.key === &quot;ArrowRight&quot; || event.key === &quot;ArrowDown&quot;) {
+      next = (current + 1) % tabs.length;
+    } else if (event.key === &quot;ArrowLeft&quot; || event.key === &quot;ArrowUp&quot;) {
+      next = (current + tabs.length - 1) % tabs.length;
+    } else if (event.key === &quot;Home&quot;) {
+      next = 0;
+    } else if (event.key === &quot;End&quot;) {
+      next = tabs.length - 1;
+    } else {
+      return;
+    }
+    event.preventDefault();
+    tabs[next].focus();
+    selectTab(tabs[next]);
+  };
+
+  for (const list of document.querySelectorAll(&#x27;.nav[role=&quot;tablist&quot;]&#x27;)) {
+    const selected =
+      list.querySelector(&#x27;[role=&quot;tab&quot;][aria-selected=&quot;true&quot;]&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;].active&#x27;) ??
+      list.querySelector(&#x27;[role=&quot;tab&quot;]&#x27;);
+    if (selected != null) {
+      selectTab(selected);
+    }
+  }
+  document.addEventListener(&quot;click&quot;, interact);
+  document.addEventListener(&quot;keydown&quot;, interact);
+  window.addEventListener(&quot;pagehide&quot;, () =&gt; {
+    document.removeEventListener(&quot;click&quot;, interact);
+    document.removeEventListener(&quot;keydown&quot;, interact);
+  }, { once: true });
+})();
+&lt;/script&gt;
+&lt;script id=&quot;codex-visualization-lucide&quot; async src=&quot;https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+(() =&gt; {
+  const initialize = () =&gt; {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById(&quot;codex-visualization-lucide&quot;)
+    ?.addEventListener(&quot;load&quot;, initialize, { once: true });
+})();
+&lt;/script&gt;
+
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+</body>
+</html>
