@@ -139,7 +139,10 @@ def run_engine_with_backend(
     executor = HttpExecutor(
         f"http://127.0.0.1:{port}",
         read_timeout=operation_timeout,
-        on_read_timeout=lambda: signal_backend(signal.SIGKILL),
+        # A lost command response leaves gradient/optimizer state uncertain.
+        # Terminate all ranks so the process monitor exits the engine instead
+        # of leaving its model (and GPUs) live after the client has failed.
+        on_transport_error=lambda: signal_backend(signal.SIGKILL),
     )
 
     async def make_server() -> EngineServer:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -130,13 +131,19 @@ class HttpExecutor:
         transport: httpx.AsyncBaseTransport | None = None,
         read_timeout: float | None = None,
         on_read_timeout: Callable[[], None] | None = None,
+        on_transport_error: Callable[[], None] | None = None,
     ) -> None:
         self.read_timeout = read_timeout
         self.on_read_timeout = on_read_timeout
+        self.on_transport_error = on_transport_error
+        self._transport_failed = False
         self.http = httpx.AsyncClient(
             base_url=base_url,
             transport=transport,
             timeout=httpx.Timeout(30.0, read=read_timeout),
+            # Commands mutate training state. Avoid racing the local server's
+            # idle connection timeout, and never retry an ambiguous command.
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
 
     async def accept_model(self, model_id: str, spec: object) -> None:
@@ -215,13 +222,20 @@ class HttpExecutor:
         await self._post("/close", {})
 
     async def _post(self, path: str, body: dict) -> object:
+        if self._transport_failed:
+            raise RuntimeError("backend transport failed; checkpoint recovery required")
         try:
             response = await self.http.post(path, json=body)
         except httpx.ReadTimeout as exc:
-            if self.on_read_timeout is not None:
-                self.on_read_timeout()
+            self._fence_transport_failure(read_timeout=True)
             raise TimeoutError(
                 f"backend {path} exceeded {self.read_timeout:g}s"
+            ) from exc
+        except httpx.TransportError as exc:
+            self._fence_transport_failure()
+            raise RuntimeError(
+                f"backend {path} transport failed ({type(exc).__name__}); "
+                "execution outcome unknown; checkpoint recovery required"
             ) from exc
         if not response.is_success:
             try:
@@ -230,6 +244,19 @@ class HttpExecutor:
                 message = response.text
             raise RuntimeError(message)
         return response.json()["result"]
+
+    def _fence_transport_failure(self, *, read_timeout: bool = False) -> None:
+        if self._transport_failed:
+            return
+        self._transport_failed = True
+        callback = self.on_transport_error
+        if callback is None and read_timeout:
+            callback = self.on_read_timeout
+        if callback is not None:
+            try:
+                callback()
+            except Exception:
+                logging.getLogger(__name__).exception("fence backend transport failure")
 
     async def close(self) -> None:
         await self.http.aclose()
