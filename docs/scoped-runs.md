@@ -74,3 +74,6 @@ remain registered but scale to zero when idle. Modal retains stopped app history
 `python scripts/scoped_smoke.py` runs a real training update, base sampling from
 another Tinker client, latest sampling, and pinned-version sampling, then exits
 the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
+
+[Verified run results](scoped-smoke-result.json): training, base/latest/pinned
+sampling, and pinned-app shutdown before the parent, with zero remaining containers.
