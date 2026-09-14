@@ -182,6 +182,3 @@ policy update. Copy examples you want to run into your project; repository
 
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
-
-For concurrent Tinker LoRA clients sharing one Miles trainer and publishing
-through Lilo, see [Multi-LoRA E2E](docs/multi-lora-e2e.md).
