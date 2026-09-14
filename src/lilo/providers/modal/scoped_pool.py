@@ -51,3 +51,17 @@ def publication_pool(definition_id: str, model_id: str) -> Pool:
         return ScopedFlashPool(route)
     from .fft_pool import FFTLatestPool
     return FFTLatestPool(definition_id, model_id)
+
+
+async def set_minimum(function_id: str, minimum: int) -> None:
+    # Server has no public from_id constructor. Avoid deployed-name lookup,
+    # which cannot address an ephemeral server.
+    from modal.client import _Client
+    from modal_proto import api_pb2
+    client = await _Client.from_env()
+    await client.stub.FunctionUpdateSchedulingParams(
+        api_pb2.FunctionUpdateSchedulingParamsRequest(
+            function_id=function_id,
+            settings=api_pb2.AutoscalerSettings(min_containers=minimum),
+        )
+    )

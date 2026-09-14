@@ -22,7 +22,6 @@ def main():
         with modal.enable_output(), lilo.run(
             engine=engine, name='lilo-scoped-smoke', warm=True, max_trainers=1,
             latest=lilo.Pool(min_containers=1, max_containers=1, scaledown_window=60),
-            pinned=lilo.Pool(max_containers=1, scaledown_window=60),
         ) as (url, api_key):
             event('ready', url=url)
             service = tinker.ServiceClient(base_url=url, api_key=api_key)

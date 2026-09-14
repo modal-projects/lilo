@@ -39,6 +39,16 @@ def stop_app(name_or_id: str) -> None:
             app_id = app.app_id
         client = await _Client.from_env()
         await client.stub.AppStop(api_pb2.AppStopRequest(app_id=app_id))
+        from modal.config import config
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            response = await client.stub.AppList(api_pb2.AppListRequest(
+                environment_name=config.get("environment") or ""))
+            item = next((a for a in response.apps if a.app_id == app_id), None)
+            if item is None or (item.state == api_pb2.APP_STATE_STOPPED and not item.n_running_tasks):
+                return
+            await asyncio.sleep(2)
+        raise TimeoutError(f"owned app {app_id} has not stopped all containers")
     asyncio.run(stop())
 
 
@@ -61,7 +71,7 @@ def stop_children(children, stop=stop_app) -> None:
 
 @contextmanager
 def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
-        latest: Pool | None = None, pinned: Pool | None = None,
+        latest: Pool | None = None,
         name: str = "lilo-run", api_key: str | None = None,
         checkpoint_volume: str = "lilo-checkpoints",
         proxy_secret=None):
@@ -79,9 +89,10 @@ def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
     if isinstance(max_trainers, bool) or not isinstance(max_trainers, int) or max_trainers < 1:
         raise ValueError("max_trainers must be a positive integer")
     latest = latest or Pool()
-    pinned = pinned or Pool()
-    if pinned.min_containers:
-        raise ValueError("pinned samplers must have min_containers=0")
+    pinned = Pool()  # Fixed zero minimum; not a user-facing pool setting.
+    import sys
+    if sys.version_info[:2] != (3, 12):
+        raise RuntimeError("Scoped runs require Python 3.12 to match the bundled runtime images")
     api_key = api_key or "tml-lilo-" + secrets.token_urlsafe(32)
     run_name = name + "-" + uuid.uuid4().hex[:12]
     registry_name = run_name + "-ownership"

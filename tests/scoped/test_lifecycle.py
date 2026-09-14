@@ -8,13 +8,9 @@ from lilo.engines import qwen3_5_4b_full_64k, qwen3_6_27b_full_64k
 from lilo.run import Pool, stop_children
 
 
-def test_pool_bounds_and_pinned_minimum():
+def test_pool_bounds():
     with pytest.raises(ValueError):
         Pool(min_containers=2, max_containers=1)
-    from lilo import run
-    with pytest.raises(ValueError, match="pinned"):
-        with run(engine=qwen3_5_4b_full_64k(), pinned=Pool(min_containers=1)):
-            pytest.fail("must reject before deployment")
 
 
 def test_cleanup_attempts_all_children_even_on_failure(monkeypatch):
@@ -100,3 +96,16 @@ def test_shared_publication_keeps_existing_pool(monkeypatch):
     from lilo.providers.modal.fft_pool import FFTLatestPool
     monkeypatch.delenv('LILO_SCOPED_REGISTRY', raising=False)
     assert isinstance(publication_pool('existing', 'abc'), FFTLatestPool)
+
+
+def test_latest_minimum_updates_by_id_without_name_lookup(monkeypatch):
+    import asyncio
+    from modal.client import _Client
+    from lilo.providers.modal.scoped_pool import set_minimum
+    calls = []
+    async def update(request): calls.append(request)
+    async def client(): return SimpleNamespace(stub=SimpleNamespace(FunctionUpdateSchedulingParams=update))
+    monkeypatch.setattr(_Client, 'from_env', client)
+    asyncio.run(set_minimum('fu-ephemeral', 1))
+    assert calls[0].function_id == 'fu-ephemeral'
+    assert calls[0].settings.min_containers == 1

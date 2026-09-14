@@ -74,13 +74,15 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
     from lilo.control_plane import ControlPlane, create_control_plane_app
-    from .scoped_pool import ScopedFlashPool
+    from .scoped_pool import ScopedFlashPool, set_minimum
     from .fft_pool import proxy_auth_headers
     from lilo.inference.sampling import sample_task
 
     engine = replace(engine, training=replace(
         engine.training, hf_checkpoint=engine.training.hf_checkpoint or
         "/assets/" + engine.model.rsplit("/", 1)[-1]))
+    from modal.config import config
+    environment_name = config.get("environment") or ""
     app = modal.App(name)
     image = control_image()
     trainer_image = engine.trainer_image or default_trainer_image
@@ -182,8 +184,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             if len(active) < count + 1:
                 await engines.spawn_instance(engine.name)
             if latest.min_containers:
-                function = await modal.Function.from_id.aio(route["function_id"])
-                await function.update_autoscaler.aio(min_containers=latest.min_containers)
+                await set_minimum(route["function_id"], latest.min_containers)
             return route
         if action == "pinned":
             key = f"pinned:{model_id}:{version}"
@@ -202,7 +203,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 child, engine=engine, image=pinned_image, assets=assets, bulletin=bulletin,
                 registry_name=registry_name, slot=None, model_id=model_id, version=version,
                 pool=pinned, proxy_secret=proxy_secret, name="Sampler")
-            await child.deploy.aio(child_name)
+            await child.deploy.aio(child_name, environment_name=environment_name)
             route = {"url": await server.get_url.aio(), "function_id": server.object_id}
             await registry.put.aio(key, route)
             return route
