@@ -52,6 +52,7 @@ def main():
             event('pinned_publication', path=saved.path)
             sample('pinned_sample', peer.create_sampling_client(model_path=saved.path))
             event('body_complete')
+        assert report['events'][-1]['name'] == 'body_complete', 'smoke body did not complete'
         event('context_exited')
         report['status'] = 'passed'
     except BaseException as exc:

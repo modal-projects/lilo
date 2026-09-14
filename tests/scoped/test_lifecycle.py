@@ -26,7 +26,7 @@ def test_cleanup_attempts_all_children_even_on_failure(monkeypatch):
     assert calls == ["broken"] * 3 + ["healthy"]
 
 
-@pytest.mark.parametrize("warm,body_failure,drain_failure", [(True, False, False), (False, True, False), (True, False, True)])
+@pytest.mark.parametrize("warm,body_failure,drain_failure", [(True, False, False), (False, True, False), (True, False, True), (False, "interrupt", False)])
 def test_owned_children_stop_before_parent(monkeypatch, warm, body_failure, drain_failure):
     import modal
     module = importlib.import_module("lilo.run")
@@ -43,6 +43,7 @@ def test_owned_children_stop_before_parent(monkeypatch, warm, body_failure, drai
     def parent():
         events.append("parent-start")
         try: yield
+        except KeyboardInterrupt: pass  # Modal app.run suppresses this.
         finally: events.append("parent-stop")
     def manage(action):
         events.append(action)
@@ -55,13 +56,17 @@ def test_owned_children_stop_before_parent(monkeypatch, warm, body_failure, drai
         SimpleNamespace(run=parent), SimpleNamespace(get_web_url=lambda: "https://example.invalid"),
         SimpleNamespace(remote=manage), [], SimpleNamespace(remote=lambda: events.append("assets")),
         SimpleNamespace(object_id="im-test")))
+    caught = False
     try:
         with module.run(engine=qwen3_5_4b_full_64k(), warm=warm) as (url, key):
             assert url == "https://example.invalid" and key.startswith("tml-")
             data["children"] = ["pinned"]
+            if body_failure == "interrupt": raise KeyboardInterrupt()
             if body_failure: raise ValueError("body failure")
-    except (ValueError, ExceptionGroup):
+    except (ValueError, ExceptionGroup, KeyboardInterrupt):
+        caught = True
         assert body_failure or drain_failure
+    assert caught == bool(body_failure or drain_failure)
     assert ("warm" in events) == warm
     assert events.index("stop-pinned") < events.index("parent-stop")
 

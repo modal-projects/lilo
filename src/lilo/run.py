@@ -101,6 +101,7 @@ def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
     registry.put("closing", False)
     registry.put("children", [])
     resources = None
+    failure = None
     try:
         resources = build_app(engine, run_name, registry_name, api_key,
                               max_trainers, latest, pinned, checkpoint_volume,
@@ -113,27 +114,35 @@ def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
             ])
             registry.put("sampler_image_id", sampler_image.object_id)
             try:
-                prepare_assets.remote()
-                if warm:
-                    manage.remote("warm")
-                url = api.get_web_url()
-                if not url:
-                    raise RuntimeError("Modal did not return the API URL")
-                yield url, api_key
-            finally:
-                registry.put("closing", True)
-                # Serialized with pool creation; no late deploy can escape the list.
-                failures = []
                 try:
-                    manage.remote("close")
-                except Exception as exc:
-                    failures.append(exc)
-                try:
-                    stop_children(registry.get("children") or [])
-                except Exception as exc:
-                    failures.append(exc)
-                if failures:
-                    raise ExceptionGroup("Scoped shutdown failed", failures)
+                    prepare_assets.remote()
+                    if warm:
+                        manage.remote("warm")
+                    url = api.get_web_url()
+                    if not url:
+                        raise RuntimeError("Modal did not return the API URL")
+                    yield url, api_key
+                finally:
+                    registry.put("closing", True)
+                    # Serialized with pool creation; no late deploy can escape the list.
+                    failures = []
+                    try:
+                        manage.remote("close")
+                    except Exception as exc:
+                        failures.append(exc)
+                    try:
+                        stop_children(registry.get("children") or [])
+                    except Exception as exc:
+                        failures.append(exc)
+                    if failures:
+                        raise ExceptionGroup("Scoped shutdown failed", failures)
+            except BaseException as exc:
+                failure = exc
+                raise
+        # Modal suppresses KeyboardInterrupt on app.run exit. The provisioning
+        # context must not turn an interrupted user's training block into success.
+        if failure is not None:
+            raise failure
     finally:
         # Also covers app startup/prepare failure before yield. Keep ownership
         # metadata if cleanup fails so operators can retry the exact owned apps.
