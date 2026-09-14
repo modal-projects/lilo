@@ -133,5 +133,6 @@ ledger determines committed progress.
 The [observability guide](observability.md) defines the trace boundaries and metric
 labels. Physical trainer-state metrics have no model experiment labels. When one
 scoped deployment belongs exclusively to one experiment, its owner may include
-`lilo.run_id` in `OTEL_RESOURCE_ATTRIBUTES` to filter that deployment's metrics.
+`lilo.run_id` in `OTEL_RESOURCE_ATTRIBUTES`. Scoped trainers also emit this as a
+metric datapoint tag so direct OTLP intake can filter the deployment's metrics.
 Do not apply a single experiment resource label to a shared deployment.

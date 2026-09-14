@@ -108,6 +108,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
 
     @app.function(name="trainer", image=trainer_image, serialized=True,
                   gpu=engine.trainer_gpu, cpu=engine.trainer_cpu,
+                  env={"LILO_SCOPED_REGISTRY": registry_name},
                   memory=engine.trainer_memory, timeout=engine.trainer_timeout,
                   min_containers=0, max_containers=max_trainers,
                   single_use_containers=True, retries=0,

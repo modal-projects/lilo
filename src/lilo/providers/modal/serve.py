@@ -65,7 +65,10 @@ async def serve_engine(
         engine = await make_server()
         from lilo.telemetry.trainer import TrainerTelemetry
 
-        trainer_telemetry = TrainerTelemetry(instance_id, definition_id, record.boot_id)
+        trainer_telemetry = TrainerTelemetry(
+            instance_id, definition_id, record.boot_id,
+            scoped=bool(os.environ.get("LILO_SCOPED_REGISTRY")),
+        )
         engine.observer = trainer_telemetry
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)

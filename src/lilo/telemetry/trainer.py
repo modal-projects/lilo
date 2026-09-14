@@ -188,18 +188,20 @@ class CommandMiddleware:
 @dataclass
 class CommandTrace:
     span: Span
-    queued_at: float
     attributes: dict[str, Any]
 
 
 class TrainerTelemetry:
-    def __init__(self, instance_id, definition_id, boot_id, *, metric_reader=None):
+    def __init__(
+        self, instance_id, definition_id, boot_id, *, metric_reader=None, scoped=False
+    ):
         self.attrs = {
             "lilo.trainer_instance_id": instance_id,
             "lilo.definition_id": definition_id,
             "lilo.boot_id": boot_id,
             "lilo.component": "trainer",
         }
+        self.metric_tags = {}
         self.model_tags = {}
         self.commands: dict[str, CommandTrace] = {}
         self.identities = OrderedDict()
@@ -235,10 +237,17 @@ class TrainerTelemetry:
                     export_interval_millis=5000,
                     export_timeout_millis=4000,
                 )
+                resource = Resource.create(
+                    {"service.name": os.getenv("OTEL_SERVICE_NAME", "lilo")}
+                )
+                if scoped:
+                    # Direct OTLP intake may not promote custom resource fields
+                    # to metric tags. This deployment has one experiment owner.
+                    self.metric_tags = experiment_tags(
+                        {"run_id": resource.attributes.get("lilo.run_id")}
+                    )
                 self.meter_provider = MeterProvider(
-                    resource=Resource.create(
-                        {"service.name": os.getenv("OTEL_SERVICE_NAME", "lilo")}
-                    ),
+                    resource=resource,
                     metric_readers=[reader],
                 )
                 self.meter_provider.get_meter("lilo.trainer").create_observable_gauge(
@@ -260,7 +269,12 @@ class TrainerTelemetry:
         return [
             Observation(
                 int(current == operation),
-                {**self.attrs, "lilo.lane": lane, "lilo.operation": operation},
+                {
+                    **self.attrs,
+                    **self.metric_tags,
+                    "lilo.lane": lane,
+                    "lilo.operation": operation,
+                },
             )
             for lane, current in activity.items()
             for operation in (
@@ -314,9 +328,7 @@ class TrainerTelemetry:
             start_time=int(started * 1e9),
             attributes=attributes,
         )
-        self.commands[operation.request_id] = CommandTrace(
-            span, time.time(), attributes
-        )
+        self.commands[operation.request_id] = CommandTrace(span, attributes)
         canonical = set_span_in_context(NonRecordingSpan(span.get_span_context()))
         canonical = set_value(
             "lilo.command.tags",
@@ -345,23 +357,6 @@ class TrainerTelemetry:
             accepted_root.set(context)
 
     @best_effort
-    def dequeued(self, operation):
-        entry = self.commands.get(operation.request_id)
-        if entry:
-            self._span(
-                "queue",
-                "execution",
-                entry.queued_at,
-                time.time(),
-                [entry],
-                {
-                    "lilo.model_id": operation.model_id,
-                    "lilo.request_id": operation.request_id,
-                    "lilo.operation": operation.kind.value,
-                },
-            )
-
-    @best_effort
     def finish(self, operation, state):
         entry = self.commands.pop(operation.request_id, None)
         if entry:
@@ -382,7 +377,19 @@ class TrainerTelemetry:
             span.set_status(StatusCode.OK if ok else StatusCode.ERROR)
             span.end()
 
-    def _span(self, name, lane, t0, t1, parents, attrs, ok=True, independent=False):
+    def _span(
+        self,
+        name,
+        lane,
+        t0,
+        t1,
+        parents,
+        attrs,
+        ok=True,
+        independent=False,
+        prefix="lilo.trainer.",
+        execution_context=None,
+    ):
         p = provider()
         if p is None:
             return
@@ -397,8 +404,10 @@ class TrainerTelemetry:
             if len(parents) > 1 or independent
             else []
         )
+        if execution_context is not None:
+            links.append(Link(execution_context))
         span = p.get_tracer("lilo.trainer").start_span(
-            "lilo.trainer." + name.replace(":", "."),
+            prefix + name.replace(":", "."),
             context=context,
             links=links,
             start_time=int(t0 * 1e9),
@@ -414,6 +423,7 @@ class TrainerTelemetry:
         )
         span.set_status(StatusCode.OK if ok else StatusCode.ERROR)
         span.end(end_time=int(t1 * 1e9))
+        return span.get_span_context()
 
     @best_effort
     def span(self, model, name, lane, t0, t1=None, **attrs):
@@ -443,16 +453,35 @@ class TrainerTelemetry:
             safe["lilo.model_id"] = models[0]
             if len(seq_ids) == 1:
                 safe["lilo.request_id"] = f"{models[0]}:{seq_ids[0]}"
-        self._span(
+        lane = "execution" if lane == "gpu" else lane
+        ended = t1 if t1 is not None else time.time()
+        execution_context = self._span(
             name,
-            "execution" if lane == "gpu" else lane,
+            lane,
             t0,
-            t1 or time.time(),
+            ended,
             parents,
             safe,
             ok=attrs.get("ok", True),
             independent=True,
         )
+        # Command-local participation makes waiting visible as gaps. Physical
+        # batches remain independent traces with aggregate workload counts.
+        if name.startswith("wait_persistence:") or execution_context is None:
+            return
+        phase = name.split(":", 1)[0] if ":" in name else "execute"
+        for parent in parents:
+            self._span(
+                phase,
+                lane,
+                t0,
+                ended,
+                [parent],
+                parent.attributes,
+                ok=attrs.get("ok", True),
+                prefix="lilo.command.",
+                execution_context=execution_context,
+            )
 
     @best_effort
     def state(self, model, state, **detail):

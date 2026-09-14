@@ -251,12 +251,14 @@ Durable run files determine which steps survived rollback; telemetry cannot retr
 already exported metrics. A notebook is created explicitly outside the runtime.
 
 The implementation follows the final [observability guide](../../docs/observability.md)
-from commit `098f3a1` in the observability task: canonical command roots, linked
+from observability PR #23, including its active command participation spans:
+canonical command roots, linked
 physical execution traces, metadata snapshots through sampler artifacts/sessions,
 and no per-sample model lookup. Trainer-state metrics retain physical instance
 labels. Because this scoped deployment belongs to exactly one experiment, its
-OTel **resource** also carries `lilo.run_id`; this enables a whole-run metric
-filter without changing shared-trainer metric semantics. Group trainer-state
+OTel **resource** also carries `lilo.run_id`. Scoped trainers promote that
+deployment identity to a metric datapoint tag, enabling a whole-run filter with
+direct OTLP intake while preserving shared-trainer metric semantics. Group trainer-state
 series by `lilo.trainer_instance_id`, not experiment attempt ID.
 
 CPU-only Modal probes in `modal-labs/connor-dev-2` verified nested ownership and

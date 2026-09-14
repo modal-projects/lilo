@@ -37,7 +37,6 @@ class Observer(Protocol):
     def forget_model(self, model_id: str) -> None: ...
     def begin(self, operation: Operation) -> None: ...
     def reuse(self, request_id: str) -> None: ...
-    def dequeued(self, operation: Operation) -> None: ...
     def finish(self, operation: Operation, state: FutureState) -> None: ...
     def set_activity(self, lane: str, operation: str) -> None: ...
 
@@ -387,10 +386,6 @@ class EngineServer:
                 self._consume_ready(operations)
             busy = True
             operation = operations[0]
-            if self.observer is not None:
-                for item in operations:
-                    if isinstance(item, Operation):
-                        self.observer.dequeued(item)
             if isinstance(operation, _AcceptOperation):
                 await self._run_accept(operation)
                 continue
@@ -410,6 +405,8 @@ class EngineServer:
                 continue
             models = tuple(dict.fromkeys(item.model_id for item in operations))
             self._observe_state(models, f"executing:{operation.kind.value}")
+            if operation.kind == OperationKind.LOAD_WEIGHTS:
+                await self._join_persistence()
             started = time.time()
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
@@ -422,8 +419,6 @@ class EngineServer:
                     if len(results) != len(operations):
                         raise RuntimeError("executor returned the wrong result count")
                 else:
-                    if operation.kind == OperationKind.LOAD_WEIGHTS:
-                        await self._join_persistence()
                     results = (
                         await self.executor.execute(
                             operation.model_id,

@@ -63,8 +63,9 @@ def test_transport_queue_execution_and_duplicate_submission(setup):
     (control,) = [s for s in spans if s.name == "lilo.control.submit"]
     assert command.parent is None
     assert control.parent.span_id == command.context.span_id
-    for name in ("queue", "result_ready"):
-        (child,) = [s for s in spans if s.name == "lilo.trainer." + name]
+    assert not any(s.name == "lilo.trainer.queue" for s in spans)
+    for name in ("lilo.command.execute", "lilo.trainer.result_ready"):
+        (child,) = [s for s in spans if s.name == name]
         assert child.parent.span_id == command.context.span_id
         assert child.start_time >= command.start_time
         assert child.end_time <= command.end_time
@@ -203,6 +204,18 @@ def test_persistence_keeps_original_command_and_overlaps_next_operation(setup):
     assert persist.parent is None
     assert persist.links[0].context.span_id == command.context.span_id
     assert persist.start_time <= optim.start_time < optim.end_time <= persist.end_time
+    for phase in ("capture", "persist"):
+        (child,) = [s for s in spans if s.name == "lilo.command." + phase]
+        (physical,) = [
+            s for s in spans if s.name == "lilo.trainer." + phase + ".save_weights"
+        ]
+        assert child.parent.span_id == command.context.span_id
+        assert (child.start_time, child.end_time) == (
+            physical.start_time,
+            physical.end_time,
+        )
+        assert child.links[0].context.span_id == physical.context.span_id
+    assert not any(s.name == "lilo.command.wait_persistence" for s in spans)
     assert all("private-checkpoint" not in str(s.attributes) for s in spans)
 
 
@@ -359,3 +372,60 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
     assert {(link.context.trace_id, link.context.span_id) for link in batch.links} == {
         (command.context.trace_id, command.context.span_id) for command in commands
     }
+
+    children = [
+        s
+        for s in spans
+        if s.name == "lilo.command.execute"
+        and s.attributes["lilo.operation"] == "forward_backward"
+    ]
+    assert len(children) == 2
+    for command in commands:
+        (child,) = [s for s in children if s.parent.span_id == command.context.span_id]
+        assert child.context.trace_id == command.context.trace_id
+        assert child.start_time == batch.start_time > command.start_time
+        assert child.end_time == batch.end_time <= command.end_time
+        assert (
+            child.attributes["lilo.input_tokens"]
+            == command.attributes["lilo.input_tokens"]
+        )
+        assert (
+            child.attributes["lilo.run_attempt_id"]
+            == command.attributes["lilo.run_attempt_id"]
+        )
+        assert [
+            (link.context.trace_id, link.context.span_id) for link in child.links
+        ] == [(batch.context.trace_id, batch.context.span_id)]
+
+
+def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
+    monkeypatch.setenv(
+        "OTEL_RESOURCE_ATTRIBUTES",
+        "lilo.run_id=owned-run,lilo.run_attempt_id=not-a-metric-tag",
+    )
+    for scoped in (False, True):
+        telemetry = trainer.TrainerTelemetry(
+            "physical-instance",
+            "definition",
+            "boot",
+            metric_reader=InMemoryMetricReader(),
+            scoped=scoped,
+        )
+        try:
+            # Changing model attempts must not change physical deployment labels.
+            telemetry.register_model(
+                "m",
+                {"user_metadata": {"run_id": "different", "attempt_id": "replacement"}},
+            )
+            observations = telemetry.observe(None)
+            assert observations
+            for point in observations:
+                assert point.attributes.get("lilo.run_id") == (
+                    "owned-run" if scoped else None
+                )
+                assert "lilo.run_attempt_id" not in point.attributes
+                assert (
+                    point.attributes["lilo.trainer_instance_id"] == "physical-instance"
+                )
+        finally:
+            telemetry.close()
