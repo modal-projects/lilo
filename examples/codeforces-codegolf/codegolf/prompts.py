@@ -22,3 +22,16 @@ CODEGOLF_PROMPT = (
     "Do not include comments, analysis, explanations, markdown fences, or alternative "
     "solutions. Extra response tokens also reduce your score."
 )
+
+
+THINKING_CODEGOLF_PROMPT = CODEGOLF_PROMPT.replace(
+    "Your entire response must be the final executable Python program only. ",
+    "You may reason in your thinking section before producing the final answer. "
+    "Your final answer must be the executable Python program only. ",
+).replace(
+    "Do not include comments, analysis, explanations, markdown fences, or alternative "
+    "solutions. Extra response tokens also reduce your score.",
+    "Do not include comments, analysis, explanations, markdown fences, or alternative "
+    "solutions in the final answer. All response tokens, including thinking, "
+    "count toward the output-token budget and penalty.",
+)

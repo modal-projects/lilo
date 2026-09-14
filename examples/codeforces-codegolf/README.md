@@ -4,6 +4,19 @@ Code-only GRPO through Lilo: sample eight Python solutions for each of four
 Codeforces problems, judge them in isolated Modal sandboxes, and reward
 correctness and brevity. The model has no execution tool.
 
+The `thinking-v9` variant enables Qwen's thinking mode. Its final answer is still
+judged for correctness and code length; thinking and final output share the
+16,384-token budget and both count toward the existing output-token penalty.
+Only code after `</think>` is judged; an unfinished thinking section submits no
+solution. Both thinking and answer tokens participate in the policy update.
+The prompt permits thinking while requiring a compact, code-only final answer.
+
+To start this variant from base weights, use a new run name:
+
+```bash
+uv run --env-file .env codegolf launch --run golf-thinking --variant thinking-v9 --steps 1000
+```
+
 ## Asynchronous execution
 
 The default `prompt-v8` overlaps rollout generation and judging with learner

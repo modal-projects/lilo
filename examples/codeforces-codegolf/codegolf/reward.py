@@ -4,7 +4,10 @@ import math
 import re
 
 
-def extract_code(text: str) -> str:
+def extract_code(text: str, *, require_thinking_end: bool = False) -> str:
+    # An unfinished thinking section is not a submitted solution.
+    if require_thinking_end and "</think>" not in text:
+        return ""
     # Qwen may emit reasoning even when disabled. Never measure reasoning as code.
     text = text.rsplit("</think>", 1)[-1].strip()
     blocks = re.findall(r"```(?:python3?|py)?\s*\n(.*?)```", text, re.DOTALL)

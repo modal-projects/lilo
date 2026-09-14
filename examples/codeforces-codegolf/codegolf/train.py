@@ -21,7 +21,7 @@ from tinker import types
 from codegolf.config import Config
 from codegolf.judge import judge
 from codegolf.pipeline import RolloutBuffer
-from codegolf.prompts import CODEGOLF_PROMPT, ORIGINAL_PROMPT
+from codegolf.prompts import CODEGOLF_PROMPT, ORIGINAL_PROMPT, THINKING_CODEGOLF_PROMPT
 from codegolf.reward import advantages, datum, extract_code, row_score
 from codegolf.store import Store
 from codegolf.telemetry import RunTelemetry
@@ -163,7 +163,9 @@ async def _train(root, data, app, cfg, commit, telemetry):
                         {
                             "role": "system",
                             "content": (
-                                CODEGOLF_PROMPT
+                                THINKING_CODEGOLF_PROMPT
+                                if getattr(cfg, "enable_thinking", False)
+                                else CODEGOLF_PROMPT
                                 if getattr(cfg, "explicit_codegolf_prompt", False)
                                 else ORIGINAL_PROMPT
                             ),
@@ -173,7 +175,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     tokenize=True,
                     return_dict=False,
                     add_generation_prompt=True,
-                    enable_thinking=False,
+                    enable_thinking=getattr(cfg, "enable_thinking", False),
                 )
 
                 async def sample():
@@ -193,7 +195,10 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     if not tokens or len(tokens) != len(lp):
                         raise RuntimeError("Invalid sampled tokens/logprobs")
                     text = tokenizer.decode(tokens, skip_special_tokens=True)  # noqa: B023
-                    code = extract_code(text)
+                    code = extract_code(
+                        text,
+                        require_thinking_end=getattr(cfg, "enable_thinking", False),
+                    )
                     rows.append(
                         {
                             "tokens": tokens,

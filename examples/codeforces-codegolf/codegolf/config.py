@@ -8,7 +8,15 @@ VOLUME_NAME = os.environ.get("CODEGOLF_VOLUME", APP_NAME)
 DEFAULT_RUN = "golf"
 DEFAULT_VARIANT = "prompt-v8"
 DEFAULT_STEPS = 1000
-VARIANTS = ("prompt-v8", "async-v7", "async-v6", "async-v5", "reward-v3", "reward-v4")
+VARIANTS = (
+    "thinking-v9",
+    "prompt-v8",
+    "async-v7",
+    "async-v6",
+    "async-v5",
+    "reward-v3",
+    "reward-v4",
+)
 
 
 @dataclasses.dataclass
@@ -59,9 +67,16 @@ class ExplicitPromptConfig(StrongGolfConfig):
     explicit_codegolf_prompt: bool = True
 
 
+@dataclasses.dataclass
+class ThinkingConfig(ExplicitPromptConfig):
+    enable_thinking: bool = True
+
+
 def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS):
     if steps <= 0:
         raise ValueError("steps must be positive")
+    if variant == "thinking-v9":
+        return ThinkingConfig(steps=steps)
     if variant == "prompt-v8":
         return ExplicitPromptConfig(steps=steps)
     if variant == "async-v7":
