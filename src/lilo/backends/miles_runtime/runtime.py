@@ -174,6 +174,8 @@ class MilesRuntime:
         architecture = shlex.split(load_model_args(self.config.model_type))
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
             args = parse_args(entry="serve")
+        args.lilo_tp_reduce_precision = self.config.tp_reduce_precision
+        args.lilo_deterministic_attention = self.config.deterministic_attention
         args.use_dynamic_global_batch_size = True
         args.delay_split_train_data_by_dp = True
         configure_logger(args, source=MainProcessIdentity())
