@@ -245,29 +245,3 @@ exported.
 | Execution lane | `idle`, `accept`, `unload`, `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, `skip` |
 | Checkpoint lane | `idle`, `save_weights` |
 | Sampler lane | `idle`, `save_weights_for_sampler` |
-
-## Delivery and data handling
-
-Spans are exported in background batches. Backend phase measurements are returned
-with the private executor response and exported by the trainer; an interrupted
-backend request can lose those measurements. Trainer-state reporting begins when
-the engine server is constructed, after process initialization. Operations shorter
-than the sampling interval may not appear in the state metric; their spans retain
-the operation's start and end times.
-
-Abrupt process termination can lose open or buffered spans. Graceful shutdown
-marks unfinished command roots with `lilo.incomplete=true` and error status.
-Buffered commands discarded during unloading also end with error status.
-Deduplicated submissions reuse the original trace context while it remains in
-the engine's cache of the most recent 2,048 accepted commands; older submissions
-may have standalone control-plane spans.
-
-Export failures do not change operation results. Lilo uses private OpenTelemetry
-providers, leaving application-wide providers and instrumentation unchanged.
-Credentials are configured on the server; API clients do not need access to the
-telemetry destination.
-
-Exported data excludes prompts, generated text, token arrays, gradients,
-checkpoint contents, exception messages and stacks, API credentials, and metadata
-other than the documented experiment labels. Lilo exports traces and metrics;
-dashboards, notebooks, and retention policies are managed in the destination.
