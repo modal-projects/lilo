@@ -26,6 +26,7 @@ class Pool:
 def stop_app(name_or_id: str) -> None:
     """Stop a specific owned app. Modal retains stopped app history."""
     import asyncio
+    from modal._utils.async_utils import synchronize_api
     from modal.client import _Client
     from modal_proto import api_pb2
     import modal
@@ -49,7 +50,7 @@ def stop_app(name_or_id: str) -> None:
                 return
             await asyncio.sleep(2)
         raise TimeoutError(f"owned app {app_id} has not stopped all containers")
-    asyncio.run(stop())
+    synchronize_api(stop)()
 
 
 def stop_children(children, stop=stop_app) -> None:

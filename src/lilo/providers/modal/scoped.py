@@ -184,7 +184,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             if len(active) < count + 1:
                 await engines.spawn_instance(engine.name)
             if latest.min_containers:
-                await set_minimum(route["function_id"], latest.min_containers)
+                await set_minimum.aio(route["function_id"], latest.min_containers)
             return route
         if action == "pinned":
             key = f"pinned:{model_id}:{version}"

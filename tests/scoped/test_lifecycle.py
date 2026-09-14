@@ -106,6 +106,6 @@ def test_latest_minimum_updates_by_id_without_name_lookup(monkeypatch):
     async def update(request): calls.append(request)
     async def client(): return SimpleNamespace(stub=SimpleNamespace(FunctionUpdateSchedulingParams=update))
     monkeypatch.setattr(_Client, 'from_env', client)
-    asyncio.run(set_minimum('fu-ephemeral', 1))
+    set_minimum('fu-ephemeral', 1)
     assert calls[0].function_id == 'fu-ephemeral'
     assert calls[0].settings.min_containers == 1
