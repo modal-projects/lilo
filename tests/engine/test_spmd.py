@@ -10,7 +10,7 @@ from tinker import ForwardBackwardOutput, OptimStepResponse, TensorData
 
 from lilo.backends import ForwardBatch, ModelSpec, SamplerPublication
 from lilo.engine import DistributedExecutor, OperationKind
-from lilo.engine.api import Execution
+from lilo.engine.api import Command
 from lilo.engine.operations import parse_model_spec, parse_operation_payload
 from lilo.engine.spmd import initialize_distributed_runtime
 
@@ -89,8 +89,8 @@ class RecordingBackend:
             optimizer_step=1,
         )
 
-    def persist_sampler_snapshot(self, capture_id):
-        self.calls.append(("persist_sampler_snapshot", capture_id))
+    def publish_sampler_snapshot(self, capture_id):
+        self.calls.append(("publish_sampler_snapshot", capture_id))
 
     def unload_model(self, model_id):
         self.calls.append(("unload", model_id))
@@ -161,12 +161,12 @@ def test_distributed_executor_normalizes_and_dispatches_lifecycle() -> None:
             OperationKind.SAVE_WEIGHTS,
             {"name": "smoke"},
         )
-        checkpoint = await executor.capture_operation(
+        checkpoint = await executor.capture_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             checkpoint_payload,
         )
-        saved = await executor.persist_operation(
+        saved = await executor.persist_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             checkpoint_payload,
@@ -203,12 +203,12 @@ def test_distributed_executor_normalizes_and_dispatches_lifecycle() -> None:
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
             {"publish_version": 9},
         )
-        capture = await executor.capture_operation(
+        capture = await executor.capture_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
             sampler_payload,
         )
-        published = await executor.persist_operation(
+        published = await executor.persist_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
             sampler_payload,
@@ -266,11 +266,11 @@ def test_distributed_executor_batches_compatible_forward_backward() -> None:
             },
         )
 
-        outputs = await executor.execute_batch(
+        outputs = await executor.execute_forward_backward_batch(
             (
-                Execution("model-a", OperationKind.FORWARD_BACKWARD, payload),
-                Execution("model-b", OperationKind.FORWARD_BACKWARD, payload),
-                Execution("model-a", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-a", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-b", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-a", OperationKind.FORWARD_BACKWARD, payload),
             )
         )
 
@@ -289,7 +289,7 @@ def test_checkpoint_handles_are_unique_across_models() -> None:
     async def run() -> None:
         executor = DistributedExecutor(RecordingBackend())
 
-        first = await executor.capture_operation(
+        first = await executor.capture_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             parse_operation_payload(
@@ -297,7 +297,7 @@ def test_checkpoint_handles_are_unique_across_models() -> None:
                 {"name": "step-1"},
             ),
         )
-        second = await executor.capture_operation(
+        second = await executor.capture_snapshot(
             "model-b",
             OperationKind.SAVE_WEIGHTS,
             parse_operation_payload(
@@ -327,14 +327,14 @@ def test_checkpoint_persist_failure_is_returned() -> None:
             OperationKind.SAVE_WEIGHTS,
             {"name": "step-1"},
         )
-        snapshot = await executor.capture_operation(
+        snapshot = await executor.capture_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             payload,
         )
 
         with pytest.raises(FileExistsError, match="step-1"):
-            await executor.persist_operation(
+            await executor.persist_snapshot(
                 "model-a",
                 OperationKind.SAVE_WEIGHTS,
                 payload,
@@ -400,7 +400,7 @@ def test_persistence_operations_use_separate_groups(monkeypatch) -> None:
             OperationKind.SAVE_WEIGHTS,
             {"name": "step-1"},
         )
-        await executor.persist_operation(
+        await executor.persist_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             checkpoint_payload,
@@ -414,7 +414,7 @@ def test_persistence_operations_use_separate_groups(monkeypatch) -> None:
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
             {"publish_version": 1},
         )
-        await executor.persist_operation(
+        await executor.persist_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
             sampler_payload,
@@ -428,7 +428,7 @@ def test_persistence_operations_use_separate_groups(monkeypatch) -> None:
 
     assert calls == [
         ("checkpoints", "persist_checkpoint"),
-        ("samplers", "persist_sampler_snapshot"),
+        ("samplers", "publish_sampler_snapshot"),
     ]
 
 
@@ -513,13 +513,13 @@ def test_persistence_does_not_block_command_lane() -> None:
             OperationKind.SAVE_WEIGHTS,
             {"name": "snapshot-1"},
         )
-        snapshot = await executor.capture_operation(
+        snapshot = await executor.capture_snapshot(
             "model-a",
             OperationKind.SAVE_WEIGHTS,
             checkpoint_payload,
         )
         persisting = asyncio.create_task(
-            executor.persist_operation(
+            executor.persist_snapshot(
                 "model-a",
                 OperationKind.SAVE_WEIGHTS,
                 checkpoint_payload,

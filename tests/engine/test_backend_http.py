@@ -8,18 +8,18 @@ import time
 import httpx
 import pytest
 
-from lilo.engine import EngineServer, FutureStatus
-from lilo.engine.api import Execution, OperationKind
-from lilo.engine.backend import HttpExecutor, create_backend_app
+from lilo.engine import Engine, FutureStatus
+from lilo.engine.api import Command, OperationKind
+from lilo.engine.backend_http import HttpBackendClient, create_backend_app
 from lilo.engine.operations import parse_operation_payload
 from tests.support import EchoExecutor
 
 MODEL_SPEC = {"base_model": "test/model", "parameterization": "full"}
 
 
-def http_executor(backend_executor) -> HttpExecutor:
+def http_executor(backend_executor) -> HttpBackendClient:
     app = create_backend_app(backend_executor)
-    return HttpExecutor(
+    return HttpBackendClient(
         "http://backend",
         transport=httpx.ASGITransport(app=app),
     )
@@ -28,7 +28,7 @@ def http_executor(backend_executor) -> HttpExecutor:
 def test_engine_runs_operations_over_backend_http() -> None:
     async def run() -> None:
         executor = http_executor(EchoExecutor())
-        server = EngineServer(executor)
+        server = Engine(executor)
         await server.accept_model("model-a", MODEL_SPEC)
         body = json.dumps(
             {
@@ -84,7 +84,7 @@ def test_backend_errors_cross_http() -> None:
                 raise RuntimeError("cuda out of memory")
 
         executor = http_executor(FailingExecutor())
-        server = EngineServer(executor)
+        server = Engine(executor)
         await server.accept_model("model-a", MODEL_SPEC)
         await server.optim_step({"model_id": "model-a", "seq_id": 1, "adam_params": {}})
         state = await server.retrieve_future("model-a:1", timeout=2.0)
@@ -103,7 +103,7 @@ def test_backend_read_timeout_fences_engine() -> None:
         async def timeout(request: httpx.Request) -> httpx.Response:
             raise httpx.ReadTimeout("stalled", request=request)
 
-        executor = HttpExecutor(
+        executor = HttpBackendClient(
             "http://backend",
             transport=httpx.MockTransport(timeout),
             read_timeout=42,
@@ -124,9 +124,9 @@ def test_backend_read_timeout_fences_engine() -> None:
 def test_backend_batches_cross_http() -> None:
     async def run() -> None:
         executor = http_executor(EchoExecutor())
-        results = await executor.execute_batch(
+        results = await executor.execute_forward_backward_batch(
             (
-                Execution(
+                Command(
                     "model-a",
                     OperationKind.FORWARD_BACKWARD,
                     parse_operation_payload(
@@ -142,7 +142,7 @@ def test_backend_batches_cross_http() -> None:
                         },
                     ),
                 ),
-                Execution(
+                Command(
                     "model-b",
                     OperationKind.FORWARD_BACKWARD,
                     parse_operation_payload(
@@ -196,14 +196,14 @@ def test_backend_runner_serves_executor_in_subprocess() -> None:
         [
             sys.executable,
             "-m",
-            "lilo.engine.backend",
+            "lilo.engine.backend_http",
             "tests.support:EchoExecutor",
             str(port),
         ]
     )
 
     async def run() -> None:
-        executor = HttpExecutor(f"http://127.0.0.1:{port}")
+        executor = HttpBackendClient(f"http://127.0.0.1:{port}")
         deadline = time.time() + 10
         while True:
             assert backend.poll() is None, "backend exited"

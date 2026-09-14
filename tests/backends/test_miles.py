@@ -268,7 +268,7 @@ def test_sampler_capture_publishes_existing_lilo_format(tmp_path, monkeypatch) -
     backend.accept_model("model-a", _spec())
 
     publication = backend.capture_sampler_snapshot("model-a", "capture-a", 7)
-    backend.persist_sampler_snapshot("capture-a")
+    backend.publish_sampler_snapshot("capture-a")
 
     assert publication.publish_version == 7
     resolved = SnapshotBulletin(bulletin_root).resolve(VersionRef("model-a", 7))
@@ -292,7 +292,7 @@ def test_sampler_snapshots_persist_concurrently_without_crossing_adapters(tmp_pa
         (capture["path"] / "adapter_model.safetensors").write_bytes(model.encode())
 
     with ThreadPoolExecutor(max_workers=2) as workers:
-        futures = [workers.submit(backend.persist_sampler_snapshot, model) for model in ["model-a", "model-b"]]
+        futures = [workers.submit(backend.publish_sampler_snapshot, model) for model in ["model-a", "model-b"]]
         for future in futures:
             future.result(timeout=10)
 

@@ -11,10 +11,10 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 from lilo.encoding import fingerprint
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
 
-from .api import Execution, Executor, FutureState, FutureStatus, OperationKind
+from .api import Command, Executor, FutureState, FutureStatus, OperationKind
 from .ingress import decode_forward_backward, decode_json_operation
 from .operations import (
-    LoadWeightsPayload,
+    LoadCheckpointPayload,
     OperationPayload,
     SkipPayload,
     serialize_operation_payload,
@@ -71,7 +71,9 @@ class _ModelState:
     unload: asyncio.Future[None] | None = None
 
 
-class EngineServer:
+class Engine:
+    """Schedule model operations and track their asynchronous results."""
+
     def __init__(
         self,
         executor: Executor,
@@ -335,8 +337,8 @@ class EngineServer:
                 continue
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
-                    results = await self.executor.execute_batch(
-                        tuple(Execution(item.model_id, item.kind, item.payload) for item in operations)
+                    results = await self.executor.execute_forward_backward_batch(
+                        tuple(Command(item.model_id, item.kind, item.payload) for item in operations)
                     )
                     if len(results) != len(operations):
                         raise RuntimeError("executor returned the wrong result count")
@@ -369,7 +371,7 @@ class EngineServer:
                     await self.executor.execute(
                         operation.model_id,
                         OperationKind.LOAD_WEIGHTS,
-                        LoadWeightsPayload.model_validate(checkpoint),
+                        LoadCheckpointPayload.model_validate(checkpoint),
                     )
         except Exception as exc:
             error = ValueError(f"accept model: {exc}")
@@ -420,7 +422,7 @@ class EngineServer:
         else:
             await queue.join()
         try:
-            capture = await self.executor.capture_operation(
+            capture = await self.executor.capture_snapshot(
                 operation.model_id,
                 operation.kind,
                 operation.payload,
@@ -445,7 +447,7 @@ class EngineServer:
             job = await queue.get()
             try:
                 try:
-                    result = await self.executor.persist_operation(
+                    result = await self.executor.persist_snapshot(
                         job.operation.model_id,
                         job.operation.kind,
                         job.operation.payload,

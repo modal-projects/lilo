@@ -15,7 +15,7 @@ from lilo.engine.spmd import DistributedExecutor
 from lilo.inference.bulletin import SnapshotBulletin
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -37,7 +37,7 @@ class MilesJobState:
     optimizer_step: int = 0
 
 
-class MilesCommandBackend(CommandBackend):
+class MilesCommandBackend(Backend):
     """Lilo command protocol backed by one Miles Ray trainer group."""
 
     def __init__(
@@ -308,7 +308,7 @@ class MilesCommandBackend(CommandBackend):
             optimizer_step=state.optimizer_step,
         )
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         try:
             capture = self._sampler_captures[capture_id]
             volume_name = os.environ.get("LILO_BULLETIN_VOLUME")

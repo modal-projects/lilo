@@ -16,7 +16,7 @@ from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 from lilo.inference.fft_bulletin import FFTSnapshotBulletin
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -50,7 +50,7 @@ from .megatron_runtime.fft.model import (
 from .megatron_runtime.fft.optimizer import run_fft_optimizer_step
 
 
-class FFTMegatronBackend(CommandBackend):
+class FFTMegatronBackend(Backend):
     """Single-model Megatron backend for full-parameter training."""
 
     def __init__(
@@ -249,7 +249,7 @@ class FFTMegatronBackend(CommandBackend):
             optimizer_step=self.optimizer_step,
         )
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         snapshot = self._sampler_captures[capture_id]
         try:
             if snapshot is not None:

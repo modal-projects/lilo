@@ -1,5 +1,5 @@
 __all__ = [
-    "CommandBackend",
+    "Backend",
     "ForwardBatch",
     "ForwardItem",
     "LossFn",
