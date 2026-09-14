@@ -290,7 +290,7 @@ class FFTMegatronBackend(Backend):
         capture = {
             "model_id": model_id,
             "destination": destination,
-            "path": str(self.checkpoint_dir / model_id / "weights" / destination),
+            "path": str(self.checkpoint_dir / destination / model_id),
             "checkpoint": checkpoint,
             "hf_weights": hf_weights,
             "metadata": {

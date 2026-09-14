@@ -510,7 +510,7 @@ class LoraMegatronBackend(Backend):
                 else None
             ),
             "optimizer_step": state.optimizer_step,
-            "_path": str(self.checkpoint_dir / model_id / "weights" / destination),
+            "_path": str(self.checkpoint_dir / destination / model_id),
         }
 
     def _shutdown(self) -> None:

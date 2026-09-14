@@ -350,10 +350,14 @@ class ControlPlane:
             raise ValueError(f"invalid checkpoint path: {path}")
         path_component(parts[0], "training_run_id")
         path_component(parts[2], "checkpoint name")
-        return f"{self.checkpoint_root}/{'/'.join(parts)}"
+        return f"{self.checkpoint_root}/{parts[2]}/{parts[0]}"
 
     def tinker_path(self, uri: str) -> str:
-        return f"tinker://{PurePosixPath(uri).relative_to(self.checkpoint_root)}"
+        parts = PurePosixPath(uri).relative_to(self.checkpoint_root).parts
+        if len(parts) != 2:
+            raise ValueError(f"invalid checkpoint storage path: {uri}")
+        name, model_id = parts
+        return checkpoint_tinker_path(model_id, name)
 
     async def checkpoint_metadata(self, path: str) -> dict[str, object]:
         if self.read_checkpoint_metadata is None:
