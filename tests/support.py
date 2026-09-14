@@ -100,7 +100,7 @@ class EchoExecutor:
         snapshot: object,
     ) -> object:
         return {
-            "path": f"/checkpoints/{model_id}/weights/snapshot",
+            "path": f"/checkpoints/snapshot/{model_id}",
             "type": "save_weights",
         }
 
