@@ -1,62 +1,87 @@
 import asyncio
 from types import SimpleNamespace
 
-import pytest
+from lilo.providers.modal.scoped_pins import (
+    touch_pin,
+    pin_demand,
+    publish_pin,
+    forget_pin_route,
+)
 
-from lilo.providers.modal.scoped_pins import reap_pins, touch_pin
+
 class Registry:
-    def __init__(self, values):
-        self.values = values
+    def __init__(self, values=None):
+        self.values = values or {}
         self.get = SimpleNamespace(aio=self.read)
         self.put = SimpleNamespace(aio=self.write)
-    async def read(self, key): return self.values.get(key)
-    async def write(self, key, value): self.values[key] = value
+        self.pop = SimpleNamespace(aio=self.remove)
+
+    async def read(self, key):
+        return self.values.get(key)
+
+    async def write(self, key, value):
+        self.values[key] = value
+
+    async def remove(self, key, default=None):
+        return self.values.pop(key, default)
 
 
-def test_idle_reaping_preserves_active_leases_and_releases_route():
+def test_demand_precedes_app_and_expires_without_successful_provisioning():
     async def check():
-        registry = Registry({'children': ['idle-app', 'busy-app'], 'idle': {'url': 'idle'},
-            'pin_records': {
-                'idle': {'app_name': 'idle-app', 'last_used': 0, 'leases': {}},
-                'busy': {'app_name': 'busy-app', 'last_used': 0, 'leases': {'request': 4000}},
-            }})
-        stopped = []
-        async def stop(name): stopped.append(name)
-        await reap_pins(registry, stop, now=1000)
-        assert stopped == ['idle-app']
-        assert registry.values['idle'] is None
-        assert registry.values['children'] == ['busy-app']
-        await touch_pin(registry, 'busy', now=1000, lease='request', release=True)
-        await reap_pins(registry, stop, now=1500)
-        assert stopped == ['idle-app']
-        await reap_pins(registry, stop, now=1601)
-        assert stopped == ['idle-app', 'busy-app']
+        registry = Registry()
+        await touch_pin(registry, "pinned:m:1", now=1000)
+        assert "pinned:m:1" in await pin_demand(registry, now=1100)
+        assert await publish_pin(registry, "pinned:m:1", {"url": "old"}, now=1100)
+        assert not await pin_demand(registry, now=1700)
+        assert "pinned:m:1" not in registry.values
+        assert not await publish_pin(registry, "pinned:m:1", {"url": "late"}, now=1700)
+        # Failed creations leave no route and are subject to the same expiry.
+        await touch_pin(registry, "pinned:m:2", now=2000)
+        assert not await pin_demand(registry, now=2700)
+
     asyncio.run(check())
 
 
-def test_failed_stop_keeps_ownership_and_route_for_retry():
+def test_active_lease_protects_demand_and_abandoned_lease_expires():
     async def check():
-        registry = Registry({'children': ['child'], 'pin': {'url': 'valid'},
-            'pin_records': {'pin': {'app_name': 'child', 'last_used': 0}}})
-        async def stop(name): raise RuntimeError('provider unavailable')
-        with pytest.raises(RuntimeError): await reap_pins(registry, stop, now=1000)
-        assert registry.values['children'] == ['child']
-        assert registry.values['pin'] == {'url': 'valid'}
+        registry = Registry()
+        await touch_pin(registry, "pin", now=0, lease="request")
+        assert "pin" in await pin_demand(registry, now=3800)
+        await touch_pin(registry, "pin", now=3800, lease="request")
+        assert "pin" in await pin_demand(registry, now=4500)
+        assert not await pin_demand(registry, now=7800)
+        await touch_pin(registry, "pin", now=7800, lease="request", release=True)
+        assert not registry.values["pin_records"]
+
     asyncio.run(check())
 
 
-def test_abandoned_worker_lease_expires_and_next_acquire_renews():
+def test_cleanup_cannot_erase_replacement_route_or_refreshed_demand():
     async def check():
-        registry = Registry({'children': ['child'],
-            'pin_records': {'pin': {'app_name': 'child', 'last_used': 0}}})
-        stopped = []
-        async def stop(name): stopped.append(name)
-        await touch_pin(registry, 'pin', now=0, lease='lost-worker')
-        await reap_pins(registry, stop, now=3800)
-        assert not stopped
-        await touch_pin(registry, 'pin', now=3800, lease='new-worker')
-        await reap_pins(registry, stop, now=4500)
-        assert not stopped
-        await reap_pins(registry, stop, now=7800)
-        assert stopped == ['child']
+        registry = Registry()
+        await touch_pin(registry, "pin", now=1000)
+        old, new = {"url": "old"}, {"url": "new"}
+        await publish_pin(registry, "pin", old, now=1000)
+        await pin_demand(registry, now=1700)
+        # A waiting sampler recreates demand while the old app is closing.
+        await touch_pin(registry, "pin", now=1701, lease="new-request")
+        await publish_pin(registry, "pin", new, now=1701)
+        await forget_pin_route(registry, "pin", old)
+        assert registry.values["pin"] == new
+        assert "pin" in await pin_demand(registry, now=1800)
+
+    asyncio.run(check())
+
+
+def test_owner_repairs_missing_route_after_cleanup_response_was_lost():
+    async def check():
+        registry = Registry()
+        await touch_pin(registry, "pin", now=1000)
+        old = {"url": "still-running"}
+        await publish_pin(registry, "pin", old, now=1000)
+        # Pruning committed, but its reply never reached the owner.
+        await pin_demand(registry, now=1700)
+        await touch_pin(registry, "pin", now=1701)
+        await pin_demand(registry, now=1702, routes={"pin": old})
+        assert registry.values["pin"] == old
     asyncio.run(check())

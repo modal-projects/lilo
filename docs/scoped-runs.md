@@ -84,15 +84,34 @@ The API key is generated per run unless supplied explicitly.
 
 ## Cleanup
 
-The API, trainer, base and latest samplers belong to one ephemeral app. On normal
-context exit, Lilo stops any separately deployed pinned samplers first, then the
-main app. During a run, pinned apps idle for ten minutes are stopped; active
-sampling calls hold leases that prevent reclamation. Existing pinned handles
-recreate the app on their next request. Saved versions remain available, and
-Modal retains stopped app history. Saved checkpoints remain; exit does not implicitly save a checkpoint.
+The API, trainer, base and latest samplers belong to one ephemeral app. Pinned
+samplers are also ephemeral apps, with their contexts held by the `lilo.run`
+owner. Normal exit closes pinned contexts before the main app. If the owner is
+killed, both parent and pinned apps stop after Modal detects owner disconnect
+(heartbeat expiry is asynchronous). Saved checkpoints remain; exit does not
+implicitly save a checkpoint. Modal retains stopped app history.
 
-If the owning process is killed, the main app stops on disconnect. Pinned apps may
-remain registered but scale to zero when idle. Modal retains stopped app history.
+Pinned sampling refreshes `(model_id, version)` demand in the existing ownership
+Dict and resolves its route on every sampling retry. Missing routes wait with
+backoff while the owner polls demand once per second and opens missing apps.
+No Lilo installation or Modal credentials are required in external Tinker clients.
+The owner holds app contexts in memory and limits concurrent app creation to two;
+there is no version-count cap or persistent provisioning-state machine.
+
+Demand idle for ten minutes is removed together with its route, and the owner
+closes the corresponding app. Active sampling leases prevent idle eviction;
+abandoned leases expire. Stale demand also expires if an app never started.
+A sampling retry recreates demand lost during cleanup; old-app cleanup cannot
+remove a replacement route or fresh demand. Existing pinned handles therefore
+recreate an idle-evicted app on their next request. The scan grows with recent
+requested versions, not all historically published versions.
+
+[Ephemeral pinned lifecycle validation](scoped-pinned-ephemeral-result.json) used
+CPU HTTP substitutes with the production owner, app factory, and sampling retry
+loop: missing-route/startup retries, idle eviction and recreation, and normal exit
+passed. Hard-cancelling the owner stopped its child with a minimum container in
+about three minutes, with zero containers remaining. This validates ownership and
+routing; it is not a new GPU inference validation.
 
 ## Smoke test
 
@@ -104,10 +123,10 @@ the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
 cancels the trainer invocation, restores through a new full training client, and
 checks replacement latest sampling, old-handle rejection, and pinned continuity.
 
-[Verified run results](scoped-smoke-result.json): training, base/latest/pinned
+Earlier deployed-pool validation: [verified run results](scoped-smoke-result.json): training, base/latest/pinned
 sampling, and pinned-app shutdown before the parent, with zero remaining containers.
 
-[Verified recovery results](scoped-recovery-result.json): trainer cancellation,
+Earlier deployed-pool validation: [verified recovery results](scoped-recovery-result.json): trainer cancellation,
 checkpoint restoration, replacement latest sampling, old-handle rejection, and
 pinned-app reclamation followed by recreation through the same handle. All test
 apps stopped with zero remaining containers.

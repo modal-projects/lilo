@@ -344,3 +344,21 @@ def test_default_transport_enables_tcp_keepalive() -> None:
     ) as default_transport:
         asyncio.run(sample_task(task(), "http://rollout"))
     default_transport.assert_called_once_with()
+
+
+def test_dynamic_route_wait_refreshes_demand_and_retries_deleted_gateway():
+    async def check():
+        lookups, requests = [], []
+        async def resolve():
+            lookups.append(True)  # The scoped resolver refreshes demand here.
+            if len(lookups) == 1: return ()
+            return ('http://old',) if len(lookups) == 2 else ('http://new',)
+        def handle(request):
+            requests.append(request.url.host)
+            return httpx.Response(404) if request.url.host == 'old' else response(7)
+        with patch('lilo.inference.sampling.asyncio.sleep', AsyncMock()):
+            result = await sample_task(task(), resolve, transport=httpx.MockTransport(handle))
+        assert requests == ['old', 'new']
+        assert len(lookups) == 3
+        assert result['sequences'][0]['tokens'] == [5]
+    asyncio.run(check())

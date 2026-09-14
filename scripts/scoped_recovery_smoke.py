@@ -111,9 +111,9 @@ def main():
                 assert not record.get('leases'), record
                 record['last_used'] = time.time() - 601
             registry.put('pin_records', records)
-            stopped = resources['manage'].remote('reap_pinned')
-            assert stopped
-            event('idle_pinned_reaped', apps=stopped)
+            resources['manage'].remote('pin_demand')
+            assert not registry.get('pin_records')
+            event('idle_pinned_demand_expired')
             sample('pinned_recreated_sample', pinned_client)
             event('body_complete')
         assert report['events'][-1]['name'] == 'body_complete', 'smoke body did not complete'

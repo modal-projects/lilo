@@ -215,7 +215,8 @@ async def _sample_one(
                     flush=True,
                 )
         else:
-            retryable = response.status_code == 409 or response.status_code >= 500
+            retryable = (response.status_code == 409 or response.status_code >= 500
+                         or (response.status_code == 404 and not isinstance(gateway, str)))
             if not retryable:
                 if response.is_error:
                     raise RuntimeError(
