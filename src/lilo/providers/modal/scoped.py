@@ -137,11 +137,11 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
     servers = [register_sampler(
         app, engine=engine, image=sampler_image, assets=assets, bulletin=bulletin,
         registry_name=registry_name, slot=None, model_id="base", version=0,
-        pool=pinned, proxy_secret=proxy_secret, name="BaseSampler")]
+        pool=pinned, proxy_secret=proxy_secret, name="base_sampler")]
     servers.extend(register_sampler(
         app, engine=engine, image=sampler_image, assets=assets, bulletin=bulletin,
         registry_name=registry_name, slot=i, model_id=None, version=None,
-        pool=latest, proxy_secret=proxy_secret, name=f"LatestSampler{i}")
+        pool=latest, proxy_secret=proxy_secret, name="latest_sampler" if max_trainers == 1 else f"latest_sampler_{i}")
         for i in range(max_trainers))
 
     async def spawn_engine(definition_id, instance_id):
@@ -206,7 +206,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 assets=modal.Volume.from_name("lilo-model-assets"),
                 bulletin=modal.Volume.from_name("lilo-snapshot-bulletin", version=2),
                 registry_name=registry_name, slot=None, model_id=model_id, version=version,
-                pool=pinned, proxy_secret=proxy_secret, name="Sampler")
+                pool=pinned, proxy_secret=proxy_secret, name="sampler")
             await child.deploy.aio(name=child_name, environment_name=environment_name)
             route = {"url": await server.get_url.aio(), "function_id": server.object_id}
             await registry.put.aio(key, route)

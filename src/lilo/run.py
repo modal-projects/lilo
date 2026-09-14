@@ -73,7 +73,7 @@ def stop_children(children, stop=stop_app) -> None:
 @contextmanager
 def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
         latest: Pool | None = None,
-        name: str = "lilo-run", api_key: str | None = None,
+        name: str = "lilo", api_key: str | None = None,
         checkpoint_volume: str = "lilo-checkpoints",
         proxy_secret=None):
     """Yield (url, api_key); stop pinned apps before the ephemeral parent.

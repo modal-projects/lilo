@@ -20,7 +20,8 @@ with lilo.run(
     # Existing Tinker forward_backward, optim_step and sampling methods.
 ```
 
-`warm=True` starts one trainer and waits for it to load. It uses an explicit
+`warm=True` starts one trainer and waits for it to load before entering the
+`with` body. Samplers start separately on demand. It uses an explicit
 invocation, not a minimum-container setting. `max_trainers` limits the number of
 training models; each gets its own latest sampler pool. Trainers stay alive while
 the context is open rather than being reclaimed by an idle cleaner.
@@ -29,6 +30,10 @@ the context is open rather than being reclaimed by an idle cleaner.
 when a model is created. Base and pinned-version samplers always have a zero minimum.
 Pinned versions are created on demand through the normal Tinker sampling API;
 there is no separate pinned-pool configuration to provide.
+
+Apps default to `lilo-<hash>`. The sampler functions are `base_sampler` and
+`latest_sampler`; multiple trainer slots use `latest_sampler_0`, `latest_sampler_1`,
+and so on.
 
 ## Your own engine
 
