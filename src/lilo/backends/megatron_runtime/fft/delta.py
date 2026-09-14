@@ -26,7 +26,7 @@ from lilo.inference.fft_bulletin import (
     FFTSnapshotBulletin,
     FFTSnapshotStore,
 )
-from lilo.providers.modal.fft_pool import FFTLatestPool
+from lilo.providers.modal.scoped_pool import publication_pool
 
 _INDEX = "model.safetensors.index.json"
 _MAX_SHARD_BYTES = 512 << 20
@@ -253,7 +253,7 @@ class FFTDeltaWriter:
                 encoding="utf-8",
             )
             board.prepare(snapshot.ref, staging, metadata=snapshot.metadata)
-            pool = FFTLatestPool(
+            pool = publication_pool(
                 os.environ["LILO_DEFINITION_ID"],
                 snapshot.ref.run_id,
             )

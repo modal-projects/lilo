@@ -153,6 +153,7 @@ def start_fft_sidecar(
     bulletin_volume: str,
     run_id: str,
     pinned_version: int | None = None,
+    scoped_registry: str | None = None,
 ) -> subprocess.Popen:
     command = [
         sys.executable,
@@ -171,6 +172,8 @@ def start_fft_sidecar(
         "--run-id",
         run_id,
     ]
+    if scoped_registry is not None:
+        command.extend(["--scoped-registry", scoped_registry])
     if pinned_version is not None:
         command.extend(
             [
