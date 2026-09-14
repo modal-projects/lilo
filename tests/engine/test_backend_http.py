@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from lilo.engine import Engine, FutureStatus
-from lilo.engine.api import BackendCommand, OperationKind
+from lilo.engine.api import Command, OperationKind
 from lilo.engine.backend_http import HttpBackendClient, create_backend_app
 from lilo.engine.operations import parse_operation_payload
 from tests.support import EchoExecutor
@@ -126,7 +126,7 @@ def test_backend_batches_cross_http() -> None:
         executor = http_executor(EchoExecutor())
         results = await executor.execute_forward_backward_batch(
             (
-                BackendCommand(
+                Command(
                     "model-a",
                     OperationKind.FORWARD_BACKWARD,
                     parse_operation_payload(
@@ -142,7 +142,7 @@ def test_backend_batches_cross_http() -> None:
                         },
                     ),
                 ),
-                BackendCommand(
+                Command(
                     "model-b",
                     OperationKind.FORWARD_BACKWARD,
                     parse_operation_payload(

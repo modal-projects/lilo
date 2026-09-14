@@ -11,7 +11,7 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 from lilo.encoding import fingerprint
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
 
-from .api import BackendCommand, Executor, FutureState, FutureStatus, OperationKind
+from .api import Command, Executor, FutureState, FutureStatus, OperationKind
 from .ingress import decode_forward_backward, decode_json_operation
 from .operations import (
     LoadCheckpointPayload,
@@ -336,7 +336,7 @@ class Engine:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
                     results = await self.executor.execute_forward_backward_batch(
                         tuple(
-                            BackendCommand(item.model_id, item.kind, item.payload)
+                            Command(item.model_id, item.kind, item.payload)
                             for item in operations
                         )
                     )

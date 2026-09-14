@@ -16,7 +16,7 @@ from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 from lilo.inference.fft_bulletin import FFTSnapshotBulletin
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -50,7 +50,7 @@ from .megatron_runtime.fft.model import (
 from .megatron_runtime.fft.optimizer import run_fft_optimizer_step
 
 
-class FFTMegatronBackend(CommandBackend):
+class FFTMegatronBackend(Backend):
     """Single-model Megatron backend for full-parameter training."""
 
     def __init__(

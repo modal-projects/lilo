@@ -14,7 +14,7 @@ from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -67,7 +67,7 @@ class LoraJobState:
     load_optimizer: bool = False
 
 
-class LoraMegatronBackend(CommandBackend):
+class LoraMegatronBackend(Backend):
     def __init__(
         self,
         config: EngineModelConfig,

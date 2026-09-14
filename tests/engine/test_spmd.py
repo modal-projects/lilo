@@ -10,7 +10,7 @@ from tinker import ForwardBackwardOutput, OptimStepResponse, TensorData
 
 from lilo.backends import ForwardBatch, ModelSpec, SamplerPublication
 from lilo.engine import DistributedExecutor, OperationKind
-from lilo.engine.api import BackendCommand
+from lilo.engine.api import Command
 from lilo.engine.operations import parse_model_spec, parse_operation_payload
 from lilo.engine.spmd import initialize_distributed_runtime
 
@@ -268,9 +268,9 @@ def test_distributed_executor_batches_compatible_forward_backward() -> None:
 
         outputs = await executor.execute_forward_backward_batch(
             (
-                BackendCommand("model-a", OperationKind.FORWARD_BACKWARD, payload),
-                BackendCommand("model-b", OperationKind.FORWARD_BACKWARD, payload),
-                BackendCommand("model-a", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-a", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-b", OperationKind.FORWARD_BACKWARD, payload),
+                Command("model-a", OperationKind.FORWARD_BACKWARD, payload),
             )
         )
 

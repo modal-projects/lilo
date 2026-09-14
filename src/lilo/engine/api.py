@@ -41,7 +41,7 @@ class FutureState:
 
 
 @dataclass(frozen=True)
-class BackendCommand:
+class Command:
     """A model operation passed from the engine to its executor."""
 
     model_id: str
@@ -111,7 +111,7 @@ class Executor(Protocol):
 
     async def execute_forward_backward_batch(
         self,
-        executions: tuple[BackendCommand, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]: ...
 
     async def capture_snapshot(

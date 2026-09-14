@@ -65,7 +65,7 @@ class SamplerPublication:
     optimizer_step: int
 
 
-class CommandBackend(Protocol):
+class Backend(Protocol):
     def accept_model(self, model_id: str, spec: ModelSpec) -> None: ...
 
     def forward_backward(

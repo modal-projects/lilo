@@ -10,7 +10,7 @@ import uvicorn
 from tinker import AdamParams
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
-from lilo.engine.api import EngineApi, BackendCommand, OperationKind
+from lilo.engine.api import EngineApi, Command, OperationKind
 from lilo.engine.operations import (
     OperationPayload,
     SaveWeightsForSamplerPayload,
@@ -40,7 +40,7 @@ class EchoExecutor:
 
     async def execute_forward_backward_batch(
         self,
-        executions: tuple[BackendCommand, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         return tuple(
             [

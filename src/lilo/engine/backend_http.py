@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from .api import BackendCommand, Executor, OperationKind
+from .api import Command, Executor, OperationKind
 from .operations import (
     OperationPayload,
     parse_model_spec,
@@ -77,7 +77,7 @@ def create_backend_app(executor: Executor) -> FastAPI:
         return await run(
             executor.execute_forward_backward_batch(
                 tuple(
-                    BackendCommand(
+                    Command(
                         item.model_id,
                         item.kind,
                         parse_operation_payload(item.kind, item.payload),
@@ -163,7 +163,7 @@ class HttpBackendClient:
 
     async def execute_forward_backward_batch(
         self,
-        executions: tuple[BackendCommand, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         result = await self._post(
             "/execute_forward_backward_batch",

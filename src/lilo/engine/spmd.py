@@ -14,13 +14,13 @@ from tinker import AdamParams, ForwardBackwardOutput
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
 from lilo.backends.contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ForwardItem,
     ModelSpec,
 )
 
-from .api import BackendCommand, OperationKind
+from .api import Command, OperationKind
 from .operations import (
     LoadCheckpointPayload,
     OperationPayload,
@@ -90,7 +90,7 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
 class DistributedExecutor:
     def __init__(
         self,
-        backend: CommandBackend,
+        backend: Backend,
         *,
         command_group=None,
         checkpoint_persistence_group=None,
@@ -118,7 +118,7 @@ class DistributedExecutor:
     ) -> object:
         if kind == OperationKind.FORWARD_BACKWARD:
             (result,) = await self.execute_forward_backward_batch(
-                (BackendCommand(model_id, kind, payload),)
+                (Command(model_id, kind, payload),)
             )
             return result
 
@@ -170,7 +170,7 @@ class DistributedExecutor:
 
     async def execute_forward_backward_batch(
         self,
-        executions: tuple[BackendCommand, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         if not executions:
             raise ValueError("forward_backward batch cannot be empty")

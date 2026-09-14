@@ -176,7 +176,7 @@ handles asynchronous scheduling and calls the backend in rank lockstep.
 
 Create a backend module that provides:
 
-- a `CommandBackend` implementation for model acceptance, forward/backward,
+- a `Backend` implementation for model acceptance, forward/backward,
   optimizer steps, checkpoints, sampler publication, unload, and shutdown;
 - `build_executor()`, which initializes distributed communication, constructs
   the backend, and returns its `DistributedExecutor`.
@@ -197,7 +197,7 @@ run_engine_with_backend(
 **Distributed Executor**: All ranks participate in commands through
 [`engine/spmd.py`](../src/lilo/engine/spmd.py). Rank zero exposes the backend
 HTTP bridge while the other ranks follow its broadcasts through `run_follower_loop`.
-The `Engine` schedules operations and passes `BackendCommand` values to its
+The `Engine` schedules operations and passes `Command` values to its
 executor. `HttpBackendClient` in
 [`engine/backend_http.py`](../src/lilo/engine/backend_http.py) implements that
 interface across the local training subprocess boundary.
