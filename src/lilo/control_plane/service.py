@@ -125,14 +125,10 @@ class ControlPlane:
         session_idle_timeout: float | None = None,
         session_id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
         clock: Callable[[], float] = time.time,
-        ensure_sampling_pool: Callable[
-            [SamplingSessionRecord], Awaitable[None]
-        ]
+        ensure_sampling_pool: Callable[[SamplingSessionRecord], Awaitable[None]]
         | None = None,
         sampling_task_stores: SessionKeyValueStores | None = None,
-        read_checkpoint_metadata: Callable[
-            [str], Awaitable[Mapping[str, object]]
-        ]
+        read_checkpoint_metadata: Callable[[str], Awaitable[Mapping[str, object]]]
         | None = None,
         reconcile_trainers: Callable[[str], Awaitable[bool | None]] | None = None,
         prepare_model: Callable[[ModelRecord], Awaitable[None]] | None = None,
@@ -382,14 +378,11 @@ class ControlPlane:
             raise ValueError("checkpoint metadata has no base_model")
         if not isinstance(definition_id, str) or not definition_id:
             raise ValueError("checkpoint metadata has no engine_definition_id")
-        if (
-            not isinstance(parameterization, Mapping)
-            or parameterization.get("type") not in {"lora", "full"}
-        ):
+        if not isinstance(parameterization, Mapping) or parameterization.get(
+            "type"
+        ) not in {"lora", "full"}:
             raise ValueError("checkpoint metadata has invalid parameterization")
-        if parameterization["type"] == "lora" and not isinstance(
-            lora_config, Mapping
-        ):
+        if parameterization["type"] == "lora" and not isinstance(lora_config, Mapping):
             raise ValueError("checkpoint metadata has no lora_config")
         if parameterization["type"] == "full" and lora_config is not None:
             raise ValueError("full checkpoint metadata has lora_config")
@@ -415,9 +408,7 @@ class ControlPlane:
         if base_model is not None and base_model != saved_base_model:
             raise ValueError("base_model does not match checkpoint")
         if definition_ids is not None and definition_id not in definition_ids:
-            raise ValueError(
-                f"checkpoint definition {definition_id} is not deployed"
-            )
+            raise ValueError(f"checkpoint definition {definition_id} is not deployed")
         return await self.create_model(
             session_id=session_id,
             model_seq_id=model_seq_id,
@@ -563,8 +554,10 @@ class ControlPlane:
         export_seq_id = None
         expires_at = None
         latest = False
+        telemetry_tags = {}
         if model_path is not None:
             artifact = await self.get_sampler_artifact(model_path)
+            telemetry_tags = artifact.telemetry_tags
             if base_model is not None and base_model != artifact.base_model:
                 raise ValueError("base_model does not match model_path")
             if (
@@ -592,6 +585,7 @@ class ControlPlane:
             sampling_session_seq_id,
         )
         session = SamplingSessionRecord(
+            telemetry_tags=telemetry_tags,
             sampling_session_id=sampling_session_id,
             session_id=session_id,
             sampling_session_seq_id=sampling_session_seq_id,
@@ -655,9 +649,7 @@ class ControlPlane:
         self._check_expiry("sampler artifact", model_path, artifact.expires_at)
         return artifact
 
-    def _check_expiry(
-        self, kind: str, key: str, expires_at: float | None
-    ) -> None:
+    def _check_expiry(self, kind: str, key: str, expires_at: float | None) -> None:
         if expires_at is not None and expires_at <= self.clock():
             raise RecordUnavailable(kind, key, "expired")
 
@@ -723,6 +715,8 @@ class ControlPlane:
                 publish_version=session.publish_version,
                 payload=request,
                 latest=session.latest,
+                accepted_at=stored.created_at,
+                telemetry_tags=session.telemetry_tags,
             )
         )
         await task_store.put(
@@ -985,7 +979,9 @@ class ControlPlane:
             assert export.sampling_session_seq_id is not None
             self._check_expiry(
                 "sampling session",
-                self._sampling_session_id(model.session_id, export.sampling_session_seq_id),
+                self._sampling_session_id(
+                    model.session_id, export.sampling_session_seq_id
+                ),
                 expires_at,
             )
             await self._open_session(model.session_id)
@@ -994,7 +990,11 @@ class ControlPlane:
             model.model_id,
             publish_version,
         )
+        from lilo.telemetry.metadata import experiment_tags
+
+        telemetry_tags = experiment_tags((model.spec or {}).get("user_metadata"))
         latest = SamplerArtifactRecord(
+            telemetry_tags=telemetry_tags,
             model_path=latest_path,
             model_id=model.model_id,
             export_seq_id=export.seq_id,
@@ -1007,9 +1007,7 @@ class ControlPlane:
             sampler_artifact_key(latest_path),
             latest.model_dump(mode="json"),
         )
-        versioned_latest = latest.model_copy(
-            update={"model_path": latest_version_path}
-        )
+        versioned_latest = latest.model_copy(update={"model_path": latest_version_path})
         inserted = await self.kv.put_if_absent(
             sampler_artifact_key(latest_version_path),
             versioned_latest.model_dump(mode="json"),
@@ -1017,11 +1015,14 @@ class ControlPlane:
         stored_latest = SamplerArtifactRecord.model_validate(inserted.value)
         if stored_latest.model_copy(
             update={"export_seq_id": export.seq_id, "created_at": completed_at}
-        ) != versioned_latest:
+        ).model_dump(exclude={"telemetry_tags"}) != versioned_latest.model_dump(
+            exclude={"telemetry_tags"}
+        ):
             raise SequenceConflict(model.model_id, export.seq_id)
         if export.name is not None:
             model_path = self._sampler_model_path(model.model_id, export.name)
             artifact = SamplerArtifactRecord(
+                telemetry_tags=telemetry_tags,
                 model_path=model_path,
                 model_id=model.model_id,
                 export_seq_id=export.seq_id,
@@ -1035,7 +1036,9 @@ class ControlPlane:
                 sampler_artifact_key(model_path),
                 artifact.model_dump(mode="json"),
             )
-            if SamplerArtifactRecord.model_validate(inserted.value) != artifact:
+            if SamplerArtifactRecord.model_validate(inserted.value).model_dump(
+                exclude={"telemetry_tags"}
+            ) != artifact.model_dump(exclude={"telemetry_tags"}):
                 raise SequenceConflict(model.model_id, export.seq_id)
             return {
                 "type": "save_weights_for_sampler",
@@ -1047,6 +1050,7 @@ class ControlPlane:
             export.sampling_session_seq_id,
         )
         session = SamplingSessionRecord(
+            telemetry_tags=telemetry_tags,
             sampling_session_id=sampling_session_id,
             session_id=model.session_id,
             sampling_session_seq_id=export.sampling_session_seq_id,
@@ -1064,7 +1068,9 @@ class ControlPlane:
             sampling_session_key(sampling_session_id),
             session.model_dump(mode="json"),
         )
-        if SamplingSessionRecord.model_validate(inserted.value) != session:
+        if SamplingSessionRecord.model_validate(inserted.value).model_dump(
+            exclude={"telemetry_tags"}
+        ) != session.model_dump(exclude={"telemetry_tags"}):
             raise SequenceConflict(
                 model.session_id,
                 export.sampling_session_seq_id,
@@ -1196,9 +1202,7 @@ class ControlPlane:
         definition_id = model.engine_definition_id
         try:
             active = await self.engines.active_instances(definition_id)
-            instances = [
-                instance for instance in active if instance.state == "running"
-            ]
+            instances = [instance for instance in active if instance.state == "running"]
             if not active:
                 if self.trainer_autoscaling(definition_id):
                     if self.reconcile_trainers is not None:
@@ -1221,9 +1225,9 @@ class ControlPlane:
         accepted_instance = None
         for instance in instances:
             try:
-                accepted = await self.engines.client(
-                    instance.instance_id
-                ).accept_model(model.model_id, model.spec)
+                accepted = await self.engines.client(instance.instance_id).accept_model(
+                    model.model_id, model.spec
+                )
             except ValueError:
                 raise
             except Exception:
@@ -1279,9 +1283,9 @@ class ControlPlane:
         placement = PlacementRecord.model_validate(inserted.value)
         if placement.engine_instance_id != accepted_instance.instance_id:
             try:
-                await self.engines.client(
-                    accepted_instance.instance_id
-                ).unload_model(model.model_id)
+                await self.engines.client(accepted_instance.instance_id).unload_model(
+                    model.model_id
+                )
             except Exception:
                 logging.getLogger(__name__).exception(
                     "release duplicate placement %s from %s",

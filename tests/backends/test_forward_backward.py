@@ -532,3 +532,63 @@ def test_packing_metrics_are_rank_zero_and_reduction_compatible(capsys) -> None:
         "packing_padding_fraction:mean": 1 / 3,
         "packing_utilization:mean": 0.5,
     }
+
+
+@pytest.mark.parametrize(
+    "loss_name,datum,expected",
+    [
+        (
+            "cross_entropy",
+            training_datum(input_ids=(1, 2, 3), target_tokens=(), weights=()),
+            2,
+        ),
+        (
+            "cross_entropy",
+            training_datum(
+                input_ids=(1, 2, 3), target_tokens=(2, -100, 4), weights=(0.5, 1.0, 0.0)
+            ),
+            1,
+        ),
+        (
+            "importance_sampling",
+            training_datum(
+                input_ids=(1, 2, 3),
+                target_tokens=(2, 3, 4),
+                weights=(),
+                loss_inputs={
+                    "logprobs": (0.0, -0.7, -0.3),
+                    "advantages": (0.0, 1.0, -1.0),
+                },
+            ),
+            2,
+        ),
+    ],
+)
+def test_observed_loss_tokens_use_resolved_mask_and_valid_targets(
+    loss_name, datum, expected
+):
+    from lilo.telemetry import backend
+
+    with backend.recording() as measurements:
+        build_microbatches(
+            forward_batch(loss_name, datum), None, max_slots=None, max_seq_length=8
+        )
+    assert measurements.models == {"model": {"lilo.loss_tokens": expected}}
+
+
+def test_observed_packing_counts_are_global_before_data_parallel_sharding():
+    from lilo.telemetry import backend
+
+    request = packed_batch(5, 3)
+    with backend.recording() as measurements:
+        sequences = build_microbatches(
+            request, {"model-a": 0}, max_slots=1, max_seq_length=8
+        )
+        packed = pack_microbatches(sequences, max_tokens=16, pad_to_multiple=4)
+        log_packing(
+            request, packed, input_sequences=2, raw_tokens=8, token_capacity=16, rank=0
+        )
+    assert measurements.attributes == {
+        "lilo.padded_tokens": 12,
+        "lilo.packed_microbatch_count": 1,
+    }

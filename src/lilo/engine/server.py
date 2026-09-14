@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
@@ -24,6 +26,36 @@ PERSISTED_OPERATIONS = {
     OperationKind.SAVE_WEIGHTS,
     OperationKind.SAVE_WEIGHTS_FOR_SAMPLER,
 }
+PERSIST_LANES = {
+    OperationKind.SAVE_WEIGHTS: "checkpoint",
+    OperationKind.SAVE_WEIGHTS_FOR_SAMPLER: "sampler",
+}
+
+
+class Observer(Protocol):
+    def register_model(self, model_id: str, spec: object) -> None: ...
+    def forget_model(self, model_id: str) -> None: ...
+    def begin(self, operation: Operation) -> None: ...
+    def reuse(self, request_id: str) -> None: ...
+    def finish(self, operation: Operation, state: FutureState) -> None: ...
+    def set_activity(self, lane: str, operation: str) -> None: ...
+
+    def span(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        name: str,
+        lane: str,
+        t0: float,
+        t1: float | None = None,
+        **attrs,
+    ) -> None: ...
+
+    def state(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        state: str,
+        **detail,
+    ) -> None: ...
 
 
 def _failure(exc: BaseException, what: str) -> str:
@@ -81,8 +113,10 @@ class Engine:
         max_models: int = 8,
         max_buffered: int = 256,
         max_results: int = 128,
+        observer: Observer | None = None,
     ) -> None:
         self.executor = executor
+        self.observer = observer
         self.max_models = max_models
         self.max_buffered = max_buffered
         self.max_results = max_results
@@ -105,6 +139,8 @@ class Engine:
             if registering:
                 if self.draining or len(self._models) >= self.max_models:
                     return False
+                if self.observer is not None:
+                    self.observer.register_model(model_id, spec)
                 registration = asyncio.get_running_loop().create_future()
                 model = self._models[model_id] = _ModelState(
                     spec=spec,
@@ -122,6 +158,10 @@ class Engine:
     async def model_ids(self) -> tuple[str, ...]:
         async with self._lock:
             return tuple(self._models)
+
+    @property
+    def loaded(self) -> tuple[str, ...]:
+        return tuple(self._models)
 
     async def forward_backward(self, body: bytes, content_type: str) -> str:
         model_id, seq_id, kind, payload = decode_forward_backward(body, content_type)
@@ -220,6 +260,11 @@ class Engine:
                     if done is None:
                         done = asyncio.get_running_loop().create_future()
                         model.unload = done
+                        if self.observer is not None:
+                            for pending in model.buffered.values():
+                                self.observer.finish(
+                                    pending, FutureState(FutureStatus.FAILED)
+                                )
                         model.buffered.clear()
                         for seq_id in model.fingerprints:
                             self._futures.pop(f"{model_id}:{seq_id}", None)
@@ -283,6 +328,8 @@ class Engine:
             if seen is not None:
                 if seen != mark:
                     raise SequenceConflict(operation.model_id, operation.seq_id)
+                if self.observer is not None:
+                    self.observer.reuse(operation.request_id)
                 return operation.request_id
             if operation.seq_id < model.next_seq:
                 raise SequenceConflict(operation.model_id, operation.seq_id)
@@ -290,6 +337,8 @@ class Engine:
                 raise EngineSaturated("draining")
             if len(model.buffered) >= self.max_buffered:
                 raise EngineSaturated("operation buffer full")
+            if self.observer is not None:
+                self.observer.begin(operation)
             model.fingerprints[operation.seq_id] = mark
             model.buffered[operation.seq_id] = operation
             self._futures[operation.request_id] = FutureState(FutureStatus.PENDING)
@@ -306,14 +355,34 @@ class Engine:
             asyncio.create_task(self._persistence_loop(self._sampler_persistence)),
         )
 
+    def _observe_state(self, models: tuple[str, ...] | list[str], state: str) -> None:
+        if self.observer is not None:
+            self.observer.state(tuple(models), state)
+
+    def _observe_span(
+        self,
+        models: tuple[str, ...] | list[str],
+        name: str,
+        lane: str,
+        started: float,
+        **attrs,
+    ) -> None:
+        if self.observer is not None and models:
+            self.observer.span(tuple(models), name, lane, started, time.time(), **attrs)
+
     async def _run_loop(self) -> None:
+        busy = False
         while True:
             async with self._lock:
+                if busy and (self._closing or self._ready_batch() is None):
+                    self._observe_state(tuple(self._models), "idle")
+                    busy = False
                 while not self._closing and (operations := self._ready_batch()) is None:
                     await self._work.wait()
                 if self._closing:
                     return
                 self._consume_ready(operations)
+            busy = True
             operation = operations[0]
             if isinstance(operation, _AcceptOperation):
                 await self._run_accept(operation)
@@ -332,6 +401,11 @@ class Engine:
             if operation.kind in PERSISTED_OPERATIONS:
                 await self._capture_for_persistence(operation)
                 continue
+            models = tuple(dict.fromkeys(item.model_id for item in operations))
+            self._observe_state(models, f"executing:{operation.kind.value}")
+            if operation.kind == OperationKind.LOAD_WEIGHTS:
+                await self._join_persistence()
+            started = time.time()
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
                     results = await self.executor.execute_forward_backward_batch(
@@ -343,8 +417,6 @@ class Engine:
                     if len(results) != len(operations):
                         raise RuntimeError("executor returned the wrong result count")
                 else:
-                    if operation.kind == OperationKind.LOAD_WEIGHTS:
-                        await self._join_persistence()
                     results = (
                         await self.executor.execute(
                             operation.model_id,
@@ -361,12 +433,23 @@ class Engine:
                 states = tuple(
                     FutureState(FutureStatus.FAILED, error=error) for _ in operations
                 )
+            self._observe_span(
+                models,
+                operation.kind.value,
+                "gpu",
+                started,
+                seq_ids=[item.seq_id for item in operations],
+                n=len(operations),
+                ok=all(state.status == FutureStatus.COMPLETE for state in states),
+            )
             async with self._lock:
                 for item, state in zip(operations, states, strict=True):
                     self._finish(item, state)
 
     async def _run_accept(self, operation: _AcceptOperation) -> None:
         error = None
+        started = time.time()
+        self._observe_state((operation.model_id,), "executing:accept")
         try:
             await self._join_persistence()
             await self.executor.accept_model(operation.model_id, operation.spec)
@@ -385,6 +468,13 @@ class Engine:
                 await self.executor.unload_model(operation.model_id)
             except Exception:
                 logging.getLogger(__name__).exception("executor unload_model")
+        self._observe_span(
+            (operation.model_id,),
+            "accept",
+            "gpu",
+            started,
+            ok=error is None,
+        )
         async with self._lock:
             model = self._models.get(operation.model_id)
             if model is not None and model.registration is operation.done:
@@ -399,11 +489,18 @@ class Engine:
 
     async def _run_unload(self, operation: _UnloadOperation) -> None:
         error = None
+        started = time.time()
+        self._observe_state((operation.model_id,), "executing:unload")
         try:
             await self._join_persistence()
             await self.executor.unload_model(operation.model_id)
         except Exception as exc:  # noqa: BLE001
             error = exc
+        self._observe_span(
+            (operation.model_id,), "unload", "gpu", started, ok=error is None
+        )
+        if self.observer is not None:
+            self.observer.forget_model(operation.model_id)
         async with self._lock:
             model = self._models.get(operation.model_id)
             if model is not None and model.unload is operation.done:
@@ -421,7 +518,19 @@ class Engine:
             if operation.kind == OperationKind.SAVE_WEIGHTS
             else self._sampler_persistence
         )
+        self._observe_state((operation.model_id,), f"executing:{operation.kind.value}")
+        wait_started = time.time()
         await queue.join()
+        self._observe_span(
+            (operation.model_id,),
+            f"wait_persistence:{operation.kind.value}",
+            "gpu",
+            wait_started,
+            seq_ids=[operation.seq_id],
+        )
+        name = f"capture:{operation.kind.value}"
+        self._observe_state((operation.model_id,), f"executing:{name}")
+        started = time.time()
         try:
             capture = await self.executor.capture_snapshot(
                 operation.model_id,
@@ -429,20 +538,38 @@ class Engine:
                 operation.payload,
             )
         except Exception as exc:  # noqa: BLE001
+            self._observe_span(
+                (operation.model_id,),
+                name,
+                "gpu",
+                started,
+                seq_ids=[operation.seq_id],
+                ok=False,
+            )
             async with self._lock:
                 self._finish(
                     operation,
-                    FutureState(
-                        FutureStatus.FAILED,
-                        error=_failure(exc, f"capture:{operation.kind.value}"),
-                    ),
+                    FutureState(FutureStatus.FAILED, error=_failure(exc, name)),
                 )
             return
+        self._observe_span(
+            (operation.model_id,),
+            name,
+            "gpu",
+            started,
+            seq_ids=[operation.seq_id],
+            ok=True,
+        )
         await queue.put(_PersistJob(operation, capture))
 
     async def _persistence_loop(self, queue: asyncio.Queue[_PersistJob]) -> None:
         while True:
             job = await queue.get()
+            started = time.time()
+            if self.observer is not None:
+                self.observer.set_activity(
+                    PERSIST_LANES[job.operation.kind], job.operation.kind.value
+                )
             try:
                 try:
                     result = await self.executor.persist_snapshot(
@@ -457,9 +584,21 @@ class Engine:
                         FutureStatus.FAILED,
                         error=_failure(exc, f"persist:{job.operation.kind.value}"),
                     )
+                self._observe_span(
+                    (job.operation.model_id,),
+                    f"persist:{job.operation.kind.value}",
+                    PERSIST_LANES[job.operation.kind],
+                    started,
+                    seq_ids=[job.operation.seq_id],
+                    ok=state.status == FutureStatus.COMPLETE,
+                )
                 async with self._lock:
                     self._finish(job.operation, state)
             finally:
+                if self.observer is not None:
+                    self.observer.set_activity(
+                        PERSIST_LANES[job.operation.kind], "idle"
+                    )
                 queue.task_done()
 
     async def _join_persistence(self) -> None:
@@ -469,6 +608,8 @@ class Engine:
         )
 
     def _finish(self, operation: Operation, state: FutureState) -> None:
+        if self.observer is not None:
+            self.observer.finish(operation, state)
         model = self._models.get(operation.model_id)
         if model is not None and model.unload is None:
             self._futures[operation.request_id] = state

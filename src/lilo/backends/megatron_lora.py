@@ -12,6 +12,7 @@ from megatron.core import parallel_state
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
+from lilo.telemetry.backend import measured
 
 from .contract import (
     Backend,
@@ -429,6 +430,7 @@ class LoraMegatronBackend(Backend):
                 self.jobs[item.model_id].accumulating = True
         return outputs
 
+    @measured("optimizer")
     def _optim_step_batch(
         self,
         model_ids: tuple[str, ...],

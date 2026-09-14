@@ -8,6 +8,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from lilo.telemetry import backend as telemetry
+from lilo.telemetry.otlp import provider
+
 from .api import Command, Executor, OperationKind
 from .operations import (
     OperationPayload,
@@ -44,11 +47,22 @@ def create_backend_app(executor: Executor) -> FastAPI:
     app = FastAPI()
     app.state.executor_closed = False
 
+    @app.middleware("http")
+    async def collect_measurements(request, call_next):
+        with telemetry.recording(request.headers.get("x-lilo-telemetry") == "1"):
+            return await call_next(request)
+
     async def run(action: Awaitable[object]) -> JSONResponse:
+        def respond(content, status=200):
+            measurements = telemetry.active.get()
+            if measurements is not None:
+                content["telemetry"] = measurements.as_dict()
+            return JSONResponse(status_code=status, content=content)
+
         try:
-            return JSONResponse({"result": await action})
-        except Exception as exc:
-            return JSONResponse(status_code=500, content={"error": str(exc)})
+            return respond({"result": await action})
+        except Exception as exc:  # noqa: BLE001 - executor errors cross the HTTP boundary
+            return respond({"error": str(exc)}, status=500)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -219,14 +233,27 @@ class HttpBackendClient:
         await self._post("/close", {})
 
     async def _post(self, path: str, body: dict) -> object:
+        telemetry.received.set(None)
+        enabled = provider() is not None
         try:
-            response = await self.http.post(path, json=body)
+            response = await self.http.post(
+                path,
+                json=body,
+                headers={"x-lilo-telemetry": "1"} if enabled else {},
+            )
         except httpx.ReadTimeout as exc:
             if self.on_read_timeout is not None:
                 self.on_read_timeout()
             raise TimeoutError(
                 f"backend {path} exceeded {self.read_timeout:g}s"
             ) from exc
+        if enabled:
+            try:
+                evidence = response.json().get("telemetry")
+                if isinstance(evidence, dict):
+                    telemetry.received.set(evidence)
+            except (ValueError, AttributeError):
+                pass
         if not response.is_success:
             try:
                 message = response.json()["error"]
