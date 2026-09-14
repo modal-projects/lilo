@@ -7,6 +7,7 @@ import threading
 import uuid
 from collections.abc import Mapping
 from dataclasses import asdict
+from datetime import timedelta
 from typing import Any
 
 from tinker import AdamParams, ForwardBackwardOutput
@@ -26,6 +27,12 @@ from .operations import (
     SaveWeightsForSamplerPayload,
     SaveWeightsPayload,
 )
+
+# Follower broadcasts wait for the next command, including time spent idle.
+# Gloo's default is 30 minutes; keep these groups alive beyond the 24-hour
+# trainer lifetime without changing the model's compute collective timeouts.
+COMMAND_LANE_TIMEOUT = timedelta(days=2)
+
 
 def _serialize_forward_output(output: ForwardBackwardOutput) -> dict[str, Any]:
     loss_fn_outputs = []
@@ -63,17 +70,17 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
     os.environ.setdefault("MASTER_PORT", "29541")
     dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     command_group = (
-        dist.new_group(backend="gloo")
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
     checkpoint_persistence_group = (
-        dist.new_group(backend="gloo")
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
     sampler_persistence_group = (
-        dist.new_group(backend="gloo")
+        dist.new_group(backend="gloo", timeout=COMMAND_LANE_TIMEOUT)
         if world_size > 1
         else None
     )
