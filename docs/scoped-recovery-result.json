@@ -1,0 +1,156 @@
+{
+  "started_at": 1789407751.7870293,
+  "events": [
+    {
+      "name": "ready",
+      "at": 1789407849.9137135,
+      "url": "https://modal-labs-connor-dev--lilo-recovery-test-36e6f6e1ab2f-api-dev.us-west.modal.run"
+    },
+    {
+      "name": "training_client",
+      "at": 1789407858.2746363,
+      "model_id": "193455720534f1290e6b57c1c226d70b"
+    },
+    {
+      "name": "initial_checkpoint_loaded",
+      "at": 1789407890.8086734,
+      "path": "tinker://5a020953ea1f3fb9553b170cfea32af1/weights/recovery-checkpoint"
+    },
+    {
+      "name": "base_sample",
+      "at": 1789408111.4096394,
+      "text": " Paris.\nA. True\nB. False\nAnswer:\nA\n\n",
+      "tokens": 16
+    },
+    {
+      "name": "latest_sample",
+      "at": 1789408344.3479776,
+      "text": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is",
+      "tokens": 16
+    },
+    {
+      "name": "pinned_publication",
+      "at": 1789408345.8702753,
+      "path": "tinker://193455720534f1290e6b57c1c226d70b:train:0/sampler_weights/smoke-pinned"
+    },
+    {
+      "name": "pinned_sample",
+      "at": 1789408530.2527032,
+      "text": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is",
+      "tokens": 16
+    },
+    {
+      "name": "checkpoint",
+      "at": 1789408530.2529364,
+      "path": "tinker://5a020953ea1f3fb9553b170cfea32af1/weights/recovery-checkpoint"
+    },
+    {
+      "name": "trainer_cancelled",
+      "at": 1789408534.3538702
+    },
+    {
+      "name": "replacement_created",
+      "at": 1789408660.2860584,
+      "model_id": "79acb82c6e891ce3c74ebda1d6e21055"
+    },
+    {
+      "name": "restored",
+      "at": 1789408693.098015
+    },
+    {
+      "name": "replacement_latest_sample",
+      "at": 1789408783.662972,
+      "text": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is",
+      "tokens": 16
+    },
+    {
+      "name": "old_latest_rejected",
+      "at": 1789409087.9878736,
+      "error": "Error code: 400 - {'error': 'invalid_request', 'message': 'sampling model was replaced; use a new sampling client'}"
+    },
+    {
+      "name": "old_pinned_still_works",
+      "at": 1789409321.8625457,
+      "text": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is",
+      "tokens": 16
+    },
+    {
+      "name": "idle_pinned_reaped",
+      "at": 1789409341.287143,
+      "apps": [
+        "lilo-recovery-test-36e6f6e1ab2f-pin-78fd2a81ab16"
+      ]
+    },
+    {
+      "name": "pinned_recreated_sample",
+      "at": 1789409535.5943935,
+      "text": " Paris.\n\nThe capital of France is Paris.\n\nThe capital of France is",
+      "tokens": 16
+    },
+    {
+      "name": "body_complete",
+      "at": 1789409535.5947232
+    },
+    {
+      "name": "context_exited",
+      "at": 1789409565.731164
+    }
+  ],
+  "status": "passed",
+  "finished_at": 1789409565.7314613,
+  "gpu_runtime_revision": "7ace97c",
+  "cleanup_verified": {
+    "apps": [
+      {
+        "app_id": "ap-GGCNekLEhErwXUp6oqjyWb",
+        "description": "lilo-recovery-test-36e6f6e1ab2f",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 17:42:32+00:00",
+        "stopped_at": "2026-09-14 18:12:50+00:00"
+      },
+      {
+        "app_id": "ap-dGjk28Het4aLtH8GMhyMSv",
+        "description": "lilo-recovery-test-36e6f6e1ab2f-pin-78fd2a81ab16",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 18:09:02+00:00",
+        "stopped_at": "2026-09-14 18:12:31+00:00"
+      },
+      {
+        "app_id": "ap-bkGN5t8qbIm2IT91zOBY7D",
+        "description": "lilo-recovery-test-36e6f6e1ab2f-pin-78fd2a81ab16",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 17:52:27+00:00",
+        "stopped_at": "2026-09-14 18:08:57+00:00"
+      },
+      {
+        "app_id": "ap-y0prP6BNKJfDBhpBwEyBHG",
+        "description": "lilo-recovery-test-d2bbc718ca4d",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 17:12:19+00:00",
+        "stopped_at": "2026-09-14 17:41:21+00:00"
+      },
+      {
+        "app_id": "ap-oNnWGHU77fd0egsWJ0aNjD",
+        "description": "lilo-recovery-test-d2bbc718ca4d-pin-5989862928fc",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 17:27:01+00:00",
+        "stopped_at": "2026-09-14 17:39:54+00:00"
+      },
+      {
+        "app_id": "ap-9IKVeVhkWATWbWnVfH4ECr",
+        "description": "lilo-recovery-test-c080bd35eb31",
+        "state": "stopped",
+        "tasks": "0",
+        "created_at": "2026-09-14 17:10:50+00:00",
+        "stopped_at": "2026-09-14 17:12:27+00:00"
+      }
+    ],
+    "remaining_containers": []
+  },
+  "followup_validation": "HTTP 410 retired-handle behavior tested separately with the installed Tinker SDK; the GPU run used HTTP 400."
+}

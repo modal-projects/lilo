@@ -48,7 +48,7 @@ latest = trainer.save_weights_and_get_sampling_client()
 The new model has its own publication history. Latest replicas follow its assignment. Stitch drains old generations, then
 the scoped CPU-delta sidecar retires the old container. Modal starts a fresh
 replica at the same endpoint to load the new model’s publications. A request for the new model waits until a replica has that
-model's required version. Old latest clients fail after reassignment: use the
+model's required version. Old latest clients receive HTTP 410 after reassignment: use the
 new sampling client. Base sampling and pinned publications are unaffected.
 The app does not automatically restore checkpoints or replay failed updates.
 
@@ -106,3 +106,8 @@ checks replacement latest sampling, old-handle rejection, and pinned continuity.
 
 [Verified run results](scoped-smoke-result.json): training, base/latest/pinned
 sampling, and pinned-app shutdown before the parent, with zero remaining containers.
+
+[Verified recovery results](scoped-recovery-result.json): trainer cancellation,
+checkpoint restoration, replacement latest sampling, old-handle rejection, and
+pinned-app reclamation followed by recreation through the same handle. All test
+apps stopped with zero remaining containers.

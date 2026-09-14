@@ -227,7 +227,8 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             return (await registry.get.aio("routes"))[0]
         if is_latest:
             if await registry.get.aio("slot:0") != model_id:
-                raise ValueError("sampling model was replaced; use a new sampling client")
+                from fastapi import HTTPException
+                raise HTTPException(410, "sampling model was replaced; use a new sampling client")
             route = await registry.get.aio("model:" + model_id)
             if not route:
                 raise ValueError("no latest pool assigned to model")
@@ -252,7 +253,13 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 headers=proxy_auth_headers(), context_length=engine.training.seq_length)
         finally:
             if pinned_request:
-                await manage.remote.aio("release_pinned", task["model_id"], task.get("publish_version"), lease)
+                try:
+                    await manage.remote.aio("release_pinned", task["model_id"], task.get("publish_version"), lease)
+                except Exception:
+                    # A cleanup outage must not discard a completed sample.
+                    # The bounded lease still permits eventual reclamation.
+                    import logging
+                    logging.getLogger(__name__).exception("pinned lease release failed; lease will expire")
 
     @app.function(name="api", image=image, serialized=True,
                   timeout=1200, secrets=[api_secret],
