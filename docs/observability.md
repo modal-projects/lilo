@@ -111,7 +111,7 @@ Arbitrary user metadata is not exported.
 | `run_id` | `lilo.run_id` | Experiment identity shared across replacement models |
 | `attempt_id` | `lilo.run_attempt_id` | Experiment attempt; distinct from individual sampling HTTP attempts |
 
-Labels attach to command roots, command queue/result spans, control submissions,
+Labels attach to command roots, command execution/result spans, control submissions,
 and trainer execution/lifecycle spans. Sampler artifacts snapshot these labels;
 sessions and submitted sampling tasks carry them to sampling roots and HTTP
 attempt spans. No extra model lookup is required per sample. Older artifacts and
@@ -129,7 +129,11 @@ misattribute shared work and increase metric cardinality.
 Each accepted engine command has a root `lilo.command.<operation>` span, beginning
 at control-plane submission receipt and ending when its trainer result is ready.
 The trainer owns completion, so client polling is not necessary to close it.
-Control submission, queue wait, and result-ready are children of that root.
+Control submission, active execution/capture/persistence, and result-ready are
+children of that root. Waiting appears as gaps; no command queue span is emitted.
+Execution children link to the physical backend span and carry only their own
+command’s workload and experiment labels. These show participation latency; use
+`lilo.trainer.*` execution spans to count physical batches without duplication.
 
 The engine returns the canonical root context in its authenticated HTTP response.
 The control plane records its submission span with explicit start/end times once
@@ -162,7 +166,7 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 | Span | `lilo.command.<operation>` | Submission receipt → trainer result ready; `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, internal `skip` |
 | Span | `lilo.control.submit` | HTTP submission work, attached to the canonical command root |
 | Span | `lilo.control.<operation>` | Standalone rejected/unhanded-off submission or model-create/unload request |
-| Span | `lilo.trainer.queue` | Accepted into engine buffer → dequeued |
+| Span | `lilo.command.execute`, `lilo.command.capture`, `lilo.command.persist` | Active executor/capture/persistence interval for this command; child of its root, linked to the physical batch; excludes waiting |
 | Span | `lilo.trainer.result_ready` | Terminal command marker, including failure |
 | Span | `lilo.trainer.forward`, `lilo.trainer.forward_backward`, `lilo.trainer.optim_step`, `lilo.trainer.load_weights` | One actual executor invocation/batch; links to participating commands |
 | Span | `lilo.trainer.accept`, `lilo.trainer.unload` | Engine model lifecycle work |
