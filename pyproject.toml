@@ -10,6 +10,8 @@ dependencies = [
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
     "modal>=1.5.3",
+    "opentelemetry-sdk>=1.39,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.39,<2",
     "protobuf>=5.29",
     "pydantic>=2.13.4",
     "stitch @ git+https://github.com/modal-projects/stitch.git@375a9396a7b05770dc4ed9cc5fe34fc4d5a472d5",

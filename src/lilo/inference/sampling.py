@@ -5,10 +5,14 @@ import hashlib
 import random
 import socket
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from typing import Any
 
 import httpx
 from stitch.publish import constrain_request
+
+from lilo.telemetry.sample_stats import SampleAttempt, event_sink, timing_metadata
+from lilo.telemetry.http_trace import HTTPTrace
 
 RETRY_INITIAL_DELAY_SECONDS = 1.0
 RETRY_MAX_DELAY_SECONDS = 5.0
@@ -33,17 +37,24 @@ async def sample_task(
     retry_timeout: float = 3000.0,
     data_parallel_size: int = 1,
     context_length: int | None = None,
+    context_reserve_tokens: int = 1,
     transport: httpx.AsyncBaseTransport | None = None,
+    client: httpx.AsyncClient | None = None,
     api_key: str | None = None,
     headers: dict[str, str] | None = None,
     on_wait: Callable[[], Awaitable[None]] | None = None,
+    stats: dict[str, Any] | None = None,
+    session_id: str | None = None,
+    on_event: Callable[[dict], None] | None = None,
 ) -> dict[str, Any]:
     request = task["payload"]
     prompt = _prompt_tokens(request["prompt"])
     params = _sampling_params(
         request.get("sampling_params") or {},
         remaining_context=(
-            context_length - len(prompt) - 1 if context_length is not None else None
+            context_length - len(prompt) - context_reserve_tokens
+            if context_length is not None
+            else None
         ),
     )
     model_id = task.get("model_id")
@@ -59,9 +70,10 @@ async def sample_task(
     if data_parallel_size < 1:
         raise ValueError("data_parallel_size must be positive")
     group_session_id = str(task["request_id"])
+    session_id = session_id or group_session_id
     routed_dp_rank = (
         int.from_bytes(
-            hashlib.sha256(group_session_id.encode()).digest()[:8],
+            hashlib.sha256(session_id.encode()).digest()[:8],
             "big",
         )
         % data_parallel_size
@@ -70,16 +82,24 @@ async def sample_task(
     if api_key:
         headers["x-api-key"] = api_key
 
-    async with httpx.AsyncClient(
+    sequence_stats = [{} for _ in range(num_samples)]
+    trace_attrs = {"request_id": str(task["request_id"]),
+                   "sampling_session_id": task.get("sampling_session_id")}
+    emit = event_sink(task, on_event)
+
+    if client is not None and transport is not None:
+        raise ValueError("pass either client or transport")
+    client_context = nullcontext(client) if client is not None else httpx.AsyncClient(
         timeout=timeout,
         trust_env=False,
         transport=transport or keepalive_transport(),
         headers=headers,
-    ) as client:
+    )
+    async with client_context as active_client:
         outputs = await asyncio.gather(
             *(
                 _sample_one(
-                    client,
+                    active_client,
                     prompt,
                     params,
                     model_id=model_id,
@@ -87,18 +107,37 @@ async def sample_task(
                     latest=latest,
                     index=index,
                     group_session_id=group_session_id,
+                    session_id=session_id,
                     routed_dp_rank=routed_dp_rank,
                     prompt_logprobs=prompt_logprobs and index == 0,
                     topk_prompt_logprobs=(topk_prompt_logprobs if index == 0 else 0),
                     retry_timeout=retry_timeout,
                     gateway=gateway,
                     on_wait=on_wait,
+                    stats=sequence_stats[index],
+                    on_event=emit,
+                    trace_attrs=trace_attrs,
+                    base_headers=headers,
+                    request_timeout=timeout,
                 )
                 for index in range(num_samples)
             )
         )
 
     sequences = [_sequence(output) for output in outputs]
+    if stats is not None:
+        meta = outputs[0].get("meta_info") or {}
+        stats.update(sequence_stats[0])
+        stats["sequence_stats"] = sequence_stats
+        stats["wait_s"] = sum(row.get("wait_s", 0.0) for row in sequence_stats)
+        stats["reroutes"] = sum(row.get("reroutes", 0) for row in sequence_stats)
+        stats.update(
+            prompt_tokens=len(prompt),
+            generated_tokens=sum(len(sequence["tokens"]) for sequence in sequences),
+            cache_hit_tokens=int(meta.get("cached_tokens") or 0),
+            version_served_start=meta.get("weight_version_start"),
+            version_served_end=meta.get("weight_version_end"),
+        )
     response: dict[str, Any] = {"type": "sample", "sequences": sequences}
     if prompt_logprobs:
         response["prompt_logprobs"] = _logprobs(
@@ -124,12 +163,18 @@ async def _sample_one(
     latest: bool,
     index: int,
     group_session_id: str,
+    session_id: str,
     routed_dp_rank: int,
     prompt_logprobs: bool,
     topk_prompt_logprobs: int,
     retry_timeout: float,
     gateway: str | GatewayResolver,
     on_wait: Callable[[], Awaitable[None]] | None = None,
+    stats: dict[str, Any] | None = None,
+    on_event: Callable[[dict], None] = lambda event: None,
+    trace_attrs: dict | None = None,
+    base_headers: dict | None = None,
+    request_timeout: float = 3000.0,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "input_ids": prompt,
@@ -155,6 +200,7 @@ async def _sample_one(
     reroute_attempt = 0
     rejected: set[str] = set()
     waiting_logged = False
+    physical_attempt = 0
     while True:
         cause: httpx.TransportError | None = None
         resolved = (
@@ -178,16 +224,16 @@ async def _sample_one(
                 )
             if on_wait is not None:
                 await on_wait()
-            await asyncio.sleep(min(remaining, delay * random.uniform(0.8, 1.2)))
+            await _backoff(stats, min(remaining, delay * random.uniform(0.8, 1.2)))
             delay = min(RETRY_MAX_DELAY_SECONDS, delay * 2)
             rejected.clear()
             continue
         waiting_logged = False
         gateway_url = gateways[(index + reroute_attempt) % len(gateways)]
-        modal_session_id = group_session_id
+        modal_session_id = session_id
         if reroute_attempt:
-            modal_session_id = f"{group_session_id}:retry-{reroute_attempt}"
-        headers = {"Modal-Session-ID": modal_session_id}
+            modal_session_id = f"{session_id}:retry-{reroute_attempt}"
+        headers = {**(base_headers or {}), "Modal-Session-ID": modal_session_id}
         if model_id is not None:
             constrain_request(
                 body,
@@ -195,13 +241,22 @@ async def _sample_one(
                 latest=int(version) if latest else None,
                 exact=None if latest else int(version),
             )
+        physical_attempt += 1
+        observation = SampleAttempt(on_event, {**(trace_attrs or {}), "sequence_index": index,
+                                   "attempt_number": physical_attempt, "routed_dp_rank": routed_dp_rank,
+                                   "upstream": gateway_url, "prompt_tokens": len(prompt)})
+        body["rid"] = observation.id
+        attempt_result = observation.attrs
         try:
             response = await client.post(
                 f"{gateway_url}/generate",
                 json=body,
                 headers=headers,
+                timeout=request_timeout,
+                extensions={"trace": HTTPTrace(attempt_result).record},
             )
         except httpx.TransportError as exc:
+            attempt_result["error_type"] = type(exc).__name__
             cause = exc
             reason = f"{type(exc).__name__}: {exc}"
             if not isinstance(gateway, str):
@@ -215,6 +270,7 @@ async def _sample_one(
                     flush=True,
                 )
         else:
+            attempt_result["http_status"] = response.status_code
             retryable = (response.status_code == 409 or response.status_code >= 500
                          or (response.status_code == 404 and not isinstance(gateway, str)))
             if not retryable:
@@ -226,6 +282,8 @@ async def _sample_one(
                 result = response.json()
                 if not isinstance(result, dict):
                     raise ValueError("SGLang returned a non-object response")
+                attempt_result.update(generated_tokens=len(_sequence(result)["tokens"]),
+                                      **timing_metadata(result.get("meta_info") or {}))
                 version_error = (
                     _response_version_error(result, int(version), minimum=latest)
                     if model_id is not None and version is not None
@@ -244,6 +302,10 @@ async def _sample_one(
                             f"upstream={gateway_url}",
                             flush=True,
                         )
+                    attempt_result["ok"] = True
+                    if stats is not None:
+                        stats["reroutes"] = stats.get("reroutes", 0) + reroute_attempt
+                        stats["upstream"] = gateway_url
                     return result
             else:
                 reason = f"HTTP {response.status_code}: {response.text[:500]}"
@@ -259,6 +321,8 @@ async def _sample_one(
                             f"body={response.text[:120]!r}",
                             flush=True,
                         )
+        finally:
+            observation.finish()
         remaining = deadline - loop.time()
         if remaining <= 0:
             state = "saturated" if reason.startswith("HTTP 503") else "unavailable"
@@ -267,8 +331,14 @@ async def _sample_one(
             ) from cause
         if on_wait is not None:
             await on_wait()
-        await asyncio.sleep(min(remaining, delay * random.uniform(0.8, 1.2)))
+        await _backoff(stats, min(remaining, delay * random.uniform(0.8, 1.2)))
         delay = min(RETRY_MAX_DELAY_SECONDS, delay * 2)
+
+
+async def _backoff(stats: dict[str, Any] | None, seconds: float) -> None:
+    if stats is not None:
+        stats["wait_s"] = stats.get("wait_s", 0.0) + seconds
+    await asyncio.sleep(seconds)
 
 
 def _prompt_tokens(prompt: dict[str, Any]) -> list[int]:
@@ -306,12 +376,16 @@ def _sampling_params(
         output["stop_token_ids"] = stop
     elif stop is not None:
         output["stop"] = stop
-    if params.get("max_tokens") is not None:
-        output["max_new_tokens"] = int(params["max_tokens"])
-    elif remaining_context is not None:
+    if remaining_context is not None:
         if remaining_context <= 0:
             raise ValueError("prompt leaves no room in the context window")
-        output["max_new_tokens"] = remaining_context
+        requested = params.get("max_tokens")
+        output["max_new_tokens"] = min(
+            int(requested) if requested is not None else remaining_context,
+            remaining_context,
+        )
+    elif params.get("max_tokens") is not None:
+        output["max_new_tokens"] = int(params["max_tokens"])
     return output
 
 
