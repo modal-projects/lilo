@@ -9,9 +9,9 @@ import time
 from dataclasses import asdict
 from pathlib import Path
 
-import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
+import modal
 from lilo.errors import RecordNotFound
 from lilo.providers.contracts import (
     Parameterization,
@@ -23,16 +23,21 @@ from .checkpoint_storage import (
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
 )
+from .definitions import (
+    qwen3_5_4b_full_64k,
+    qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_base_miles_lora_16k,
+    qwen3_5_9b_base_miles_lora_16k_single,
+    qwen3_5_9b_base_miles_lora_deterministic,
+    qwen3_5_9b_base_miles_lora_deterministic_single,
+    qwen3_5_9b_full_64k,
+    qwen3_5_35b_a3b_full_64k,
+    qwen3_6_27b_full_64k,
+    qwen3_6_35b_a3b_full_64k,
+)
 from .deployment import (
     trainer_deployment_env,
     trainer_max_containers,
-)
-from .definitions import (
-    qwen3_5_35b_a3b_full_64k,
-    qwen3_5_4b_full_64k,
-    qwen3_5_9b_full_64k,
-    qwen3_6_27b_full_64k,
-    qwen3_6_35b_a3b_full_64k,
 )
 from .engines import ModalEnginePlatform
 from .fft_pool import (
@@ -48,20 +53,35 @@ from .kv import (
     fft_pool_kv,
     shared_kv,
 )
+from .lora_pool import (
+    LoraPoolSpec,
+    deploy_pool as deploy_lora_pool,
+    pool_gateway as lora_pool_gateway,
+    stop_pool as stop_lora_pool,
+)
 from .sampling import ModalSamplingTaskPlatform
 
 APP_NAME = "lilo"
 ROUTING_REGION = "us-west"
 SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
+LORA_POOL_IDLE_TIMEOUT = 300.0
 FFT_POOL_TOUCH_INTERVAL = 60.0
+LORA_POOL_CHECK_INTERVAL = 60.0
 SWEEP_PERIOD = modal.Period(minutes=5)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
+_lora_pool_gateways: dict[str, tuple[float, str]] = {}
+_lora_pool_checks: dict[str, asyncio.Lock] = {}
 
 DEFINITIONS = (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_full_64k,
+    qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_base_miles_lora_16k,
+    qwen3_5_9b_base_miles_lora_16k_single,
+    qwen3_5_9b_base_miles_lora_deterministic,
+    qwen3_5_9b_base_miles_lora_deterministic_single,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -104,11 +124,7 @@ def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
         "path": str(checkpoint),
         "time": checkpoint.stat().st_mtime,
         "size_bytes": sum(file.stat().st_size for file in files),
-        "metadata": (
-            json.loads(metadata_file.read_text(encoding="utf-8"))
-            if metadata_file.is_file()
-            else None
-        ),
+        "metadata": (json.loads(metadata_file.read_text(encoding="utf-8")) if metadata_file.is_file() else None),
     }
 
 
@@ -192,6 +208,43 @@ async def ensure_fft_pool(spec: dict) -> str:
     return gateway
 
 
+@app.function(image=image, max_containers=1, timeout=20 * 60, retries=2)
+async def ensure_lora_pool(spec: dict) -> str:
+    pool = LoraPoolSpec.from_dict(spec)
+    gateway = await asyncio.to_thread(deploy_lora_pool, pool)
+    await shared_kv().put(
+        f"lora_pool:{pool.app_name}",
+        {**pool.as_dict(), "touched_at": time.time()},
+    )
+    return gateway
+
+
+async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
+    """Refresh warm pools locally; serialize only missing-pool deployment."""
+    key = spec.app_name
+    cached = _lora_pool_gateways.get(key)
+    if cached is not None and cached[0] > time.monotonic():
+        return cached[1]
+    lock = _lora_pool_checks.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _lora_pool_gateways.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        try:
+            gateway = await lora_pool_gateway(spec)
+        except modal.exception.NotFoundError:
+            # The remote function retains single concurrency, and deploy_pool
+            # rechecks existence before deploying to avoid competing deploys.
+            gateway = await ensure_lora_pool.remote.aio(spec.as_dict())
+        else:
+            await shared_kv().put(
+                f"lora_pool:{key}",
+                {**spec.as_dict(), "touched_at": time.time()},
+            )
+        _lora_pool_gateways[key] = (time.monotonic() + LORA_POOL_CHECK_INTERVAL, gateway)
+        return gateway
+
+
 @app.function(
     image=image,
     min_containers=0,
@@ -204,7 +257,8 @@ async def execute_sample(task: dict) -> dict:
     from lilo.inference.sampling import sample_task
 
     definition_id = str(task["engine_definition_id"])
-    if parameterization_for(definition_id) != "full":
+    parameterization = parameterization_for(definition_id)
+    if parameterization not in {"full", "lora"}:
         raise ValueError(f"unsupported sampling definition: {definition_id}")
     definition = module_for(definition_id)
     rollout_world_size = definition.ROLLOUT_GPUS
@@ -212,6 +266,23 @@ async def execute_sample(task: dict) -> dict:
     if rollout_world_size % rollout_tensor_parallel_size:
         raise ValueError("rollout GPU count must be divisible by tensor parallel size")
     rollout_data_parallel_size = rollout_world_size // rollout_tensor_parallel_size
+    if parameterization == "lora":
+        spec = LoraPoolSpec(definition_id)
+        gateway = await _ready_lora_pool(spec)
+
+        async def keep_pool_ready() -> None:
+            # Retries can outlive the cached readiness check. The pool's URL
+            # is stable across redeployment of the same definition/revision.
+            await _ready_lora_pool(spec)
+
+        return await sample_task(
+            task,
+            gateway,
+            data_parallel_size=rollout_data_parallel_size,
+            headers=proxy_auth_headers(),
+            context_length=definition.MAX_CONTEXT_LENGTH,
+            on_wait=keep_pool_ready,
+        )
     spec = (
         FFTPoolSpec.base(definition_id)
         if task["model_id"] is None
@@ -296,9 +367,7 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
                 ModalEnginePlatform(shared_kv(), _spawn_engine),
                 definition_id,
                 revision=None,
-                maximum_instances=(
-                    int(maximum_instances) if maximum_instances is not None else None
-                ),
+                maximum_instances=(int(maximum_instances) if maximum_instances is not None else None),
                 models_per_instance=module.TRAINER_MODELS_PER_INSTANCE,
                 scale_up=parameterization == "full",
             )
@@ -312,9 +381,7 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
 
     pending = await pending_reconciliations()
     try:
-        await asyncio.gather(
-            *(run(definition_id, token) for definition_id, token in pending.items())
-        )
+        await asyncio.gather(*(run(definition_id, token) for definition_id, token in pending.items()))
     finally:
         await release_reconcile_call(call_id)
     remaining = await pending_reconciliations()
@@ -352,12 +419,19 @@ def _plane():
         return call.object_id
 
     async def prepare_model(model) -> None:
-        if parameterization_for(model.engine_definition_id) == "full":
+        parameterization = parameterization_for(model.engine_definition_id)
+        if parameterization == "full":
             await ensure_fft_pool.spawn.aio(_latest_pool(model).as_dict())
+        elif parameterization == "lora":
+            await ensure_lora_pool.spawn.aio(LoraPoolSpec(model.engine_definition_id).as_dict())
 
     async def ensure_pool(session) -> None:
         definition_id = session.engine_definition_id
-        if parameterization_for(definition_id) != "full":
+        parameterization = parameterization_for(definition_id)
+        if parameterization == "lora":
+            await _ready_lora_pool(LoraPoolSpec(definition_id))
+            return
+        if parameterization != "full":
             return
         if session.model_id is None:
             pool = FFTPoolSpec.base(definition_id)
@@ -388,10 +462,9 @@ def _plane():
         if maximum is None:
             return True
         instances = await engines.list_instances()
-        return sum(
-            instance.definition_id == definition_id and not instance.terminal
-            for instance in instances
-        ) < int(maximum)
+        return sum(instance.definition_id == definition_id and not instance.terminal for instance in instances) < int(
+            maximum
+        )
 
     return ControlPlane(
         kv,
@@ -406,9 +479,7 @@ def _plane():
         delete_checkpoint=_delete_checkpoint,
         checkpoint_root=CHECKPOINT_ROOT,
         reconcile_trainers=kick_trainers,
-        trainer_autoscaling=lambda definition_id: (
-            parameterization_for(definition_id) == "full"
-        ),
+        trainer_autoscaling=lambda definition_id: (parameterization_for(definition_id) == "full"),
     )
 
 
@@ -472,9 +543,7 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
             if spec.app_name in active_latest:
                 continue
         else:
-            if await _last_touched(registry, spec, value) > (
-                time.time() - FFT_POOL_IDLE_TIMEOUT
-            ):
+            if await _last_touched(registry, spec, value) > (time.time() - FFT_POOL_IDLE_TIMEOUT):
                 continue
             try:
                 replicas = await ModalFlashPool(
@@ -496,6 +565,29 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
     return tuple(stopped)
 
 
+async def _cleanup_lora_pools() -> tuple[str, ...]:
+    from lilo.control_plane.records import ModelRecord
+
+    registry = shared_kv()
+    active = {
+        LoraPoolSpec(model.engine_definition_id).app_name
+        for _, value in await registry.list_items("model:")
+        for model in (ModelRecord.model_validate(value),)
+        if parameterization_for(model.engine_definition_id) == "lora"
+    }
+    stopped = []
+    for key, value in await registry.list_items("lora_pool:"):
+        spec = LoraPoolSpec.from_dict(value)
+        if spec.app_name in active:
+            continue
+        if float(value.get("touched_at", 0.0)) > (time.time() - LORA_POOL_IDLE_TIMEOUT):
+            continue
+        await asyncio.to_thread(stop_lora_pool, spec)
+        await registry.delete(key)
+        stopped.append(spec.app_name)
+    return tuple(stopped)
+
+
 @app.function(image=image, env=TRAINER_DEPLOYMENT_ENV, schedule=SWEEP_PERIOD)
 def cleaner():
     import asyncio
@@ -507,5 +599,6 @@ def cleaner():
         await plane.sweep_idle_engines()
         await _lose_undefined_models()
         await _cleanup_fft_pools()
+        await _cleanup_lora_pools()
 
     asyncio.run(run())
