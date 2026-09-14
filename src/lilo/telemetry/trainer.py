@@ -106,7 +106,7 @@ class CommandMiddleware:
         if p is None:
             return await self.app(scope, receive, send)
         now = time.time()
-        carrier = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
+        carrier = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope.get("headers", [])}
         if self.receiver:
             try:
                 started = float(carrier.get("x-lilo-command-start", now))

@@ -134,7 +134,6 @@ async def sample_task(
         stats.update(
             prompt_tokens=len(prompt),
             generated_tokens=sum(len(sequence["tokens"]) for sequence in sequences),
-            cache_hit_tokens=int(meta.get("cached_tokens") or 0),
             version_served_start=meta.get("weight_version_start"),
             version_served_end=meta.get("weight_version_end"),
         )
@@ -375,16 +374,12 @@ def _sampling_params(
         output["stop_token_ids"] = stop
     elif stop is not None:
         output["stop"] = stop
-    if remaining_context is not None:
+    if params.get("max_tokens") is not None:
+        output["max_new_tokens"] = int(params["max_tokens"])
+    elif remaining_context is not None:
         if remaining_context <= 0:
             raise ValueError("prompt leaves no room in the context window")
-        requested = params.get("max_tokens")
-        output["max_new_tokens"] = min(
-            int(requested) if requested is not None else remaining_context,
-            remaining_context,
-        )
-    elif params.get("max_tokens") is not None:
-        output["max_new_tokens"] = int(params["max_tokens"])
+        output["max_new_tokens"] = remaining_context
     return output
 
 

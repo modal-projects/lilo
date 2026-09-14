@@ -28,7 +28,8 @@ def setup(monkeypatch):
     provider.shutdown()
 
 
-def test_transport_queue_execution_and_duplicate_submission(setup):
+@pytest.mark.parametrize("header_value", [b"ascii", b"\xff"])
+def test_transport_queue_execution_and_duplicate_submission(setup, header_value):
     telemetry, exporter, _ = setup
 
     async def run():
@@ -53,7 +54,11 @@ def test_transport_queue_execution_and_duplicate_submission(setup):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://control"
         ) as http:
-            assert (await http.post("/api/v1/optim_step")).status_code == 200
+            assert (
+                await http.post(
+                    "/api/v1/optim_step", headers=[(b"x-client-label", header_value)]
+                )
+            ).status_code == 200
         await client.close()
         await server.close()
 

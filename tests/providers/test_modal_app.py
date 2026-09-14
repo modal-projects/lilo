@@ -359,17 +359,18 @@ def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(modal_app, "CHECKPOINT_ROOT", str(checkpoints))
     monkeypatch.setattr(modal_app, "checkpoint_volume", Volume("ckpt"))
 
-    lora = checkpoints / "model-a" / "weights" / "step-1"
+    lora = checkpoints / "step-1" / "model-a"
     lora.mkdir(parents=True)
     (lora / "checkpoint_rank0.pt").write_bytes(b"a" * 10)
     (lora / "metadata.json").write_text(json.dumps({"base_model": "Qwen/Qwen3-4B"}))
-    fft = checkpoints / "model-b" / "weights" / "latest"
+    fft = checkpoints / "latest" / "model-b"
     fft.mkdir(parents=True)
+    (fft / "metadata.json").write_text("{}")
     (fft / "checkpoint_rank0.pt").write_bytes(b"b" * 7)
     (fft / "nested").mkdir()
     (fft / "nested" / "shard").write_bytes(b"c" * 3)
-    (checkpoints / "model-a" / "weights" / "stray.txt").write_text("x")
-    (checkpoints / "model-a" / "sampler_weights").mkdir()
+    (checkpoints / "step-1" / "stray.txt").write_text("x")
+    (checkpoints / "step-1" / "incomplete").mkdir()
 
     entries = asyncio.run(modal_app._list_checkpoints(None))
     assert sorted(
@@ -382,7 +383,7 @@ def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
             10 + (lora / "metadata.json").stat().st_size,
             {"base_model": "Qwen/Qwen3-4B"},
         ),
-        ("model-b", "latest", 10, None),
+        ("model-b", "latest", 12, {}),
     ]
     assert {entry["path"] for entry in entries} == {str(lora), str(fft)}
     assert [

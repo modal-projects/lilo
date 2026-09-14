@@ -141,8 +141,6 @@ class Engine:
                     return False
                 if self.observer is not None:
                     self.observer.register_model(model_id, spec)
-                if self.observer is not None:
-                    self.observer.register_model(model_id, spec)
                 registration = asyncio.get_running_loop().create_future()
                 model = self._models[model_id] = _ModelState(
                     spec=spec,
