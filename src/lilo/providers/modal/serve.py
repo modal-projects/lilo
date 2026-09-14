@@ -61,6 +61,10 @@ async def serve_engine(
     engine = None
     try:
         engine = await make_server()
+        from lilo.telemetry.trainer import TrainerTelemetry
+
+        telemetry = TrainerTelemetry(instance_id, definition_id, record.boot_id)
+        engine.observer = telemetry
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)
         with modal.forward(ENGINE_PORT) as tunnel:
@@ -83,6 +87,7 @@ async def serve_engine(
         try:
             if engine is not None:
                 await engine.close()
+                telemetry.close()
         finally:
             record = record.model_copy(update={"state": "stopped"})
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
@@ -158,7 +163,9 @@ def run_engine_with_backend(
                     await asyncio.sleep(2)
         except TimeoutError as exc:
             signal_backend(signal.SIGTERM)
-            raise TimeoutError(f"backend startup exceeded {startup_timeout:g}s") from exc
+            raise TimeoutError(
+                f"backend startup exceeded {startup_timeout:g}s"
+            ) from exc
 
     async def serve_until_backend_exits() -> None:
         serving = asyncio.create_task(

@@ -194,10 +194,18 @@ async def ensure_fft_pool(spec: dict) -> str:
     min_containers=0,
     timeout=60 * 60,
     retries=2,
-    secrets=[proxy_secret],
+    secrets=[proxy_secret, modal.Secret.from_name("lilo-api")],
 )
 @modal.concurrent(max_inputs=128)
 async def execute_sample(task: dict) -> dict:
+    from lilo.telemetry.otlp import sample_trace
+
+    stats: dict = {}
+    with sample_trace(task, stats):
+        return await _execute_sample(task, stats)
+
+
+async def _execute_sample(task: dict, stats: dict) -> dict:
     from lilo.inference.sampling import sample_task
 
     definition_id = str(task["engine_definition_id"])
@@ -227,6 +235,7 @@ async def execute_sample(task: dict) -> dict:
         headers=proxy_auth_headers(),
         on_wait=lambda: _touch_fft_pool(spec),
         context_length=definition.MAX_CONTEXT_LENGTH,
+        stats=stats,
     )
 
 
