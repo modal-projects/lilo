@@ -1,16 +1,22 @@
 # Observability
 
-Lilo exports OpenTelemetry traces and a sampled trainer-state metric over OTLP
-HTTP/protobuf. Export is opt-in. No collector, Datadog Agent, telemetry volume, or
-additional long-running service is required. Credentials stay in the server
-processes; clients do not need access to the observability destination.
+Lilo exports traces for training commands, trainer operations, and sampling
+requests, plus a metric showing the trainer's current operation. Traces include
+workload counts and optional experiment labels for correlating activity across
+requests and models.
 
-## Modal → Datadog
+Export is disabled by default. To enable it, configure an OTLP HTTP/protobuf
+destination in the server environment.
 
-Add the following variables to the existing `lilo-api` Modal secret in the same
-workspace and environment as the deployment. Merge these values into the secret;
-retain its existing API authentication settings. Use a **Datadog API key** for
-intake. A Datadog application key is not needed by Lilo.
+## Setup
+
+### Modal to Datadog
+
+Add the following variables to the `lilo-api` Modal secret in your deployment's
+workspace and environment, preserving its existing authentication settings.
+Replace `YOUR_DATADOG_API_KEY` with your Datadog API key and `your-environment`
+with your deployment environment. Lilo sends telemetry directly to Datadog's
+Modal intake endpoint.
 
 ```dotenv
 OTEL_SERVICE_NAME=lilo
@@ -28,8 +34,6 @@ OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=DELTA
 
 These URLs are for Datadog US1. For another Datadog site, use the corresponding
 [Modal managed-platform intake endpoints](https://docs.datadoghq.com/opentelemetry/setup/otlp_ingest/managed_platforms/).
-Configure header values using the standard OTLP header encoding (percent-encode
-values when necessary). Never commit the populated environment file or credentials.
 
 Deploy Lilo after updating the secret:
 
@@ -38,29 +42,11 @@ MODAL_PROFILE=your-workspace MODAL_ENVIRONMENT=your-environment \
   uv run modal deploy -m lilo.providers.modal.app
 ```
 
-The control plane, sampling workers, and new trainer containers receive the
-configuration. An already-running trainer must finish and be replaced before it
-uses new code or environment values. Existing commands are not retroactively
-instrumented.
+The configuration applies to the control plane, sampling workers, and new
+trainer containers. Existing trainer containers retain their configuration until
+they are replaced.
 
-Run a training operation, then search Datadog APM for `service:lilo`. Use resource
-names such as `lilo.command.forward_backward` and `lilo.trainer.forward_backward`;
-Datadog may derive its displayed operation name from span kind. In a native span
-search block, the duration column is **`@duration`**, not `duration`.
-
-For trainer activity, use a timeseries such as:
-
-```text
-avg:lilo.trainer.state{lilo.trainer_instance_id:ENGINE_ID,lilo.lane:execution} by {lilo.operation}.fill(null)
-```
-
-Choose a stacked area display. Add separate charts for `checkpoint` and `sampler`.
-Missing reports remain gaps. Datadog rollups may average several samples into
-fractional values; those values are not GPU utilization. Configure APM retention
-for the diagnostic spans you want searchable historically. Exported spans can
-arrive before other spans from the same trace have finished or been indexed.
-
-## Custom OTLP destination
+### Custom OTLP destination
 
 For a collector or compatible observability backend, set the standard OTLP base
 endpoint and optional headers:
@@ -77,25 +63,24 @@ The HTTP exporters append `/v1/traces` and `/v1/metrics` to the base endpoint.
 Alternatively, use `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and
 `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` for explicit complete URLs and configure
 their headers independently. Signal-specific settings override general settings.
-The destination must be reachable from the exporting processes. Only
-HTTP/protobuf is supported; this integration does not run a gRPC exporter.
+Header values use standard OTLP percent-encoding, as shown by `Bearer%20` above.
+The destination must accept OTLP HTTP/protobuf and be reachable from the server
+processes.
 
 A trace endpoint alone enables only traces. A metric endpoint alone enables only
 the trainer-state metric. A general endpoint enables both. With no endpoints,
 export is disabled. Set `OTEL_SDK_DISABLED=true` to disable both explicitly.
-Lilo uses its own providers and does not replace the application's global
-OpenTelemetry providers or enable automatic instrumentation.
 
 ## Experiment labels
 
-Supply experiment identity through the existing model `user_metadata` API:
+Set `run_id` and `attempt_id` in `user_metadata` when creating a training client:
 
 ```python
 training = create_full_training_client(
     service,
     "Qwen/Qwen3.5-4B",
     user_metadata={
-        "run_id": "codegolf-qwen4b-v1",
+        "run_id": "training-experiment-001",
         "attempt_id": "attempt-001",
     },
 )
@@ -114,15 +99,13 @@ Arbitrary user metadata is not exported.
 Labels attach to command roots, command execution/result spans, control submissions,
 and trainer execution/lifecycle spans. Sampler artifacts snapshot these labels;
 sessions and submitted sampling tasks carry them to sampling roots and HTTP
-attempt spans. No extra model lookup is required per sample. Older artifacts and
-sessions without labels remain untagged; base-model-only sampling has no model
-experiment identity.
+attempt spans. Artifacts and sessions created without labels remain untagged.
+Base-model sampling has no model experiment identity.
 
 A trainer execution receives a label only if **all** its participating commands
 have that same label. A batch crossing experiments has links to each command and
 is not attributed to a single experiment. Trainer-state metrics describe the
-physical trainer and intentionally do not carry experiment labels, which could
-misattribute shared work and increase metric cardinality.
+physical trainer and do not carry experiment labels.
 
 ## Trace structure and lifecycle
 
@@ -135,14 +118,11 @@ Execution children link to the physical backend span and carry only their own
 command’s workload and experiment labels. These show participation latency; use
 `lilo.trainer.*` execution spans to count physical batches without duplication.
 
-The engine returns the canonical root context in its authenticated HTTP response.
-The control plane records its submission span with explicit start/end times once
-that context is known. Retries accepted by engine deduplication attach to the
-original command rather than creating another execution. Rejected submissions
-are standalone control spans. A successful model-create/unload HTTP response is
-also a submission boundary, not a trainer-lifetime span.
+Deduplicated submissions attach to the original command trace. Rejected
+submissions have standalone control-plane spans. Model creation and unloading
+have separate control-plane submission and trainer lifecycle spans.
 
-Actual backend executions are **separate traces**, with span links to every
+Backend executions are separate traces, with span links to every
 participating command, including when there is only one command. Thus a merged
 batch appears once, with aggregate workload counts, rather than being duplicated
 under several command roots. Capture, persistence, and waits for previous
@@ -151,9 +131,38 @@ can overlap a subsequent execution. Lifecycle accept/unload spans are independen
 
 Counts refer to logical input examples and their supplied text tokens, before
 backend packing/padding. Input-token count is omitted if any input chunk has no
-known text-token length. Loss-token count, packed-microbatch count, and pure GPU
-forward/backward timing are not inferred. Executor spans include backend transport
-and synchronization; they are wall-clock timings, not a GPU profiler.
+known text-token length. Executor spans measure wall-clock time, including
+backend transport and synchronization. They do not measure GPU kernel time.
+
+## Viewing telemetry in Datadog
+
+After running a training or sampling operation, search APM for `service:lilo`
+(or your configured `OTEL_SERVICE_NAME`). Filter by resource name to select a
+span family:
+
+- `lilo.command.forward_backward`: full command lifetime and its execution children.
+- `lilo.trainer.forward_backward`: physical trainer batches and aggregate workload.
+- `lilo.sample`: sampling requests and their HTTP attempts.
+
+Use `@lilo.run_id` to filter by experiment and `@lilo.run_attempt_id` to select an
+attempt. Follow span links between a command and its shared trainer batch. Native
+notebook span searches support `@duration`, `@lilo.example_count`, and
+`@lilo.input_tokens` as columns.
+
+For trainer activity, graph the state metric by operation:
+
+```text
+avg:lilo.trainer.state{lilo.trainer_instance_id:ENGINE_ID,lilo.lane:execution} by {lilo.operation}.fill(null)
+```
+
+Replace `ENGINE_ID` with the trainer instance ID. Use a stacked area display and
+separate charts for the `execution`, `checkpoint`, and `sampler` lanes. Each sample
+identifies the active operation in that lane. Missing reports appear as gaps;
+rollups can average samples into fractional values. This metric represents
+operation state, not GPU utilization.
+
+Configure Datadog APM retention for the spans that need to remain searchable.
+Finished child spans may arrive before their command root has finished.
 
 ## Export inventory
 
@@ -165,7 +174,7 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 | --- | --- | --- |
 | Span | `lilo.command.<operation>` | Submission receipt → trainer result ready; `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, internal `skip` |
 | Span | `lilo.control.submit` | HTTP submission work, attached to the canonical command root |
-| Span | `lilo.control.<operation>` | Standalone rejected/unhanded-off submission or model-create/unload request |
+| Span | `lilo.control.<operation>` | Submission without a command root, including rejected submissions and model creation/unloading |
 | Span | `lilo.command.execute`, `lilo.command.capture`, `lilo.command.persist` | Active executor/capture/persistence interval for this command; child of its root, linked to the physical batch; excludes waiting |
 | Span | `lilo.trainer.result_ready` | Terminal command marker, including failure |
 | Span | `lilo.trainer.forward`, `lilo.trainer.forward_backward`, `lilo.trainer.optim_step`, `lilo.trainer.load_weights` | One actual executor invocation/batch; links to participating commands |
@@ -186,12 +195,12 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 | Experiment-aware spans | `lilo.run_id`, `lilo.run_attempt_id` under the rules above |
 | Sampling root | `lilo.request_id`, `lilo.model_id`, `lilo.base_model`, `lilo.num_samples`, `lilo.version_requested`, `lilo.latest`, `lilo.start_boundary`, `lilo.input_tokens`, `lilo.output_tokens`, `lilo.attempt_count`, `lilo.retry_count`, `error.type`; `lilo.version_served_start`, `lilo.version_served_end` for single-sequence requests |
 | Sampling attempt | `lilo.request_id`, `lilo.attempt_id`, `lilo.sequence_index`, `lilo.attempt_number`, `lilo.input_tokens`, `lilo.output_tokens`, `http.response.status_code`, `error.type`, `lilo.version_served_start`, `lilo.version_served_end` |
-| SGLang attempt evidence | `sglang.request_id`, `sglang.queue_s`, `sglang.prefill_s`, `sglang.post_prefill_to_finish_s`, `sglang.cached_tokens`, `sglang.prompt_tokens`, `sglang.completion_tokens` |
+| SGLang timing and cache | `sglang.request_id`, `sglang.queue_s`, `sglang.prefill_s`, `sglang.post_prefill_to_finish_s`, `sglang.cached_tokens`, `sglang.prompt_tokens`, `sglang.completion_tokens` |
 
-SGLang fields are present only when the backend returns the corresponding evidence.
-Post-prefill-to-finish includes decode and final processing; it is deliberately not
-called pure decode time. Missing fields remain absent, not zero. Raw backend timing
-payloads and arbitrary numeric training results are not exported.
+SGLang fields are present when supplied by the backend.
+`sglang.post_prefill_to_finish_s` includes decoding and final processing. Missing
+fields are omitted. Raw backend timing payloads and training results are not
+exported.
 
 | Gauge | Values and labels |
 | --- | --- |
@@ -200,23 +209,26 @@ payloads and arbitrary numeric training results are not exported.
 | Checkpoint lane | `idle`, `save_weights` |
 | Sampler lane | `idle`, `save_weights_for_sampler` |
 
-## Delivery limits
+## Delivery and data handling
 
-Spans are exported in background batches. State reporting starts after the engine
-server is constructed and does not measure earlier process initialization. Short
-operations can fall entirely between metric samples. Finished child spans may be
-visible before their root finishes.
+Spans are exported in background batches. Trainer-state reporting begins when
+the engine server is constructed, after process initialization. Operations shorter
+than the sampling interval may not appear in the state metric; their spans retain
+the operation's start and end times.
 
-This telemetry is diagnostic, not a durable command ledger. Abrupt process loss
-can lose open/buffered spans, including a command root; a new trainer does not
-fabricate completion for the old process. Graceful shutdown marks unfinished roots
-as incomplete. Unloaded buffered commands finish with error status. Canonical
-retry contexts are bounded to the most recent 2,048 accepted commands per engine;
-older deduplicated submissions may appear as standalone control submissions.
-Experiment labels join recovery attempts without pretending they were one
-uninterrupted execution.
+Abrupt process termination can lose open or buffered spans. Graceful shutdown
+marks unfinished command roots with `lilo.incomplete=true` and error status.
+Buffered commands discarded during unloading also end with error status.
+Deduplicated submissions reuse the original trace context while it remains in
+the engine's cache of the most recent 2,048 accepted commands; older submissions
+may have standalone control-plane spans.
 
-Prompts, generated text, token arrays, gradients, checkpoint contents, exception
-messages/stacks, API credentials, and unapproved metadata are excluded. Backend
-export failures do not change operation results. Notebook/dashboard creation is an
-operator action, never part of request execution.
+Export failures do not change operation results. Lilo uses private OpenTelemetry
+providers, leaving application-wide providers and instrumentation unchanged.
+Credentials are configured on the server; API clients do not need access to the
+telemetry destination.
+
+Exported data excludes prompts, generated text, token arrays, gradients,
+checkpoint contents, exception messages and stacks, API credentials, and metadata
+other than the documented experiment labels. Lilo exports traces and metrics;
+dashboards, notebooks, and retention policies are managed in the destination.
