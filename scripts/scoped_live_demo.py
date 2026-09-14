@@ -28,7 +28,6 @@ def main():
     with modal.enable_output(), lilo.run(
         engine=engine,
         warm=True,
-        max_trainers=1,
         latest=lilo.Pool(min_containers=1, max_containers=1),
     ) as (url, api_key):
         event('ready', url=url)

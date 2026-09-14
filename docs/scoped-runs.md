@@ -12,7 +12,7 @@ engine = qwen3_5_4b_full_64k()
 with lilo.run(
     engine=engine,
     warm=True,
-    max_trainers=1,
+
     latest=lilo.Pool(min_containers=1, max_containers=2),
 ) as (url, api_key):
     service = tinker.ServiceClient(base_url=url, api_key=api_key)
@@ -22,9 +22,9 @@ with lilo.run(
 
 `warm=True` starts one trainer and waits for it to load before entering the
 `with` body. Samplers start separately on demand. It uses an explicit
-invocation, not a minimum-container setting. `max_trainers` limits the number of
-training models; each gets its own latest sampler pool. Trainers stay alive while
-the context is open rather than being reclaimed by an idle cleaner.
+invocation, not a minimum-container setting. One training model can be active
+at a time. Trainers stay alive while the context is open rather than being
+reclaimed by an idle cleaner.
 
 `latest` controls replica counts and the scaledown window. Its minimum activates
 when a model is created. Base and pinned-version samplers always have a zero minimum.
@@ -32,8 +32,25 @@ Pinned versions are created on demand through the normal Tinker sampling API;
 there is no separate pinned-pool configuration to provide.
 
 Apps default to `lilo-<hash>`. The sampler functions are `base_sampler` and
-`latest_sampler`; multiple trainer slots use `latest_sampler_0`, `latest_sampler_1`,
-and so on.
+`latest_sampler`.
+
+## Replacing a lost trainer
+
+After confirmed trainer loss, create another full training client using the same
+service. Creating a second model while the first is active is rejected.
+
+```python
+trainer = lilo.create_full_training_client(service, engine.model)
+trainer.load_state_with_optimizer(checkpoint_path).result()
+latest = trainer.save_weights_and_get_sampling_client()
+```
+
+The new model has its own publication history. Existing latest replicas follow
+its assignment; Stitch drains old generations and resets to base before applying
+its publications. A request for the new model waits until a replica has that
+model's required version. Old latest clients fail after reassignment: use the
+new sampling client. Base sampling and pinned publications are unaffected.
+The app does not automatically restore checkpoints or replay failed updates.
 
 ## Your own engine
 
@@ -79,6 +96,10 @@ remain registered but scale to zero when idle. Modal retains stopped app history
 `python scripts/scoped_smoke.py` runs a real training update, base sampling from
 another Tinker client, latest sampling, and pinned-version sampling, then exits
 the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
+
+`python scripts/scoped_recovery_smoke.py` additionally saves a full checkpoint,
+cancels the trainer invocation, restores through a new full training client, and
+checks replacement latest sampling, old-handle rejection, and pinned continuity.
 
 [Verified run results](scoped-smoke-result.json): training, base/latest/pinned
 sampling, and pinned-app shutdown before the parent, with zero remaining containers.

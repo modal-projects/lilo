@@ -55,6 +55,7 @@ def register_sampler(app, *, engine, image, assets, bulletin, registry_name,
                 port=8000, sglang_port=8001, model_path=model_path,
                 bulletin_root="/bulletin", bulletin_volume=bulletin.name,
                 run_id=run_id, pinned_version=version,
+                scoped_registry=registry_name if slot is not None else None,
             )
             self.supervisor = supervise_children(self.sglang, self.sidecar)
             wait_http("http://127.0.0.1:8000/health", self.sidecar, 1800)
@@ -170,20 +171,8 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 await asyncio.sleep(2)
             raise TimeoutError("trainer warmup exceeded deadline")
         if action == "claim":
-            route = await registry.get.aio("model:" + model_id)
-            count = int(await registry.get.aio("claimed") or 0)
-            if not route:
-                if count >= max_trainers:
-                    raise ValueError("max_trainers reached; start a new run for additional models")
-                routes = await registry.get.aio("routes")
-                route = routes[count + 1]
-                await registry.put.aio(f"slot:{count}", model_id)
-                await registry.put.aio("model:" + model_id, route)
-                count += 1
-                await registry.put.aio("claimed", count)
-            active = await engines.active_instances(engine.name)
-            if len(active) < count:
-                await engines.spawn_instance(engine.name)
+            from .scoped_assignment import claim_model
+            route = await claim_model(registry, shared_kv(), engines, engine.name, model_id)
             if latest.min_containers:
                 from lilo.providers.modal.scoped_pool import set_minimum
                 await set_minimum.aio(route["function_id"], latest.min_containers)
@@ -220,6 +209,8 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
         if model_id is None:
             return (await registry.get.aio("routes"))[0]
         if is_latest:
+            if await registry.get.aio("slot:0") != model_id:
+                raise ValueError("sampling model was replaced; use a new sampling client")
             route = await registry.get.aio("model:" + model_id)
             if not route:
                 raise ValueError("no latest pool assigned to model")

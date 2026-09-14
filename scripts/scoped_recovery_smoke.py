@@ -1,4 +1,4 @@
-"""Scoped FFT train/base/latest/pinned smoke test. Allocates 4+1+1 H100s."""
+"""Exercise explicit trainer replacement and latest/pinned sampling on Modal."""
 import json
 import math
 from pathlib import Path
@@ -12,15 +12,24 @@ from lilo.engines import qwen3_5_4b_full_64k
 
 def main():
     report = {"started_at": time.time(), "events": []}
-    output = Path('/tmp/lilo-scoped-smoke.json')
+    output = Path('/tmp/lilo-scoped-recovery.json')
     def event(name, **values):
         report['events'].append(dict(name=name, at=time.time(), **values))
         output.write_text(json.dumps(report, indent=2))
         print(name, values, flush=True)
+    # Capture the parent ID to target fault injection, without changing the API.
+    import lilo.providers.modal.scoped as scoped
+    original_build = scoped.build_app
+    resources = {}
+    def capture_build(*args, **kwargs):
+        result = original_build(*args, **kwargs)
+        resources['app'] = result[0]
+        return result
+    scoped.build_app = capture_build
     try:
         engine = qwen3_5_4b_full_64k()
         with modal.enable_output(), lilo.run(
-            engine=engine, name='lilo-scoped-smoke', warm=True,
+            engine=engine, name='lilo-recovery-test', warm=True,
             latest=lilo.Pool(min_containers=1, max_containers=1, scaledown_window=60),
         ) as (url, api_key):
             event('ready', url=url)
@@ -51,6 +60,40 @@ def main():
             saved = trainer.save_weights_for_sampler('smoke-pinned').result(timeout=1800)
             event('pinned_publication', path=saved.path)
             sample('pinned_sample', peer.create_sampling_client(model_path=saved.path))
+            checkpoint = trainer.save_state('recovery-checkpoint').result(timeout=1800)
+            event('checkpoint', path=checkpoint.path)
+            old_latest = trainer.save_weights_and_get_sampling_client()
+            # Fault injection only: cancel the trainer's actual Modal invocation.
+            app_id = resources['app'].app_id
+            engines = modal.Dict.from_name(app_id + '-engines')
+            calls = [value for key, value in engines.items() if key.startswith('engine_call:')]
+            assert len(calls) == 1, calls
+            modal.FunctionCall.from_id(calls[0]).cancel(terminate_containers=True)
+            deadline = time.monotonic() + 120
+            while True:
+                try:
+                    modal.FunctionCall.from_id(calls[0]).get(timeout=0)
+                    break
+                except TimeoutError:
+                    if time.monotonic() >= deadline: raise
+                    time.sleep(2)
+                except modal.exception.Error:
+                    break
+            event('trainer_cancelled')
+            replacement = lilo.create_full_training_client(service, engine.model)
+            assert replacement.model_id != trainer.model_id
+            event('replacement_created', model_id=replacement.model_id)
+            replacement.load_state_with_optimizer(checkpoint.path).result(timeout=1800)
+            event('restored')
+            sample('replacement_latest_sample', replacement.save_weights_and_get_sampling_client())
+            try:
+                sample('unexpected_old_latest', old_latest)
+            except Exception as exc:
+                assert 'replaced' in str(exc).lower(), str(exc)
+                event('old_latest_rejected', error=str(exc)[:300])
+            else:
+                raise AssertionError('old latest handle unexpectedly succeeded')
+            sample('old_pinned_still_works', peer.create_sampling_client(model_path=saved.path))
             event('body_complete')
         assert report['events'][-1]['name'] == 'body_complete', 'smoke body did not complete'
         event('context_exited')
@@ -60,6 +103,7 @@ def main():
         event('error', error=f'{type(exc).__name__}: {exc}')
         raise
     finally:
+        scoped.build_app = original_build
         report['finished_at'] = time.time()
         output.write_text(json.dumps(report, indent=2))
 

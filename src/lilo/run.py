@@ -71,7 +71,7 @@ def stop_children(children, stop=stop_app) -> None:
 
 
 @contextmanager
-def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
+def run(*, engine: Engine, warm: bool = True,
         latest: Pool | None = None,
         name: str = "lilo", api_key: str | None = None,
         checkpoint_volume: str = "lilo-checkpoints",
@@ -79,16 +79,14 @@ def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
     """Yield (url, api_key); stop pinned apps before the ephemeral parent.
 
     warm explicitly starts one trainer invocation; trainer min_containers is zero.
-    Trainers remain until exit (no idle cleaner). max_trainers bounds separate
-    Tinker training models, each with its own pre-registered latest pool.
+    One training model is active at a time. A lost trainer may be replaced
+    by creating a new full training client in the same deployment.
     Pinned pools always have min_containers=0. A killed owner cannot run normal
     cleanup: pinned deployments then remain registered and scale to zero when idle.
     """
     import modal
     from lilo.providers.modal.scoped import build_app
     engine.validate()
-    if isinstance(max_trainers, bool) or not isinstance(max_trainers, int) or max_trainers < 1:
-        raise ValueError("max_trainers must be a positive integer")
     latest = latest or Pool()
     pinned = Pool()  # Fixed zero minimum; not a user-facing pool setting.
     import sys
@@ -104,7 +102,7 @@ def run(*, engine: Engine, warm: bool = True, max_trainers: int = 1,
     failure = None
     try:
         resources = build_app(engine, run_name, registry_name, api_key,
-                              max_trainers, latest, pinned, checkpoint_volume,
+                              1, latest, pinned, checkpoint_volume,
                               proxy_secret or modal.Secret.from_name("lilo-proxy"))
         app, api, manage, servers, prepare_assets, sampler_image = resources
         with app.run():
