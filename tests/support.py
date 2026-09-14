@@ -10,7 +10,7 @@ import uvicorn
 from tinker import AdamParams
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
-from lilo.engine.api import EngineApi, Execution, OperationKind
+from lilo.engine.api import EngineApi, Command, OperationKind
 from lilo.engine.operations import (
     OperationPayload,
     SaveWeightsForSamplerPayload,
@@ -38,9 +38,9 @@ class EchoExecutor:
             "payload": serialize_operation_payload(payload),
         }
 
-    async def execute_batch(
+    async def execute_forward_backward_batch(
         self,
-        executions: tuple[Execution, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         return tuple(
             [
@@ -49,7 +49,7 @@ class EchoExecutor:
             ]
         )
 
-    async def capture_operation(
+    async def capture_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
@@ -77,7 +77,7 @@ class EchoExecutor:
             }
         raise ValueError(f"{kind.value} has no persistence phase")
 
-    async def persist_operation(
+    async def persist_snapshot(
         self,
         model_id: str,
         kind: OperationKind,

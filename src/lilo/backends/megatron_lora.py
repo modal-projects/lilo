@@ -14,7 +14,7 @@ from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -67,7 +67,7 @@ class LoraJobState:
     load_optimizer: bool = False
 
 
-class LoraMegatronBackend(CommandBackend):
+class LoraMegatronBackend(Backend):
     def __init__(
         self,
         config: EngineModelConfig,
@@ -480,7 +480,7 @@ class LoraMegatronBackend(CommandBackend):
             OptimStepResponse(metrics=metrics.copy()) for _model_id in model_ids
         )
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         snapshot = self._sampler_captures[capture_id]
         try:
             persist_adapter_snapshot(snapshot)
