@@ -361,7 +361,6 @@ def volume_plane(tmp_path, monkeypatch) -> tuple[ControlPlane, object, list[str]
         InMemoryKeyValueStore(),
         LocalEnginePlatform(DEFINITION, VolumeExecutor),
         read_checkpoint_metadata=modal_app._read_checkpoint_metadata,
-        locate_checkpoint=modal_app._locate_checkpoint,
         list_checkpoints=modal_app._list_checkpoints,
         delete_checkpoint=modal_app._delete_checkpoint,
         checkpoint_root=str(root),
@@ -369,8 +368,7 @@ def volume_plane(tmp_path, monkeypatch) -> tuple[ControlPlane, object, list[str]
     return plane, root, loaded
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch, legacy) -> None:
+def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
     plane, root, loaded = volume_plane(tmp_path, monkeypatch)
     app = create_control_plane_app(
         plane, DEFINITIONS, api_key=API_KEY, retrieve_window=5.0
@@ -381,22 +379,8 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch, legacy) -
         training = service.create_lora_training_client(base_model=BASE_MODEL, rank=32)
         training.save_state("first").result(timeout=30)
         saved = training.save_state("second").result(timeout=30)
-        if legacy:
-            # Emulate files saved before the layout change, keeping the same public URI.
-            for name in ("first", "second"):
-                target = root / training.model_id / "weights" / name
-                target.parent.mkdir(parents=True, exist_ok=True)
-                (root / name / training.model_id).rename(target)
-        first = (
-            (root / training.model_id / "weights" / "first")
-            if legacy
-            else (root / "first" / training.model_id)
-        )
-        second = (
-            (root / training.model_id / "weights" / "second")
-            if legacy
-            else (root / "second" / training.model_id)
-        )
+        first = root / "first" / training.model_id
+        second = root / "second" / training.model_id
 
         listing = rest.list_checkpoints(training.model_id).result(timeout=30)
         assert [c.checkpoint_id for c in listing.checkpoints] == [

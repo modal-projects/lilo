@@ -53,10 +53,7 @@ modal volume get <checkpoint-volume> /<checkpoint-path> <local-destination>
 New training checkpoints are stored as `<checkpoint-name>/<model-id>/` in the
 volume, so you can browse by the name passed to `save_state`. The model ID keeps
 identically named checkpoints from different runs separate. Public
-`tinker://<model-id>/weights/<checkpoint-name>` paths are unchanged. Existing
-`<model-id>/weights/<checkpoint-name>/` directories remain readable and appear
-in checkpoint listings without migration.
-
+`tinker://<model-id>/weights/<checkpoint-name>` paths use this volume layout.
 
 ## Differences from the Tinker SDK
 

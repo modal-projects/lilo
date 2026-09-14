@@ -172,10 +172,10 @@ def test_checkpoint_listing_derives_sdk_records() -> None:
         assert calls == ["/checkpoints/run-a/weights/older"]
 
         assert (
-            await plane.resolve_checkpoint_path("tinker://run-a/weights/newer")
+            plane.resolve_checkpoint_path("tinker://run-a/weights/newer")
             == "/checkpoints/newer/run-a"
         )
-        assert plane.tinker_path("/checkpoints/run-a/weights/newer") == (
+        assert plane.tinker_path("/checkpoints/newer/run-a") == (
             "tinker://run-a/weights/newer"
         )
         for bad in (
@@ -185,7 +185,7 @@ def test_checkpoint_listing_derives_sdk_records() -> None:
             "tinker://run-a/weights/..",
         ):
             with pytest.raises(ValueError):
-                await plane.resolve_checkpoint_path(bad)
+                plane.resolve_checkpoint_path(bad)
 
     asyncio.run(run())
 
