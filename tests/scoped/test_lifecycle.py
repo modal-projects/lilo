@@ -109,3 +109,25 @@ def test_latest_minimum_updates_by_id_without_name_lookup(monkeypatch):
     set_minimum('fu-ephemeral', 1)
     assert calls[0].function_id == 'fu-ephemeral'
     assert calls[0].settings.min_containers == 1
+
+
+def test_retry_finishes_preparation_without_creating_another_model():
+    import asyncio
+    from lilo.providers.modal.scoped_control import ScopedControlPlane
+    from lilo.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
+    from tests.support import EchoExecutor
+    prepared = []
+    async def prepare(model):
+        prepared.append(model.model_id)
+        if len(prepared) == 1:
+            raise RuntimeError('transient infrastructure error')
+    async def check():
+        plane = ScopedControlPlane(InMemoryKeyValueStore(),
+            LocalEnginePlatform('test', EchoExecutor), prepare_model=prepare)
+        session = await plane.create_session()
+        args = dict(session_id=session.session_id, model_seq_id=0, definition_id='test', spec={'rank':32})
+        with pytest.raises(RuntimeError): await plane.create_model(**args)
+        result = await plane.create_model(**args)
+        assert prepared == [result.model.model_id]*2
+        assert not result.created
+    asyncio.run(check())

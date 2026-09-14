@@ -73,8 +73,9 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
     from .sampling import ModalSamplingTaskPlatform
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
-    from lilo.control_plane import ControlPlane, create_control_plane_app
-    from .scoped_pool import ScopedFlashPool, set_minimum
+    from lilo.control_plane import create_control_plane_app
+    from .scoped_control import ScopedControlPlane
+    from .scoped_pool import ScopedFlashPool
     from .fft_pool import proxy_auth_headers
     from lilo.inference.sampling import sample_task
 
@@ -169,21 +170,22 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 await asyncio.sleep(2)
             raise TimeoutError("trainer warmup exceeded deadline")
         if action == "claim":
-            existing = await registry.get.aio("model:" + model_id)
-            if existing:
-                return existing
+            route = await registry.get.aio("model:" + model_id)
             count = int(await registry.get.aio("claimed") or 0)
-            if count >= max_trainers:
-                raise ValueError("max_trainers reached; start a new run for additional models")
-            routes = await registry.get.aio("routes")
-            route = routes[count + 1]
-            await registry.put.aio(f"slot:{count}", model_id)
-            await registry.put.aio("model:" + model_id, route)
-            await registry.put.aio("claimed", count + 1)
+            if not route:
+                if count >= max_trainers:
+                    raise ValueError("max_trainers reached; start a new run for additional models")
+                routes = await registry.get.aio("routes")
+                route = routes[count + 1]
+                await registry.put.aio(f"slot:{count}", model_id)
+                await registry.put.aio("model:" + model_id, route)
+                count += 1
+                await registry.put.aio("claimed", count)
             active = await engines.active_instances(engine.name)
-            if len(active) < count + 1:
+            if len(active) < count:
                 await engines.spawn_instance(engine.name)
             if latest.min_containers:
+                from lilo.providers.modal.scoped_pool import set_minimum
                 await set_minimum.aio(route["function_id"], latest.min_containers)
             return route
         if action == "pinned":
@@ -198,12 +200,12 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             if child_name not in children:
                 await registry.put.aio("children", [*children, child_name])
             child = modal.App(child_name)
-            pinned_image = modal.Image.from_id(await registry.get.aio("sampler_image_id"))
+            pinned_image = modal.Image.from_id(await registry.get.aio("sampler_image_id")).add_local_python_source("lilo")
             server = register_sampler(
                 child, engine=engine, image=pinned_image, assets=assets, bulletin=bulletin,
                 registry_name=registry_name, slot=None, model_id=model_id, version=version,
                 pool=pinned, proxy_secret=proxy_secret, name="Sampler")
-            await child.deploy.aio(child_name, environment_name=environment_name)
+            await child.deploy.aio(name=child_name, environment_name=environment_name)
             route = {"url": await server.get_url.aio(), "function_id": server.object_id}
             await registry.put.aio(key, route)
             return route
@@ -251,7 +253,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             return call.object_id
 
         stores = ModalSessionKeyValueStores()
-        plane = ControlPlane(
+        plane = ScopedControlPlane(
             shared_kv(), ModalEnginePlatform(shared_kv(), spawn_engine),
             session_idle_timeout=None, prepare_model=prepare_model,
             ensure_sampling_pool=ensure_pool,
