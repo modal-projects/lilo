@@ -111,3 +111,27 @@ sampling, and pinned-app shutdown before the parent, with zero remaining contain
 checkpoint restoration, replacement latest sampling, old-handle rejection, and
 pinned-app reclamation followed by recreation through the same handle. All test
 apps stopped with zero remaining containers.
+
+## OpenTelemetry
+
+Pass an OTLP configuration secret to `lilo.run(telemetry_secret=...)` to enable
+traces on the scoped API, trainer and sampling worker, and five-second trainer
+operation gauges. Use an OTel-only secret; keep API/proxy credentials separate.
+The codegolf example forwards only `OTEL_*` keys from its existing controller
+secret. Exporting is best effort and does not require a telemetry volume or a
+Datadog-specific dependency.
+
+Set `user_metadata={"run_id": "my-run", "attempt_id": "replacement-1"}` when
+creating the full training client. Lilo validates these two labels, snapshots them
+through models, artifacts and sampling sessions, and propagates `lilo.run_id` / `lilo.run_attempt_id` to trainer
+operations and sampling retries. Use the same run ID and a fresh attempt ID after
+replacement. These are correlation labels, not authorization boundaries. Prompts,
+generated code and arbitrary metadata are excluded. Metrics exported before a
+checkpoint rollback remain historical observations; the application checkpoint
+ledger determines committed progress.
+
+The [observability guide](observability.md) defines the trace boundaries and metric
+labels. Physical trainer-state metrics have no model experiment labels. When one
+scoped deployment belongs exclusively to one experiment, its owner may include
+`lilo.run_id` in `OTEL_RESOURCE_ATTRIBUTES` to filter that deployment's metrics.
+Do not apply a single experiment resource label to a shared deployment.

@@ -68,7 +68,7 @@ def register_sampler(app, *, engine, image, assets, bulletin, registry_name,
 
 
 def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
-              latest, pinned, checkpoint_volume_name, proxy_secret):
+              latest, pinned, checkpoint_volume_name, proxy_secret, *, telemetry_secret=None):
     from .kv import shared_kv, ModalSessionKeyValueStores
     from .engines import ModalEnginePlatform
     from .sampling import ModalSamplingTaskPlatform
@@ -92,6 +92,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
     assets = modal.Volume.from_name("lilo-model-assets", create_if_missing=True)
     bulletin = modal.Volume.from_name("lilo-snapshot-bulletin", create_if_missing=True, version=2)
     checkpoints = modal.Volume.from_name(checkpoint_volume_name, create_if_missing=True, version=2)
+    telemetry_secrets = [telemetry_secret] if telemetry_secret is not None else []
     api_secret = modal.Secret.from_dict({"TINKER_API_KEY": api_key})
 
     @app.function(name="prepare_assets", image=image, serialized=True,
@@ -111,7 +112,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                   min_containers=0, max_containers=max_trainers,
                   single_use_containers=True, retries=0,
                   volumes={"/assets": assets, "/bulletin": bulletin, "/checkpoints": checkpoints},
-                  secrets=[api_secret, proxy_secret])
+                  secrets=[*telemetry_secrets, api_secret, proxy_secret])
     def trainer(instance_id):
         from modal.config import config
         from .serve import run_engine_with_backend
@@ -236,7 +237,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
         return await manage.remote.aio("pinned", model_id, version)
 
     @app.function(name="execute_sample", image=image, serialized=True,
-                  timeout=3600, retries=0, secrets=[proxy_secret])
+                  timeout=3600, retries=0, secrets=[*telemetry_secrets, proxy_secret])
     @modal.concurrent(max_inputs=128)
     async def execute_sample(task):
         import uuid
@@ -247,10 +248,14 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
         else:
             route = await route_for(task["model_id"], task.get("publish_version"), task.get("latest"))
         try:
-            return await sample_task(
-                task, ScopedFlashPool(route).gateway_url(),
-                data_parallel_size=gpu_count(engine.sampler_gpu) // engine.sampling.tensor_parallel_size,
-                headers=proxy_auth_headers(), context_length=engine.training.seq_length)
+            from lilo.telemetry.otlp import sample_trace
+            stats = {}
+            with sample_trace(task, stats):
+                return await sample_task(
+                    task, ScopedFlashPool(route).gateway_url(),
+                    data_parallel_size=gpu_count(engine.sampler_gpu) // engine.sampling.tensor_parallel_size,
+                    headers=proxy_auth_headers(), context_length=engine.training.seq_length,
+                    stats=stats)
         finally:
             if pinned_request:
                 try:
@@ -262,7 +267,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                     logging.getLogger(__name__).exception("pinned lease release failed; lease will expire")
 
     @app.function(name="api", image=image, serialized=True,
-                  timeout=1200, secrets=[api_secret],
+                  timeout=1200, secrets=[*telemetry_secrets, api_secret],
                   volumes={"/checkpoints": checkpoints}, routing_region="us-west")
     @modal.concurrent(max_inputs=128)
     @modal.asgi_app(requires_proxy_auth=False)

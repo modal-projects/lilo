@@ -91,7 +91,7 @@ def run(*, engine: Engine, warm: bool = True,
         latest: Pool | None = None,
         name: str = "lilo", api_key: str | None = None,
         checkpoint_volume: str = "lilo-checkpoints",
-        proxy_secret=None):
+        proxy_secret=None, telemetry_secret=None):
     """Yield (url, api_key); stop pinned apps before the ephemeral parent.
 
     warm explicitly starts one trainer invocation; trainer min_containers is zero.
@@ -119,7 +119,8 @@ def run(*, engine: Engine, warm: bool = True,
     try:
         resources = build_app(engine, run_name, registry_name, api_key,
                               1, latest, pinned, checkpoint_volume,
-                              proxy_secret or modal.Secret.from_name("lilo-proxy"))
+                              proxy_secret or modal.Secret.from_name("lilo-proxy"),
+                              telemetry_secret=telemetry_secret)
         app, api, manage, servers, prepare_assets, sampler_image = resources
         with app.run():
             registry.put("routes", [

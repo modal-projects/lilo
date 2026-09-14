@@ -52,7 +52,7 @@ def test_owned_children_stop_before_parent(monkeypatch, warm, body_failure, drai
     def stop(children):
         events.extend("stop-" + child for child in children)
     monkeypatch.setattr(module, "stop_children", stop)
-    monkeypatch.setattr(scoped, "build_app", lambda *a: (
+    monkeypatch.setattr(scoped, "build_app", lambda *a, **kw: (
         SimpleNamespace(run=parent), SimpleNamespace(get_web_url=lambda: "https://example.invalid"),
         SimpleNamespace(remote=manage), [], SimpleNamespace(remote=lambda: events.append("assets")),
         SimpleNamespace(object_id="im-test")))

@@ -1,0 +1,361 @@
+import asyncio
+
+import httpx
+import pytest
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from lilo.engine import EngineServer
+from lilo.engine.http import HttpEngineClient, create_engine_app
+from lilo.telemetry import trainer
+from tests.support import EchoExecutor
+
+
+@pytest.fixture
+def setup(monkeypatch):
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    monkeypatch.setattr(trainer, "provider", lambda: provider)
+    reader = InMemoryMetricReader()
+    telemetry = trainer.TrainerTelemetry(
+        "instance", "definition", "boot", metric_reader=reader
+    )
+    yield telemetry, exporter, reader
+    telemetry.close()
+    provider.shutdown()
+
+
+def test_transport_queue_execution_and_duplicate_submission(setup):
+    telemetry, exporter, _ = setup
+
+    async def run():
+        server = EngineServer(EchoExecutor(), observer=telemetry)
+        await server.accept_model("model", {})
+        client = HttpEngineClient(
+            "http://engine",
+            transport=httpx.ASGITransport(app=create_engine_app(server)),
+        )
+
+        async def submit(scope, receive, send):
+            request = {"model_id": "model", "seq_id": 1, "adam_params": {}}
+            rid = await client.optim_step(request)
+            assert await client.optim_step(request) == rid
+            assert (
+                await server.retrieve_future(rid, timeout=1)
+            ).status.value == "complete"
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"{}"})
+
+        app = trainer.CommandMiddleware(submit)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://control"
+        ) as http:
+            assert (await http.post("/api/v1/optim_step")).status_code == 200
+        await client.close()
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
+    (control,) = [s for s in spans if s.name == "lilo.control.submit"]
+    assert command.parent is None
+    assert control.parent.span_id == command.context.span_id
+    for name in ("queue", "result_ready"):
+        (child,) = [s for s in spans if s.name == "lilo.trainer." + name]
+        assert child.parent.span_id == command.context.span_id
+        assert child.start_time >= command.start_time
+        assert child.end_time <= command.end_time
+    assert not telemetry.commands
+
+
+def test_state_one_hot_and_background_overlap(setup):
+    telemetry, _, reader = setup
+    telemetry.state(("model",), "executing:forward_backward")
+    telemetry.set_activity("checkpoint", "save_weights")
+    data = reader.get_metrics_data()
+    points = data.resource_metrics[0].scope_metrics[0].metrics[0].data.data_points
+    for lane in ("execution", "checkpoint", "sampler"):
+        assert sum(p.value for p in points if p.attributes["lilo.lane"] == lane) == 1
+    active = {
+        (p.attributes["lilo.lane"], p.attributes["lilo.operation"])
+        for p in points
+        if p.value
+    }
+    assert active == {
+        ("execution", "forward_backward"),
+        ("checkpoint", "save_weights"),
+        ("sampler", "idle"),
+    }
+    telemetry.state(("model",), "idle")
+    assert telemetry.activity["checkpoint"] == "save_weights"
+
+
+def test_batch_links_all_commands_and_error_omits_payload(setup):
+    from types import SimpleNamespace
+
+    from lilo.engine import FutureState, FutureStatus, OperationKind
+
+    telemetry, exporter, _ = setup
+    ops = [
+        SimpleNamespace(
+            request_id=f"{m}:1",
+            model_id=m,
+            seq_id=1,
+            kind=OperationKind.FORWARD_BACKWARD,
+        )
+        for m in ("a", "b")
+    ]
+    from lilo.engine.operations import parse_operation_payload
+
+    for index, op in enumerate(ops):
+        telemetry.register_model(
+            op.model_id, {"user_metadata": {"run_id": "run", "attempt_id": str(index)}}
+        )
+        op.payload = parse_operation_payload(
+            OperationKind.FORWARD_BACKWARD,
+            {
+                "data": [
+                    {
+                        "model_input": {
+                            "chunks": [
+                                {
+                                    "type": "encoded_text",
+                                    "tokens": list(range(index + 3)),
+                                }
+                            ]
+                        },
+                        "loss_fn_inputs": {},
+                    }
+                ]
+                * (index + 1),
+                "loss_fn": "cross_entropy",
+            },
+        )
+        telemetry.begin(op)
+    import time
+
+    telemetry.span(
+        ("a", "b"),
+        "forward_backward",
+        "gpu",
+        time.time(),
+        seq_ids=[1, 1],
+        n=2,
+        ok=False,
+        error="PRIVATE",
+    )
+    for op in ops:
+        telemetry.finish(op, FutureState(FutureStatus.FAILED, error="PRIVATE"))
+    spans = exporter.get_finished_spans()
+    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
+    roots = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    assert batch.parent is None
+    assert batch.attributes["lilo.run_id"] == "run"
+    assert "lilo.run_attempt_id" not in batch.attributes
+    assert {s.attributes["lilo.run_attempt_id"] for s in roots} == {"0", "1"}
+    assert batch.attributes["lilo.command_count"] == 2
+    assert batch.attributes["lilo.example_count"] == 3
+    assert batch.attributes["lilo.input_tokens"] == 11
+    assert sorted(s.attributes["lilo.input_tokens"] for s in roots) == [3, 8]
+    assert {l.context.span_id for l in batch.links} == {
+        s.context.span_id for s in roots
+    }
+    assert all("PRIVATE" not in str(s.attributes) and not s.events for s in spans)
+
+
+def test_persistence_keeps_original_command_and_overlaps_next_operation(setup):
+    telemetry, exporter, _ = setup
+
+    async def run():
+        persisting, release = asyncio.Event(), asyncio.Event()
+
+        class Executor(EchoExecutor):
+            async def persist_checkpoint(self, *args):
+                persisting.set()
+                await release.wait()
+                return await super().persist_checkpoint(*args)
+
+        server = EngineServer(Executor(), observer=telemetry)
+        await server.accept_model("model", {})
+        save_id = await server.save_weights(
+            {"model_id": "model", "seq_id": 1, "path": "private-checkpoint"}
+        )
+        await asyncio.wait_for(persisting.wait(), 1)
+        assert telemetry.activity["checkpoint"] == "save_weights"
+        optim_id = await server.optim_step(
+            {"model_id": "model", "seq_id": 2, "adam_params": {}}
+        )
+        assert (await server.retrieve_future(optim_id, 1)).status.value == "complete"
+        assert (await server.retrieve_future(save_id)).status.value == "pending"
+        assert save_id in telemetry.commands and optim_id not in telemetry.commands
+        release.set()
+        assert (await server.retrieve_future(save_id, 1)).status.value == "complete"
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (command,) = [s for s in spans if s.name == "lilo.command.save_weights"]
+    (persist,) = [s for s in spans if s.name == "lilo.trainer.persist.save_weights"]
+    (optim,) = [s for s in spans if s.name == "lilo.trainer.optim_step"]
+    assert persist.parent is None
+    assert persist.links[0].context.span_id == command.context.span_id
+    assert persist.start_time <= optim.start_time < optim.end_time <= persist.end_time
+    assert all("private-checkpoint" not in str(s.attributes) for s in spans)
+
+
+def test_unload_ends_buffered_command_without_retaining_span(setup):
+    telemetry, exporter, _ = setup
+
+    async def run():
+        server = EngineServer(EchoExecutor(), observer=telemetry)
+        await server.accept_model("model", {})
+        # Sequence 2 must wait for missing sequence 1, then be discarded on unload.
+        await server.optim_step({"model_id": "model", "seq_id": 2, "adam_params": {}})
+        assert telemetry.commands
+        await server.unload_model("model")
+        assert not telemetry.commands
+        await server.close()
+
+    asyncio.run(run())
+    (command,) = [
+        s for s in exporter.get_finished_spans() if s.name == "lilo.command.optim_step"
+    ]
+    assert command.status.status_code.name == "ERROR"
+
+
+def test_workload_counts_and_independent_execution_for_one_command(setup):
+    from tests.engine.test_server import forward_backward
+
+    telemetry, exporter, _ = setup
+
+    async def run():
+        server = EngineServer(EchoExecutor(), observer=telemetry)
+        await server.accept_model("model-a", {})
+        rid = await forward_backward(server, 1, [1, 2, 3, 4, 5])
+        assert (await server.retrieve_future(rid, 1)).status.value == "complete"
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (command,) = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
+    assert command.parent is None and batch.parent is None
+    assert command.context.trace_id != batch.context.trace_id
+    assert batch.links[0].context == command.context
+    for span in (command, batch):
+        assert span.attributes["lilo.example_count"] == 1
+        assert span.attributes["lilo.input_tokens"] == 5
+    assert batch.attributes["lilo.command_count"] == 1
+    assert "lilo.batch_size" not in batch.attributes
+
+
+def test_retried_http_submission_joins_original_completed_root(setup):
+    telemetry, exporter, _ = setup
+
+    async def run():
+        server = EngineServer(EchoExecutor(), observer=telemetry)
+        await server.accept_model("model", {})
+        client = HttpEngineClient(
+            "http://engine",
+            transport=httpx.ASGITransport(app=create_engine_app(server)),
+        )
+
+        async def submit(scope, receive, send):
+            rid = await client.optim_step(
+                {"model_id": "model", "seq_id": 1, "adam_params": {}}
+            )
+            await server.retrieve_future(rid, 1)
+            await send({"type": "http.response.start", "status": 200, "headers": []})
+            await send({"type": "http.response.body", "body": b"{}"})
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=trainer.CommandMiddleware(submit)),
+            base_url="http://control",
+        ) as http:
+            for _ in range(2):
+                assert (await http.post("/api/v1/optim_step")).status_code == 200
+        await client.close()
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
+    submissions = [s for s in spans if s.name == "lilo.control.submit"]
+    assert len(submissions) == 2
+    assert all(
+        s.parent.span_id == command.context.span_id
+        and s.context.trace_id == command.context.trace_id
+        for s in submissions
+    )
+
+
+def test_engine_combines_commands_once_with_aggregate_workload(setup):
+    import json
+
+    from lilo.engine import OperationKind
+
+    telemetry, exporter, _ = setup
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class Executor(EchoExecutor):
+            async def execute(self, model_id, kind, payload):
+                if kind == OperationKind.OPTIM_STEP:
+                    entered.set()
+                    await release.wait()
+                return await super().execute(model_id, kind, payload)
+
+        server = EngineServer(Executor(), observer=telemetry)
+        for model in ("a", "b"):
+            await server.accept_model(
+                model, {"user_metadata": {"run_id": "run", "attempt_id": model}}
+            )
+        await server.optim_step({"model_id": "a", "seq_id": 1, "adam_params": {}})
+        await asyncio.wait_for(entered.wait(), 1)
+        requests = []
+        for model, seq, count, tokens in [
+            ("a", 2, 1, [1, 2, 3]),
+            ("b", 1, 2, [4, 5, 6, 7]),
+        ]:
+            body = {
+                "model_id": model,
+                "seq_id": seq,
+                "forward_backward_input": {
+                    "data": [
+                        {
+                            "model_input": {"chunks": [{"tokens": tokens}]},
+                            "loss_fn_inputs": {},
+                        }
+                    ]
+                    * count,
+                    "loss_fn": "cross_entropy",
+                },
+            }
+            requests.append(
+                await server.forward_backward(
+                    json.dumps(body).encode(), "application/json"
+                )
+            )
+        release.set()
+        for rid in requests:
+            assert (await server.retrieve_future(rid, 1)).status.value == "complete"
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
+    commands = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    assert len(commands) == 2
+    assert batch.parent is None
+    assert batch.attributes["lilo.command_count"] == 2
+    assert batch.attributes["lilo.example_count"] == 3
+    assert batch.attributes["lilo.input_tokens"] == 11
+    assert batch.attributes["lilo.run_id"] == "run"
+    assert "lilo.run_attempt_id" not in batch.attributes
+    assert {(link.context.trace_id, link.context.span_id) for link in batch.links} == {
+        (command.context.trace_id, command.context.span_id) for command in commands
+    }
