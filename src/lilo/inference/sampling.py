@@ -145,6 +145,7 @@ async def _sample_one(
     deadline = started_at + retry_timeout
     delay = RETRY_INITIAL_DELAY_SECONDS
     reroute_attempt = 0
+    transport_retries = 0
     rejected: set[str] = set()
     waiting_logged = False
     while True:
@@ -193,13 +194,14 @@ async def _sample_one(
             if not isinstance(gateway, str):
                 rejected.add(gateway_url)
             reroute_attempt += 1
-            if index == 0:
-                print(
-                    "execute_sample reroute "
-                    f"request={group_session_id} attempt={reroute_attempt} "
-                    f"upstream={gateway_url} reason={reason}",
-                    flush=True,
-                )
+            transport_retries += 1
+            print(
+                "execute_sample reroute "
+                f"request={group_session_id} sample={index} attempt={reroute_attempt} "
+                f"elapsed_seconds={loop.time() - started_at:.3f} "
+                f"upstream={gateway_url} reason={reason}",
+                flush=True,
+            )
         else:
             retryable = response.status_code == 409 or response.status_code >= 500
             if not retryable:
@@ -219,10 +221,11 @@ async def _sample_one(
                         rejected.add(gateway_url)
                     reroute_attempt += 1
                 else:
-                    if index == 0 and reroute_attempt:
+                    if reroute_attempt and (index == 0 or transport_retries):
                         print(
                             "execute_sample reroute_complete "
-                            f"request={group_session_id} attempts={reroute_attempt} "
+                            f"request={group_session_id} sample={index} attempts={reroute_attempt} "
+                            f"transport_retries={transport_retries} elapsed_seconds={loop.time() - started_at:.3f} "
                             f"upstream={gateway_url}",
                             flush=True,
                         )

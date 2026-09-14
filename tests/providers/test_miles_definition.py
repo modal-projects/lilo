@@ -29,12 +29,26 @@ def test_miles_definition_uses_one_lilo_driver_for_all_ray_workers() -> None:
     assert keywords["max_models"].id == "MAX_LORA_SLOTS"
 
 
-def test_long_context_miles_definition_supports_twenty_step_sampling():
+def test_long_context_miles_definition_supports_six_clients_for_thirty_steps():
     from lilo.providers.modal.definitions import qwen3_5_9b_base_miles_lora_16k as long
 
     assert long.MAX_CONTEXT_LENGTH >= 8192 + 2048
-    assert long.MAX_LORA_SLOTS >= 2
-    assert long.ROLLOUT_MAX_LOADED_LORAS >= 2 * (20 + 2)
-    assert long.ROLLOUT_MAX_CONTAINERS == 2
+    assert long.MAX_LORA_SLOTS >= 6
+    assert long.ROLLOUT_MAX_LOADED_LORAS >= 6 * (30 + 3)
+    assert long.ROLLOUT_MAX_CONTAINERS == 8
     assert long.CATALOG_VISIBLE
     assert not definition.CATALOG_VISIBLE
+
+
+
+def test_single_tenant_definition_preserves_shared_hardware_and_backend():
+    from lilo.providers.modal.definitions import qwen3_5_9b_base_miles_lora_16k as shared
+    from lilo.providers.modal.definitions import qwen3_5_9b_base_miles_lora_16k_single as single
+
+    assert single.TRAINER_MODELS_PER_INSTANCE == 1
+    assert not single.CATALOG_VISIBLE
+    assert single.run_trainer is shared.run_trainer
+    for name in ("MODEL_NAME", "GPUS", "GPU_TYPE", "MAX_CONTEXT_LENGTH",
+                 "TENSOR_MODEL_PARALLEL_SIZE", "MAX_LORA_SLOTS", "MAX_LORA_RANK",
+                 "ROLLOUT_MIN_CONTAINERS", "ROLLOUT_MAX_CONTAINERS", "ROLLOUT_GPU_TYPE"):
+        assert getattr(single, name) == getattr(shared, name)

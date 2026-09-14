@@ -14,6 +14,13 @@ FULL_DEFINITION = "qwen3_5_9b_full_64k"
 LORA_DEFINITION = "qwen3_5_9b_base_miles_lora_2k"
 
 
+@pytest.fixture(autouse=True)
+def reset_lora_pool_cache(monkeypatch):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    monkeypatch.setattr(modal_app, "_lora_pool_gateways", {})
+    monkeypatch.setattr(modal_app, "_lora_pool_checks", {})
+
+
 def test_definitions_exclude_stale_128k_definition() -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
     assert "qwen3_5_9b_full_128k" not in {
@@ -216,6 +223,7 @@ def test_execute_sample_routes_lora_models_to_shared_pool(monkeypatch) -> None:
         SimpleNamespace(remote=SimpleNamespace(aio=ensure)),
     )
     monkeypatch.setattr(modal_app, "lora_pool_gateway", gateway)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
     monkeypatch.setattr(sampling, "sample_task", sample)
     task = {
         "engine_definition_id": LORA_DEFINITION,
@@ -229,7 +237,7 @@ def test_execute_sample_routes_lora_models_to_shared_pool(monkeypatch) -> None:
         "model_id": "model-a",
     }
     expected = LoraPoolSpec(LORA_DEFINITION)
-    assert ensured == [expected.as_dict()]
+    assert ensured == []
     assert specs == [expected]
 
 
@@ -503,3 +511,154 @@ def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
         asyncio.run(modal_app._delete_checkpoint(str(lora)))
     with pytest.raises(ValueError):
         asyncio.run(modal_app._delete_checkpoint(str(tmp_path / "elsewhere")))
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_concurrent_lora_pool_checks_only_resolve_once(monkeypatch, missing):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    registry = InMemoryKeyValueStore()
+    spec = LoraPoolSpec(LORA_DEFINITION)
+    lookups, deployments = [], []
+
+    async def lookup(pool):
+        lookups.append(pool)
+        await asyncio.sleep(0)
+        if missing:
+            raise modal_app.modal.exception.NotFoundError("pool missing")
+        return "https://gateway"
+
+    async def deploy(record):
+        deployments.append(record)
+        await asyncio.sleep(0)
+        await registry.put(f"lora_pool:{spec.app_name}", {**record, "touched_at": 1000.0})
+        return "https://gateway"
+
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", lookup)
+    monkeypatch.setattr(modal_app, "shared_kv", lambda: registry)
+    monkeypatch.setattr(modal_app, "ensure_lora_pool", SimpleNamespace(remote=SimpleNamespace(aio=deploy)))
+
+    async def run():
+        values = await asyncio.gather(*(modal_app._ready_lora_pool(spec) for _ in range(96)))
+        assert values == ["https://gateway"] * 96
+        assert await modal_app._ready_lora_pool(spec) == "https://gateway"
+        assert await registry.get(f"lora_pool:{spec.app_name}") is not None
+
+    asyncio.run(run())
+    assert lookups == [spec]
+    assert deployments == ([spec.as_dict()] if missing else [])
+
+
+def test_lora_readiness_refreshes_touch_and_recovers_missing_pool(monkeypatch):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    registry = InMemoryKeyValueStore()
+    spec = LoraPoolSpec(LORA_DEFINITION)
+    clock = [1000.0]
+    exists = [True]
+    lookups, deployments = [], []
+
+    async def lookup(pool):
+        lookups.append(clock[0])
+        if not exists[0]:
+            raise modal_app.modal.exception.NotFoundError("stopped")
+        return "https://gateway"
+
+    async def deploy(record):
+        deployments.append(record)
+        exists[0] = True
+        return "https://gateway"
+
+    monkeypatch.setattr(modal_app, "time", SimpleNamespace(time=lambda: clock[0], monotonic=lambda: clock[0]))
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", lookup)
+    monkeypatch.setattr(modal_app, "shared_kv", lambda: registry)
+    monkeypatch.setattr(modal_app, "ensure_lora_pool", SimpleNamespace(remote=SimpleNamespace(aio=deploy)))
+
+    async def run():
+        await modal_app._ready_lora_pool(spec)
+        clock[0] += 59
+        await modal_app._ready_lora_pool(spec)
+        assert (await registry.get(f"lora_pool:{spec.app_name}"))["touched_at"] == 1000
+        clock[0] += 1
+        await modal_app._ready_lora_pool(spec)
+        assert (await registry.get(f"lora_pool:{spec.app_name}"))["touched_at"] == 1060
+        exists[0] = False
+        clock[0] += 60
+        await modal_app._ready_lora_pool(spec)
+
+    asyncio.run(run())
+    assert lookups == [1000, 1060, 1120]
+    assert deployments == [spec.as_dict()]
+
+
+def test_lora_readiness_does_not_cache_errors_or_deploy_on_network_failure(monkeypatch):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    spec = LoraPoolSpec(LORA_DEFINITION)
+    attempts = []
+
+    async def lookup(pool):
+        attempts.append(pool)
+        if len(attempts) == 1:
+            raise RuntimeError("lookup transport failed")
+        return "https://gateway"
+
+    async def deploy(record):
+        pytest.fail("Only NotFound should deploy a pool")
+
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", lookup)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "ensure_lora_pool", SimpleNamespace(remote=SimpleNamespace(aio=deploy)))
+
+    async def run():
+        with pytest.raises(RuntimeError, match="lookup transport"):
+            await modal_app._ready_lora_pool(spec)
+        assert await modal_app._ready_lora_pool(spec) == "https://gateway"
+
+    asyncio.run(run())
+    assert len(attempts) == 2
+
+
+def test_sampling_session_readiness_reuses_cached_pool(monkeypatch):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    lookups = []
+
+    async def lookup(spec):
+        lookups.append(spec)
+        return "https://gateway"
+
+    async def deploy(record):
+        pytest.fail("Warm session creation should not use serialized deployment")
+
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", lookup)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "fft_pool_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "ModalSessionKeyValueStores", SimpleNamespace)
+    monkeypatch.setattr(modal_app, "ensure_lora_pool", SimpleNamespace(remote=SimpleNamespace(aio=deploy)))
+    session = SimpleNamespace(engine_definition_id=LORA_DEFINITION)
+
+    async def run():
+        plane = modal_app._plane()
+        await asyncio.gather(*(plane.ensure_sampling_pool(session) for _ in range(6)))
+        await modal_app._ready_lora_pool(LoraPoolSpec(LORA_DEFINITION))
+
+    asyncio.run(run())
+    assert lookups == [LoraPoolSpec(LORA_DEFINITION)]
+
+
+def test_lora_readiness_cache_is_revision_specific(monkeypatch):
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    lookups = []
+
+    async def lookup(spec):
+        lookups.append(spec)
+        return f"https://{spec.app_name}"
+
+    monkeypatch.setattr(modal_app, "lora_pool_gateway", lookup)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+
+    async def run():
+        first = LoraPoolSpec(LORA_DEFINITION, "old")
+        second = LoraPoolSpec(LORA_DEFINITION, "new")
+        assert await modal_app._ready_lora_pool(first) != await modal_app._ready_lora_pool(second)
+        await modal_app._ready_lora_pool(first)
+
+    asyncio.run(run())
+    assert [spec.revision for spec in lookups] == ["old", "new"]

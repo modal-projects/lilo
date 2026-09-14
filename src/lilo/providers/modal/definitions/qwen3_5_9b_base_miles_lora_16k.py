@@ -21,7 +21,7 @@ MAX_CONTEXT_LENGTH = 16_384
 GPU_TYPE = "H100"
 GPUS = 4
 TENSOR_MODEL_PARALLEL_SIZE = 4
-MAX_LORA_SLOTS = 4
+MAX_LORA_SLOTS = 6
 MAX_LORA_RANK = 32
 DEFAULT_LORA_ALPHA = 32
 TARGET_MODULES = (
@@ -42,8 +42,9 @@ ROLLOUT_MEMORY_FRACTION = 0.8
 ROLLOUT_MAX_RUNNING_REQUESTS = 32
 ROLLOUT_MAX_QUEUED_REQUESTS = 8
 ROLLOUT_TARGET_CONCURRENCY = 16
-ROLLOUT_MAX_LOADED_LORAS = 64
-ROLLOUT_MAX_CONTAINERS = 2
+ROLLOUT_MAX_LOADED_LORAS = 256
+ROLLOUT_MIN_CONTAINERS = 8
+ROLLOUT_MAX_CONTAINERS = 8
 ROLLOUT_MAX_LORAS_PER_BATCH = 8
 ROLLOUT_LORA_TARGET_MODULES = (
     "q_proj",
@@ -96,6 +97,10 @@ proxy_secret = modal.Secret.from_name(
     single_use_containers=True,
 )
 def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
+    run_trainer(instance_id)
+
+
+def run_trainer(instance_id: str, *, definition_id: str = DEFINITION_ID, max_models: int = MAX_LORA_SLOTS) -> None:
     import json
 
     from huggingface_hub import snapshot_download
@@ -134,13 +139,13 @@ def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
     run_engine_with_backend(
         shared_kv(),
         "lilo.backends.miles_lora:build_executor",
-        definition_id=DEFINITION_ID,
+        definition_id=definition_id,
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env={
             "LILO_BACKEND_CONFIG": json.dumps(backend_config),
             "LILO_BASE_MODEL": MODEL_NAME,
-            "LILO_DEFINITION_ID": DEFINITION_ID,
+            "LILO_DEFINITION_ID": definition_id,
             "LILO_CHECKPOINT_VOLUME": CHECKPOINT_VOLUME_NAME,
             "LILO_BULLETIN_ROOT": BULLETIN_ROOT,
             "LILO_BULLETIN_VOLUME": BULLETIN_VOLUME_NAME,
@@ -149,7 +154,7 @@ def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
         nproc=1,
-        max_models=MAX_LORA_SLOTS,
+        max_models=max_models,
         sampler_persistence_concurrency=8,
     )
 

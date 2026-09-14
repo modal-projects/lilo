@@ -358,3 +358,22 @@ def test_default_transport_enables_tcp_keepalive() -> None:
     ) as default_transport:
         asyncio.run(sample_task(task(), "http://rollout"))
     default_transport.assert_called_once_with()
+
+
+def test_transport_error_on_nonfirst_sample_is_observable(capsys):
+    request = task()
+    request["payload"]["num_samples"] = 2
+    attempts = {}
+    def handle(http_request):
+        seed = json.loads(http_request.content)["sampling_params"]["sampling_seed"]
+        attempts[seed] = attempts.get(seed, 0) + 1
+        if seed == 11 and attempts[seed] == 1:
+            raise httpx.ReadError("connection reset", request=http_request)
+        return response(7)
+    with patch("lilo.inference.sampling.asyncio.sleep", new=AsyncMock()):
+        result = asyncio.run(sample_task(request, "http://rollout", transport=httpx.MockTransport(handle)))
+    assert len(result["sequences"]) == 2
+    logs = capsys.readouterr().out
+    assert "sample=1 attempt=1 elapsed_seconds=" in logs
+    assert "reason=ReadError: connection reset" in logs
+    assert "sample=1 attempts=1 transport_retries=1" in logs

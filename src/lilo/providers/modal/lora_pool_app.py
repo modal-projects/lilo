@@ -46,7 +46,7 @@ app = modal.App(APP_NAME)
     },
     secrets=[api_secret, pool_secret],
     target_concurrency=definition.ROLLOUT_TARGET_CONCURRENCY,
-    min_containers=0,
+    min_containers=getattr(definition, "ROLLOUT_MIN_CONTAINERS", 0),
     max_containers=getattr(definition, "ROLLOUT_MAX_CONTAINERS", None),
     scaledown_window=getattr(definition, "ROLLOUT_SCALEDOWN_WINDOW", 5 * 60),
     startup_timeout=20 * 60,

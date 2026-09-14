@@ -27,6 +27,7 @@ from .definitions import (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_base_miles_lora_2k,
     qwen3_5_9b_base_miles_lora_16k,
+    qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_9b_full_64k,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
@@ -64,15 +65,19 @@ SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
 LORA_POOL_IDLE_TIMEOUT = 300.0
 FFT_POOL_TOUCH_INTERVAL = 60.0
+LORA_POOL_CHECK_INTERVAL = 60.0
 SWEEP_PERIOD = modal.Period(minutes=5)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
+_lora_pool_gateways: dict[str, tuple[float, str]] = {}
+_lora_pool_checks: dict[str, asyncio.Lock] = {}
 
 DEFINITIONS = (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_full_64k,
     qwen3_5_9b_base_miles_lora_2k,
     qwen3_5_9b_base_miles_lora_16k,
+    qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -207,6 +212,32 @@ async def ensure_lora_pool(spec: dict) -> str:
     return gateway
 
 
+async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
+    """Refresh warm pools locally; serialize only missing-pool deployment."""
+    key = spec.app_name
+    cached = _lora_pool_gateways.get(key)
+    if cached is not None and cached[0] > time.monotonic():
+        return cached[1]
+    lock = _lora_pool_checks.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _lora_pool_gateways.get(key)
+        if cached is not None and cached[0] > time.monotonic():
+            return cached[1]
+        try:
+            gateway = await lora_pool_gateway(spec)
+        except modal.exception.NotFoundError:
+            # The remote function retains single concurrency, and deploy_pool
+            # rechecks existence before deploying to avoid competing deploys.
+            gateway = await ensure_lora_pool.remote.aio(spec.as_dict())
+        else:
+            await shared_kv().put(
+                f"lora_pool:{key}",
+                {**spec.as_dict(), "touched_at": time.time()},
+            )
+        _lora_pool_gateways[key] = (time.monotonic() + LORA_POOL_CHECK_INTERVAL, gateway)
+        return gateway
+
+
 @app.function(
     image=image,
     min_containers=0,
@@ -230,13 +261,20 @@ async def execute_sample(task: dict) -> dict:
     rollout_data_parallel_size = rollout_world_size // rollout_tensor_parallel_size
     if parameterization == "lora":
         spec = LoraPoolSpec(definition_id)
-        await ensure_lora_pool.remote.aio(spec.as_dict())
+        gateway = await _ready_lora_pool(spec)
+
+        async def keep_pool_ready() -> None:
+            # Retries can outlive the cached readiness check. The pool's URL
+            # is stable across redeployment of the same definition/revision.
+            await _ready_lora_pool(spec)
+
         return await sample_task(
             task,
-            await lora_pool_gateway(spec),
+            gateway,
             data_parallel_size=rollout_data_parallel_size,
             headers=proxy_auth_headers(),
             context_length=definition.MAX_CONTEXT_LENGTH,
+            on_wait=keep_pool_ready,
         )
     spec = (
         FFTPoolSpec.base(definition_id)
@@ -384,7 +422,7 @@ def _plane():
         definition_id = session.engine_definition_id
         parameterization = parameterization_for(definition_id)
         if parameterization == "lora":
-            await ensure_lora_pool.remote.aio(LoraPoolSpec(definition_id).as_dict())
+            await _ready_lora_pool(LoraPoolSpec(definition_id))
             return
         if parameterization != "full":
             return

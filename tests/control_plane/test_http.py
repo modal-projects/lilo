@@ -425,3 +425,29 @@ def test_rollout_pool_config_is_full_only_and_validated() -> None:
         await client.aclose()
 
     asyncio.run(run())
+
+
+def test_explicit_hidden_deployment_keeps_canonical_model_name() -> None:
+    async def run():
+        hidden = SimpleNamespace(DEFINITION_ID="isolated", MODEL_NAME=BASE_MODEL,
+                                 PARAMETERIZATION="lora", CATALOG_VISIBLE=False, MAX_CONTEXT_LENGTH=16384)
+        plane = ControlPlane(InMemoryKeyValueStore(), LocalEnginePlatform("isolated", EchoExecutor))
+        app = create_control_plane_app(plane, (*DEFINITIONS, hidden), retrieve_window=1.0)
+        async with httpx.AsyncClient(base_url="http://test", transport=httpx.ASGITransport(app=app)) as client:
+            session = (await client.post("/api/v1/create_session", json={"tags": [], "sdk_version": "0.5.0"})).json()["session_id"]
+            response = await client.post("/api/v1/create_model", json={"session_id": session,
+                "model_seq_id": 0, "base_model": "isolated", "lora_config": {"rank": 16}})
+            assert response.status_code == 200, response.text
+            created = response.json()
+            result = await client.post("/api/v1/retrieve_future", json={"request_id": created["request_id"]})
+            assert result.json()["model_id"] == created["model_id"]
+            info = await client.post("/api/v1/get_info", json={"model_id": created["model_id"]})
+            assert info.json()["model_data"]["model_name"] == BASE_MODEL
+            assert (await plane.get_model(created["model_id"])).engine_definition_id == "isolated"
+            sampling = await client.post("/api/v1/create_sampling_session", json={
+                "session_id": session, "sampling_session_seq_id": 0, "base_model": "isolated"})
+            assert sampling.status_code == 200, sampling.text
+            record = await plane.get_sampling_session(sampling.json()["sampling_session_id"])
+            assert record.base_model == BASE_MODEL
+            assert record.engine_definition_id == "isolated"
+    asyncio.run(run())
