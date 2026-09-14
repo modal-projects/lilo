@@ -41,7 +41,9 @@ class FutureState:
 
 
 @dataclass(frozen=True)
-class Execution:
+class BackendCommand:
+    """A model operation passed from the engine to its executor."""
+
     model_id: str
     kind: OperationKind
     payload: OperationPayload
@@ -107,25 +109,29 @@ class Executor(Protocol):
         payload: OperationPayload,
     ) -> object: ...
 
-    async def execute_batch(
+    async def execute_forward_backward_batch(
         self,
-        executions: tuple[Execution, ...],
+        executions: tuple[BackendCommand, ...],
     ) -> tuple[object, ...]: ...
 
-    async def capture_operation(
+    async def capture_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
         payload: OperationPayload,
-    ) -> object: ...
+    ) -> object:
+        """Capture immutable state for later checkpoint or sampler persistence."""
+        ...
 
-    async def persist_operation(
+    async def persist_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
         payload: OperationPayload,
         capture: object,
-    ) -> object: ...
+    ) -> object:
+        """Persist captured state, also publishing it for sampler operations."""
+        ...
 
     async def unload_model(self, model_id: str) -> None: ...
 

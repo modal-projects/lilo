@@ -171,7 +171,7 @@ This validates all steps of the training cycle for the particular model definiti
 ## Adding a new backend
 
 Each backend implements the synchronous per-rank interface in
-[`backends/contract.py`](../src/lilo/backends/contract.py). `EngineServer`
+[`backends/contract.py`](../src/lilo/backends/contract.py). `Engine`
 handles asynchronous scheduling and calls the backend in rank lockstep.
 
 Create a backend module that provides:
@@ -196,11 +196,23 @@ run_engine_with_backend(
 
 **Distributed Executor**: All ranks participate in commands through
 [`engine/spmd.py`](../src/lilo/engine/spmd.py). Rank zero exposes the backend
-HTTP bridge while the other ranks follow its broadcasts. To maximize GPU utilization, we separate "GPU ops" (ie. forward_backward, optim_step) from "non-GPU ops" (ie. CPU -> disk checkpoint writing). For this reason, checkpoint and sampler publication operations are split into a GPU and non-GPU component: 
+HTTP bridge while the other ranks follow its broadcasts through `run_follower_loop`.
+The `Engine` schedules operations and passes `BackendCommand` values to its
+executor. `HttpBackendClient` in
+[`engine/backend_http.py`](../src/lilo/engine/backend_http.py) implements that
+interface across the local training subprocess boundary.
+
+To maximize GPU utilization, we separate "GPU ops" (ie. forward_backward, optim_step) from "non-GPU ops" (ie. CPU -> disk checkpoint writing). For this reason, checkpoint and sampler publication operations are split into a GPU and non-GPU component:
 
 1. `capture_*` writes out an immutable snapshot to CPU (in general can be any intermediate destination).
 2. `persist_*` writes that snapshot on to persistent storage. 
 
-`capture_*` operations hence are "GPU ops," and `persist_*` are "non-GPU ops" that can be run asynchronously from the GPU lane. 
+The executor names these phases `capture_snapshot` and `persist_snapshot`.
+The per-rank backend implements `persist_checkpoint` for checkpoints and
+`publish_sampler_snapshot` for sampler weights. The latter persists the snapshot
+and makes it available to samplers; checkpoint persistence does not imply sampler
+publication.
 
-**IMPORTANT!!** The EngineServer handles the asynchronous scheduling of the GPU and persistence lanes. However, it is on the backend writer to ensure that their `persist_*` methods and GPU methods do not race with each other (ie. dont have conflicting access to the same state). We recommend against using locks for this purpose and have our LoRA and FFT backends written as references of how to implement lock-free backends. In our implementation, the main pattern is that `capture_*` creates detached CPU state that `persist_*` exclusively owns.
+`capture_*` operations hence are "GPU ops," and persistence/publication operations are "non-GPU ops" that can be run asynchronously from the GPU lane.
+
+**IMPORTANT!!** The Engine handles the asynchronous scheduling of the GPU and persistence lanes. However, it is on the backend writer to ensure that their persistence/publication methods and GPU methods do not race with each other (ie. dont have conflicting access to the same state). We recommend against using locks for this purpose and have our LoRA and FFT backends written as references of how to implement lock-free backends. In our implementation, the main pattern is that `capture_*` creates detached CPU state that the persistence/publication method exclusively owns.

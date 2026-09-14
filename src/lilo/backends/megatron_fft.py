@@ -249,7 +249,7 @@ class FFTMegatronBackend(CommandBackend):
             optimizer_step=self.optimizer_step,
         )
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         snapshot = self._sampler_captures[capture_id]
         try:
             if snapshot is not None:

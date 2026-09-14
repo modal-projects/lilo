@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from lilo.engine.api import EngineApi, Executor
-from lilo.engine.server import EngineServer
+from lilo.engine.server import Engine
 from lilo.errors import RecordNotFound
 
 from ..contracts import EngineInstance, EngineState
@@ -25,7 +25,7 @@ class LocalEnginePlatform:
         self.max_models = max_models
         self.revision = revision
         self._instances: dict[str, EngineInstance] = {}
-        self._servers: dict[str, EngineServer] = {}
+        self._servers: dict[str, Engine] = {}
         self._current: str | None = None
         self._next_instance = 1
         self._lock = asyncio.Lock()
@@ -122,7 +122,7 @@ class LocalEnginePlatform:
         )
         self._next_instance += 1
         self._instances[instance.instance_id] = instance
-        self._servers[instance.instance_id] = EngineServer(
+        self._servers[instance.instance_id] = Engine(
             self.executor_factory(),
             max_models=self.max_models,
         )

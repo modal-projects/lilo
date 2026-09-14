@@ -81,7 +81,7 @@ def publish_sampler_snapshot(
         capture_id,
         requested_version or 1,
     )
-    backend.persist_sampler_snapshot(capture_id)
+    backend.publish_sampler_snapshot(capture_id)
     return publication
 
 
@@ -860,7 +860,7 @@ def test_fft_sampler_failure_discards_pending_capture(monkeypatch) -> None:
     backend._delta_writer = SimpleNamespace(persist=fail)
 
     with pytest.raises(RuntimeError, match="persist failed"):
-        backend.persist_sampler_snapshot("capture")
+        backend.publish_sampler_snapshot("capture")
 
     assert backend._sampler_captures == {}
 
