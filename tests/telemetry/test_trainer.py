@@ -138,6 +138,18 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
         telemetry.begin(op)
     import time
 
+    from lilo.telemetry import backend
+
+    backend.received.set(
+        {
+            "attributes": {
+                "lilo.padded_tokens": 16,
+                "lilo.packed_microbatch_count": 2,
+                "secret": "PRIVATE",
+            },
+            "models": {"a": {"lilo.loss_tokens": 2}, "b": {"lilo.loss_tokens": 5}},
+        }
+    )
     telemetry.span(
         ("a", "b"),
         "forward_backward",
@@ -160,6 +172,11 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
     assert batch.attributes["lilo.command_count"] == 2
     assert batch.attributes["lilo.example_count"] == 3
     assert batch.attributes["lilo.input_tokens"] == 11
+    assert batch.attributes["lilo.loss_tokens"] == 7
+    assert batch.attributes["lilo.padded_tokens"] == 16
+    assert sorted(s.attributes["lilo.loss_tokens"] for s in roots) == [2, 5]
+    assert all("lilo.padded_tokens" not in s.attributes for s in roots)
+    assert backend.received.get() is None
     assert sorted(s.attributes["lilo.input_tokens"] for s in roots) == [3, 8]
     assert {l.context.span_id for l in batch.links} == {
         s.context.span_id for s in roots
@@ -429,3 +446,85 @@ def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
                 )
         finally:
             telemetry.close()
+
+
+def test_backend_measurements_cross_http_without_changing_results(
+    setup, monkeypatch, tmp_path
+):
+    from lilo.engine import backend_http
+    from lilo.telemetry import backend
+
+    telemetry, exporter, _ = setup
+    monkeypatch.setattr(backend_http, "provider", trainer.provider)
+
+    class Executor(EchoExecutor):
+        async def execute(self, model_id, kind, payload):
+            with backend.phase("optimizer"):
+                backend.count("lilo.padded_tokens", 16)
+                backend.count("lilo.packed_microbatch_count", 2)
+                backend.count("lilo.loss_tokens", 7, model_id=model_id)
+            return await super().execute(model_id, kind, payload)
+
+        async def persist_checkpoint(self, model_id, payload, snapshot):
+            with backend.phase("checkpoint_write"):
+                (tmp_path / "checkpoint.pt").write_bytes(b"12345")
+            with backend.phase("checkpoint_commit"):
+                pass
+            backend.checkpoint_size(str(tmp_path))
+            return await super().persist_checkpoint(model_id, payload, snapshot)
+
+    async def run():
+        client = backend_http.HttpBackendClient(
+            "http://backend",
+            transport=httpx.ASGITransport(
+                app=backend_http.create_backend_app(Executor())
+            ),
+        )
+        engine = Engine(client, observer=telemetry)
+        await engine.accept_model(
+            "model", {"base_model": "test/model", "parameterization": "full"}
+        )
+        rid = await engine.optim_step(
+            {"model_id": "model", "seq_id": 1, "adam_params": {}}
+        )
+        result = await engine.retrieve_future(rid, 1)
+        assert result.status.value == "complete"
+        assert "telemetry" not in result.result
+        save = await engine.save_weights(
+            {"model_id": "model", "seq_id": 2, "path": "snapshot"}
+        )
+        assert (await engine.retrieve_future(save, 1)).status.value == "complete"
+        await engine.close()
+        await client.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (physical,) = [s for s in spans if s.name == "lilo.trainer.optim_step"]
+    (phase,) = [s for s in spans if s.name == "lilo.backend.optimizer"]
+    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
+    assert phase.context.trace_id == physical.context.trace_id
+    assert phase.parent.span_id == physical.context.span_id
+    assert (
+        physical.start_time <= phase.start_time <= phase.end_time <= physical.end_time
+    )
+    assert physical.attributes["lilo.padded_tokens"] == 16
+    assert physical.attributes["lilo.packed_microbatch_count"] == 2
+    assert (
+        physical.attributes["lilo.loss_tokens"]
+        == command.attributes["lilo.loss_tokens"]
+        == 7
+    )
+    assert "lilo.padded_tokens" not in command.attributes
+    assert phase.attributes["lilo.rank"] == 0
+
+    (save,) = [s for s in spans if s.name == "lilo.command.save_weights"]
+    (persist,) = [s for s in spans if s.name == "lilo.trainer.persist.save_weights"]
+    assert (
+        save.attributes["lilo.checkpoint_bytes"]
+        == persist.attributes["lilo.checkpoint_bytes"]
+        == 5
+    )
+    for name in ("checkpoint_write", "checkpoint_commit"):
+        (phase,) = [s for s in spans if s.name == "lilo.backend." + name]
+        assert phase.parent.span_id == persist.context.span_id
+    assert "lilo.loss_tokens" not in save.attributes

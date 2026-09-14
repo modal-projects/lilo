@@ -26,6 +26,7 @@ from opentelemetry.trace import (
 
 from lilo.telemetry.otlp import _attributes, provider
 
+from . import backend
 from .metadata import common_tags, experiment_tags
 
 incoming = ContextVar("lilo_command_context", default=None)
@@ -389,6 +390,7 @@ class TrainerTelemetry:
         independent=False,
         prefix="lilo.trainer.",
         execution_context=None,
+        parent_context=None,
     ):
         p = provider()
         if p is None:
@@ -404,6 +406,8 @@ class TrainerTelemetry:
             if len(parents) > 1 or independent
             else []
         )
+        if parent_context is not None:
+            context = set_span_in_context(NonRecordingSpan(parent_context))
         if execution_context is not None:
             links.append(Link(execution_context))
         span = p.get_tracer("lilo.trainer").start_span(
@@ -427,6 +431,8 @@ class TrainerTelemetry:
 
     @best_effort
     def span(self, model, name, lane, t0, t1=None, **attrs):
+        evidence = backend.received.get() or {}
+        backend.received.set(None)
         models = (model,) if isinstance(model, str) else tuple(model)
         seq_ids = attrs.get("seq_ids", [])
         parents = [
@@ -438,6 +444,30 @@ class TrainerTelemetry:
             "lilo.operation": name.split(":")[-1],
             "lilo.command_count": attrs.get("n", len(seq_ids)),
         }
+        counts = backend.numeric_attributes(evidence.get("attributes"))
+        model_counts = evidence.get("models", {})
+        if not isinstance(model_counts, dict):
+            model_counts = {}
+        for parent in parents:
+            per_command = backend.numeric_attributes(
+                model_counts.get(parent.attributes["lilo.model_id"])
+            )
+            if "lilo.loss_tokens" in per_command:
+                value = per_command["lilo.loss_tokens"]
+                parent.attributes["lilo.loss_tokens"] = value
+                parent.span.set_attribute("lilo.loss_tokens", value)
+            if len(parents) == 1 and "lilo.checkpoint_bytes" in counts:
+                parent.attributes["lilo.checkpoint_bytes"] = counts[
+                    "lilo.checkpoint_bytes"
+                ]
+                parent.span.set_attribute(
+                    "lilo.checkpoint_bytes", counts["lilo.checkpoint_bytes"]
+                )
+        if parents and all("lilo.loss_tokens" in p.attributes for p in parents):
+            counts["lilo.loss_tokens"] = sum(
+                p.attributes["lilo.loss_tokens"] for p in parents
+            )
+        safe.update(counts)
         safe.update(common_tags([p.attributes for p in parents]))
         if not parents:
             safe.update(common_tags([self.model_tags.get(m, {}) for m in models]))
@@ -465,6 +495,30 @@ class TrainerTelemetry:
             ok=attrs.get("ok", True),
             independent=True,
         )
+        phases = evidence.get("phases", [])
+        if execution_context is not None and isinstance(phases, list):
+            for phase in phases[: backend.MAX_PHASES]:
+                if (
+                    not isinstance(phase, dict)
+                    or phase.get("name") not in backend.PHASES
+                ):
+                    continue
+                start, end = phase.get("start_ns"), phase.get("end_ns")
+                if type(start) is not int or type(end) is not int:
+                    continue
+                if not int(t0 * 1e9) <= start <= end <= int(ended * 1e9):
+                    continue
+                self._span(
+                    phase["name"],
+                    lane,
+                    start / 1e9,
+                    end / 1e9,
+                    [],
+                    {**safe, "lilo.component": "backend", "lilo.rank": 0},
+                    ok=phase.get("ok") is True,
+                    prefix="lilo.backend.",
+                    parent_context=execution_context,
+                )
         # Command-local participation makes waiting visible as gaps. Physical
         # batches remain independent traces with aggregate workload counts.
         if name.startswith("wait_persistence:") or execution_context is None:
