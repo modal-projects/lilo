@@ -4,6 +4,12 @@ Code-only GRPO through Lilo: sample eight Python solutions for each of four
 Codeforces problems, judge them in isolated Modal sandboxes, and reward
 correctness and brevity. The model has no execution tool.
 
+The `thinking-v10` variant uses the full available 65,536-token context: the
+sampler subtracts prompt length and one reserved token from the output allowance.
+Thinking and final code share that allowance. Its reward is unchanged, including
+the output-token penalty capped at 0.20 once 16,384 output tokens are reached.
+The earlier `thinking-v9` retains its 16,384-token output limit.
+
 The `thinking-v9` variant enables Qwen's thinking mode. Its final answer is still
 judged for correctness and code length; thinking and final output share the
 16,384-token budget and both count toward the existing output-token penalty.

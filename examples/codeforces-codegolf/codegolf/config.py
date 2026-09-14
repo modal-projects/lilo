@@ -9,6 +9,7 @@ DEFAULT_RUN = "golf"
 DEFAULT_VARIANT = "prompt-v8"
 DEFAULT_STEPS = 1000
 VARIANTS = (
+    "thinking-v10",
     "thinking-v9",
     "prompt-v8",
     "async-v7",
@@ -72,9 +73,17 @@ class ThinkingConfig(ExplicitPromptConfig):
     enable_thinking: bool = True
 
 
+@dataclasses.dataclass
+class LongThinkingConfig(ThinkingConfig):
+    # Sampling clamps this to 65,536 minus the prompt and one reserved token.
+    max_tokens: int = 65536
+
+
 def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS):
     if steps <= 0:
         raise ValueError("steps must be positive")
+    if variant == "thinking-v10":
+        return LongThinkingConfig(steps=steps)
     if variant == "thinking-v9":
         return ThinkingConfig(steps=steps)
     if variant == "prompt-v8":
