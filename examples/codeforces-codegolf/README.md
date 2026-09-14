@@ -29,7 +29,7 @@ promise continuous GPU utilization if sampling throughput is insufficient.
 
 ## Recorded results from the earlier shared deployment
 
-Snapshot through **step 748**, from an ongoing run targeting **1,000** steps.
+Historical snapshot through **step 748**, from a run targeting **1,000** steps.
 The validated split contains **123 training problems and 16 held-out problems**.
 
 ![Reward, correctness and lengths](figures/reward-0-748.png)
@@ -84,28 +84,29 @@ clear reductions and are not a random sample.
 
 ## Reward and configuration
 
-The recorded snapshot below uses `async-v6` (the default). The experimental
-`--variant async-v7` doubles the passing-code bonus to 0.30 and increases the
-output-token penalty to 0.20, keeping the scales, trainer and async pipeline
-unchanged. The live v7 continuation forks checkpoint 750 and targets 1,000; its
-results are not included in the step-748 snapshot. Passing still earns at least
-0.80 and failing at most zero. Compare correctness and lengths across the fork,
-not raw reward.
+The default `prompt-v8` explicitly tells the model that solutions are judged on
+correctness and source length, and asks it to omit comments and explanations.
+It uses the stronger reward introduced in `async-v7`:
 
 ```text
-penalty = 0.08 * min(output_tokens / 16384, 1)
-reward  = 1 + 0.15 * exp(-code_utf8_bytes / 2048) - penalty  # all tests pass
+penalty = 0.20 * min(output_tokens / 16384, 1)
+reward  = 1 + 0.30 * exp(-code_utf8_bytes / 2048) - penalty  # all tests pass
 reward  = -penalty                                        # otherwise
 advantage = (reward - group_mean) / max(group_std, 0.5)
 ```
 
+The historical step-748 snapshot uses `async-v6`, with bonus 0.15 and token
+penalty 0.08. Its later `async-v7` continuation and the new `prompt-v8` run are
+not included in those figures. Compare correctness and lengths across reward
+changes, not raw reward.
+
 All output tokens count, including prose outside the extracted code. Passing
-earns at least 0.92; failing earns at most zero. The standard-deviation floor
+earns at least 0.80; failing earns at most zero. The standard-deviation floor
 keeps tiny length differences from becoming unit-sized updates. `reward-v3`
 retains the previous `1 + 0.1 * exp(-bytes / 256)` passing reward without an
 output penalty. Neither reward guarantees stability.
 
-[Configuration](codegolf/config.py): 500 steps by default (`--steps 1000` for the recorded target), 4×8 samples per step,
+[Configuration](codegolf/config.py): 1,000 steps by default, 4×8 samples per step,
 16,384 output tokens, temperature 1, Adam learning rate 1e-6, PPO clipping
 [0.8, 1.2], full model + optimizer checkpoints every 50 steps and at completion,
 held-out evaluation every 20. Prompt targets are masked and sampled solutions
@@ -125,9 +126,11 @@ The generated API URL/key stay in the controller process. Python 3.12 is require
 Configure Modal access, the `lilo-proxy` secret, and the existing `lilo-api`
 secret containing your OTLP settings in the chosen environment.
 
-**Training is paused. The final observability guide has been reviewed; GPU
-validation of this scoped integration is still pending.** The historical
-figures below are not results from this scoped implementation.
+The final observability guide has been reviewed and the full GPU recovery probe
+passed. On September 14, 2026, `qwen9b-prompt-v8` was launched in
+`modal-labs / connor-dev-2`, using the `codegolf-scoped` app and volume. It starts
+from base weights: the prior prompt-v8 attempt had no completed checkpoint.
+The historical figures above are not results from this scoped implementation.
 
 ```bash
 uv sync --frozen
@@ -226,8 +229,8 @@ uv run ruff format --check codegolf tests fork_checkpoint.py figures/render.py
 
 Tests cover judge transport/failures, reward bounds, loss masks, rollback,
 uncertain optimizer/publication failures, continuation and cancellation/draining.
-This is a cleaned version of the recorded experiment; the refactored example has
-not itself been rerun to step 355.
+The figures come from the earlier implementation; this scoped run has its own
+metrics and checkpoint ledger.
 
 ## Run observability
 
@@ -267,5 +270,20 @@ the child with zero containers approximately three minutes later (the heartbeat
 timeout). This is eventual cleanup, and a retry may briefly overlap allocation
 with its previous scope. The actual controller image also passed a CPU-only preflight: all scoped functions
 registered, the 8-H200/64K recipe and 16K output budget were confirmed, and both
-OTLP exporters initialized from the existing secret. GPU trainer restoration and
-end-to-end GPU telemetry have not yet been exercised by this draft.
+OTLP exporters initialized from the existing secret.
+
+A real 8×H200 recovery probe then trained twice, saved full model/optimizer state,
+and computed an uninterrupted third update as a reference. After forcibly killing
+the trainer, a replacement restored the checkpoint: forward loss and deterministic
+sample tokens matched exactly. Its third update succeeded, with gradient norm
+within 0.0006% and post-update loss within 0.013% of the reference. Final sampling
+succeeded and the scoped app stopped with zero containers. This validates the
+core restore path; it does not establish long-run convergence or eliminate
+checkpoint rollback loss.
+
+Datadog showed training and sampling across both recovery attempts under one run
+ID, including sampling HTTP retries. A separate exporter probe verified that
+run-filtered physical trainer metrics reach Datadog after the scoped metric-tag
+fix in [observability PR #23](https://github.com/modal-projects/lilo/pull/23).
+The [run notebook](https://app.datadoghq.com/notebook/15541726) uses the same run
+filter across controller, trainer and sampler telemetry.
