@@ -290,3 +290,72 @@ def test_retried_http_submission_joins_original_completed_root(setup):
         and s.context.trace_id == command.context.trace_id
         for s in submissions
     )
+
+
+def test_engine_combines_commands_once_with_aggregate_workload(setup):
+    import json
+
+    from lilo.engine import OperationKind
+
+    telemetry, exporter, _ = setup
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        class Executor(EchoExecutor):
+            async def execute(self, model_id, kind, payload):
+                if kind == OperationKind.OPTIM_STEP:
+                    entered.set()
+                    await release.wait()
+                return await super().execute(model_id, kind, payload)
+
+        server = Engine(Executor(), observer=telemetry)
+        for model in ("a", "b"):
+            await server.accept_model(
+                model, {"user_metadata": {"run_id": "run", "attempt_id": model}}
+            )
+        await server.optim_step({"model_id": "a", "seq_id": 1, "adam_params": {}})
+        await asyncio.wait_for(entered.wait(), 1)
+        requests = []
+        for model, seq, count, tokens in [
+            ("a", 2, 1, [1, 2, 3]),
+            ("b", 1, 2, [4, 5, 6, 7]),
+        ]:
+            body = {
+                "model_id": model,
+                "seq_id": seq,
+                "forward_backward_input": {
+                    "data": [
+                        {
+                            "model_input": {"chunks": [{"tokens": tokens}]},
+                            "loss_fn_inputs": {},
+                        }
+                    ]
+                    * count,
+                    "loss_fn": "cross_entropy",
+                },
+            }
+            requests.append(
+                await server.forward_backward(
+                    json.dumps(body).encode(), "application/json"
+                )
+            )
+        release.set()
+        for rid in requests:
+            assert (await server.retrieve_future(rid, 1)).status.value == "complete"
+        await server.close()
+
+    asyncio.run(run())
+    spans = exporter.get_finished_spans()
+    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
+    commands = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    assert len(commands) == 2
+    assert batch.parent is None
+    assert batch.attributes["lilo.command_count"] == 2
+    assert batch.attributes["lilo.example_count"] == 3
+    assert batch.attributes["lilo.input_tokens"] == 11
+    assert batch.attributes["lilo.run_id"] == "run"
+    assert "lilo.run_attempt_id" not in batch.attributes
+    assert {(link.context.trace_id, link.context.span_id) for link in batch.links} == {
+        (command.context.trace_id, command.context.span_id) for command in commands
+    }
