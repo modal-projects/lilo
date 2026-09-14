@@ -105,7 +105,14 @@ Base-model sampling has no model experiment identity.
 A trainer execution receives a label only if **all** its participating commands
 have that same label. A batch crossing experiments has links to each command and
 is not attributed to a single experiment. Trainer-state metrics describe the
-physical trainer and do not carry experiment labels.
+physical trainer and do not copy experiment labels from models.
+
+For a single-tenant scoped deployment, the owner can set `lilo.run_id` in
+`OTEL_RESOURCE_ATTRIBUTES`. Scoped trainers also emit that deployment identity
+as a metric datapoint tag: direct Datadog OTLP intake does not necessarily promote
+custom resource attributes to searchable metric tags. The tag stays constant
+across model replacements, and physical metrics do not gain an attempt label.
+Shared deployments retain their original physical-only datapoint labels.
 
 ## Trace structure and lifecycle
 

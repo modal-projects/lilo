@@ -396,3 +396,36 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
         assert [
             (link.context.trace_id, link.context.span_id) for link in child.links
         ] == [(batch.context.trace_id, batch.context.span_id)]
+
+
+def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
+    monkeypatch.setenv(
+        "OTEL_RESOURCE_ATTRIBUTES",
+        "lilo.run_id=owned-run,lilo.run_attempt_id=not-a-metric-tag",
+    )
+    for scoped in (False, True):
+        telemetry = trainer.TrainerTelemetry(
+            "physical-instance",
+            "definition",
+            "boot",
+            metric_reader=InMemoryMetricReader(),
+            scoped=scoped,
+        )
+        try:
+            # Changing model attempts must not change physical deployment labels.
+            telemetry.register_model(
+                "m",
+                {"user_metadata": {"run_id": "different", "attempt_id": "replacement"}},
+            )
+            observations = telemetry.observe(None)
+            assert observations
+            for point in observations:
+                assert point.attributes.get("lilo.run_id") == (
+                    "owned-run" if scoped else None
+                )
+                assert "lilo.run_attempt_id" not in point.attributes
+                assert (
+                    point.attributes["lilo.trainer_instance_id"] == "physical-instance"
+                )
+        finally:
+            telemetry.close()

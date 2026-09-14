@@ -192,13 +192,16 @@ class CommandTrace:
 
 
 class TrainerTelemetry:
-    def __init__(self, instance_id, definition_id, boot_id, *, metric_reader=None):
+    def __init__(
+        self, instance_id, definition_id, boot_id, *, metric_reader=None, scoped=False
+    ):
         self.attrs = {
             "lilo.trainer_instance_id": instance_id,
             "lilo.definition_id": definition_id,
             "lilo.boot_id": boot_id,
             "lilo.component": "trainer",
         }
+        self.metric_tags = {}
         self.model_tags = {}
         self.commands: dict[str, CommandTrace] = {}
         self.identities = OrderedDict()
@@ -234,10 +237,17 @@ class TrainerTelemetry:
                     export_interval_millis=5000,
                     export_timeout_millis=4000,
                 )
+                resource = Resource.create(
+                    {"service.name": os.getenv("OTEL_SERVICE_NAME", "lilo")}
+                )
+                if scoped:
+                    # Direct OTLP intake may not promote custom resource fields
+                    # to metric tags. This deployment has one experiment owner.
+                    self.metric_tags = experiment_tags(
+                        {"run_id": resource.attributes.get("lilo.run_id")}
+                    )
                 self.meter_provider = MeterProvider(
-                    resource=Resource.create(
-                        {"service.name": os.getenv("OTEL_SERVICE_NAME", "lilo")}
-                    ),
+                    resource=resource,
                     metric_readers=[reader],
                 )
                 self.meter_provider.get_meter("lilo.trainer").create_observable_gauge(
@@ -259,7 +269,12 @@ class TrainerTelemetry:
         return [
             Observation(
                 int(current == operation),
-                {**self.attrs, "lilo.lane": lane, "lilo.operation": operation},
+                {
+                    **self.attrs,
+                    **self.metric_tags,
+                    "lilo.lane": lane,
+                    "lilo.operation": operation,
+                },
             )
             for lane, current in activity.items()
             for operation in (
