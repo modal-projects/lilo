@@ -470,7 +470,7 @@ def create_control_plane_app(
         if body.model_id is None or body.seq_id is None:
             raise ValueError("model_id and seq_id are required")
         engine = await control_plane.engine_for(body.model_id)
-        body.path = control_plane.resolve_checkpoint_path(body.path)
+        body.path = await control_plane.resolve_checkpoint_path(body.path)
         request_id = await engine.load_weights(
             body.model_dump(mode="json", exclude_none=True)
         )

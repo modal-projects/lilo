@@ -95,12 +95,24 @@ async def _read_checkpoint_metadata(uri: str) -> dict[str, object]:
     return metadata
 
 
-def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
+async def _locate_checkpoint(model_id: str, name: str) -> str:
+    path = _checkpoint_path(f"{CHECKPOINT_ROOT}/{name}/{model_id}")
+    legacy = _checkpoint_path(f"{CHECKPOINT_ROOT}/{model_id}/weights/{name}")
+    async with CHECKPOINT_READ_LOCK:
+        await asyncio.to_thread(checkpoint_volume.reload)
+        if not await asyncio.to_thread(path.is_dir) and await asyncio.to_thread(
+            legacy.is_dir
+        ):
+            return str(legacy)
+    return str(path)
+
+
+def _checkpoint_entry(checkpoint: Path, model_id: str, name: str) -> dict[str, object]:
     files = [file for file in checkpoint.rglob("*") if file.is_file()]
     metadata_file = checkpoint / "metadata.json"
     return {
-        "model_id": checkpoint.parent.parent.name,
-        "name": checkpoint.name,
+        "model_id": model_id,
+        "name": name,
         "path": str(checkpoint),
         "time": checkpoint.stat().st_mtime,
         "size_bytes": sum(file.stat().st_size for file in files),
@@ -116,14 +128,27 @@ def _scan_checkpoints(model_id: str | None) -> list[dict[str, object]]:
     root = Path(CHECKPOINT_ROOT)
     if not root.is_dir():
         return []
+    entries = {}
+    # Read the old layout first so a new save with the same identity takes precedence.
     model_dirs = [root / model_id] if model_id is not None else list(root.iterdir())
-    return [
-        _checkpoint_entry(checkpoint)
-        for model_dir in model_dirs
-        if (model_dir / "weights").is_dir()
-        for checkpoint in (model_dir / "weights").iterdir()
-        if checkpoint.is_dir()
-    ]
+    for model_dir in model_dirs:
+        weights = model_dir / "weights"
+        if weights.is_dir():
+            for checkpoint in weights.iterdir():
+                if checkpoint.is_dir():
+                    key = (model_dir.name, checkpoint.name)
+                    entries[key] = _checkpoint_entry(checkpoint, *key)
+    for name_dir in root.iterdir():
+        if not name_dir.is_dir():
+            continue
+        candidates = (
+            [name_dir / model_id] if model_id is not None else name_dir.iterdir()
+        )
+        for checkpoint in candidates:
+            if checkpoint.is_dir() and (checkpoint / "metadata.json").is_file():
+                key = (checkpoint.name, name_dir.name)
+                entries[key] = _checkpoint_entry(checkpoint, *key)
+    return list(entries.values())
 
 
 async def _list_checkpoints(model_id: str | None) -> list[dict[str, object]]:
@@ -140,6 +165,18 @@ async def _delete_checkpoint(uri: str) -> None:
             await asyncio.to_thread(shutil.rmtree, path)
         except FileNotFoundError:
             raise RecordNotFound("checkpoint", uri) from None
+        # A name identifies one logical checkpoint even if it was saved in both layouts.
+        parts = path.relative_to(Path(CHECKPOINT_ROOT).resolve()).parts
+        if len(parts) == 2:
+            name, model_id = parts
+            alternate = _checkpoint_path(f"{CHECKPOINT_ROOT}/{model_id}/weights/{name}")
+        elif len(parts) == 3 and parts[1] == "weights":
+            model_id, _, name = parts
+            alternate = _checkpoint_path(f"{CHECKPOINT_ROOT}/{name}/{model_id}")
+        else:
+            alternate = None
+        if alternate is not None and await asyncio.to_thread(alternate.is_dir):
+            await asyncio.to_thread(shutil.rmtree, alternate)
         await asyncio.to_thread(checkpoint_volume.commit)
 
 
@@ -399,6 +436,7 @@ def _plane():
         prepare_model=prepare_model,
         sampling_task_stores=task_stores,
         read_checkpoint_metadata=_read_checkpoint_metadata,
+        locate_checkpoint=_locate_checkpoint,
         list_checkpoints=_list_checkpoints,
         delete_checkpoint=_delete_checkpoint,
         checkpoint_root=CHECKPOINT_ROOT,

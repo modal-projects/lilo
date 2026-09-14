@@ -316,7 +316,7 @@ def test_fft_backend_captures_and_persists_checkpoint(tmp_path, monkeypatch) -> 
     )
     result = backend.persist_checkpoint("snapshot", "step-4")
 
-    assert result == str(tmp_path / "run-a" / "weights" / "step-4")
+    assert result == str(tmp_path / "step-4" / "run-a")
     assert writes[0][0] == result
     assert writes[0][1]["optimizer_step"] == 4
     captured_metadata = writes[0][1]["captured"][2]["metadata"]

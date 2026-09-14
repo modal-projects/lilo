@@ -140,6 +140,7 @@ class ControlPlane:
         list_checkpoints: CheckpointListing | None = None,
         delete_checkpoint: Callable[[str], Awaitable[None]] | None = None,
         checkpoint_root: str = "/checkpoints",
+        locate_checkpoint: Callable[[str, str], Awaitable[str]] | None = None,
     ) -> None:
         self.kv = kv
         self.engines = engines
@@ -156,6 +157,7 @@ class ControlPlane:
         self.list_checkpoints = list_checkpoints
         self.delete_checkpoint = delete_checkpoint
         self.checkpoint_root = checkpoint_root
+        self.locate_checkpoint = locate_checkpoint
 
     async def create_session(
         self,
@@ -348,21 +350,30 @@ class ControlPlane:
         entry = await self.checkpoint(training_run_id, checkpoint_id)
         await self.delete_checkpoint(str(entry["path"]))
 
-    def resolve_checkpoint_path(self, path: str) -> str:
+    async def resolve_checkpoint_path(self, path: str) -> str:
         parts = path.removeprefix("tinker://").split("/")
         if not path.startswith("tinker://") or len(parts) != 3 or parts[1] != "weights":
             raise ValueError(f"invalid checkpoint path: {path}")
         path_component(parts[0], "training_run_id")
         path_component(parts[2], "checkpoint name")
-        return f"{self.checkpoint_root}/{'/'.join(parts)}"
+        if self.locate_checkpoint is not None:
+            return await self.locate_checkpoint(parts[0], parts[2])
+        return f"{self.checkpoint_root}/{parts[2]}/{parts[0]}"
 
     def tinker_path(self, uri: str) -> str:
-        return f"tinker://{PurePosixPath(uri).relative_to(self.checkpoint_root)}"
+        parts = PurePosixPath(uri).relative_to(self.checkpoint_root).parts
+        if len(parts) == 2:
+            name, model_id = parts
+        elif len(parts) == 3 and parts[1] == "weights":
+            model_id, _, name = parts
+        else:
+            raise ValueError(f"invalid checkpoint storage path: {uri}")
+        return checkpoint_tinker_path(model_id, name)
 
     async def checkpoint_metadata(self, path: str) -> dict[str, object]:
         if self.read_checkpoint_metadata is None:
             raise RecordUnavailable("checkpoint", path, "metadata unavailable")
-        path = self.resolve_checkpoint_path(path)
+        path = await self.resolve_checkpoint_path(path)
         try:
             metadata = dict(await self.read_checkpoint_metadata(path))
         except FileNotFoundError:
@@ -403,7 +414,7 @@ class ControlPlane:
         definition_ids: Collection[str] | None = None,
     ) -> ModelCreation:
         metadata = await self.checkpoint_metadata(path)
-        path = self.resolve_checkpoint_path(path)
+        path = await self.resolve_checkpoint_path(path)
         saved_base_model = metadata["base_model"]
         definition_id = metadata["engine_definition_id"]
         parameterization = metadata["parameterization"]

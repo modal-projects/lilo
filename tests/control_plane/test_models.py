@@ -83,7 +83,7 @@ def test_checkpoint_load_failure_resolves_creation_as_failed() -> None:
 
         resolution = await plane.retrieve(creation.request_id)
         assert resolution.status == FutureResolutionStatus.FAILED
-        assert resolution.error == "accept model: /checkpoints/run-x/weights/missing"
+        assert resolution.error == "accept model: /checkpoints/missing/run-x"
         assert resolution.category == "user"
 
     asyncio.run(run())
@@ -172,8 +172,8 @@ def test_checkpoint_listing_derives_sdk_records() -> None:
         assert calls == ["/checkpoints/run-a/weights/older"]
 
         assert (
-            plane.resolve_checkpoint_path("tinker://run-a/weights/newer")
-            == "/checkpoints/run-a/weights/newer"
+            await plane.resolve_checkpoint_path("tinker://run-a/weights/newer")
+            == "/checkpoints/newer/run-a"
         )
         assert plane.tinker_path("/checkpoints/run-a/weights/newer") == (
             "tinker://run-a/weights/newer"
@@ -185,7 +185,7 @@ def test_checkpoint_listing_derives_sdk_records() -> None:
             "tinker://run-a/weights/..",
         ):
             with pytest.raises(ValueError):
-                plane.resolve_checkpoint_path(bad)
+                await plane.resolve_checkpoint_path(bad)
 
     asyncio.run(run())
 
