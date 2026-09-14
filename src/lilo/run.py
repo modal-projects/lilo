@@ -70,6 +70,22 @@ def stop_children(children, stop=stop_app) -> None:
         raise ExceptionGroup("Some pinned sampler apps could not be stopped", failures)
 
 
+def start_pin_reaper(manage):
+    import logging
+    import threading
+    stop = threading.Event()
+    def reap():
+        while not stop.wait(60):
+            try:
+                manage.remote("reap_pinned")
+            except Exception:
+                if not stop.is_set():
+                    logging.getLogger(__name__).exception("pinned app cleanup failed; will retry")
+    thread = threading.Thread(target=reap, name="lilo-pin-reaper", daemon=True)
+    thread.start()
+    return stop, thread
+
+
 @contextmanager
 def run(*, engine: Engine, warm: bool = True,
         latest: Pool | None = None,
@@ -111,6 +127,7 @@ def run(*, engine: Engine, warm: bool = True,
                 for server in servers
             ])
             registry.put("sampler_image_id", sampler_image.object_id)
+            reaper_stop, reaper_thread = start_pin_reaper(manage)
             try:
                 try:
                     prepare_assets.remote()
@@ -121,11 +138,13 @@ def run(*, engine: Engine, warm: bool = True,
                         raise RuntimeError("Modal did not return the API URL")
                     yield url, api_key
                 finally:
+                    reaper_stop.set()
                     registry.put("closing", True)
                     # Serialized with pool creation; no late deploy can escape the list.
                     failures = []
                     try:
                         manage.remote("close")
+                        reaper_thread.join(timeout=5)
                     except Exception as exc:
                         failures.append(exc)
                     try:

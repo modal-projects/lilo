@@ -1,6 +1,7 @@
 """Exercise explicit trainer replacement and latest/pinned sampling on Modal."""
 import json
 import math
+import os
 from pathlib import Path
 import time
 import modal
@@ -24,6 +25,8 @@ def main():
     def capture_build(*args, **kwargs):
         result = original_build(*args, **kwargs)
         resources['app'] = result[0]
+        resources['registry'] = args[2]
+        resources['manage'] = result[2]
         return result
     scoped.build_app = capture_build
     try:
@@ -37,15 +40,20 @@ def main():
             trainer = lilo.create_full_training_client(service, engine.model)
             event('training_client', model_id=trainer.model_id)
             tokenizer = trainer.get_tokenizer()
-            tokens = tokenizer.encode('The capital of France is Paris.')
-            datum = types.Datum(model_input=types.ModelInput.from_ints(tokens[:-1]),
-                loss_fn_inputs={'target_tokens': tokens[1:], 'weights': [1.]*(len(tokens)-1)})
-            result = trainer.forward_backward([datum], 'cross_entropy').result(timeout=1800)
-            assert result.loss_fn_outputs
-            assert all(math.isfinite(v) for v in result.metrics.values() if isinstance(v, (float, int)))
-            event('forward_backward', metrics=result.metrics)
-            result = trainer.optim_step(types.AdamParams(learning_rate=1e-5)).result(timeout=1800)
-            event('optim_step', metrics=result.metrics)
+            initial_checkpoint = os.environ.get('LILO_RECOVERY_TEST_CHECKPOINT')
+            if initial_checkpoint:
+                trainer.load_state_with_optimizer(initial_checkpoint).result(timeout=1800)
+                event('initial_checkpoint_loaded', path=initial_checkpoint)
+            else:
+                tokens = tokenizer.encode('The capital of France is Paris.')
+                datum = types.Datum(model_input=types.ModelInput.from_ints(tokens[:-1]),
+                    loss_fn_inputs={'target_tokens': tokens[1:], 'weights': [1.]*(len(tokens)-1)})
+                result = trainer.forward_backward([datum], 'cross_entropy').result(timeout=1800)
+                assert result.loss_fn_outputs
+                assert all(math.isfinite(v) for v in result.metrics.values() if isinstance(v, (float, int)))
+                event('forward_backward', metrics=result.metrics)
+                result = trainer.optim_step(types.AdamParams(learning_rate=1e-5)).result(timeout=1800)
+                event('optim_step', metrics=result.metrics)
             prompt = types.ModelInput.from_ints(tokenizer.encode('The capital of France is'))
             def sample(label, client):
                 response = client.sample(prompt=prompt, num_samples=1,
@@ -59,8 +67,11 @@ def main():
             sample('latest_sample', trainer.save_weights_and_get_sampling_client())
             saved = trainer.save_weights_for_sampler('smoke-pinned').result(timeout=1800)
             event('pinned_publication', path=saved.path)
-            sample('pinned_sample', peer.create_sampling_client(model_path=saved.path))
-            checkpoint = trainer.save_state('recovery-checkpoint').result(timeout=1800)
+            pinned_client = peer.create_sampling_client(model_path=saved.path)
+            sample('pinned_sample', pinned_client)
+            from types import SimpleNamespace
+            checkpoint = (SimpleNamespace(path=initial_checkpoint) if initial_checkpoint else
+                          trainer.save_state('recovery-checkpoint').result(timeout=1800))
             event('checkpoint', path=checkpoint.path)
             old_latest = trainer.save_weights_and_get_sampling_client()
             # Fault injection only: cancel the trainer's actual Modal invocation.
@@ -94,6 +105,16 @@ def main():
             else:
                 raise AssertionError('old latest handle unexpectedly succeeded')
             sample('old_pinned_still_works', peer.create_sampling_client(model_path=saved.path))
+            registry = modal.Dict.from_name(resources['registry'])
+            records = registry.get('pin_records')
+            for record in records.values():
+                assert not record.get('leases'), record
+                record['last_used'] = time.time() - 601
+            registry.put('pin_records', records)
+            stopped = resources['manage'].remote('reap_pinned')
+            assert stopped
+            event('idle_pinned_reaped', apps=stopped)
+            sample('pinned_recreated_sample', pinned_client)
             event('body_complete')
         assert report['events'][-1]['name'] == 'body_complete', 'smoke body did not complete'
         event('context_exited')

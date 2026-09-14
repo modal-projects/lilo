@@ -151,7 +151,7 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
 
     @app.function(name="manage", image=image, serialized=True,
                   max_containers=1, timeout=3600, retries=0, secrets=[proxy_secret])
-    async def manage(action, model_id=None, version=None):
+    async def manage(action, model_id=None, version=None, lease=None):
         registry = modal.Dict.from_name(registry_name)
         if action == "close":
             await registry.put.aio("closing", True)
@@ -177,10 +177,23 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 from lilo.providers.modal.scoped_pool import set_minimum
                 await set_minimum.aio(route["function_id"], latest.min_containers)
             return route
+        if action == "reap_pinned":
+            from .scoped_pins import reap_pins
+            from lilo.run import stop_app
+            async def stop(child):
+                await asyncio.to_thread(stop_app, child)
+            return await reap_pins(registry, stop, now=time.time())
+        if action == "release_pinned":
+            from .scoped_pins import touch_pin
+            await touch_pin(registry, f"pinned:{model_id}:{version}",
+                            now=time.time(), lease=lease, release=True)
+            return
         if action == "pinned":
+            from .scoped_pins import touch_pin
             key = f"pinned:{model_id}:{version}"
             existing = await registry.get.aio(key)
             if existing:
+                await touch_pin(registry, key, now=time.time(), lease=lease)
                 return existing
             # Record intent BEFORE deploying; teardown can find partial deployments.
             import hashlib
@@ -198,7 +211,11 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                 pool=pinned, proxy_secret=proxy_secret, name="sampler")
             await child.deploy.aio(name=child_name, environment_name=environment_name)
             route = {"url": await server.get_url.aio(), "function_id": server.object_id}
+            records = await registry.get.aio("pin_records") or {}
+            records[key] = {"app_name": child_name, "last_used": time.time(), "leases": {}}
+            await registry.put.aio("pin_records", records)
             await registry.put.aio(key, route)
+            await touch_pin(registry, key, now=time.time(), lease=lease)
             return route
         raise ValueError(f"unknown action: {action}")
 
@@ -221,11 +238,21 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
                   timeout=3600, retries=0, secrets=[proxy_secret])
     @modal.concurrent(max_inputs=128)
     async def execute_sample(task):
-        route = await route_for(task["model_id"], task.get("publish_version"), task.get("latest"))
-        return await sample_task(
-            task, ScopedFlashPool(route).gateway_url(),
-            data_parallel_size=gpu_count(engine.sampler_gpu) // engine.sampling.tensor_parallel_size,
-            headers=proxy_auth_headers(), context_length=engine.training.seq_length)
+        import uuid
+        pinned_request = task["model_id"] is not None and not task.get("latest")
+        lease = uuid.uuid4().hex if pinned_request else None
+        if pinned_request:
+            route = await manage.remote.aio("pinned", task["model_id"], task.get("publish_version"), lease)
+        else:
+            route = await route_for(task["model_id"], task.get("publish_version"), task.get("latest"))
+        try:
+            return await sample_task(
+                task, ScopedFlashPool(route).gateway_url(),
+                data_parallel_size=gpu_count(engine.sampler_gpu) // engine.sampling.tensor_parallel_size,
+                headers=proxy_auth_headers(), context_length=engine.training.seq_length)
+        finally:
+            if pinned_request:
+                await manage.remote.aio("release_pinned", task["model_id"], task.get("publish_version"), lease)
 
     @app.function(name="api", image=image, serialized=True,
                   timeout=1200, secrets=[api_secret],

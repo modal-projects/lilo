@@ -127,3 +127,26 @@ def test_old_creation_retry_cannot_resurrect_a_placed_model():
         with pytest.raises(ValueError, match='trainer was lost'):
             await claim_model(registry, SimpleNamespace(get=registry.read), engines, 'engine', 'a')
     asyncio.run(check())
+
+
+def test_cpu_run_switch_retires_after_drain_without_resetting_cache(monkeypatch):
+    import lilo.inference.scoped_sidecar as module
+    async def check():
+        events = []
+        async def reset(): raise AssertionError('CPU cache reset is unsupported')
+        async def retire():
+            events.append('retired')
+            raise RuntimeError('simulated container termination')
+        monkeypatch.setattr(module, 'retire_replica', retire)
+        engine = SimpleNamespace(delta_update_mode='cpu', reset=reset)
+        reconciler = AssignedReconciler(store=None, engine=engine, run_id='a')
+        reconciler.applied = VersionRef('a', 1)
+        async with reconciler.admit(VersionConstraint(min_version=1)):
+            switch = asyncio.create_task(reconciler._switch_run('b'))
+            await asyncio.sleep(0)
+            assert not switch.done() and events == []
+        with pytest.raises(RuntimeError, match='simulated container termination'):
+            await switch
+        assert events == ['retired']
+        assert reconciler.applied == VersionRef('a', 1)  # Never relabel old weights.
+    asyncio.run(check())

@@ -45,9 +45,9 @@ trainer.load_state_with_optimizer(checkpoint_path).result()
 latest = trainer.save_weights_and_get_sampling_client()
 ```
 
-The new model has its own publication history. Existing latest replicas follow
-its assignment; Stitch drains old generations and resets to base before applying
-its publications. A request for the new model waits until a replica has that
+The new model has its own publication history. Latest replicas follow its assignment. Stitch drains old generations, then
+the scoped CPU-delta sidecar retires the old container. Modal starts a fresh
+replica at the same endpoint to load the new model’s publications. A request for the new model waits until a replica has that
 model's required version. Old latest clients fail after reassignment: use the
 new sampling client. Base sampling and pinned publications are unaffected.
 The app does not automatically restore checkpoints or replay failed updates.
@@ -86,7 +86,10 @@ The API key is generated per run unless supplied explicitly.
 
 The API, trainer, base and latest samplers belong to one ephemeral app. On normal
 context exit, Lilo stops any separately deployed pinned samplers first, then the
-main app. Saved checkpoints remain; exit does not implicitly save a checkpoint.
+main app. During a run, pinned apps idle for ten minutes are stopped; active
+sampling calls hold leases that prevent reclamation. Existing pinned handles
+recreate the app on their next request. Saved versions remain available, and
+Modal retains stopped app history. Saved checkpoints remain; exit does not implicitly save a checkpoint.
 
 If the owning process is killed, the main app stops on disconnect. Pinned apps may
 remain registered but scale to zero when idle. Modal retains stopped app history.

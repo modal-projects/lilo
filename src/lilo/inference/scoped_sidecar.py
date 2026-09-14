@@ -42,7 +42,27 @@ class AssignedSnapshotStore(FFTSnapshotStore):
         raise RuntimeError('assigned snapshot store is read-only')
 
 
+async def retire_replica():
+    """End this container through its init; Modal replenishes the same server."""
+    import asyncio
+    import os
+    import signal
+    os.kill(1, signal.SIGTERM)
+    # Keep admission closed until the container exits, even if shutdown takes time.
+    await asyncio.Future()
+
+
 class AssignedReconciler(Reconciler):
+    async def _switch_run(self, new_run):
+        if (new_run != self.run_id
+                and getattr(self.engine, 'delta_update_mode', None) == 'cpu'):
+            # CPU-cache reset is unsupported. Do not relabel patched weights as
+            # the new run, or call the disk-reset implementation by accident.
+            await self.commit(apply=retire_replica, on_applied=lambda: None,
+                              drain_all=True)
+            return
+        await super()._switch_run(new_run)
+
     def _rejection(self, constraint):
         # Called under Stitch's admission/commit lock. Middleware checks alone
         # would race a run switch between checking identity and admission.
