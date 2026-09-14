@@ -263,5 +263,7 @@ CPU-only Modal probes in `modal-labs/connor-dev-2` verified nested ownership and
 normal scope exit. Killing the owner of a child with `min_containers=1` stopped
 the child with zero containers approximately three minutes later (the heartbeat
 timeout). This is eventual cleanup, and a retry may briefly overlap allocation
-with its previous scope. GPU trainer restoration and end-to-end scoped telemetry
-have not yet been exercised by this draft.
+with its previous scope. The actual controller image also passed a CPU-only preflight: all scoped functions
+registered, the 8-H200/64K recipe and 16K output budget were confirmed, and both
+OTLP exporters initialized from the existing secret. GPU trainer restoration and
+end-to-end GPU telemetry have not yet been exercised by this draft.

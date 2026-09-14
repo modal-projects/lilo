@@ -13,10 +13,10 @@ import modal
 from lilo.engines import Engine, gpu_count
 
 
-def control_image():
+def control_image(*extra_packages):
     from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
     return (modal.Image.debian_slim(python_version="3.12").apt_install("git")
-            .pip_install(*CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE, "huggingface-hub")
+            .pip_install(*CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE, "huggingface-hub", *extra_packages)
             .add_local_python_source("lilo"))
 
 

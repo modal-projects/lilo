@@ -20,15 +20,11 @@ from codegolf.config import (
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True, version=2)
-image = (
-    control_image()
-    .pip_install(
-        "transformers==5.16.1",
-        "jinja2==3.1.6",
-        "matplotlib",
-    )
-    .add_local_python_source("codegolf")
-)
+image = control_image(
+    "transformers==5.16.1",
+    "jinja2==3.1.6",
+    "matplotlib",
+).add_local_python_source("codegolf")
 
 
 @app.function(
