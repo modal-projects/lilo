@@ -30,7 +30,7 @@ def register_sampler(app, *, engine, image, assets, bulletin, registry_name,
     @app.server(name=name, serialized=True, image=image, gpu=engine.sampler_gpu,
                 cpu=engine.sampler_cpu, memory=engine.sampler_memory,
                 volumes={"/assets": assets, "/bulletin": bulletin},
-                secrets=[proxy_secret], min_containers=0,
+                min_containers=0,
                 max_containers=pool.max_containers,
                 scaledown_window=pool.scaledown_window,
                 target_concurrency=engine.sampling.target_concurrency,
@@ -202,7 +202,9 @@ def build_app(engine: Engine, name, registry_name, api_key, max_trainers,
             child = modal.App(child_name)
             pinned_image = modal.Image.from_id(await registry.get.aio("sampler_image_id")).add_local_python_source("lilo")
             server = register_sampler(
-                child, engine=engine, image=pinned_image, assets=assets, bulletin=bulletin,
+                child, engine=engine, image=pinned_image,
+                assets=modal.Volume.from_name("lilo-model-assets"),
+                bulletin=modal.Volume.from_name("lilo-snapshot-bulletin", version=2),
                 registry_name=registry_name, slot=None, model_id=model_id, version=version,
                 pool=pinned, proxy_secret=proxy_secret, name="Sampler")
             await child.deploy.aio(name=child_name, environment_name=environment_name)
