@@ -3,15 +3,15 @@ import asyncio
 import pytest
 
 from tests.support import EchoExecutor
-from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
-from lilo.engine import OperationKind
-from lilo.errors import (
+from tune.control_plane import ControlPlane, FutureResolutionStatus
+from tune.control_plane.keys import model_key, placement_key, trainer_demand_key
+from tune.engine import OperationKind
+from tune.errors import (
     RecordNotFound,
     RecordUnavailable,
     SequenceConflict,
 )
-from lilo.providers.local import (
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )

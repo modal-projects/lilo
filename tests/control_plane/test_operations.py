@@ -4,11 +4,11 @@ from dataclasses import replace
 
 import pytest
 
-from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.control_plane.keys import placement_key, trainer_demand_key
-from lilo.control_plane.records import PlacementRecord
-from lilo.errors import ModelLost, RecordNotFound, RecordUnavailable
-from lilo.providers.local import (
+from tune.control_plane import ControlPlane, FutureResolutionStatus
+from tune.control_plane.keys import placement_key, trainer_demand_key
+from tune.control_plane.records import PlacementRecord
+from tune.errors import ModelLost, RecordNotFound, RecordUnavailable
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )

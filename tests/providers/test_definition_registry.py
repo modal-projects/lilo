@@ -1,4 +1,4 @@
-from lilo.providers.modal.app import (
+from tune.providers.modal.app import (
     DEFINITIONS,
     module_for,
     parameterization_for,

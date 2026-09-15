@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch
 
-from lilo.inference.serving import (
+from tune.inference.serving import (
     start_fft_sidecar,
     start_sglang,
     supervise_children,
@@ -59,7 +59,7 @@ def test_child_supervisor_terminates_sibling() -> None:
     sibling = Mock()
     sibling.poll.return_value = None
 
-    with patch("lilo.inference.serving.terminate") as terminate:
+    with patch("tune.inference.serving.terminate") as terminate:
         supervisor = supervise_children(exited, sibling)
         supervisor.join(timeout=1)
 

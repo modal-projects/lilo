@@ -4,9 +4,9 @@ from types import SimpleNamespace
 import httpx
 import pytest
 
-from lilo.control_plane import ControlPlane, create_control_plane_app
-from lilo.proto import tinker_public_pb2
-from lilo.providers.local import (
+from tune.control_plane import ControlPlane, create_control_plane_app
+from tune.proto import tinker_public_pb2
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )

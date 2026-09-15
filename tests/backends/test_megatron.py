@@ -3,11 +3,11 @@ from contextlib import contextmanager
 import pytest
 from runtime_stubs import backend_runtime_imports
 
-from lilo.backends.megatron_config import parse_backend_config
-from lilo.backends.megatron_runtime.common.config import EngineModelConfig
+from tune.backends.megatron_config import parse_backend_config
+from tune.backends.megatron_runtime.common.config import EngineModelConfig
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_runtime.lora import peft as peft_module
+    from tune.backends.megatron_runtime.lora import peft as peft_module
 
 
 @pytest.mark.parametrize(

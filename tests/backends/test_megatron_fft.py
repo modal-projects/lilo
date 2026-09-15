@@ -8,16 +8,16 @@ import pytest
 from runtime_stubs import backend_runtime_imports
 from stitch.types import VersionRef
 
-from lilo.backends import ModelSpec, SamplerPublication
+from tune.backends import ModelSpec, SamplerPublication
 
 with backend_runtime_imports():
-    from lilo.backends import megatron_fft as fft_backend
-    from lilo.backends.megatron_fft import FFTMegatronBackend
-    from lilo.backends.megatron_runtime.common.config import EngineModelConfig
-    from lilo.backends.megatron_runtime.common.forward_backward import (
+    from tune.backends import megatron_fft as fft_backend
+    from tune.backends.megatron_fft import FFTMegatronBackend
+    from tune.backends.megatron_runtime.common.config import EngineModelConfig
+    from tune.backends.megatron_runtime.common.forward_backward import (
         add_packing_metrics,
     )
-    from lilo.backends.megatron_runtime.fft import checkpoint as fft_checkpoint
+    from tune.backends.megatron_runtime.fft import checkpoint as fft_checkpoint
 
 BASE_MODEL = "Qwen/Qwen3.5-9B-Base"
 DEFINITION_ID = "qwen3_5_9b_base_full_32k"
@@ -283,7 +283,7 @@ def test_fft_backend_captures_and_persists_checkpoint(tmp_path, monkeypatch) -> 
     backend.optimizer = "optimizer"
     backend.optimizer_step = 4
     backend.accumulating = True
-    monkeypatch.setenv("LILO_DEFINITION_ID", DEFINITION_ID)
+    monkeypatch.setenv("TUNE_DEFINITION_ID", DEFINITION_ID)
     writes = []
     monkeypatch.setattr(
         fft_backend,
@@ -806,8 +806,8 @@ def test_full_backend_publishes_initial_policy_as_root_delta(
         ),
         persist=lambda snapshot, **kwargs: None,
     )
-    monkeypatch.setenv("LILO_BULLETIN_ROOT", str(tmp_path))
-    monkeypatch.setenv("LILO_BULLETIN_VOLUME", "test-bulletin")
+    monkeypatch.setenv("TUNE_BULLETIN_ROOT", str(tmp_path))
+    monkeypatch.setenv("TUNE_BULLETIN_VOLUME", "test-bulletin")
 
     result = publish_sampler_snapshot(backend, "run-a")
 
@@ -832,7 +832,7 @@ def test_full_backend_publishes_after_loading_an_older_step(monkeypatch) -> None
             return {"optimizer_step": 5}
 
     monkeypatch.setattr(fft_backend, "FFTSnapshotBulletin", lambda root: Bulletin())
-    monkeypatch.setenv("LILO_BULLETIN_ROOT", "/bulletin")
+    monkeypatch.setenv("TUNE_BULLETIN_ROOT", "/bulletin")
     backend._delta_writer = SimpleNamespace(
         is_aligned_with=lambda ref: False,
         capture=lambda **kwargs: (
@@ -851,8 +851,8 @@ def test_full_backend_publishes_after_loading_an_older_step(monkeypatch) -> None
 def test_fft_sampler_failure_discards_pending_capture(monkeypatch) -> None:
     backend = backend_state("run-a")
     backend._sampler_captures["capture"] = object()
-    monkeypatch.setenv("LILO_BULLETIN_ROOT", "/bulletin")
-    monkeypatch.setenv("LILO_BULLETIN_VOLUME", "test-bulletin")
+    monkeypatch.setenv("TUNE_BULLETIN_ROOT", "/bulletin")
+    monkeypatch.setenv("TUNE_BULLETIN_VOLUME", "test-bulletin")
 
     def fail(*args, **kwargs):
         raise RuntimeError("persist failed")
@@ -868,7 +868,7 @@ def test_fft_sampler_failure_discards_pending_capture(monkeypatch) -> None:
 def test_fp32_lm_head_upcasts_output_projection() -> None:
     torch = pytest.importorskip("torch")
 
-    from lilo.backends.megatron_runtime.fft.model import apply_fp32_lm_head
+    from tune.backends.megatron_runtime.fft.model import apply_fp32_lm_head
 
     calls: list[dict] = []
 

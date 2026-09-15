@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from stitch.types import VersionRef
 
-from lilo.providers.modal import fft_pool
+from tune.providers.modal import fft_pool
 
 
 def test_latest_pool_wakes_through_flash_gateway(monkeypatch) -> None:
@@ -70,9 +70,9 @@ def test_pool_spec_round_trips_sizing_through_dict_and_env() -> None:
         }
     ) == fft_pool.FFTPoolSpec("definition", "model", False, 3)
     env = spec.env()
-    assert env["LILO_FFT_POOL_APP_NAME"] == spec.app_name
-    assert env["LILO_FFT_POOL_LATEST"] == "1"
-    assert env["LILO_FFT_POOL_VERSION"] == "0"
-    assert env["LILO_FFT_POOL_MIN_CONTAINERS"] == "2"
-    assert env["LILO_FFT_POOL_MAX_CONTAINERS"] == "8"
-    assert "LILO_FFT_POOL_SCALEDOWN_WINDOW" not in env
+    assert env["TUNE_FFT_POOL_APP_NAME"] == spec.app_name
+    assert env["TUNE_FFT_POOL_LATEST"] == "1"
+    assert env["TUNE_FFT_POOL_VERSION"] == "0"
+    assert env["TUNE_FFT_POOL_MIN_CONTAINERS"] == "2"
+    assert env["TUNE_FFT_POOL_MAX_CONTAINERS"] == "8"
+    assert "TUNE_FFT_POOL_SCALEDOWN_WINDOW" not in env

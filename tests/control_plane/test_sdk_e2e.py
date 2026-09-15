@@ -11,11 +11,11 @@ import pytest
 import tinker
 from tinker import types
 
-from lilo.client import create_full_training_client
-from lilo.control_plane import ControlPlane, create_control_plane_app
-from lilo.engine import OperationKind
-from lilo.providers import SamplingTask
-from lilo.providers.local import (
+from tune.client import create_full_training_client
+from tune.control_plane import ControlPlane, create_control_plane_app
+from tune.engine import OperationKind
+from tune.providers import SamplingTask
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
     LocalSamplingTaskPlatform,
@@ -335,7 +335,7 @@ class FakeVolume:
 
 
 def volume_plane(tmp_path, monkeypatch) -> tuple[ControlPlane, object, list[str]]:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     root = tmp_path / "checkpoints"
     monkeypatch.setattr(modal_app, "CHECKPOINT_ROOT", str(root))
     monkeypatch.setattr(modal_app, "checkpoint_volume", FakeVolume())
@@ -418,7 +418,7 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
         assert archive.value.status_code == 405
         assert archive.value.body["error"] == "unsupported"
         assert (
-            f"modal volume get lilo-checkpoints /{second.relative_to(root)}"
+            f"modal volume get tune-checkpoints /{second.relative_to(root)}"
             in archive.value.body["message"]
         )
         with pytest.raises(tinker.NotFoundError):

@@ -3,12 +3,12 @@ import asyncio
 import pytest
 
 from tests.support import EchoExecutor
-from lilo.errors import RecordNotFound
-from lilo.providers.local import (
+from tune.errors import RecordNotFound
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )
-from lilo.providers.modal.kv import RoutedKeyValueStore
+from tune.providers.modal.kv import RoutedKeyValueStore
 
 
 def test_values_cross_a_serialization_boundary() -> None:

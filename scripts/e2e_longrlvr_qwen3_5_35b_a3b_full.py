@@ -50,7 +50,7 @@ from tinker_cookbook.tokenizer_utils import get_tokenizer
 MODEL_NAME = "Qwen/Qwen3.5-35B-A3B"
 RENDERER_NAME = "qwen3_5"
 DATASET_NAME = "Guanzheng/LongRLVR-Data"
-BASE_URL = "https://modal-labs-kailash-dev--lilo-server.us-west.modal.run"
+BASE_URL = "https://modal-labs-kailash-dev--tune-server.us-west.modal.run"
 
 CONTEXT_LENGTH = 65_536
 MAX_GENERATION_TOKENS = 8_192
@@ -447,7 +447,7 @@ async def run(
         user_metadata: dict[str, str] | None = None,
     ):
         del rank, seed, train_mlp, train_attn, train_unembed
-        from lilo.client import create_full_training_client_async
+        from tune.client import create_full_training_client_async
 
         return await create_full_training_client_async(
             service,
@@ -524,7 +524,7 @@ async def run(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run 64K LongRLVR on the lilo Qwen3.5-35B full backend."
+        description="Run 64K LongRLVR on the tune Qwen3.5-35B full backend."
     )
     parser.add_argument("--steps", type=int, default=MAX_STEPS)
     parser.add_argument("--group-size", type=int, default=GROUP_SIZE)

@@ -8,11 +8,11 @@ from types import ModuleType, SimpleNamespace
 import pytest
 from tinker import ForwardBackwardOutput, OptimStepResponse, TensorData
 
-from lilo.backends import ForwardBatch, ModelSpec, SamplerPublication
-from lilo.engine import DistributedExecutor, OperationKind
-from lilo.engine.api import Command
-from lilo.engine.operations import parse_model_spec, parse_operation_payload
-from lilo.engine.spmd import initialize_distributed_runtime
+from tune.backends import ForwardBatch, ModelSpec, SamplerPublication
+from tune.engine import DistributedExecutor, OperationKind
+from tune.engine.api import Command
+from tune.engine.operations import parse_model_spec, parse_operation_payload
+from tune.engine.spmd import initialize_distributed_runtime
 
 
 class RecordingBackend:
@@ -558,7 +558,7 @@ def test_persistence_does_not_block_command_lane() -> None:
     asyncio.run(run())
 
 
-def test_parse_forward_backward_accepts_lilo_loss_fns() -> None:
+def test_parse_forward_backward_accepts_tune_loss_fns() -> None:
     datum = {
         "model_input": {"chunks": [{"tokens": [1, 2]}]},
         "loss_fn_inputs": {

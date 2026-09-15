@@ -459,7 +459,7 @@ async def _run_recipe(
         user_metadata: dict[str, str] | None = None,
     ):
         if full:
-            from lilo.client import create_full_training_client_async
+            from tune.client import create_full_training_client_async
 
             return await create_full_training_client_async(
                 service,

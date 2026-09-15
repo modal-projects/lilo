@@ -2,10 +2,10 @@ import asyncio
 
 import pytest
 
-from lilo.control_plane import ControlPlane
-from lilo.errors import RecordNotFound, RecordUnavailable
+from tune.control_plane import ControlPlane
+from tune.errors import RecordNotFound, RecordUnavailable
 from tests.support import EchoExecutor
-from lilo.providers.local import (
+from tune.providers.local import (
     LocalEnginePlatform,
     InMemoryKeyValueStore,
 )

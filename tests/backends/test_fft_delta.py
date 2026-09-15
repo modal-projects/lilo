@@ -11,11 +11,11 @@ from safetensors import safe_open
 from safetensors.numpy import save_file
 from stitch.types import VersionKind, VersionManifest, VersionRef
 
-from lilo.inference.fft_bulletin import FFTSnapshotBulletin
+from tune.inference.fft_bulletin import FFTSnapshotBulletin
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_runtime.fft import delta as delta_module
-    from lilo.backends.megatron_runtime.fft.delta import FFTDeltaWriter
+    from tune.backends.megatron_runtime.fft import delta as delta_module
+    from tune.backends.megatron_runtime.fft.delta import FFTDeltaWriter
 
 
 class Tensor:
@@ -102,14 +102,14 @@ def use_fake_runtime(monkeypatch) -> None:
             )
         ),
     )
-    monkeypatch.setenv("LILO_DEFINITION_ID", "full-test")
+    monkeypatch.setenv("TUNE_DEFINITION_ID", "full-test")
 
 
 def test_delta_writer_publishes_first_delta_from_base(tmp_path, monkeypatch) -> None:
     pool = object()
     published_pools = []
     publish_version = delta_module.stitch_publish_version
-    monkeypatch.setenv("LILO_DEFINITION_ID", "full-test")
+    monkeypatch.setenv("TUNE_DEFINITION_ID", "full-test")
     monkeypatch.setattr(delta_module, "FFTLatestPool", lambda *_: pool)
     monkeypatch.setattr(
         delta_module,

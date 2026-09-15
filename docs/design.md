@@ -1,6 +1,6 @@
-# Lilo design
+# Tune design
 
-Lilo presents the Tinker API while separating control-plane orchestration,
+Tune presents the Tinker API while separating control-plane orchestration,
 GPU execution, and sampling. Here, we describe the high-level design and interfaces
 between these components. 
 
@@ -42,8 +42,8 @@ engine scheduler then selects the next ready command. Compatible
 sequences packed under the backend's token budget.
 
 The engine exposes the command protocol in
-[`engine/api.py`](../src/lilo/engine/api.py). Its scheduler and future handling
-live in [`engine/server.py`](../src/lilo/engine/server.py).
+[`engine/api.py`](../src/tune/engine/api.py). Its scheduler and future handling
+live in [`engine/server.py`](../src/tune/engine/server.py).
 
 ### Execution lanes
 
@@ -103,33 +103,33 @@ sampling scales according to rollout traffic. We best-effort sticky-route groups
 
 ## Relevant implementation
 
-- [`control_plane/service.py`](../src/lilo/control_plane/service.py): handles
+- [`control_plane/service.py`](../src/tune/control_plane/service.py): handles
   sessions, places models on engines, routes operations, and submits sampling
   requests
-- [`providers/modal/kv.py`](../src/lilo/providers/modal/kv.py): stores
+- [`providers/modal/kv.py`](../src/tune/providers/modal/kv.py): stores
   control-plane state in Modal Dicts
-- [`providers/modal/trainer_reconciler.py`](../src/lilo/providers/modal/trainer_reconciler.py):
+- [`providers/modal/trainer_reconciler.py`](../src/tune/providers/modal/trainer_reconciler.py):
   starts and stops training engines to match model demand
-- [`engine/server.py`](../src/lilo/engine/server.py): orders model operations,
+- [`engine/server.py`](../src/tune/engine/server.py): orders model operations,
   batches compatible training requests, and runs persistence alongside later
   GPU work
-- [`engine/spmd.py`](../src/lilo/engine/spmd.py): broadcasts backend commands to
+- [`engine/spmd.py`](../src/tune/engine/spmd.py): broadcasts backend commands to
   every rank and collects results
-- [`inference/bulletin.py`](../src/lilo/inference/bulletin.py): stores immutable
+- [`inference/bulletin.py`](../src/tune/inference/bulletin.py): stores immutable
   LoRA adapter snapshots and tracks the latest version (LoRA sampler publication path)
-- [`inference/fft_bulletin.py`](../src/lilo/inference/fft_bulletin.py): stores
+- [`inference/fft_bulletin.py`](../src/tune/inference/fft_bulletin.py): stores
   and resolves versioned FFT weight updates (FFT sampler publication path)
-- [`providers/modal/fft_pool.py`](../src/lilo/providers/modal/fft_pool.py):
+- [`providers/modal/fft_pool.py`](../src/tune/providers/modal/fft_pool.py):
   creates, finds, wakes, and stops each FFT model's sampling service using Modal flash proxy
 
 ## Adding a new model deployment 
 
 "Model deployment" in this context refers to a particular training configuration for a base model, defined by its parameterization (full parameter, LoRA, etc.), desired context/sampling length, parallelism, quantization, and so forth. To add a new deployment that can be spun up by the control plane: 
 
-1. Existing model definitions are in [`providers/modal/definitions`](../src/lilo/providers/modal/definitions) (one per file). Create a new file with the desired configuration details (model, checkpoint, context-length, GPU, and parallelism settings). 
+1. Existing model definitions are in [`providers/modal/definitions`](../src/tune/providers/modal/definitions) (one per file). Create a new file with the desired configuration details (model, checkpoint, context-length, GPU, and parallelism settings).
 2. Keep the module filename, `DEFINITION_ID`, and engine function name the same.
 3. Import the module in
-   [`providers/modal/app.py`](../src/lilo/providers/modal/app.py) and append it
+   [`providers/modal/app.py`](../src/tune/providers/modal/app.py) and append it
    to `DEFINITIONS`.
 
 Every definition exports:
@@ -138,7 +138,7 @@ Every definition exports:
 - `TRAINER_MODELS_PER_INSTANCE`;
 - the model asset Volume and backend configuration;
 - a Modal `app` and engine function that calls
-  [`run_engine_with_backend`](../src/lilo/providers/modal/serve.py); and
+  [`run_engine_with_backend`](../src/tune/providers/modal/serve.py); and
 - `ENGINE_FUNCTION`, referencing that engine function.
 
 The existing model definitions show the complete template for parameterization-specific settings. FOr example, FFT definitions include rollout resources + Stitch bulletin volume, whereas LoRA definitions include adapter rank, slot capacity, and adapter storage. Our FFT engines are currently only capable of hosting one model (but if multiple FFT experiments are submitted to the control plane, it will spin up as many engine replicas as necessary to support these concurrently). LoRA engines are multi-lora and so can host multiple adapters. 
@@ -150,11 +150,11 @@ the new definition automatically. To run the tests before deploying:
 
 ```bash
 uv run pytest tests/providers/test_definition_registry.py
-uv run modal deploy -m lilo.providers.modal.app
+uv run modal deploy -m tune.providers.modal.app
 ```
 
 Trainer container limits are deployment-specific. Set
-`LILO_TRAINER_MAX_CONTAINERS` to a positive integer when deploying to apply the
+`TUNE_TRAINER_MAX_CONTAINERS` to a positive integer when deploying to apply the
 same limit to every definition. Leaving it unset makes trainer containers
 unlimited.
 
@@ -171,7 +171,7 @@ This validates all steps of the training cycle for the particular model definiti
 ## Adding a new backend
 
 Each backend implements the synchronous per-rank interface in
-[`backends/contract.py`](../src/lilo/backends/contract.py). `Engine`
+[`backends/contract.py`](../src/tune/backends/contract.py). `Engine`
 handles asynchronous scheduling and calls the backend in rank lockstep.
 
 Create a backend module that provides:
@@ -181,25 +181,25 @@ Create a backend module that provides:
 - `build_executor()`, which initializes distributed communication, constructs
   the backend, and returns its `DistributedExecutor`.
 
-Use [`backends/megatron_lora.py`](../src/lilo/backends/megatron_lora.py) and
-[`backends/megatron_fft.py`](../src/lilo/backends/megatron_fft.py) as the LoRA
+Use [`backends/megatron_lora.py`](../src/tune/backends/megatron_lora.py) and
+[`backends/megatron_fft.py`](../src/tune/backends/megatron_fft.py) as the LoRA
 and FFT references. A model definition passes its `module:build_executor` path
 to `run_engine_with_backend`:
 
 ```
 run_engine_with_backend(
     ...,
-    "lilo.backends.megatron_fft:build_executor",
+    "tune.backends.megatron_fft:build_executor",
     ...
 )
 ```
 
 **Distributed Executor**: All ranks participate in commands through
-[`engine/spmd.py`](../src/lilo/engine/spmd.py). Rank zero exposes the backend
+[`engine/spmd.py`](../src/tune/engine/spmd.py). Rank zero exposes the backend
 HTTP bridge while the other ranks follow its broadcasts through `run_follower_loop`.
 The `Engine` schedules operations and passes `Command` values to its
 executor. `HttpBackendClient` in
-[`engine/backend_http.py`](../src/lilo/engine/backend_http.py) implements that
+[`engine/backend_http.py`](../src/tune/engine/backend_http.py) implements that
 interface across the local training subprocess boundary.
 
 To maximize GPU utilization, we separate "GPU ops" (ie. forward_backward, optim_step) from "non-GPU ops" (ie. CPU -> disk checkpoint writing). For this reason, checkpoint and sampler publication operations are split into a GPU and non-GPU component:

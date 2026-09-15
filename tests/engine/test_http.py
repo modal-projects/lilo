@@ -8,13 +8,13 @@ from tinker.proto.request_conv import forward_backward_request_to_proto
 from tinker.types.forward_backward_input import ForwardBackwardInput
 from tinker.types.forward_backward_request import ForwardBackwardRequest
 
-from lilo.engine import (
+from tune.engine import (
     Engine,
     FutureStatus,
     HttpEngineClient,
     create_engine_app,
 )
-from lilo.errors import RecordNotFound, SequenceConflict
+from tune.errors import RecordNotFound, SequenceConflict
 from tests.support import EchoExecutor
 
 

@@ -5,7 +5,7 @@ import os
 import tinker
 from tinker import types
 
-from lilo.client import create_full_training_client
+from tune.client import create_full_training_client
 
 BASE_MODEL = "Qwen/Qwen3.5-4B"
 TIMEOUT = 60 * 60

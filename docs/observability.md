@@ -1,6 +1,6 @@
 # Observability
 
-Lilo exports traces for training commands, trainer operations, and sampling
+Tune exports traces for training commands, trainer operations, and sampling
 requests, plus a metric showing the trainer's current operation. Traces include
 workload counts and optional experiment labels for correlating activity across
 requests and models.
@@ -12,14 +12,14 @@ destination in the server environment.
 
 ### Modal to Datadog
 
-Add the following variables to the `lilo-api` Modal secret in your deployment's
+Add the following variables to the `tune-api` Modal secret in your deployment's
 workspace and environment, preserving its existing authentication settings.
 Replace `YOUR_DATADOG_API_KEY` with your Datadog API key and `your-environment`
-with your deployment environment. Lilo sends telemetry directly to Datadog's
+with your deployment environment. Tune sends telemetry directly to Datadog's
 Modal intake endpoint.
 
 ```dotenv
-OTEL_SERVICE_NAME=lilo
+OTEL_SERVICE_NAME=tune
 OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=your-environment
 OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://modal.integrations.otlp.datadoghq.com/v1/traces
 OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
@@ -35,11 +35,11 @@ OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=DELTA
 These URLs are for Datadog US1. For another Datadog site, use the corresponding
 [Modal managed-platform intake endpoints](https://docs.datadoghq.com/opentelemetry/setup/otlp_ingest/managed_platforms/).
 
-Deploy Lilo after updating the secret:
+Deploy Tune after updating the secret:
 
 ```bash
 MODAL_PROFILE=your-workspace MODAL_ENVIRONMENT=your-environment \
-  uv run modal deploy -m lilo.providers.modal.app
+  uv run modal deploy -m tune.providers.modal.app
 ```
 
 The configuration applies to the control plane, sampling workers, and new
@@ -52,7 +52,7 @@ For a collector or compatible observability backend, set the standard OTLP base
 endpoint and optional headers:
 
 ```dotenv
-OTEL_SERVICE_NAME=lilo
+OTEL_SERVICE_NAME=tune
 OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=staging
 OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example.com
 OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
@@ -93,8 +93,8 @@ Arbitrary user metadata is not exported.
 
 | Metadata key | Exported attribute | Meaning |
 | --- | --- | --- |
-| `run_id` | `lilo.run_id` | Experiment identity shared across replacement models |
-| `attempt_id` | `lilo.run_attempt_id` | Experiment attempt; distinct from individual sampling HTTP attempts |
+| `run_id` | `tune.run_id` | Experiment identity shared across replacement models |
+| `attempt_id` | `tune.run_attempt_id` | Experiment attempt; distinct from individual sampling HTTP attempts |
 
 Labels attach to command roots, command execution/result spans, control submissions,
 and trainer execution/lifecycle spans. Sampler artifacts snapshot these labels;
@@ -107,7 +107,7 @@ have that same label. A batch crossing experiments has links to each command and
 is not attributed to a single experiment. Trainer-state metrics describe the
 physical trainer and do not copy experiment labels from models.
 
-For a single-tenant scoped deployment, the owner can set `lilo.run_id` in
+For a single-tenant scoped deployment, the owner can set `tune.run_id` in
 `OTEL_RESOURCE_ATTRIBUTES`. Scoped trainers also emit that deployment identity
 as a metric datapoint tag: direct Datadog OTLP intake does not necessarily promote
 custom resource attributes to searchable metric tags. The tag stays constant
@@ -116,14 +116,14 @@ Shared deployments retain their original physical-only datapoint labels.
 
 ## Trace structure and lifecycle
 
-Each accepted engine command has a root `lilo.command.<operation>` span, beginning
+Each accepted engine command has a root `tune.command.<operation>` span, beginning
 at control-plane submission receipt and ending when its trainer result is ready.
 The trainer owns completion, so client polling is not necessary to close it.
 Control submission, active execution/capture/persistence, and result-ready are
 children of that root. Waiting appears as gaps; no command queue span is emitted.
 Execution children link to the physical backend span and carry only their own
 command’s workload and experiment labels. These show participation latency; use
-`lilo.trainer.*` execution spans to count physical batches without duplication.
+`tune.trainer.*` execution spans to count physical batches without duplication.
 
 Deduplicated submissions attach to the original command trace. Rejected
 submissions have standalone control-plane spans. Model creation and unloading
@@ -149,44 +149,44 @@ and do not introduce CUDA synchronization or measure individual GPU kernels.
 
 Workload attributes have distinct scopes:
 
-- `lilo.loss_tokens` counts positions with a nonzero resolved loss weight and a
+- `tune.loss_tokens` counts positions with a nonzero resolved loss weight and a
   target other than `-100`. It is a position count, not a sum of weights or a
   guarantee of a nonzero gradient. It appears on each command and is summed on
   the physical batch after preparation.
-- `lilo.padded_tokens` and `lilo.packed_microbatch_count` describe the whole packed
+- `tune.padded_tokens` and `tune.packed_microbatch_count` describe the whole packed
   batch before data-parallel sharding, including packing padding. They exclude
   dummy microbatches added for rank balancing and are not divided among commands.
-- `lilo.checkpoint_bytes` is the logical size of files in a completed training
+- `tune.checkpoint_bytes` is the logical size of files in a completed training
   checkpoint directory, including all rank shards, metadata, and any model export.
   It measures stored file bytes rather than upload traffic or in-memory tensors.
   Size is omitted if it cannot be read. Sampler publications do not report this
   training-checkpoint attribute.
 
 Checkpoint capture and persistence retain their existing command and trainer
-spans. Within persistence, `lilo.backend.checkpoint_write` measures rank-zero
-file serialization and writes; `lilo.backend.checkpoint_commit` measures the
+spans. Within persistence, `tune.backend.checkpoint_write` measures rank-zero
+file serialization and writes; `tune.backend.checkpoint_commit` measures the
 existing wait for all writers and the volume commit. Persistence can overlap
 later training operations.
 
 ## Viewing telemetry in Datadog
 
-After running a training or sampling operation, search APM for `service:lilo`
+After running a training or sampling operation, search APM for `service:tune`
 (or your configured `OTEL_SERVICE_NAME`). Filter by resource name to select a
 span family:
 
-- `lilo.command.forward_backward`: full command lifetime and its execution children.
-- `lilo.trainer.forward_backward`: physical trainer batches and aggregate workload.
-- `lilo.sample`: sampling requests and their HTTP attempts.
+- `tune.command.forward_backward`: full command lifetime and its execution children.
+- `tune.trainer.forward_backward`: physical trainer batches and aggregate workload.
+- `tune.sample`: sampling requests and their HTTP attempts.
 
-Use `@lilo.run_id` to filter by experiment and `@lilo.run_attempt_id` to select an
+Use `@tune.run_id` to filter by experiment and `@tune.run_attempt_id` to select an
 attempt. Follow span links between a command and its shared trainer batch. Native
-notebook span searches support `@duration`, `@lilo.example_count`, and
-`@lilo.input_tokens` as columns.
+notebook span searches support `@duration`, `@tune.example_count`, and
+`@tune.input_tokens` as columns.
 
 For trainer activity, graph the state metric by operation:
 
 ```text
-avg:lilo.trainer.state{lilo.trainer_instance_id:ENGINE_ID,lilo.lane:execution} by {lilo.operation}.fill(null)
+avg:tune.trainer.state{tune.trainer_instance_id:ENGINE_ID,tune.lane:execution} by {tune.operation}.fill(null)
 ```
 
 Replace `ENGINE_ID` with the trainer instance ID. Use a stacked area display and
@@ -206,32 +206,32 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 
 | Signal | Name | Boundary / purpose |
 | --- | --- | --- |
-| Span | `lilo.command.<operation>` | Submission receipt → trainer result ready; `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, internal `skip` |
-| Span | `lilo.control.submit` | HTTP submission work, attached to the canonical command root |
-| Span | `lilo.control.<operation>` | Submission without a command root, including rejected submissions and model creation/unloading |
-| Span | `lilo.command.execute`, `lilo.command.capture`, `lilo.command.persist` | Active executor/capture/persistence interval for this command; child of its root, linked to the physical batch; excludes waiting |
-| Span | `lilo.trainer.result_ready` | Terminal command marker, including failure |
-| Span | `lilo.trainer.forward`, `lilo.trainer.forward_backward`, `lilo.trainer.optim_step`, `lilo.trainer.load_weights` | One actual executor invocation/batch; links to participating commands |
-| Span | `lilo.trainer.accept`, `lilo.trainer.unload` | Engine model lifecycle work |
-| Span | `lilo.trainer.wait_persistence.save_weights`, `lilo.trainer.wait_persistence.save_weights_for_sampler` | Wait for preceding work in the same persistence lane |
-| Span | `lilo.trainer.capture.save_weights`, `lilo.trainer.capture.save_weights_for_sampler` | Capture state for persistence/publication |
-| Span | `lilo.trainer.persist.save_weights`, `lilo.trainer.persist.save_weights_for_sampler` | Background persistence/publication |
-| Span | `lilo.backend.prepare`, `lilo.backend.forward`, `lilo.backend.forward_backward`, `lilo.backend.collect`, `lilo.backend.outputs`, `lilo.backend.optimizer` | Rank-zero backend phases; children of the physical trainer operation |
-| Span | `lilo.backend.checkpoint_write`, `lilo.backend.checkpoint_commit` | Rank-zero file writing, then writer synchronization and volume commit |
-| Span | `lilo.sample` | Sampling acceptance → worker completion; worker start if acceptance timestamp unavailable |
-| Span | `lilo.sample.attempt` | One upstream sampling HTTP attempt, including retries; child of sampling root |
-| Gauge | `lilo.trainer.state` | One-hot operation state, observed/exported every five seconds |
+| Span | `tune.command.<operation>` | Submission receipt → trainer result ready; `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, internal `skip` |
+| Span | `tune.control.submit` | HTTP submission work, attached to the canonical command root |
+| Span | `tune.control.<operation>` | Submission without a command root, including rejected submissions and model creation/unloading |
+| Span | `tune.command.execute`, `tune.command.capture`, `tune.command.persist` | Active executor/capture/persistence interval for this command; child of its root, linked to the physical batch; excludes waiting |
+| Span | `tune.trainer.result_ready` | Terminal command marker, including failure |
+| Span | `tune.trainer.forward`, `tune.trainer.forward_backward`, `tune.trainer.optim_step`, `tune.trainer.load_weights` | One actual executor invocation/batch; links to participating commands |
+| Span | `tune.trainer.accept`, `tune.trainer.unload` | Engine model lifecycle work |
+| Span | `tune.trainer.wait_persistence.save_weights`, `tune.trainer.wait_persistence.save_weights_for_sampler` | Wait for preceding work in the same persistence lane |
+| Span | `tune.trainer.capture.save_weights`, `tune.trainer.capture.save_weights_for_sampler` | Capture state for persistence/publication |
+| Span | `tune.trainer.persist.save_weights`, `tune.trainer.persist.save_weights_for_sampler` | Background persistence/publication |
+| Span | `tune.backend.prepare`, `tune.backend.forward`, `tune.backend.forward_backward`, `tune.backend.collect`, `tune.backend.outputs`, `tune.backend.optimizer` | Rank-zero backend phases; children of the physical trainer operation |
+| Span | `tune.backend.checkpoint_write`, `tune.backend.checkpoint_commit` | Rank-zero file writing, then writer synchronization and volume commit |
+| Span | `tune.sample` | Sampling acceptance → worker completion; worker start if acceptance timestamp unavailable |
+| Span | `tune.sample.attempt` | One upstream sampling HTTP attempt, including retries; child of sampling root |
+| Gauge | `tune.trainer.state` | One-hot operation state, observed/exported every five seconds |
 
 | Span family | Additional exported attributes |
 | --- | --- |
-| Trainer and command identity | `lilo.trainer_instance_id`, `lilo.definition_id`, `lilo.boot_id`, `lilo.component`; `lilo.model_id`, `lilo.request_id` where there is one owner |
-| Command | `lilo.seq_id`, `lilo.operation`, `lilo.example_count`, `lilo.input_tokens`, `lilo.loss_tokens`, `lilo.checkpoint_bytes` where applicable; `lilo.incomplete=true` on graceful shutdown with unfinished work |
-| Trainer phase/batch | `lilo.lane`, `lilo.operation`, `lilo.command_count`; aggregate `lilo.example_count`, `lilo.input_tokens`, `lilo.loss_tokens` when known for all participants; `lilo.padded_tokens`, `lilo.packed_microbatch_count`, `lilo.checkpoint_bytes` when supplied by the backend |
-| Backend phase | Physical operation attributes plus `lilo.rank=0` and `lilo.component=backend` |
-| Control | `lilo.operation`, `lilo.component`, `http.response.status_code`, `error.type` on exceptions; model/request identity after successful handoff |
-| Experiment-aware spans | `lilo.run_id`, `lilo.run_attempt_id` under the rules above |
-| Sampling root | `lilo.request_id`, `lilo.model_id`, `lilo.base_model`, `lilo.num_samples`, `lilo.version_requested`, `lilo.latest`, `lilo.start_boundary`, `lilo.input_tokens`, `lilo.output_tokens`, `lilo.attempt_count`, `lilo.retry_count`, `error.type`; `lilo.version_served_start`, `lilo.version_served_end` for single-sequence requests |
-| Sampling attempt | `lilo.request_id`, `lilo.attempt_id`, `lilo.sequence_index`, `lilo.attempt_number`, `lilo.input_tokens`, `lilo.output_tokens`, `http.response.status_code`, `error.type`, `lilo.version_served_start`, `lilo.version_served_end` |
+| Trainer and command identity | `tune.trainer_instance_id`, `tune.definition_id`, `tune.boot_id`, `tune.component`; `tune.model_id`, `tune.request_id` where there is one owner |
+| Command | `tune.seq_id`, `tune.operation`, `tune.example_count`, `tune.input_tokens`, `tune.loss_tokens`, `tune.checkpoint_bytes` where applicable; `tune.incomplete=true` on graceful shutdown with unfinished work |
+| Trainer phase/batch | `tune.lane`, `tune.operation`, `tune.command_count`; aggregate `tune.example_count`, `tune.input_tokens`, `tune.loss_tokens` when known for all participants; `tune.padded_tokens`, `tune.packed_microbatch_count`, `tune.checkpoint_bytes` when supplied by the backend |
+| Backend phase | Physical operation attributes plus `tune.rank=0` and `tune.component=backend` |
+| Control | `tune.operation`, `tune.component`, `http.response.status_code`, `error.type` on exceptions; model/request identity after successful handoff |
+| Experiment-aware spans | `tune.run_id`, `tune.run_attempt_id` under the rules above |
+| Sampling root | `tune.request_id`, `tune.model_id`, `tune.base_model`, `tune.num_samples`, `tune.version_requested`, `tune.latest`, `tune.start_boundary`, `tune.input_tokens`, `tune.output_tokens`, `tune.attempt_count`, `tune.retry_count`, `error.type`; `tune.version_served_start`, `tune.version_served_end` for single-sequence requests |
+| Sampling attempt | `tune.request_id`, `tune.attempt_id`, `tune.sequence_index`, `tune.attempt_number`, `tune.input_tokens`, `tune.output_tokens`, `http.response.status_code`, `error.type`, `tune.version_served_start`, `tune.version_served_end` |
 | SGLang timing and cache | `sglang.request_id`, `sglang.queue_s`, `sglang.prefill_s`, `sglang.post_prefill_to_finish_s`, `sglang.cached_tokens`, `sglang.prompt_tokens`, `sglang.completion_tokens` |
 
 SGLang fields are present when supplied by the backend.
@@ -241,7 +241,7 @@ exported.
 
 | Gauge | Values and labels |
 | --- | --- |
-| `lilo.trainer.state` | `1` for current operation, explicit `0` for other operations in that lane. Labels: `lilo.trainer_instance_id`, `lilo.definition_id`, `lilo.boot_id`, `lilo.component`, `lilo.lane`, `lilo.operation` |
+| `tune.trainer.state` | `1` for current operation, explicit `0` for other operations in that lane. Labels: `tune.trainer_instance_id`, `tune.definition_id`, `tune.boot_id`, `tune.component`, `tune.lane`, `tune.operation` |
 | Execution lane | `idle`, `accept`, `unload`, `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, `skip` |
 | Checkpoint lane | `idle`, `save_weights` |
 | Sampler lane | `idle`, `save_weights_for_sampler` |

@@ -1,8 +1,8 @@
 import asyncio
 
-from lilo.control_plane import ControlPlane
-from lilo.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
-from lilo.telemetry.metadata import common_tags, experiment_tags
+from tune.control_plane import ControlPlane
+from tune.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
+from tune.telemetry.metadata import common_tags, experiment_tags
 from tests.control_plane.test_sampler_exports import (
     BASE_MODEL,
     DEFINITION,
@@ -14,15 +14,15 @@ from tests.control_plane.test_sampler_exports import (
 def test_only_explicit_bounded_experiment_labels_are_exported():
     assert experiment_tags(
         {"run_id": "run", "attempt_id": "attempt", "secret": "PRIVATE"}
-    ) == {"lilo.run_id": "run", "lilo.run_attempt_id": "attempt"}
+    ) == {"tune.run_id": "run", "tune.run_attempt_id": "attempt"}
     assert experiment_tags({"run_id": "x" * 257, "attempt_id": 42}) == {}
     assert common_tags(
         [
-            {"lilo.run_id": "run", "lilo.run_attempt_id": "a"},
-            {"lilo.run_id": "run", "lilo.run_attempt_id": "b"},
+            {"tune.run_id": "run", "tune.run_attempt_id": "a"},
+            {"tune.run_id": "run", "tune.run_attempt_id": "b"},
         ]
-    ) == {"lilo.run_id": "run"}
-    assert common_tags([{"lilo.run_id": "a"}, {"lilo.run_id": "b"}]) == {}
+    ) == {"tune.run_id": "run"}
+    assert common_tags([{"tune.run_id": "a"}, {"tune.run_id": "b"}]) == {}
 
 
 def test_sampler_artifact_and_session_preserve_experiment_labels():
@@ -51,8 +51,8 @@ def test_sampler_artifact_and_session_preserve_experiment_labels():
         result = await plane.retrieve(rid, timeout=1.0)
         artifact = await plane.get_sampler_artifact(result.result["path"])
         assert artifact.telemetry_tags == {
-            "lilo.run_id": "run",
-            "lilo.run_attempt_id": "attempt",
+            "tune.run_id": "run",
+            "tune.run_attempt_id": "attempt",
         }
         sampling = await plane.create_sampling_session(
             session_id=session.session_id,
@@ -61,7 +61,7 @@ def test_sampler_artifact_and_session_preserve_experiment_labels():
         )
         assert sampling.telemetry_tags == artifact.telemetry_tags
         # Old records predate tagging. Adding labels must not change publication identity.
-        from lilo.control_plane.keys import sampler_artifact_key
+        from tune.control_plane.keys import sampler_artifact_key
 
         versioned_key = sampler_artifact_key(
             plane._latest_sampler_model_path(creation.model.model_id, 7)

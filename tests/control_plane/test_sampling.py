@@ -3,16 +3,16 @@ import asyncio
 import pytest
 
 from tests.support import EchoExecutor, TinkerStubSampler
-from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.control_plane.keys import (
+from tune.control_plane import ControlPlane, FutureResolutionStatus
+from tune.control_plane.keys import (
     sample_task_key,
     sampling_session_creation_key,
     sampling_session_key,
     session_key,
 )
-from lilo.errors import RecordNotFound, RecordUnavailable, SequenceConflict
-from lilo.providers import SamplingTask
-from lilo.providers.local import (
+from tune.errors import RecordNotFound, RecordUnavailable, SequenceConflict
+from tune.providers import SamplingTask
+from tune.providers.local import (
     InMemoryKeyValueStore,
     InMemorySessionKeyValueStores,
     LocalEnginePlatform,

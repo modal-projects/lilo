@@ -7,8 +7,8 @@ from tinker import Datum, ModelInput
 
 torch = pytest.importorskip("torch")
 
-from lilo.backends import ForwardBatch, ForwardItem, LossFn  # noqa: E402
-from lilo.backends.megatron_runtime.common.forward_backward import (  # noqa: E402
+from tune.backends import ForwardBatch, ForwardItem, LossFn  # noqa: E402
+from tune.backends.megatron_runtime.common.forward_backward import (  # noqa: E402
     _loss,
     _loss_config,
     _packed_seq_idx,
@@ -17,7 +17,7 @@ from lilo.backends.megatron_runtime.common.forward_backward import (  # noqa: E4
     pack_microbatches,
     shard_microbatches,
 )
-from lilo.backends.megatron_runtime.common.forward_backward import (  # noqa: E402
+from tune.backends.megatron_runtime.common.forward_backward import (  # noqa: E402
     build_sequence_batches as build_microbatches,
 )
 
@@ -567,17 +567,17 @@ def test_packing_metrics_are_rank_zero_and_reduction_compatible(capsys) -> None:
 def test_observed_loss_tokens_use_resolved_mask_and_valid_targets(
     loss_name, datum, expected
 ):
-    from lilo.telemetry import backend
+    from tune.telemetry import backend
 
     with backend.recording() as measurements:
         build_microbatches(
             forward_batch(loss_name, datum), None, max_slots=None, max_seq_length=8
         )
-    assert measurements.models == {"model": {"lilo.loss_tokens": expected}}
+    assert measurements.models == {"model": {"tune.loss_tokens": expected}}
 
 
 def test_observed_packing_counts_are_global_before_data_parallel_sharding():
-    from lilo.telemetry import backend
+    from tune.telemetry import backend
 
     request = packed_batch(5, 3)
     with backend.recording() as measurements:
@@ -589,6 +589,6 @@ def test_observed_packing_counts_are_global_before_data_parallel_sharding():
             request, packed, input_sequences=2, raw_tokens=8, token_capacity=16, rank=0
         )
     assert measurements.attributes == {
-        "lilo.padded_tokens": 12,
-        "lilo.packed_microbatch_count": 1,
+        "tune.padded_tokens": 12,
+        "tune.packed_microbatch_count": 1,
     }

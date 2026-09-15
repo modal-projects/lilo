@@ -1,17 +1,17 @@
-# Lilo
+# Tune
 
-Lilo is a Tinker SDK-compatible training and sampling infrastructure built on
+Tune is a Tinker SDK-compatible training and sampling infrastructure built on
 Modal. Individual engine containers run `forward_backward` and `optim_step`
 jobs and publish weights to autoscaling sampling infrastructure based on
 [Stitch](https://github.com/modal-projects/stitch).
 
 ## Quick start
 
-Install Lilo into your own Python project, deploy it once to Modal, then call
+Install Tune into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.
 
-If someone has already deployed Lilo for you, install the package in step 1,
-then skip to step 4 with the server URL and Lilo API key they provide. API
+If someone has already deployed Tune for you, install the package in step 1,
+then skip to step 4 with the server URL and Tune API key they provide. API
 clients do not need Modal deployment credentials or sampler proxy tokens.
 
 ### 1. Install into your project
@@ -19,9 +19,9 @@ clients do not need Modal deployment credentials or sampler proxy tokens.
 With [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
-uv init my-lilo-project
-cd my-lilo-project
-uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'
+uv init my-tune-project
+cd my-tune-project
+uv add 'tune @ git+https://github.com/modal-projects/tune.git'
 ```
 
 ### 2. Configure Modal and secrets once
@@ -46,14 +46,14 @@ There are three separate credentials:
 | Credential | Purpose | Who needs it |
 | --- | --- | --- |
 | Modal API token / local profile | Manage Modal resources | Deployer |
-| `TINKER_API_KEY` in the `lilo-api` secret | Authenticate calls to the Lilo API | Deployer and API clients |
-| Proxy token in the `lilo-proxy` secret | Let Lilo reach protected sampler pools | Deployed control plane and trainers |
+| `TINKER_API_KEY` in the `tune-api` secret | Authenticate calls to the Tune API | Deployer and API clients |
+| Proxy token in the `tune-proxy` secret | Let Tune reach protected sampler pools | Deployed control plane and trainers |
 
-For a new deployment, generate a Lilo API key and store it in Modal:
+For a new deployment, generate a Tune API key and store it in Modal:
 
 ```bash
-export TINKER_API_KEY=$(uv run python -c 'import secrets; print(f"tml-lilo-{secrets.token_urlsafe(42)}")')
-uv run modal secret create lilo-api \
+export TINKER_API_KEY=$(uv run python -c 'import secrets; print(f"tml-tune-{secrets.token_urlsafe(42)}")')
+uv run modal secret create tune-api \
   TINKER_API_KEY="$TINKER_API_KEY"
 ```
 
@@ -81,7 +81,7 @@ print(token.token_id, token.token_secret)
 Store the token in the same environment:
 
 ```bash
-uv run modal secret create lilo-proxy \
+uv run modal secret create tune-proxy \
   MODAL_PROXY_TOKEN_ID="$MODAL_PROXY_TOKEN_ID" \
   MODAL_PROXY_TOKEN_SECRET="$MODAL_PROXY_TOKEN_SECRET"
 ```
@@ -89,12 +89,12 @@ uv run modal secret create lilo-proxy \
 ### 3. Deploy the installed package
 
 ```bash
-uv run modal deploy -m lilo.providers.modal.app
+uv run modal deploy -m tune.providers.modal.app
 ```
 
 This deploys the control plane and bundled model definitions from the installed
 package. A successful deployment prints a URL for the `server` web function.
-Keep that URL for step 4. Redeploy when you intentionally update Lilo; deployment
+Keep that URL for step 4. Redeploy when you intentionally update Tune; deployment
 is not required for every training run.
 
 Training and sampling allocate GPUs on demand. The bundled `Qwen/Qwen3.5-4B`
@@ -106,7 +106,7 @@ before running a larger workload.
 ### 4. Connect and run one SFT update
 
 Set the server URL printed by deployment. In a new shell, also load the same
-`TINKER_API_KEY` stored in `lilo-api`:
+`TINKER_API_KEY` stored in `tune-api`:
 
 ```bash
 export TINKER_BASE_URL=https://your-modal-server-url
@@ -114,14 +114,14 @@ export TINKER_BASE_URL=https://your-modal-server-url
 
 Save the following as `sft_smoke.py` in **your project**. It checks API access,
 creates a full-training client, and performs one supervised next-token update.
-It uses regular Tinker training calls after Lilo's client-creation helper.
+It uses regular Tinker training calls after Tune's client-creation helper.
 
 ```python
 import os
 
 import tinker
 from tinker import types
-from lilo.client import create_full_training_client
+from tune.client import create_full_training_client
 
 service = tinker.ServiceClient(
     base_url=os.environ["TINKER_BASE_URL"],
@@ -161,7 +161,7 @@ for checkpointing, sampling, and longer runs.
 
 ### 5. Clean up
 
-After the script exits, session heartbeats stop. Lilo's periodic cleaner reclaims
+After the script exits, session heartbeats stop. Tune's periodic cleaner reclaims
 idle training models and their latest sampler pools; cleanup is not immediate.
 Check the apps and running containers in your Modal dashboard or list apps with:
 
@@ -169,13 +169,13 @@ Check the apps and running containers in your Modal dashboard or list apps with:
 uv run modal app list
 ```
 
-To tear down the deployment, stop its `lilo-fft-...` sampler apps, then `lilo`,
-using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler apps.
+To tear down the deployment, stop its `tune-fft-...` sampler apps, then `tune`,
+using `uv run modal app stop <app-id>`. Stopping `tune` does not stop sampler apps.
 
 ## Next steps
 
 Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) before running a job.
-See [Validation](docs/validation.md) for end-to-end Lilo and Miles training runs,
+See [Validation](docs/validation.md) for end-to-end Tune and Miles training runs,
 and the [raw Tinker RL example](scripts/rl_example.py) for sampling and a toy
 policy update. Copy examples you want to run into your project; repository
 `scripts/` are not installed with the package.
