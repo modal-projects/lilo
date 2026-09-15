@@ -166,6 +166,31 @@ def configure_deterministic_losses() -> None:
         replacement._lilo_dynamic_shapes = True
         setattr(fused_cross_entropy, name, replacement)
 
+    # This loss performs its own all-reduce, bypassing the Megatron/TE tensor
+    # parallel wrappers. Carry the packed target-logit/exp-sum vector through
+    # that collective in the requested accumulation dtype, then cast once.
+    predicted = fused_cross_entropy.calculate_predicted_logits
+    loss = fused_cross_entropy.calculate_cross_entropy_loss
+    if not getattr(predicted, "_lilo_precision_reduction", False):
+
+        @wraps(predicted)
+        def precise_predicted(*args, **kwargs):
+            mask, indices, packed, exp_logits = predicted(*args, **kwargs)
+            return (
+                mask,
+                indices,
+                packed.to(getattr(torch, _accumulation_dtype)),
+                exp_logits,
+            )
+
+        @wraps(loss)
+        def precise_loss(exp_logits, packed):
+            return loss(exp_logits, packed.to(exp_logits.dtype))
+
+        precise_predicted._lilo_precision_reduction = True
+        fused_cross_entropy.calculate_predicted_logits = precise_predicted
+        fused_cross_entropy.calculate_cross_entropy_loss = precise_loss
+
 
 def configure_deterministic_gdn() -> None:
     """Pin the reduction layout of FLA Q/K normalization before compilation.
