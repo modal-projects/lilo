@@ -1,11 +1,11 @@
 import asyncio
 
-from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.providers.local import (
+from tune.control_plane import ControlPlane, FutureResolutionStatus
+from tune.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )
-from lilo.providers.modal.trainer_reconciler import reconcile_trainers
+from tune.providers.modal.trainer_reconciler import reconcile_trainers
 from tests.support import EchoExecutor
 
 DEFINITION = "qwen_full"

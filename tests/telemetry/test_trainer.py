@@ -7,9 +7,9 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from lilo.engine import Engine
-from lilo.engine.http import HttpEngineClient, create_engine_app
-from lilo.telemetry import trainer
+from tune.engine import Engine
+from tune.engine.http import HttpEngineClient, create_engine_app
+from tune.telemetry import trainer
 from tests.support import EchoExecutor
 
 
@@ -64,12 +64,12 @@ def test_transport_queue_execution_and_duplicate_submission(setup, header_value)
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
-    (control,) = [s for s in spans if s.name == "lilo.control.submit"]
+    (command,) = [s for s in spans if s.name == "tune.command.optim_step"]
+    (control,) = [s for s in spans if s.name == "tune.control.submit"]
     assert command.parent is None
     assert control.parent.span_id == command.context.span_id
-    assert not any(s.name == "lilo.trainer.queue" for s in spans)
-    for name in ("lilo.command.execute", "lilo.trainer.result_ready"):
+    assert not any(s.name == "tune.trainer.queue" for s in spans)
+    for name in ("tune.command.execute", "tune.trainer.result_ready"):
         (child,) = [s for s in spans if s.name == name]
         assert child.parent.span_id == command.context.span_id
         assert child.start_time >= command.start_time
@@ -84,9 +84,9 @@ def test_state_one_hot_and_background_overlap(setup):
     data = reader.get_metrics_data()
     points = data.resource_metrics[0].scope_metrics[0].metrics[0].data.data_points
     for lane in ("execution", "checkpoint", "sampler"):
-        assert sum(p.value for p in points if p.attributes["lilo.lane"] == lane) == 1
+        assert sum(p.value for p in points if p.attributes["tune.lane"] == lane) == 1
     active = {
-        (p.attributes["lilo.lane"], p.attributes["lilo.operation"])
+        (p.attributes["tune.lane"], p.attributes["tune.operation"])
         for p in points
         if p.value
     }
@@ -102,7 +102,7 @@ def test_state_one_hot_and_background_overlap(setup):
 def test_batch_links_all_commands_and_error_omits_payload(setup):
     from types import SimpleNamespace
 
-    from lilo.engine import FutureState, FutureStatus, OperationKind
+    from tune.engine import FutureState, FutureStatus, OperationKind
 
     telemetry, exporter, _ = setup
     ops = [
@@ -114,7 +114,7 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
         )
         for m in ("a", "b")
     ]
-    from lilo.engine.operations import parse_operation_payload
+    from tune.engine.operations import parse_operation_payload
 
     for index, op in enumerate(ops):
         telemetry.register_model(
@@ -143,16 +143,16 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
         telemetry.begin(op)
     import time
 
-    from lilo.telemetry import backend
+    from tune.telemetry import backend
 
     backend.received.set(
         {
             "attributes": {
-                "lilo.padded_tokens": 16,
-                "lilo.packed_microbatch_count": 2,
+                "tune.padded_tokens": 16,
+                "tune.packed_microbatch_count": 2,
                 "secret": "PRIVATE",
             },
-            "models": {"a": {"lilo.loss_tokens": 2}, "b": {"lilo.loss_tokens": 5}},
+            "models": {"a": {"tune.loss_tokens": 2}, "b": {"tune.loss_tokens": 5}},
         }
     )
     telemetry.span(
@@ -168,21 +168,21 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
     for op in ops:
         telemetry.finish(op, FutureState(FutureStatus.FAILED, error="PRIVATE"))
     spans = exporter.get_finished_spans()
-    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
-    roots = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    (batch,) = [s for s in spans if s.name == "tune.trainer.forward_backward"]
+    roots = [s for s in spans if s.name == "tune.command.forward_backward"]
     assert batch.parent is None
-    assert batch.attributes["lilo.run_id"] == "run"
-    assert "lilo.run_attempt_id" not in batch.attributes
-    assert {s.attributes["lilo.run_attempt_id"] for s in roots} == {"0", "1"}
-    assert batch.attributes["lilo.command_count"] == 2
-    assert batch.attributes["lilo.example_count"] == 3
-    assert batch.attributes["lilo.input_tokens"] == 11
-    assert batch.attributes["lilo.loss_tokens"] == 7
-    assert batch.attributes["lilo.padded_tokens"] == 16
-    assert sorted(s.attributes["lilo.loss_tokens"] for s in roots) == [2, 5]
-    assert all("lilo.padded_tokens" not in s.attributes for s in roots)
+    assert batch.attributes["tune.run_id"] == "run"
+    assert "tune.run_attempt_id" not in batch.attributes
+    assert {s.attributes["tune.run_attempt_id"] for s in roots} == {"0", "1"}
+    assert batch.attributes["tune.command_count"] == 2
+    assert batch.attributes["tune.example_count"] == 3
+    assert batch.attributes["tune.input_tokens"] == 11
+    assert batch.attributes["tune.loss_tokens"] == 7
+    assert batch.attributes["tune.padded_tokens"] == 16
+    assert sorted(s.attributes["tune.loss_tokens"] for s in roots) == [2, 5]
+    assert all("tune.padded_tokens" not in s.attributes for s in roots)
     assert backend.received.get() is None
-    assert sorted(s.attributes["lilo.input_tokens"] for s in roots) == [3, 8]
+    assert sorted(s.attributes["tune.input_tokens"] for s in roots) == [3, 8]
     assert {l.context.span_id for l in batch.links} == {
         s.context.span_id for s in roots
     }
@@ -220,16 +220,16 @@ def test_persistence_keeps_original_command_and_overlaps_next_operation(setup):
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (command,) = [s for s in spans if s.name == "lilo.command.save_weights"]
-    (persist,) = [s for s in spans if s.name == "lilo.trainer.persist.save_weights"]
-    (optim,) = [s for s in spans if s.name == "lilo.trainer.optim_step"]
+    (command,) = [s for s in spans if s.name == "tune.command.save_weights"]
+    (persist,) = [s for s in spans if s.name == "tune.trainer.persist.save_weights"]
+    (optim,) = [s for s in spans if s.name == "tune.trainer.optim_step"]
     assert persist.parent is None
     assert persist.links[0].context.span_id == command.context.span_id
     assert persist.start_time <= optim.start_time < optim.end_time <= persist.end_time
     for phase in ("capture", "persist"):
-        (child,) = [s for s in spans if s.name == "lilo.command." + phase]
+        (child,) = [s for s in spans if s.name == "tune.command." + phase]
         (physical,) = [
-            s for s in spans if s.name == "lilo.trainer." + phase + ".save_weights"
+            s for s in spans if s.name == "tune.trainer." + phase + ".save_weights"
         ]
         assert child.parent.span_id == command.context.span_id
         assert (child.start_time, child.end_time) == (
@@ -237,7 +237,7 @@ def test_persistence_keeps_original_command_and_overlaps_next_operation(setup):
             physical.end_time,
         )
         assert child.links[0].context.span_id == physical.context.span_id
-    assert not any(s.name == "lilo.command.wait_persistence" for s in spans)
+    assert not any(s.name == "tune.command.wait_persistence" for s in spans)
     assert all("private-checkpoint" not in str(s.attributes) for s in spans)
 
 
@@ -256,7 +256,7 @@ def test_unload_ends_buffered_command_without_retaining_span(setup):
 
     asyncio.run(run())
     (command,) = [
-        s for s in exporter.get_finished_spans() if s.name == "lilo.command.optim_step"
+        s for s in exporter.get_finished_spans() if s.name == "tune.command.optim_step"
     ]
     assert command.status.status_code.name == "ERROR"
 
@@ -275,16 +275,16 @@ def test_workload_counts_and_independent_execution_for_one_command(setup):
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (command,) = [s for s in spans if s.name == "lilo.command.forward_backward"]
-    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
+    (command,) = [s for s in spans if s.name == "tune.command.forward_backward"]
+    (batch,) = [s for s in spans if s.name == "tune.trainer.forward_backward"]
     assert command.parent is None and batch.parent is None
     assert command.context.trace_id != batch.context.trace_id
     assert batch.links[0].context == command.context
     for span in (command, batch):
-        assert span.attributes["lilo.example_count"] == 1
-        assert span.attributes["lilo.input_tokens"] == 5
-    assert batch.attributes["lilo.command_count"] == 1
-    assert "lilo.batch_size" not in batch.attributes
+        assert span.attributes["tune.example_count"] == 1
+        assert span.attributes["tune.input_tokens"] == 5
+    assert batch.attributes["tune.command_count"] == 1
+    assert "tune.batch_size" not in batch.attributes
 
 
 def test_retried_http_submission_joins_original_completed_root(setup):
@@ -317,8 +317,8 @@ def test_retried_http_submission_joins_original_completed_root(setup):
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
-    submissions = [s for s in spans if s.name == "lilo.control.submit"]
+    (command,) = [s for s in spans if s.name == "tune.command.optim_step"]
+    submissions = [s for s in spans if s.name == "tune.control.submit"]
     assert len(submissions) == 2
     assert all(
         s.parent.span_id == command.context.span_id
@@ -330,7 +330,7 @@ def test_retried_http_submission_joins_original_completed_root(setup):
 def test_engine_combines_commands_once_with_aggregate_workload(setup):
     import json
 
-    from lilo.engine import OperationKind
+    from tune.engine import OperationKind
 
     telemetry, exporter, _ = setup
 
@@ -382,15 +382,15 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (batch,) = [s for s in spans if s.name == "lilo.trainer.forward_backward"]
-    commands = [s for s in spans if s.name == "lilo.command.forward_backward"]
+    (batch,) = [s for s in spans if s.name == "tune.trainer.forward_backward"]
+    commands = [s for s in spans if s.name == "tune.command.forward_backward"]
     assert len(commands) == 2
     assert batch.parent is None
-    assert batch.attributes["lilo.command_count"] == 2
-    assert batch.attributes["lilo.example_count"] == 3
-    assert batch.attributes["lilo.input_tokens"] == 11
-    assert batch.attributes["lilo.run_id"] == "run"
-    assert "lilo.run_attempt_id" not in batch.attributes
+    assert batch.attributes["tune.command_count"] == 2
+    assert batch.attributes["tune.example_count"] == 3
+    assert batch.attributes["tune.input_tokens"] == 11
+    assert batch.attributes["tune.run_id"] == "run"
+    assert "tune.run_attempt_id" not in batch.attributes
     assert {(link.context.trace_id, link.context.span_id) for link in batch.links} == {
         (command.context.trace_id, command.context.span_id) for command in commands
     }
@@ -398,8 +398,8 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
     children = [
         s
         for s in spans
-        if s.name == "lilo.command.execute"
-        and s.attributes["lilo.operation"] == "forward_backward"
+        if s.name == "tune.command.execute"
+        and s.attributes["tune.operation"] == "forward_backward"
     ]
     assert len(children) == 2
     for command in commands:
@@ -408,12 +408,12 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
         assert child.start_time == batch.start_time > command.start_time
         assert child.end_time == batch.end_time <= command.end_time
         assert (
-            child.attributes["lilo.input_tokens"]
-            == command.attributes["lilo.input_tokens"]
+            child.attributes["tune.input_tokens"]
+            == command.attributes["tune.input_tokens"]
         )
         assert (
-            child.attributes["lilo.run_attempt_id"]
-            == command.attributes["lilo.run_attempt_id"]
+            child.attributes["tune.run_attempt_id"]
+            == command.attributes["tune.run_attempt_id"]
         )
         assert [
             (link.context.trace_id, link.context.span_id) for link in child.links
@@ -423,7 +423,7 @@ def test_engine_combines_commands_once_with_aggregate_workload(setup):
 def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
     monkeypatch.setenv(
         "OTEL_RESOURCE_ATTRIBUTES",
-        "lilo.run_id=owned-run,lilo.run_attempt_id=not-a-metric-tag",
+        "tune.run_id=owned-run,tune.run_attempt_id=not-a-metric-tag",
     )
     for scoped in (False, True):
         telemetry = trainer.TrainerTelemetry(
@@ -442,12 +442,12 @@ def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
             observations = telemetry.observe(None)
             assert observations
             for point in observations:
-                assert point.attributes.get("lilo.run_id") == (
+                assert point.attributes.get("tune.run_id") == (
                     "owned-run" if scoped else None
                 )
-                assert "lilo.run_attempt_id" not in point.attributes
+                assert "tune.run_attempt_id" not in point.attributes
                 assert (
-                    point.attributes["lilo.trainer_instance_id"] == "physical-instance"
+                    point.attributes["tune.trainer_instance_id"] == "physical-instance"
                 )
         finally:
             telemetry.close()
@@ -456,8 +456,8 @@ def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
 def test_backend_measurements_cross_http_without_changing_results(
     setup, monkeypatch, tmp_path
 ):
-    from lilo.engine import backend_http
-    from lilo.telemetry import backend
+    from tune.engine import backend_http
+    from tune.telemetry import backend
 
     telemetry, exporter, _ = setup
     monkeypatch.setattr(backend_http, "provider", trainer.provider)
@@ -465,9 +465,9 @@ def test_backend_measurements_cross_http_without_changing_results(
     class Executor(EchoExecutor):
         async def execute(self, model_id, kind, payload):
             with backend.phase("optimizer"):
-                backend.count("lilo.padded_tokens", 16)
-                backend.count("lilo.packed_microbatch_count", 2)
-                backend.count("lilo.loss_tokens", 7, model_id=model_id)
+                backend.count("tune.padded_tokens", 16)
+                backend.count("tune.packed_microbatch_count", 2)
+                backend.count("tune.loss_tokens", 7, model_id=model_id)
             return await super().execute(model_id, kind, payload)
 
         async def persist_checkpoint(self, model_id, payload, snapshot):
@@ -504,32 +504,32 @@ def test_backend_measurements_cross_http_without_changing_results(
 
     asyncio.run(run())
     spans = exporter.get_finished_spans()
-    (physical,) = [s for s in spans if s.name == "lilo.trainer.optim_step"]
-    (phase,) = [s for s in spans if s.name == "lilo.backend.optimizer"]
-    (command,) = [s for s in spans if s.name == "lilo.command.optim_step"]
+    (physical,) = [s for s in spans if s.name == "tune.trainer.optim_step"]
+    (phase,) = [s for s in spans if s.name == "tune.backend.optimizer"]
+    (command,) = [s for s in spans if s.name == "tune.command.optim_step"]
     assert phase.context.trace_id == physical.context.trace_id
     assert phase.parent.span_id == physical.context.span_id
     assert (
         physical.start_time <= phase.start_time <= phase.end_time <= physical.end_time
     )
-    assert physical.attributes["lilo.padded_tokens"] == 16
-    assert physical.attributes["lilo.packed_microbatch_count"] == 2
+    assert physical.attributes["tune.padded_tokens"] == 16
+    assert physical.attributes["tune.packed_microbatch_count"] == 2
     assert (
-        physical.attributes["lilo.loss_tokens"]
-        == command.attributes["lilo.loss_tokens"]
+        physical.attributes["tune.loss_tokens"]
+        == command.attributes["tune.loss_tokens"]
         == 7
     )
-    assert "lilo.padded_tokens" not in command.attributes
-    assert phase.attributes["lilo.rank"] == 0
+    assert "tune.padded_tokens" not in command.attributes
+    assert phase.attributes["tune.rank"] == 0
 
-    (save,) = [s for s in spans if s.name == "lilo.command.save_weights"]
-    (persist,) = [s for s in spans if s.name == "lilo.trainer.persist.save_weights"]
+    (save,) = [s for s in spans if s.name == "tune.command.save_weights"]
+    (persist,) = [s for s in spans if s.name == "tune.trainer.persist.save_weights"]
     assert (
-        save.attributes["lilo.checkpoint_bytes"]
-        == persist.attributes["lilo.checkpoint_bytes"]
+        save.attributes["tune.checkpoint_bytes"]
+        == persist.attributes["tune.checkpoint_bytes"]
         == 5
     )
     for name in ("checkpoint_write", "checkpoint_commit"):
-        (phase,) = [s for s in spans if s.name == "lilo.backend." + name]
+        (phase,) = [s for s in spans if s.name == "tune.backend." + name]
         assert phase.parent.span_id == persist.context.span_id
-    assert "lilo.loss_tokens" not in save.attributes
+    assert "tune.loss_tokens" not in save.attributes

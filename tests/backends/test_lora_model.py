@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from runtime_stubs import backend_runtime_imports
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_runtime.lora import model as lora_model
+    from tune.backends.megatron_runtime.lora import model as lora_model
 
 _copy_embeddings_to_output = lora_model._copy_embeddings_to_output
 

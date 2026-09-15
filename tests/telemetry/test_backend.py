@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from lilo.telemetry import backend
+from tune.telemetry import backend
 
 
 def test_measurements_are_isolated_across_tasks_and_propagate_to_threads():
@@ -11,7 +11,7 @@ def test_measurements_are_isolated_across_tasks_and_propagate_to_threads():
 
             def work():
                 with backend.phase("prepare"):
-                    backend.count("lilo.loss_tokens", tokens, model_id=model)
+                    backend.count("tune.loss_tokens", tokens, model_id=model)
 
             await asyncio.to_thread(work)
             await asyncio.sleep(0)
@@ -21,8 +21,8 @@ def test_measurements_are_isolated_across_tasks_and_propagate_to_threads():
         return await asyncio.gather(task("a", 2), task("b", 3))
 
     first, second = asyncio.run(run())
-    assert first["models"] == {"a": {"lilo.loss_tokens": 2}}
-    assert second["models"] == {"b": {"lilo.loss_tokens": 3}}
+    assert first["models"] == {"a": {"tune.loss_tokens": 2}}
+    assert second["models"] == {"b": {"tune.loss_tokens": 3}}
     for measurement in (first, second):
         (phase,) = measurement["phases"]
         assert phase["start_ns"] <= phase["end_ns"]
@@ -32,7 +32,7 @@ def test_measurements_are_isolated_across_tasks_and_propagate_to_threads():
 
 def test_disabled_and_bounded_recording_and_exception_preservation():
     with backend.recording(False) as disabled, backend.phase("prepare"):
-        backend.count("lilo.loss_tokens", 2)
+        backend.count("tune.loss_tokens", 2)
     assert disabled is None
     with backend.recording() as measurements:
         with pytest.raises(ValueError, match="original"), backend.phase("prepare"):
@@ -41,7 +41,7 @@ def test_disabled_and_bounded_recording_and_exception_preservation():
             with backend.phase("outputs"):
                 pass
         backend.count("secret", 12)
-        backend.count("lilo.loss_tokens", -1)
+        backend.count("tune.loss_tokens", -1)
     assert len(measurements.phases) == backend.MAX_PHASES
     assert measurements.phases[0]["ok"] is False
     assert measurements.attributes == {}
@@ -55,7 +55,7 @@ def test_checkpoint_size_counts_files_without_reading_contents(tmp_path, monkeyp
     (tmp_path / "alias").symlink_to(tmp_path / "rank0.pt")
     with backend.recording() as measurements:
         backend.checkpoint_size(str(tmp_path))
-    assert measurements.attributes == {"lilo.checkpoint_bytes": 10}
+    assert measurements.attributes == {"tune.checkpoint_bytes": 10}
 
     def failed_stat(*args, **kwargs):
         raise OSError("unavailable")

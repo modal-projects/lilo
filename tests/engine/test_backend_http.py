@@ -8,10 +8,10 @@ import time
 import httpx
 import pytest
 
-from lilo.engine import Engine, FutureStatus
-from lilo.engine.api import Command, OperationKind
-from lilo.engine.backend_http import HttpBackendClient, create_backend_app
-from lilo.engine.operations import parse_operation_payload
+from tune.engine import Engine, FutureStatus
+from tune.engine.api import Command, OperationKind
+from tune.engine.backend_http import HttpBackendClient, create_backend_app
+from tune.engine.operations import parse_operation_payload
 from tests.support import EchoExecutor
 
 MODEL_SPEC = {"base_model": "test/model", "parameterization": "full"}
@@ -196,7 +196,7 @@ def test_backend_runner_serves_executor_in_subprocess() -> None:
         [
             sys.executable,
             "-m",
-            "lilo.engine.backend_http",
+            "tune.engine.backend_http",
             "tests.support:EchoExecutor",
             str(port),
         ]

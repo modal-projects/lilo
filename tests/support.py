@@ -10,13 +10,13 @@ import uvicorn
 from tinker import AdamParams
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
-from lilo.engine.api import EngineApi, Command, OperationKind
-from lilo.engine.operations import (
+from tune.engine.api import EngineApi, Command, OperationKind
+from tune.engine.operations import (
     OperationPayload,
     SaveWeightsForSamplerPayload,
     serialize_operation_payload,
 )
-from lilo.providers.contracts import (
+from tune.providers.contracts import (
     EngineInstance,
     SamplingTask,
 )

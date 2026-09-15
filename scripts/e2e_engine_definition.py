@@ -16,7 +16,7 @@ import modal
 import tinker
 from tinker import types
 
-from lilo.providers.modal.app import app, cleaner, module_for, server
+from tune.providers.modal.app import app, cleaner, module_for, server
 
 DEFAULT_DEFINITION = "qwen3_5_4b_full_64k"
 TIMEOUT = 3 * 60 * 60
@@ -415,7 +415,7 @@ def _sampler_recovery_roundtrip(training, tokenizer) -> dict:
 
 def _create_training(service, module, parameterization: str):
     if parameterization == "full":
-        from lilo.client import create_full_training_client
+        from tune.client import create_full_training_client
 
         return create_full_training_client(service, module.MODEL_NAME)
     return service.create_lora_training_client(

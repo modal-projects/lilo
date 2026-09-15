@@ -1,6 +1,6 @@
 # Working with Full Fine-Tunes
 
-Lilo's bundled full fine-tuning stack runs as a shared deployment that
+Tune's bundled full fine-tuning stack runs as a shared deployment that
 orchestrates single-tenant training containers in your Modal workspace. It
 exposes a Tinker-compatible API, but usage is not infrastructure-agnostic like
 the hosted Tinker service. Because pricing is compute-based rather than
@@ -42,7 +42,7 @@ resumed.load_state_with_optimizer(saved.path).result(timeout=60 * 60)
 
 ### Checkpoint archives are not served
 
-Lilo does not provide a presigned URL from Tinker's checkpoint archive
+Tune does not provide a presigned URL from Tinker's checkpoint archive
 endpoint. Instead, checkpoints can be read directly from the deployment's
 Modal Volume:
 
@@ -57,12 +57,12 @@ identically named checkpoints from different runs separate. Public
 
 ## Differences from the Tinker SDK
 
-### Full-client creation uses a Lilo helper
+### Full-client creation uses a Tune helper
 
 Create FFT clients with `create_full_training_client()` or its async variant:
 
 ```python
-from lilo.client import create_full_training_client
+from tune.client import create_full_training_client
 
 training = create_full_training_client(
     service,
@@ -70,7 +70,7 @@ training = create_full_training_client(
 )
 ```
 
-After creation, the client exposes the normal Tinker training methods. Lilo
+After creation, the client exposes the normal Tinker training methods. Tune
 currently supports `tinker>=0.24.1,<0.25`; newer SDK versions are not guaranteed
 to be compatible.
 
@@ -161,7 +161,7 @@ deployment and jobs arrive continuously.
 
 Rollout queues should be large enough to keep the trainer saturated even with
 long generation times. Async RL can benefit from overprovisioning rollout
-requests and discarding extras, but Lilo does not offer sampling-side abort
+requests and discarding extras, but Tune does not offer sampling-side abort
 semantics. Cancelling local workers therefore does not guarantee that their
 Modal calls were cancelled, which can leave inference compute occupied by
 discarded rollouts.
@@ -191,10 +191,10 @@ separately. The pinned Tinker Cookbook RL loop handles periodic checkpoints
 with `save_checkpoint_async(kind="both")`. It submits the state checkpoint and
 sampler publication together, but waits for both before returning the new
 sampling client. A slow full-state write can therefore delay rollout of the
-updated policy even though Lilo persists state checkpoints and sampler
+updated policy even though Tune persists state checkpoints and sampler
 publications on separate lanes.
 
-To use Lilo's split persistence behavior, keep the state-checkpoint future
+To use Tune's split persistence behavior, keep the state-checkpoint future
 pending while waiting only for the sampler client required by new rollout work:
 
 ```python

@@ -6,11 +6,11 @@ import tinker
 from tinker import types
 
 from tests.support import SingleEnginePlatform, TinkerStubExecutor, serve
-from lilo.control_plane import ControlPlane, create_control_plane_app
-from lilo.engine import Engine
-from lilo.engine.backend_http import HttpBackendClient, create_backend_app
-from lilo.engine.http import HttpEngineClient, create_engine_app
-from lilo.providers.local import InMemoryKeyValueStore
+from tune.control_plane import ControlPlane, create_control_plane_app
+from tune.engine import Engine
+from tune.engine.backend_http import HttpBackendClient, create_backend_app
+from tune.engine.http import HttpEngineClient, create_engine_app
+from tune.providers.local import InMemoryKeyValueStore
 
 BASE_MODEL = "Qwen/Qwen3-8B"
 DEFINITION = "qwen3_8b"

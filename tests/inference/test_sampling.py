@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from lilo.inference import sampling
-from lilo.inference.sampling import sample_task
+from tune.inference import sampling
+from tune.inference.sampling import sample_task
 
 
 def response(
@@ -185,7 +185,7 @@ def test_latest_sampling_accepts_in_place_version_advance() -> None:
 def test_exact_sampling_retries_in_place_version_advance() -> None:
     responses = iter((response(7, end_version=8), response(7)))
     sleep = AsyncMock()
-    with patch("lilo.inference.sampling.asyncio.sleep", sleep):
+    with patch("tune.inference.sampling.asyncio.sleep", sleep):
         result = asyncio.run(
             sample_task(
                 task(),
@@ -207,8 +207,8 @@ def test_sampling_backs_off_version_conflicts() -> None:
 
     sleep = AsyncMock()
     with (
-        patch("lilo.inference.sampling.asyncio.sleep", sleep),
-        patch("lilo.inference.sampling.random.uniform", return_value=1),
+        patch("tune.inference.sampling.asyncio.sleep", sleep),
+        patch("tune.inference.sampling.random.uniform", return_value=1),
     ):
         result = asyncio.run(
             sample_task(
@@ -234,10 +234,10 @@ def test_sampling_reroutes_immediate_overload_response() -> None:
 
     with (
         patch(
-            "lilo.inference.sampling.asyncio.sleep",
+            "tune.inference.sampling.asyncio.sleep",
             AsyncMock(),
         ),
-        patch("lilo.inference.sampling.random.uniform", return_value=1),
+        patch("tune.inference.sampling.random.uniform", return_value=1),
     ):
         result = asyncio.run(
             sample_task(
@@ -276,7 +276,7 @@ def test_sampling_sends_extra_headers() -> None:
 def test_sampling_reports_saturation_and_touches_while_waiting() -> None:
     on_wait = AsyncMock()
     with (
-        patch("lilo.inference.sampling.asyncio.sleep", AsyncMock()),
+        patch("tune.inference.sampling.asyncio.sleep", AsyncMock()),
         pytest.raises(RuntimeError, match=r"rollout saturated after 0s: HTTP 503"),
     ):
         asyncio.run(
@@ -293,7 +293,7 @@ def test_sampling_reports_saturation_and_touches_while_waiting() -> None:
 
     on_wait.assert_not_awaited()
     responses = iter((httpx.Response(503, text="queue full"), response(7)))
-    with patch("lilo.inference.sampling.asyncio.sleep", AsyncMock()):
+    with patch("tune.inference.sampling.asyncio.sleep", AsyncMock()):
         asyncio.run(
             sample_task(
                 task(),
@@ -317,7 +317,7 @@ def test_exact_sampling_rejects_wrong_response_version() -> None:
         return response(6 if request.url.host == "replica-a" else 7)
 
     with patch(
-        "lilo.inference.sampling.asyncio.sleep",
+        "tune.inference.sampling.asyncio.sleep",
         AsyncMock(),
     ):
         result = asyncio.run(

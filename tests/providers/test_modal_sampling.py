@@ -4,15 +4,15 @@ from unittest.mock import AsyncMock, patch
 
 import modal
 
-from lilo.providers import SamplingTask, SamplingTaskStatus
-from lilo.providers.local import InMemorySessionKeyValueStores
-from lilo.providers.modal.kv import (
+from tune.providers import SamplingTask, SamplingTaskStatus
+from tune.providers.local import InMemorySessionKeyValueStores
+from tune.providers.modal.kv import (
     SESSION_KV_NAME,
     ModalSessionKeyValueStores,
     app_store_name,
     session_task_store_name,
 )
-from lilo.providers.modal.sampling import (
+from tune.providers.modal.sampling import (
     ModalSamplingTaskPlatform,
     call_key,
 )

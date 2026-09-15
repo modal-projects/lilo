@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from lilo.providers.modal import kv
+from tune.providers.modal import kv
 
 
 class RetryableStreamError(Exception):

@@ -4,7 +4,7 @@ import json
 import pytest
 from stitch.types import PointerRewind, VersionRef
 
-from lilo.inference.bulletin import (
+from tune.inference.bulletin import (
     ImmutableSnapshotError,
     SnapshotBulletin,
 )

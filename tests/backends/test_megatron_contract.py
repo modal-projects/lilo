@@ -12,7 +12,7 @@ from tinker import (
     TensorData,
 )
 
-from lilo.backends import (
+from tune.backends import (
     ForwardBatch,
     ForwardItem,
     ModelSpec,
@@ -20,8 +20,8 @@ from lilo.backends import (
 )
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_fft import FFTMegatronBackend
-    from lilo.backends.megatron_lora import LoraJobState, LoraMegatronBackend
+    from tune.backends.megatron_fft import FFTMegatronBackend
+    from tune.backends.megatron_lora import LoraJobState, LoraMegatronBackend
 
 
 def test_lora_job_state_does_not_restore_optimizer_by_default() -> None:
@@ -31,7 +31,7 @@ def test_lora_job_state_does_not_restore_optimizer_by_default() -> None:
 
 
 def test_lora_checkpoint_is_loaded_once_before_replacing_slot(monkeypatch) -> None:
-    from lilo.backends import megatron_lora
+    from tune.backends import megatron_lora
 
     backend = LoraMegatronBackend.__new__(LoraMegatronBackend)
     backend.jobs = {"model-a": LoraJobState(rank=8, alpha=16.0)}
@@ -128,7 +128,7 @@ def test_lora_backend_implements_generic_contract(monkeypatch) -> None:
     monkeypatch.setattr(backend, "_optim_step_batch", run_optim_step)
     monkeypatch.setattr(backend, "capture_sampler_snapshot", capture)
     monkeypatch.setattr(backend, "_offload_job_from_slot", offload)
-    from lilo.backends import megatron_lora
+    from tune.backends import megatron_lora
 
     monkeypatch.setattr(
         megatron_lora,
@@ -213,7 +213,7 @@ def test_fft_backend_implements_generic_contract(monkeypatch) -> None:
 
 
 def test_lora_build_executor_constructs_backend_directly(monkeypatch) -> None:
-    from lilo.backends import megatron_lora
+    from tune.backends import megatron_lora
 
     backend_config = object()
     checkpoint_dir = Path("/checkpoints")
@@ -223,8 +223,8 @@ def test_lora_build_executor_constructs_backend_directly(monkeypatch) -> None:
         captured.update(config=config, **kwargs)
         return "backend"
 
-    monkeypatch.setenv("LILO_BACKEND_CONFIG", '{"megatron": {}}')
-    monkeypatch.setenv("LILO_BASE_MODEL", "Qwen/Qwen3-4B")
+    monkeypatch.setenv("TUNE_BACKEND_CONFIG", '{"megatron": {}}')
+    monkeypatch.setenv("TUNE_BASE_MODEL", "Qwen/Qwen3-4B")
     monkeypatch.setattr(
         megatron_lora,
         "initialize_distributed_runtime",
@@ -252,7 +252,7 @@ def test_lora_build_executor_constructs_backend_directly(monkeypatch) -> None:
 
 
 def test_fft_build_executor_constructs_backend_directly(monkeypatch) -> None:
-    from lilo.backends import megatron_fft
+    from tune.backends import megatron_fft
 
     backend_config = object()
     captured = {}
@@ -261,8 +261,8 @@ def test_fft_build_executor_constructs_backend_directly(monkeypatch) -> None:
         captured.update(config=config, **kwargs)
         return "backend"
 
-    monkeypatch.setenv("LILO_BACKEND_CONFIG", '{"megatron": {}}')
-    monkeypatch.setenv("LILO_BASE_MODEL", "Qwen/Qwen3.5-9B-Base")
+    monkeypatch.setenv("TUNE_BACKEND_CONFIG", '{"megatron": {}}')
+    monkeypatch.setenv("TUNE_BASE_MODEL", "Qwen/Qwen3.5-9B-Base")
     monkeypatch.setattr(
         megatron_fft,
         "initialize_distributed_runtime",

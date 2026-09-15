@@ -5,8 +5,8 @@ from unittest.mock import patch, sentinel
 
 import modal
 
-from lilo.providers.modal.app import DEFINITIONS
-from lilo.providers.modal.checkpoint_storage import (
+from tune.providers.modal.app import DEFINITIONS
+from tune.providers.modal.checkpoint_storage import (
     CHECKPOINT_ROOT,
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
@@ -31,7 +31,7 @@ def string_dict_entries(node: ast.Dict) -> dict[str, ast.expr]:
 
 def test_checkpoint_storage_creates_one_v2_volume_without_live_lookup() -> None:
     storage_path = Path(__file__).parents[2] / (
-        "src/lilo/providers/modal/checkpoint_storage.py"
+        "src/tune/providers/modal/checkpoint_storage.py"
     )
     with patch.object(
         modal.Volume,
@@ -41,7 +41,7 @@ def test_checkpoint_storage_creates_one_v2_volume_without_live_lookup() -> None:
         storage = runpy.run_path(str(storage_path))
 
     from_name.assert_called_once_with(
-        "lilo-checkpoints",
+        "tune-checkpoints",
         create_if_missing=True,
         version=2,
     )
@@ -50,7 +50,7 @@ def test_checkpoint_storage_creates_one_v2_volume_without_live_lookup() -> None:
 
 def test_all_definitions_share_checkpoint_storage() -> None:
     assert len(FULL_DEFINITIONS) == len(DEFINITIONS) == 5
-    assert CHECKPOINT_VOLUME_NAME == "lilo-checkpoints"
+    assert CHECKPOINT_VOLUME_NAME == "tune-checkpoints"
     assert CHECKPOINT_ROOT == "/checkpoints"
 
     for definition in FULL_DEFINITIONS:
@@ -95,7 +95,7 @@ def test_full_definitions_configure_checkpoint_dir_and_environment() -> None:
         )
         assert isinstance(backend_env, ast.Dict)
         env = string_dict_entries(backend_env)
-        volume_name = env["LILO_CHECKPOINT_VOLUME"]
+        volume_name = env["TUNE_CHECKPOINT_VOLUME"]
         assert isinstance(volume_name, ast.Name)
         assert volume_name.id == "CHECKPOINT_VOLUME_NAME"
 
@@ -104,7 +104,7 @@ def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
     import asyncio
     import importlib
 
-    app = importlib.import_module("lilo.providers.modal.app")
+    app = importlib.import_module("tune.providers.modal.app")
     monkeypatch.setattr(app, "CHECKPOINT_ROOT", str(tmp_path))
     for relative in ("final/run-a", "final/run-b"):
         checkpoint = tmp_path / relative

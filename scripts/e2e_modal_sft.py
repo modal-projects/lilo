@@ -4,7 +4,7 @@ import modal
 import tinker
 from tinker import types
 
-from lilo.providers.modal.app import app, server
+from tune.providers.modal.app import app, server
 
 BASE_MODEL = "Qwen/Qwen3-4B"
 LORA_RANK = 32

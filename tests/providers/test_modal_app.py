@@ -5,22 +5,22 @@ from types import SimpleNamespace
 
 import pytest
 
-from lilo.errors import RecordNotFound
-from lilo.providers.local import InMemoryKeyValueStore
-from lilo.providers.modal.fft_pool import FFTPoolSpec
+from tune.errors import RecordNotFound
+from tune.providers.local import InMemoryKeyValueStore
+from tune.providers.modal.fft_pool import FFTPoolSpec
 
 FULL_DEFINITION = "qwen3_5_9b_full_64k"
 
 
 def test_definitions_exclude_stale_128k_definition() -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     assert "qwen3_5_9b_full_128k" not in {
         definition.DEFINITION_ID for definition in modal_app.DEFINITIONS
     }
 
 
 def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     registry = InMemoryKeyValueStore()
     deployed = []
 
@@ -58,7 +58,7 @@ def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
 
 
 def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     spawned = []
 
     async def spawn(spec: dict) -> None:
@@ -104,10 +104,10 @@ def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> 
 
 
 def test_ensure_pool_sizes_latest_pool_from_model_rollout_config(monkeypatch) -> None:
-    from lilo.control_plane.keys import model_key
-    from lilo.control_plane.records import ModelRecord
+    from tune.control_plane.keys import model_key
+    from tune.control_plane.records import ModelRecord
 
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     kv = InMemoryKeyValueStore()
     registry = InMemoryKeyValueStore()
     deployed = []
@@ -160,8 +160,8 @@ def test_ensure_pool_sizes_latest_pool_from_model_rollout_config(monkeypatch) ->
 
 
 def test_execute_sample_routes_base_session_without_version(monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
-    sampling = importlib.import_module("lilo.inference.sampling")
+    modal_app = importlib.import_module("tune.providers.modal.app")
+    sampling = importlib.import_module("tune.inference.sampling")
     specs = []
 
     async def gateway(spec: FFTPoolSpec) -> str:
@@ -192,7 +192,7 @@ def test_checkpoint_metadata_reader_reloads_existing_volume(
     tmp_path,
     monkeypatch,
 ) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     target = tmp_path / "volume"
     root = tmp_path / "checkpoints"
     checkpoint = target / "model" / "weights" / "checkpoint"
@@ -229,7 +229,7 @@ def test_checkpoint_metadata_reader_reloads_existing_volume(
 def test_sample_touch_refreshes_pinned_pool_at_most_once_per_interval(
     monkeypatch,
 ) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     spec = FFTPoolSpec("definition", "model", False, 3)
     clock = [1000.0]
     puts = []
@@ -256,7 +256,7 @@ def test_sample_touch_refreshes_pinned_pool_at_most_once_per_interval(
 
 
 def test_cleanup_redeploys_pool_touched_while_stopping(monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     spec = FFTPoolSpec("definition", "model", False, 3)
     key = f"fft_pool:{spec.app_name}"
     registry = InMemoryKeyValueStore()
@@ -296,10 +296,10 @@ def test_cleanup_redeploys_pool_touched_while_stopping(monkeypatch) -> None:
 
 
 def test_cleaner_loses_models_on_removed_definitions(monkeypatch) -> None:
-    from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
-    from lilo.control_plane.records import ModelRecord
+    from tune.control_plane.keys import model_key, placement_key, trainer_demand_key
+    from tune.control_plane.records import ModelRecord
 
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     kv = InMemoryKeyValueStore()
     registry = InMemoryKeyValueStore()
     stopped = []
@@ -342,7 +342,7 @@ def test_cleaner_loses_models_on_removed_definitions(monkeypatch) -> None:
 
 
 def test_checkpoint_volume_listing_and_delete(tmp_path, monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
+    modal_app = importlib.import_module("tune.providers.modal.app")
     events: list[str] = []
 
     class Volume:

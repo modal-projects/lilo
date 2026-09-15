@@ -1,9 +1,9 @@
-from lilo.providers.modal.app import (
+from tune.providers.modal.app import (
     DEFINITIONS,
     module_for,
     parameterization_for,
 )
-from lilo.providers.modal.definitions import (
+from tune.providers.modal.definitions import (
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
 )

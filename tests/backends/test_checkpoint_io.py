@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from runtime_stubs import backend_runtime_imports
 
 with backend_runtime_imports():
-    from lilo.backends.megatron_runtime.common import checkpoint_io
+    from tune.backends.megatron_runtime.common import checkpoint_io
 
 commit_checkpoint_volume = checkpoint_io.commit_checkpoint_volume
 rank_tag = checkpoint_io.rank_tag
@@ -53,8 +53,8 @@ def test_commit_prefers_checkpoint_volume_on_rank_zero(monkeypatch) -> None:
         monkeypatch,
         rank=0,
     )
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "fft-checkpoints")
-    monkeypatch.setenv("LILO_BULLETIN_VOLUME", "sampler-bulletin")
+    monkeypatch.setenv("TUNE_CHECKPOINT_VOLUME", "fft-checkpoints")
+    monkeypatch.setenv("TUNE_BULLETIN_VOLUME", "sampler-bulletin")
 
     commit_checkpoint_volume("persistence")
 
@@ -69,7 +69,7 @@ def test_commit_skips_volume_commit_on_nonzero_rank(monkeypatch) -> None:
         monkeypatch,
         rank=1,
     )
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "fft-checkpoints")
+    monkeypatch.setenv("TUNE_CHECKPOINT_VOLUME", "fft-checkpoints")
 
     commit_checkpoint_volume("persistence")
 
@@ -84,7 +84,7 @@ def test_single_rank_commit_uses_no_distributed_collective(monkeypatch) -> None:
         monkeypatch,
         rank=0,
     )
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "fft-checkpoints")
+    monkeypatch.setenv("TUNE_CHECKPOINT_VOLUME", "fft-checkpoints")
 
     commit_checkpoint_volume(None)
 
@@ -99,7 +99,7 @@ def test_reload_checkpoint_volume_synchronizes_rank_zero(monkeypatch) -> None:
         monkeypatch,
         rank=0,
     )
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "fft-checkpoints")
+    monkeypatch.setenv("TUNE_CHECKPOINT_VOLUME", "fft-checkpoints")
 
     reload_checkpoint_volume()
 
@@ -113,7 +113,7 @@ def test_reload_checkpoint_volume_waits_on_nonzero_rank(monkeypatch) -> None:
         monkeypatch,
         rank=1,
     )
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "fft-checkpoints")
+    monkeypatch.setenv("TUNE_CHECKPOINT_VOLUME", "fft-checkpoints")
 
     reload_checkpoint_volume()
 

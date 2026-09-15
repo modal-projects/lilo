@@ -11,8 +11,8 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from lilo.inference.sampling import sample_task
-from lilo.telemetry import otlp
+from tune.inference.sampling import sample_task
+from tune.telemetry import otlp
 
 
 def task(n=1):
@@ -42,8 +42,8 @@ def spans(monkeypatch):
 def test_real_sampling_path_preserves_sequence_timing_and_omits_payloads(spans):
     request = task(2)
     request["telemetry_tags"] = {
-        "lilo.run_id": "run",
-        "lilo.run_attempt_id": "attempt",
+        "tune.run_id": "run",
+        "tune.run_attempt_id": "attempt",
         "secret": "PRIVATE",
     }
     calls = 0
@@ -82,17 +82,17 @@ def test_real_sampling_path_preserves_sequence_timing_and_omits_payloads(spans):
 
     asyncio.run(run())
     rows = spans.get_finished_spans()
-    parent = next(s for s in rows if s.name == "lilo.sample")
-    attempts = [s for s in rows if s.name == "lilo.sample.attempt"]
+    parent = next(s for s in rows if s.name == "tune.sample")
+    attempts = [s for s in rows if s.name == "tune.sample.attempt"]
     assert parent.start_time == int(request["accepted_at"] * 1e9)
-    assert parent.attributes["lilo.output_tokens"] == 2
-    assert parent.attributes["lilo.attempt_count"] == 2
-    assert parent.attributes["lilo.retry_count"] == 0
-    assert {s.attributes["lilo.sequence_index"] for s in attempts} == {0, 1}
+    assert parent.attributes["tune.output_tokens"] == 2
+    assert parent.attributes["tune.attempt_count"] == 2
+    assert parent.attributes["tune.retry_count"] == 0
+    assert {s.attributes["tune.sequence_index"] for s in attempts} == {0, 1}
     assert {s.attributes["sglang.cached_tokens"] for s in attempts} == {0, 1}
     for s in (parent, *attempts):
-        assert s.attributes["lilo.run_id"] == "run"
-        assert s.attributes["lilo.run_attempt_id"] == "attempt"
+        assert s.attributes["tune.run_id"] == "run"
+        assert s.attributes["tune.run_attempt_id"] == "attempt"
         assert "secret" not in s.attributes
     for s in attempts:
         assert s.parent.span_id == parent.context.span_id
@@ -126,7 +126,7 @@ def test_missing_evidence_and_failure_do_not_become_zero_or_leak_errors(spans):
 
 
 def test_retry_is_a_separate_attempt_in_same_trace(spans, monkeypatch):
-    from lilo.inference import sampling
+    from tune.inference import sampling
 
     async def no_wait(*args):
         pass
@@ -158,7 +158,7 @@ def test_retry_is_a_separate_attempt_in_same_trace(spans, monkeypatch):
         StatusCode.OK,
         StatusCode.OK,
     ]
-    assert rows[-1].attributes["lilo.retry_count"] == 1
+    assert rows[-1].attributes["tune.retry_count"] == 1
 
 
 def test_http_protobuf_export_uses_configured_endpoint_and_header(monkeypatch):
@@ -199,7 +199,7 @@ def test_http_protobuf_export_uses_configured_endpoint_and_header(monkeypatch):
         path, auth, body = received[0]
         assert (path, auth) == ("/v1/traces", "local-test")
         decoded = ExportTraceServiceRequest.FromString(body)
-        assert decoded.resource_spans[0].scope_spans[0].spans[0].name == "lilo.sample"
+        assert decoded.resource_spans[0].scope_spans[0].spans[0].name == "tune.sample"
     finally:
         otlp.provider().shutdown()
         otlp.provider.cache_clear()

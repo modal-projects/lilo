@@ -1,6 +1,6 @@
 import pytest
 
-from lilo.providers.modal.deployment import (
+from tune.providers.modal.deployment import (
     TRAINER_MAX_CONTAINERS_ENV,
     trainer_deployment_env,
     trainer_max_containers,

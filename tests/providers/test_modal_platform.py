@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, patch
 
 import modal
 
-from lilo.providers.local import InMemoryKeyValueStore
-from lilo.providers.modal.engines import (
+from tune.providers.local import InMemoryKeyValueStore
+from tune.providers.modal.engines import (
     EngineInstanceRecord,
     ModalEnginePlatform,
     call_key,

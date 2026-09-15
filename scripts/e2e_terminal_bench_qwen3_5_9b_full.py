@@ -22,7 +22,7 @@ from unittest.mock import patch
 MODEL_NAME = "Qwen/Qwen3.5-9B"
 RENDERER_NAME = "qwen3_5"
 DATASET = "terminal-bench-2.0/terminal-bench"
-BASE_URL = "https://modal-labs-kailash-dev--lilo-server.us-west.modal.run"
+BASE_URL = "https://modal-labs-kailash-dev--tune-server.us-west.modal.run"
 MAX_TURNS = 20
 MAX_GENERATION_TOKENS = 8192
 MAX_TRAJECTORY_TOKENS = 120 * 1024
@@ -108,7 +108,7 @@ async def _run(
         user_metadata: dict[str, str] | None = None,
     ):
         del rank, seed, train_mlp, train_attn, train_unembed
-        from lilo.client import create_full_training_client_async
+        from tune.client import create_full_training_client_async
 
         return await create_full_training_client_async(
             service,

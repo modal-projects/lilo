@@ -5,9 +5,9 @@ from tinker.proto.request_conv import forward_backward_request_to_proto
 from tinker.types.forward_backward_input import ForwardBackwardInput
 from tinker.types.forward_backward_request import ForwardBackwardRequest
 
-from lilo.engine import OperationKind
-from lilo.engine.ingress import decode_forward_backward
-from lilo.engine.operations import (
+from tune.engine import OperationKind
+from tune.engine.ingress import decode_forward_backward
+from tune.engine.operations import (
     parse_operation_payload,
     serialize_operation_payload,
 )

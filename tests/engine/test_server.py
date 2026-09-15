@@ -4,8 +4,8 @@ import json
 import pytest
 
 from tests.support import EchoExecutor
-from lilo.engine import Engine, FutureStatus, OperationKind
-from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
+from tune.engine import Engine, FutureStatus, OperationKind
+from tune.errors import EngineSaturated, RecordNotFound, SequenceConflict
 
 
 async def forward_backward(

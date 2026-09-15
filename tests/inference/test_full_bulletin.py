@@ -7,7 +7,7 @@ from safetensors.numpy import save_file
 from stitch.publish import claim_run, publish_version
 from stitch.types import VersionRef
 
-from lilo.inference.fft_bulletin import (
+from tune.inference.fft_bulletin import (
     FFTSnapshotBulletin,
     FFTSnapshotNotFound,
     FFTSnapshotStore,
