@@ -130,6 +130,23 @@ def configure_deterministic_attention() -> None:
         FlashAttentionUtils,
     )
 
+    # The experiment image sets this only after verifying its patched FA3
+    # binary and enabling hdim256 in Transformer Engine's capability filter.
+    if os.environ.get("LILO_PARITY_FA3_HD256") == "1":
+        if not FlashAttentionUtils.v3_is_installed:
+            raise RuntimeError("The verified deterministic FA3 build is unavailable")
+        os.environ.update(
+            NVTE_ALLOW_NONDETERMINISTIC_ALGO="0",
+            NVTE_FLASH_ATTN="1",
+            NVTE_FUSED_ATTN="0",
+            NVTE_FLASH_ATTN_V3="1",
+            NVTE_FLASH_ATTN_V4="0",
+        )
+        FlashAttentionUtils.is_installed = False
+        if hasattr(FlashAttentionUtils, "v4_is_installed"):
+            FlashAttentionUtils.v4_is_installed = False
+        return
+
     if not FlashAttentionUtils.is_installed:
         raise RuntimeError("Deterministic Miles attention requires FlashAttention 2")
     os.environ["NVTE_ALLOW_NONDETERMINISTIC_ALGO"] = "0"
@@ -162,7 +179,11 @@ def configure_deterministic_losses() -> None:
         if getattr(current, "_lilo_dynamic_shapes", False):
             continue
         original = getattr(current, "_torchdynamo_orig_callable", current)
-        replacement = torch.compile(original, dynamic=True)
+        # Runtime benchmarking may pick another vocabulary-reduction tree in a
+        # fresh process. Fix those choices as well as the shape specialization.
+        replacement = torch.compile(
+            original, dynamic=True, options={"deterministic": True}
+        )
         replacement._lilo_dynamic_shapes = True
         setattr(fused_cross_entropy, name, replacement)
 
@@ -176,10 +197,16 @@ def configure_deterministic_losses() -> None:
         @wraps(predicted)
         def precise_predicted(*args, **kwargs):
             mask, indices, packed, exp_logits = predicted(*args, **kwargs)
+            # The local vocabulary sum can also change its FP32 reduction
+            # tree with compiler specialization. Accumulate it directly in the
+            # requested precision, without materializing FP64 vocabulary logits.
+            dtype = getattr(torch, _accumulation_dtype)
+            local_sum = exp_logits.sum(dim=-1, dtype=dtype)
+            predicted_logits = packed[: packed.shape[0] // 2].to(dtype)
             return (
                 mask,
                 indices,
-                packed.to(getattr(torch, _accumulation_dtype)),
+                torch.cat((predicted_logits, local_sum)),
                 exp_logits,
             )
 
@@ -193,9 +220,9 @@ def configure_deterministic_losses() -> None:
 
 
 def configure_deterministic_gdn() -> None:
-    """Pin the reduction layout of FLA Q/K normalization before compilation.
+    """Pin FLA normalization and recurrence layouts before their first call.
 
-    Autotuning different warp/tile layouts can change FP32 reduction rounding.
+    Autotuning different warp/tile layouts can change reduction rounding.
     A fixed layout must be shared by cold, recompiled, and packed execution.
     Keep FLA's existing forward/backward arithmetic and autograd implementation.
     """
@@ -219,3 +246,21 @@ def configure_deterministic_gdn() -> None:
         )(original.fn)
         replacement._lilo_fixed_layout = True
         setattr(normalization, name, replacement)
+
+    # Recurrence autotuners may sit inside @triton.heuristics. Traverse the
+    # wrappers so short-first and long-first batches cannot benchmark different
+    # reduction layouts that are then cached without sequence length in the key.
+    from triton.runtime.autotuner import Autotuner
+
+    seen = set()
+    for module_name, module in list(sys.modules.items()):
+        if not module_name.startswith("fla."):
+            continue
+        for kernel in list(vars(module).values()):
+            while kernel is not None and id(kernel) not in seen:
+                seen.add(id(kernel))
+                if isinstance(kernel, Autotuner) and len(kernel.configs) > 1:
+                    kernel.configs = [kernel.configs[0]]
+                    kernel.cache.clear()
+                    kernel._lilo_fixed_layout = True
+                kernel = getattr(kernel, "fn", None)

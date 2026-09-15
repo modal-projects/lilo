@@ -43,6 +43,7 @@ class LiloMilesTrainRayActor(MegatronTrainRayActor):
 
         deterministic_attention = getattr(args, "lilo_deterministic_attention", False)
         if deterministic_attention:
+            from .batching import configure_deterministic_batching
             from .precision import (
                 configure_deterministic_attention,
                 configure_deterministic_gdn,
@@ -52,6 +53,7 @@ class LiloMilesTrainRayActor(MegatronTrainRayActor):
             configure_deterministic_attention()
             configure_deterministic_losses()
             configure_deterministic_gdn()
+            configure_deterministic_batching()
 
         # Miles's LoRA builder inherits checkpoint MTP heads without honoring
         # enable_mtp_training. Qwen3.5 then injects an auxiliary backward loss
