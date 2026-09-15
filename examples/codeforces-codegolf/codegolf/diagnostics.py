@@ -152,7 +152,14 @@ def diagnostics(root: Path):
             axes[0, 0].legend(fontsize=8)
     for ax in axes[1]:
         ax.set_xlabel("Trainer step")
-    fig.suptitle(f"Qwen3.5-9B GRPO diagnostics · through step {x[-1]}")
+    config = (
+        json.loads((root / "spec.json").read_text())["config"]
+        if (root / "spec.json").exists()
+        else {}
+    )
+    estimator = config.get("advantage_estimator", "grpo")
+    label = "TailRL" if estimator == "tailrl" else estimator.upper()
+    fig.suptitle(f"Qwen3.5-9B {label} diagnostics · through step {x[-1]}")
     fig.text(
         0.5,
         0.01,

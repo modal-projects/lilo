@@ -186,5 +186,6 @@ architecture.
 ## Examples
 
 [Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
-with GRPO rewards for correctness and short solutions. It includes an isolated
-judge, checkpoint recovery, reward forks, plotting tools and learning curves.
+with GRPO or TailRL advantages for correctness and short solutions. It includes
+an isolated judge, checkpoint recovery, estimator/reward forks, held-out Pass@k
+and Best-of-k evaluation, plotting tools and learning curves.

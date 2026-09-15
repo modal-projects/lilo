@@ -1,4 +1,4 @@
-"""Seed a new run from a committed checkpoint without mixing reward histories."""
+"""Seed a new run from a checkpoint for a reward, estimator, or pipeline fork."""
 
 import argparse
 import dataclasses
@@ -10,7 +10,33 @@ import time
 
 import modal
 
-from codegolf.config import VOLUME_NAME, config_for
+from codegolf.config import VARIANTS, VOLUME_NAME, config_for
+
+
+def validate_config_change(source, destination):
+    allowed = {
+        "reward_bonus",
+        "reward_scale",
+        "output_token_penalty",
+        "output_token_scale",
+        "advantage_estimator",
+        "eval_samples",
+        "steps",
+        "async_rollouts",
+        "max_policy_lag",
+        "rollout_workers",
+        "buffer_batches",
+        "prefill_batches",
+        "rollout_min_replicas",
+        "rollout_max_replicas",
+        "judge_concurrency",
+    }
+    old = {k: v for k, v in source.items() if k not in allowed}
+    new = {k: v for k, v in destination.items() if k not in allowed}
+    if old != new:
+        raise ValueError(
+            "Only reward/estimator/evaluation/pipeline settings and target may change on this fork"
+        )
 
 
 def main():
@@ -18,8 +44,9 @@ def main():
     parser.add_argument("source")
     parser.add_argument("destination")
     parser.add_argument("--step", type=int, required=True)
-    parser.add_argument("--variant", default="async-v5")
+    parser.add_argument("--variant", choices=VARIANTS, default="async-v5")
     parser.add_argument("--steps", type=int, default=500)
+    parser.add_argument("--eval-samples", type=int)
     args = parser.parse_args()
     if not os.getenv("MODAL_ENVIRONMENT"):
         parser.error("Set MODAL_ENVIRONMENT")
@@ -46,28 +73,10 @@ def main():
     dataset = b"".join(volume.read_file("problems.json"))
     if hashlib.sha256(dataset).hexdigest() != source_spec["dataset_sha256"]:
         raise ValueError("Dataset changed since source run")
-    config = dataclasses.asdict(config_for(args.variant, args.steps))
-    allowed = {
-        "reward_bonus",
-        "reward_scale",
-        "output_token_penalty",
-        "output_token_scale",
-        "steps",
-        "async_rollouts",
-        "max_policy_lag",
-        "rollout_workers",
-        "buffer_batches",
-        "prefill_batches",
-        "rollout_min_replicas",
-        "rollout_max_replicas",
-        "judge_concurrency",
-    }
-    old = {k: v for k, v in source_spec["config"].items() if k not in allowed}
-    new = {k: v for k, v in config.items() if k not in allowed}
-    if old != new:
-        raise ValueError(
-            "Only reward/pipeline settings and target may change on this fork"
-        )
+    config = dataclasses.asdict(
+        config_for(args.variant, args.steps, eval_samples=args.eval_samples)
+    )
+    validate_config_change(source_spec["config"], config)
     documents = {
         "spec.json": {
             "config": config,

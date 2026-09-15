@@ -106,3 +106,37 @@ def test_response_budget_increase_preserves_checkpoint_and_history(tmp_path):
             await store.prepare(changed)
 
     asyncio.run(exercise())
+
+
+def test_legacy_spec_resumes_with_explicit_defaults(tmp_path):
+    async def exercise():
+        store = Store(tmp_path)
+        legacy = {"config": {"steps": 50}, "dataset_sha256": "same"}
+        await store.prepare(legacy)
+        explicit = copy.deepcopy(legacy)
+        explicit["config"].update(advantage_estimator="grpo", eval_samples=1)
+        await store.prepare(explicit)
+        assert store.read("spec.json") == explicit
+        extended = copy.deepcopy(explicit)
+        extended["config"]["steps"] = 100
+        await store.prepare(extended)
+        assert store.read("spec_history/0050.json") == explicit
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "change", [{"advantage_estimator": "tailrl"}, {"eval_samples": 8}]
+)
+def test_resume_requires_fork_to_change_estimator_or_eval_budget(tmp_path, change):
+    async def exercise():
+        store = Store(tmp_path)
+        legacy = {"config": {"steps": 50}, "dataset_sha256": "same"}
+        await store.prepare(legacy)
+        changed = copy.deepcopy(legacy)
+        changed["config"].update(steps=100, **change)
+        with pytest.raises(ValueError, match="Resume configuration"):
+            await store.prepare(changed)
+        assert store.read("spec.json") == legacy
+
+    asyncio.run(exercise())
