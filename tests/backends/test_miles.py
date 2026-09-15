@@ -237,6 +237,35 @@ def test_checkpoint_capture_persist_and_restore(tmp_path, monkeypatch) -> None:
     assert backend.jobs["model-a"].optimizer_step == 3
 
 
+def test_checkpoint_restore_refreshes_files_saved_by_another_container(
+    tmp_path, monkeypatch
+):
+    from lilo.backends import miles_lora
+
+    runtime = FakeMilesRuntime()
+    backend = _backend(tmp_path, runtime)
+    backend.accept_model("model-a", _spec())
+    backend.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=True
+    )
+    checkpoint = Path(backend.persist_checkpoint("capture-a", "step-1"))
+    # Model the stale mount: the committed checkpoint is absent until reload.
+    staged = tmp_path / "remote-checkpoint"
+    checkpoint.rename(staged)
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "checkpoint-volume")
+    refreshed = []
+
+    def reload_volume(name):
+        assert name == "checkpoint-volume"
+        staged.rename(checkpoint)
+        refreshed.append(name)
+
+    monkeypatch.setattr(miles_lora, "_reload_volume", reload_volume)
+    backend.load_checkpoint("model-a", str(checkpoint), restore_optimizer=True)
+    assert refreshed == ["checkpoint-volume"]
+    assert runtime.calls[-1] == ("load_slot", 0, 8, 32.0, str(checkpoint), True)
+
+
 def test_checkpoint_restore_rejects_different_lora_targets(
     tmp_path,
     monkeypatch,

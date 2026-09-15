@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import threading
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +61,8 @@ class MilesCommandBackend(Backend):
         self.jobs: dict[str, MilesJobState] = {}
         self.job_to_slot: dict[str, int] = {}
         self.slot_to_job: dict[int, str] = {}
+        # A volume refresh must not race checkpoint writes on the persistence lane.
+        self._checkpoint_io_lock = threading.RLock()
         self._checkpoint_captures: dict[str, dict[str, Any]] = {}
         self._sampler_captures: dict[str, dict[str, Any]] = {}
         self._closed = False
@@ -233,19 +236,20 @@ class MilesCommandBackend(Backend):
         *,
         overwrite: bool = False,
     ) -> str:
-        try:
-            capture = self._checkpoint_captures[snapshot_id]
-            if capture["destination"] != destination:
-                raise ValueError("snapshot destination does not match its capture")
-            model_id = capture["model_id"]
-            target = self.checkpoint_dir / model_id / "weights" / destination
-            _install_directory(capture["path"], target, overwrite=overwrite)
-            _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
-            return str(target)
-        finally:
-            capture = self._checkpoint_captures.pop(snapshot_id, None)
-            if capture is not None:
-                shutil.rmtree(capture["path"], ignore_errors=True)
+        with self._checkpoint_io_lock:
+            try:
+                capture = self._checkpoint_captures[snapshot_id]
+                if capture["destination"] != destination:
+                    raise ValueError("snapshot destination does not match its capture")
+                model_id = capture["model_id"]
+                target = self.checkpoint_dir / model_id / "weights" / destination
+                _install_directory(capture["path"], target, overwrite=overwrite)
+                _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
+                return str(target)
+            finally:
+                capture = self._checkpoint_captures.pop(snapshot_id, None)
+                if capture is not None:
+                    shutil.rmtree(capture["path"], ignore_errors=True)
 
     def load_checkpoint(
         self,
@@ -255,26 +259,28 @@ class MilesCommandBackend(Backend):
         restore_optimizer: bool = False,
     ) -> None:
         self._require_jobs((model_id,))
-        checkpoint = Path(uri)
-        try:
-            metadata = json.loads(
-                (checkpoint / "metadata.json").read_text(encoding="utf-8")
+        with self._checkpoint_io_lock:
+            _reload_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
+            checkpoint = Path(uri)
+            try:
+                metadata = json.loads(
+                    (checkpoint / "metadata.json").read_text(encoding="utf-8")
+                )
+            except (FileNotFoundError, json.JSONDecodeError) as exc:
+                raise ValueError(f"invalid Miles checkpoint: {uri}") from exc
+            state = self.jobs[model_id]
+            self._validate_checkpoint(metadata, state, restore_optimizer)
+            self.runtime.load_slot(
+                self.job_to_slot[model_id],
+                state.rank,
+                state.alpha,
+                checkpoint=uri,
+                restore_optimizer=restore_optimizer,
             )
-        except (FileNotFoundError, json.JSONDecodeError) as exc:
-            raise ValueError(f"invalid Miles checkpoint: {uri}") from exc
-        state = self.jobs[model_id]
-        self._validate_checkpoint(metadata, state, restore_optimizer)
-        self.runtime.load_slot(
-            self.job_to_slot[model_id],
-            state.rank,
-            state.alpha,
-            checkpoint=uri,
-            restore_optimizer=restore_optimizer,
-        )
-        state.accumulating = False
-        state.optimizer_step = (
-            int(metadata.get("optimizer_step", 0)) if restore_optimizer else 0
-        )
+            state.accumulating = False
+            state.optimizer_step = (
+                int(metadata.get("optimizer_step", 0)) if restore_optimizer else 0
+            )
 
     def capture_sampler_snapshot(
         self,
@@ -465,6 +471,14 @@ def _commit_volume(name: str | None) -> None:
     import modal
 
     modal.Volume.from_name(name).commit()
+
+
+def _reload_volume(name: str | None) -> None:
+    if name is None:
+        return
+    import modal
+
+    modal.Volume.from_name(name).reload()
 
 
 def build_executor() -> DistributedExecutor:
