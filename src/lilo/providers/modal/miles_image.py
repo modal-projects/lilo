@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import modal
 
 from lilo.backends.miles_config import MILES_REVISION
@@ -65,5 +68,12 @@ base_image = (
         "'forward_only_logprobs', 'optim_step', 'save_slot'))\"",
     )
 )
+
+# Opt in before importing deployment definitions. The artifact directory is
+# produced by scripts/export_fa3_test_wheel.py; ordinary deployments are unchanged.
+if artifacts := os.environ.get("LILO_MILES_FA3_ARTIFACTS"):
+    from .miles_fa3_image import with_deterministic_fa3
+
+    base_image = with_deterministic_fa3(base_image, Path(artifacts))
 
 image = base_image.add_local_python_source("lilo")
