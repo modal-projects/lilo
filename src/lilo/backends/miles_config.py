@@ -43,6 +43,8 @@ class MilesBackendConfig:
     )
     max_tokens_per_gpu: int = 8192
     extra_args: tuple[str, ...] = ()
+    tp_reduce_precision: str | None = None
+    deterministic_attention: bool = False
 
     @property
     def world_size(self) -> int:
@@ -59,6 +61,8 @@ class MilesBackendConfig:
         return tuple(targets)
 
     def validate(self) -> None:
+        if self.tp_reduce_precision not in (None, "float32", "float64"):
+            raise ValueError("tp_reduce_precision must be float32, float64, or None")
         positive = {
             "actor_num_gpus_per_node": self.actor_num_gpus_per_node,
             "tensor_model_parallel_size": self.tensor_model_parallel_size,

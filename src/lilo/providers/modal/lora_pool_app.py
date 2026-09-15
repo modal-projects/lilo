@@ -84,6 +84,9 @@ class Server:
             enable_lora=True,
             memory_fraction=definition.ROLLOUT_MEMORY_FRACTION,
             schedule_policy="lpm",
+            deterministic_inference=getattr(definition, "ROLLOUT_DETERMINISTIC_INFERENCE", False),
+            attention_backend=getattr(definition, "ROLLOUT_ATTENTION_BACKEND", None),
+            disable_radix_cache=getattr(definition, "ROLLOUT_DISABLE_RADIX_CACHE", False),
         )
         wait_http(
             f"http://127.0.0.1:{SGLANG_PORT}/health",
