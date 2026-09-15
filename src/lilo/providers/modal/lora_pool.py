@@ -97,6 +97,7 @@ def _implementation_revision(definition_id: str) -> str:
         here,
         here.with_name("lora_pool_app.py"),
         here.with_name("rollout_image.py"),
+        here.with_name("sglang_determinism_patch.py"),
         here.with_name("image_dependencies.py"),
         here.with_name("definitions") / f"{definition_id}.py",
         here.parents[2] / "inference" / "lora_sidecar.py",

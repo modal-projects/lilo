@@ -1,3 +1,6 @@
+from pathlib import Path
+import shlex
+
 import modal
 
 from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
@@ -19,6 +22,15 @@ image = (
         " && rm -rf /sgl-workspace/sglang/python/sglang"
         " && cp -a /tmp/stitch-sglang-overlay/python/. /sgl-workspace/sglang/python/"
         " && rm -rf /tmp/stitch-sglang-overlay",
+    )
+    .run_commands(
+        "python -c "
+        + shlex.quote(
+            "exec("
+            + repr(Path(__file__).with_name("sglang_determinism_patch.py").read_text())
+            + ")"
+        )
+        + " /sgl-workspace/sglang/python/sglang"
     )
     .pip_install(*CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE)
     .pip_install("huggingface-hub")
