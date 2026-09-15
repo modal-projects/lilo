@@ -1,4 +1,4 @@
-"""Code-only GRPO; historical reward-v3 remains available for comparisons."""
+"""Code-only GRPO and TailRL configurations."""
 
 import dataclasses
 import os
@@ -8,7 +8,13 @@ VOLUME_NAME = os.environ.get("CODEGOLF_VOLUME", APP_NAME)
 DEFAULT_RUN = "golf"
 DEFAULT_VARIANT = "async-v6"
 DEFAULT_STEPS = 500
-VARIANTS = ("async-v7", "async-v6", "async-v5", "reward-v3", "reward-v4")
+VARIANTS = ("tailrl", "async-v7", "async-v6", "async-v5", "reward-v3", "reward-v4")
+ADVANTAGE_ESTIMATORS = ("grpo", "tailrl")
+
+
+def with_config_defaults(config):
+    """Interpret specs saved before estimator selection and multi-sample eval."""
+    return {"advantage_estimator": "grpo", "eval_samples": 1, **config}
 
 
 @dataclasses.dataclass
@@ -21,6 +27,7 @@ class Config:
     checkpoint_every: int = 50
     eval_every: int = 20
     eval_problems: int = 16
+    eval_samples: int = 1
     seed: int = 42
     model: str = "Qwen/Qwen3.5-9B"
     reward_bonus: float = 0.15
@@ -28,6 +35,13 @@ class Config:
     output_token_penalty: float = 0.08
     output_token_scale: int = 16384
     advantage_std_floor: float = 0.5
+    advantage_estimator: str = "grpo"
+
+    def __post_init__(self):
+        if self.advantage_estimator not in ADVANTAGE_ESTIMATORS:
+            raise ValueError(f"Unknown advantage estimator: {self.advantage_estimator}")
+        if not isinstance(self.eval_samples, int) or self.eval_samples < 1:
+            raise ValueError("eval_samples must be a positive integer")
 
 
 @dataclasses.dataclass
@@ -54,19 +68,31 @@ class StrongGolfConfig(TunedAsyncConfig):
     output_token_penalty: float = 0.20
 
 
-def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS):
+@dataclasses.dataclass
+class TailRLConfig(TunedAsyncConfig):
+    advantage_estimator: str = "tailrl"
+    eval_samples: int = 8
+
+
+def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS, *, eval_samples=None):
     if steps <= 0:
         raise ValueError("steps must be positive")
-    if variant == "async-v7":
-        return StrongGolfConfig(steps=steps)
-    if variant == "async-v6":
-        return TunedAsyncConfig(steps=steps)
-    if variant == "async-v5":
-        return AsyncConfig(steps=steps)
-    if variant == "reward-v4":
-        return Config(steps=steps)
-    if variant == "reward-v3":
-        return Config(
+    if variant == "tailrl":
+        config = TailRLConfig(steps=steps)
+    elif variant == "async-v7":
+        config = StrongGolfConfig(steps=steps)
+    elif variant == "async-v6":
+        config = TunedAsyncConfig(steps=steps)
+    elif variant == "async-v5":
+        config = AsyncConfig(steps=steps)
+    elif variant == "reward-v4":
+        config = Config(steps=steps)
+    elif variant == "reward-v3":
+        config = Config(
             steps=steps, reward_bonus=0.1, reward_scale=256, output_token_penalty=0
         )
-    raise ValueError(f"Unknown variant: {variant}")
+    else:
+        raise ValueError(f"Unknown variant: {variant}")
+    if eval_samples is not None:
+        config = dataclasses.replace(config, eval_samples=eval_samples)
+    return config

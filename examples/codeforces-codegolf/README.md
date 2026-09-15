@@ -1,8 +1,10 @@
 # Codeforces codegolf with Qwen3.5-9B
 
-Code-only GRPO through Lilo: sample eight Python solutions for each of four
+Code-only reinforcement learning through Lilo: sample eight Python solutions for each of four
 Codeforces problems, judge them in isolated Modal sandboxes, and reward
-correctness and brevity. The model has no execution tool.
+correctness and brevity. GRPO is the default; `--variant tailrl` selects
+[Tail-Likelihood Reinforcement Learning](https://zanette-labs.github.io/TailRL-website/).
+The model has no execution tool.
 
 ## Asynchronous execution
 
@@ -28,6 +30,8 @@ and fixed-policy evaluation remain synchronization points; a buffer cannot
 promise continuous GPU utilization if sampling throughput is insufficient.
 
 ## Recorded results
+
+The figures below document the original GRPO experiment.
 
 Snapshot through **step 748**, from an ongoing run targeting **1,000** steps.
 The validated split contains **123 training problems and 16 held-out problems**.
@@ -116,6 +120,85 @@ The recorded trainer was **8×H200, 65,536 context, TP2/CP2/DP2**. This example
 uses Lilo's Qwen3.5-9B full-training definition; it does not deploy or change the
 shared trainer. Synchronous inference requests 1–2 replicas; async inference requests 4–8.
 
+## TailRL extension
+
+TailRL emphasizes rare high-reward solutions by integrating inverse tail counts
+over the gaps between sorted rewards. This implementation follows
+[the paper, version 2](https://arxiv.org/html/2609.02987v2) (Section 4, Appendices D
+and G) and the released
+[code-optimization estimator](https://github.com/Zanette-Labs/TailRL/blob/5682c6ac03387355e017ce966693266bb148fa10/experiments/code_optimization/code_opt/advantages.py).
+The reference repository was reviewed at commit
+`5682c6ac03387355e017ce966693266bb148fa10`.
+
+For one problem's `N` rewards sorted in ascending order, with `r[0] = 0`:
+
+```text
+w[i] = sum((r[j] - r[j-1]) / (N-j+1) for j = 1..i)
+A[i] = N * (w[i] - mean(w))
+```
+
+Advantages are restored to rollout order. The leading `N` follows the released
+code-optimization convention for a loss averaged over samples; the website and
+GUI implementation omit it. There is no standard-deviation normalization.
+Ties share an advantage, and constant or singleton groups yield zero. Binary
+rewards reduce to `N / successes - 1` for successes and `-1` for failures, with
+all-zero advantages when there are no successes.
+
+The example uses raw signed rewards. A common reward offset cancels after
+centering; clipping failures to zero would discard the output-length penalty.
+Reward units set the advantage scale, as described in Appendix D.
+
+The `tailrl` variant uses the `async-v6` reward, eight training samples per problem,
+and the same optimizer, PPO clipping, completion masks, equal sequence weighting,
+and bounded asynchronous pipeline. It evaluates **eight samples per held-out
+problem** by default. This is an adaptation to Lilo's PPO and length weighting;
+the paper's on-policy guarantees do not directly establish behavior with stale
+rollouts. The synchronous loop also supports `Config(advantage_estimator="tailrl")`.
+
+After the setup below, redeploy the example to include the extension and launch:
+
+```bash
+uv run codegolf config --variant tailrl
+uv run --env-file .env modal deploy -m codegolf.app
+uv run --env-file .env codegolf launch --run golf-tailrl --variant tailrl --steps 500
+uv run --env-file .env codegolf status --run golf-tailrl
+uv run --env-file .env codegolf fetch --run golf-tailrl
+uv run python -m codegolf.report runs/golf-tailrl
+```
+
+`--eval-samples N` overrides the held-out sample count in `config`, `launch`,
+`fork_checkpoint.py`, and the Modal entry point. Use the same value for a GRPO
+comparison, e.g. `--variant async-v6 --eval-samples 8`, and match the initialization,
+dataset, seed, training budget and reward. Run comparisons sequentially when
+sharing this single-controller deployment. Eight-sample evaluation generates
+128 completions on the default 16 held-out problems, eight times the old evaluation
+budget; it does not change the 32-rollout training batches.
+
+Each `eval/STEP.json` retains the original sample means and adds `eval_samples`,
+`eval_problems`, `pass_at_k` and `best_of_k`. The latter maps use string keys for
+budgets `1, 2, 4, ...` up to `N`, including `N` itself. Estimates average over all
+size-`k` subsets within each problem, then average over problems. Pass@k uses judge
+verdicts; Best-of-k uses the full correctness/brevity reward. Budgets above `N` are
+never extrapolated. These measure selection with access to the judge, not a
+learned selector. `codegolf.report` writes `sampling.png` alongside `reward.png`,
+and includes the evaluation curves in `summary.json`.
+
+Existing saved specs without the new fields resume as GRPO with one evaluation
+sample. Estimator and evaluation-budget changes require a new run or checkpoint
+fork so their metrics stay comparable. To continue an `async-v6` checkpoint with
+TailRL, first stop and release the source controller as described below, then:
+
+```bash
+uv run --env-file .env python fork_checkpoint.py SOURCE_RUN golf-tailrl \
+  --step 150 --steps 500 --variant tailrl
+uv run --env-file .env codegolf launch --run golf-tailrl --steps 500 --variant tailrl
+```
+
+The committed source checkpoint must be exactly step 150 in this example. Forks
+preserve model and optimizer state, record the source spec in `lineage.json`, and
+evaluate the restored policy before the first update. When overriding
+`--eval-samples`, pass the same value to the fork and launch commands.
+
 ## Setup and execution
 
 Follow the [Lilo setup guide](../../README.md) first. The shared deployment,
@@ -191,7 +274,8 @@ uv run --env-file .env codegolf launch --run NEW_RUN --variant async-v6
 ```
 
 The helper requires the source's current committed checkpoint to match and rejects
-an existing destination, changed dataset or changes outside reward/pipeline settings. It records
+an existing destination, changed dataset or changes outside reward, estimator,
+evaluation-budget and pipeline settings. It records
 `lineage.json`, preserves absolute step numbers, and evaluates the restored policy
 before updating. Old reward metrics remain separate. Fork runs created by this
 example: its reduced configuration schema differs from private historical runs.
@@ -201,6 +285,7 @@ example: its reduced configuration schema differs from private historical runs.
 [train.py](codegolf/train.py) is the loop/recovery;
 [store.py](codegolf/store.py) persists state;
 [reward.py](codegolf/reward.py) builds rewards and masked training data;
+[evaluation.py](codegolf/evaluation.py) estimates held-out Pass@k and Best-of-k;
 [judge.py](codegolf/judge.py) executes submissions. The other modules provide
 configuration, dataset preparation, entry points and plots. Retired agent tooling,
 vendored Lilo, incident scripts and runtime artifacts are omitted.
@@ -218,5 +303,7 @@ uv run ruff format --check codegolf tests fork_checkpoint.py figures/render.py
 
 Tests cover judge transport/failures, reward bounds, loss masks, rollback,
 uncertain optimizer/publication failures, continuation and cancellation/draining.
-This is a cleaned version of the recorded experiment; the refactored example has
-not itself been rerun to step 355.
+TailRL tests cover the released numerical example, binary MaxRL recovery, signed
+rewards, ties, permutations, the finite-budget gradient identity, exhaustive
+sampling-metric checks, and both synchronous and asynchronous checkpoint recovery.
+The historical GRPO figures above were recorded before this cleaned example.
