@@ -100,13 +100,7 @@ def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
     run_trainer(instance_id)
 
 
-def run_trainer(
-    instance_id: str,
-    *,
-    definition_id: str = DEFINITION_ID,
-    max_models: int = MAX_LORA_SLOTS,
-    deterministic_training: bool = False,
-) -> None:
+def run_trainer(instance_id: str, *, definition_id: str = DEFINITION_ID, max_models: int = MAX_LORA_SLOTS) -> None:
     import json
 
     from huggingface_hub import snapshot_download
@@ -142,10 +136,6 @@ def run_trainer(
         },
         "checkpoint_dir": CHECKPOINT_ROOT,
     }
-    if deterministic_training:
-        backend_config["miles"].update(
-            tp_reduce_precision="float64", deterministic_attention=True
-        )
     run_engine_with_backend(
         shared_kv(),
         "lilo.backends.miles_lora:build_executor",

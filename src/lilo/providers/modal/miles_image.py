@@ -19,7 +19,7 @@ BRIDGE_REPOSITORY = "https://github.com/radixark/Megatron-Bridge.git"
 BRIDGE_REVISION = "582783a05442245647239e4c5e7d733d7f0e00ea"
 BRIDGE_PATH = "/root/Megatron-Bridge"
 
-base_image = (
+image = (
     modal.Image.from_registry(BASE_IMAGE)
     .entrypoint([])
     .env(
@@ -59,11 +59,10 @@ base_image = (
     .run_commands(
         "pip install --no-deps 'peft>=0.18.1'",
         MEGATRON_RUNTIME_CHECK,
-        'python -c "from miles.ray.train.group import TrainerController as T; '
+        "python -c \"from miles.ray.train.group import TrainerController as T; "
         "assert all(hasattr(T, name) for name in "
         "('load_slot', 'unload_slot', 'forward_backward', "
         "'forward_only_logprobs', 'optim_step', 'save_slot'))\"",
     )
+    .add_local_python_source("lilo")
 )
-
-image = base_image.add_local_python_source("lilo")

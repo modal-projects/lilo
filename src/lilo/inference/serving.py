@@ -33,9 +33,6 @@ def start_sglang(
     cpu_weight_cache_max_compile_group_gb: float | None = None,
     memory_fraction: float = 0.85,
     schedule_policy: str = "fcfs",
-    deterministic_inference: bool = False,
-    attention_backend: str | None = None,
-    disable_radix_cache: bool = False,
 ) -> subprocess.Popen:
     if enable_lora and max_loaded_loras < max_loras_per_batch:
         raise ValueError("max_loaded_loras must be at least max_loras_per_batch")
@@ -88,12 +85,6 @@ def start_sglang(
         "--tp-size",
         str(world_size),
     ]
-    if deterministic_inference:
-        command.append("--enable-deterministic-inference")
-    if attention_backend is not None:
-        command.extend(["--attention-backend", attention_backend])
-    if disable_radix_cache:
-        command.append("--disable-radix-cache")
     if attention_data_parallel_size > 1:
         command.extend(["--dp-size", str(attention_data_parallel_size)])
         command.append("--enable-dp-attention")
