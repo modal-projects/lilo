@@ -138,3 +138,59 @@ def configure_deterministic_attention() -> None:
     FlashAttentionUtils.v3_is_installed = False
     if hasattr(FlashAttentionUtils, "v4_is_installed"):
         FlashAttentionUtils.v4_is_installed = False
+
+
+def configure_deterministic_losses() -> None:
+    """Use one dynamic-shape CE path from the first sample.
+
+    Megatron's default jit_fuser specializes the first response length, then
+    recompiles when another length arrives. Those kernels can round differently,
+    so replaying the first sample changes its logprobs despite identical logits.
+    Compile the existing arithmetic dynamically from the start; no warmup or
+    change to the cross-entropy objective is needed.
+    """
+    import torch
+    from megatron.core.fusions import fused_cross_entropy
+
+    for name in (
+        "calculate_logits_max",
+        "calculate_predicted_logits",
+        "calculate_cross_entropy_loss",
+        "calculate_gradients",
+    ):
+        current = getattr(fused_cross_entropy, name)
+        if getattr(current, "_lilo_dynamic_shapes", False):
+            continue
+        original = getattr(current, "_torchdynamo_orig_callable", current)
+        replacement = torch.compile(original, dynamic=True)
+        replacement._lilo_dynamic_shapes = True
+        setattr(fused_cross_entropy, name, replacement)
+
+
+def configure_deterministic_gdn() -> None:
+    """Pin the reduction layout of FLA Q/K normalization before compilation.
+
+    Autotuning different warp/tile layouts can change FP32 reduction rounding.
+    A fixed layout must be shared by cold, recompiled, and packed execution.
+    Keep FLA's existing forward/backward arithmetic and autograd implementation.
+    """
+    import importlib
+    import triton
+
+    normalization = importlib.import_module("fla.modules.l2norm")
+    for name in (
+        "l2norm_fwd_kernel",
+        "l2norm_bwd_kernel",
+        "l2norm_fwd_kernel1",
+        "l2norm_bwd_kernel1",
+    ):
+        original = getattr(normalization, name)
+        if getattr(original, "_lilo_fixed_layout", False):
+            continue
+        scalar = name.endswith("kernel1")
+        replacement = triton.autotune(
+            configs=[triton.Config({} if scalar else {"BT": 32}, num_warps=4)],
+            key=["D"] if scalar else ["D", "NB"],
+        )(original.fn)
+        replacement._lilo_fixed_layout = True
+        setattr(normalization, name, replacement)
