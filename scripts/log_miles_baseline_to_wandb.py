@@ -51,7 +51,9 @@ def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float
     }
     if "train_time_s" in row:
         result["cmp/train_time_s"] = row["train_time_s"]
-    if step_time and prompt_len:
+    if "tokens_per_gpu_per_sec" in row:
+        result["cmp/tokens_per_gpu_per_s"] = row["tokens_per_gpu_per_sec"]
+    elif step_time and prompt_len:
         result["cmp/tokens_per_gpu_per_s"] = (
             (prompt_len + response_len) * samples / step_time / trainer_gpus
         )
