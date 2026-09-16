@@ -131,6 +131,7 @@ def build_app(
     from lilo.inference.sampling import sample_task
 
     from .engines import ModalEnginePlatform
+    from .checkpoint_storage import ModalCheckpointStorage
     from .fft_pool import proxy_auth_headers
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
@@ -430,6 +431,7 @@ def build_app(
             return call.object_id
 
         stores = ModalSessionKeyValueStores()
+        storage = ModalCheckpointStorage(checkpoints)
         plane = ScopedControlPlane(
             shared_kv(),
             ModalEnginePlatform(shared_kv(), spawn_engine),
@@ -438,6 +440,10 @@ def build_app(
             ensure_sampling_pool=ensure_pool,
             sampling_task_stores=stores,
             sampling_tasks=ModalSamplingTaskPlatform(stores, spawn_sampling),
+            read_checkpoint_metadata=storage.read_metadata,
+            list_checkpoints=storage.list,
+            delete_checkpoint=storage.delete,
+            checkpoint_root=storage.root,
         )
         definition = SimpleNamespace(
             CATALOG_VISIBLE=True,

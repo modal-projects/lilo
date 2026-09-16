@@ -30,18 +30,29 @@ unless you supply `api_key`. App names default to `lilo-<hash>`.
 
 ## Recovering a lost trainer
 
-After trainer loss, create a new full training client through the same service,
-restore a saved checkpoint, and publish a new sampling client:
+When a training request reports HTTP 410 with `error="model_lost"`, create a
+replacement through the same service using a saved full-training checkpoint:
 
 ```python
-trainer = lilo.create_full_training_client(service, engine.model)
-trainer.load_state_with_optimizer(checkpoint_path).result()
+trainer = service.create_training_client_from_state_with_optimizer(checkpoint_path)
 latest = trainer.save_weights_and_get_sampling_client()
 ```
+
+This works within the existing `lilo.run()` scope even when Modal restarted the
+same trainer invocation in a new process. The replacement uses the available
+trainer; a second model is still rejected while the first model is healthy or
+initializing. The old training client remains lost.
+
+Alternatively, create a full training client with
+`lilo.create_full_training_client(service, engine.model)` and explicitly call
+`trainer.load_state_with_optimizer(checkpoint_path).result()`.
 
 Use the new latest client; old latest clients receive HTTP 410. Base sampling and
 previously pinned versions remain available. Recovery is explicit: the deployment
 does not restore checkpoints or replay failed updates automatically.
+Resume the data iterator and step counter from the saved checkpoint's position;
+updates since that checkpoint must be replayed. No background health polling is
+required: application code can recover when an ordinary training request fails.
 
 ## Custom engines
 

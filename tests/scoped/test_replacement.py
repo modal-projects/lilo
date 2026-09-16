@@ -21,7 +21,7 @@ class Registry:
 
 def test_replacement_requires_confirmed_loss_and_fences_previous_model():
     async def check():
-        values = {'routes': [{}, {'url': 'latest'}]}
+        values = {'routes': [{}, {'url': 'latest'}], 'trainer_demand:a': {}, 'trainer_demand:b': {}}
         registry = Registry(values)
         active = []
         deleted = []
@@ -29,7 +29,7 @@ def test_replacement_requires_confirmed_loss_and_fences_previous_model():
         async def spawn(_): active.append('trainer')
         async def delete(key): deleted.append(key)
         engines = SimpleNamespace(active_instances=instances, spawn_instance=spawn)
-        async def get(key): return None
+        async def get(key): return values.get(key)
         kv = SimpleNamespace(delete=delete, get=get)
         await claim_model(registry, kv, engines, 'engine', 'a')
         await claim_model(registry, kv, engines, 'engine', 'a')
@@ -48,7 +48,7 @@ def test_replacement_requires_confirmed_loss_and_fences_previous_model():
 
 def test_retry_after_spawn_failure_keeps_assignment():
     async def check():
-        registry = Registry({'routes': [{}, {'url': 'latest'}]})
+        registry = Registry({'routes': [{}, {'url': 'latest'}], 'trainer_demand:a': {}})
         attempts = []
         async def instances(_): return []
         async def spawn(_):

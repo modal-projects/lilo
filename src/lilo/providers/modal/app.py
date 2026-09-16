@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import shutil
 import time
 from dataclasses import asdict
-from pathlib import Path
 
 import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
-from lilo.errors import RecordNotFound
 from lilo.providers.contracts import (
     Parameterization,
     SamplingTask,
@@ -20,6 +16,7 @@ from lilo.providers.contracts import (
 
 from .checkpoint_storage import (
     CHECKPOINT_ROOT,
+    ModalCheckpointStorage,
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
 )
@@ -73,74 +70,22 @@ for definition in DEFINITIONS:
     app.include(definition.app)
 
 
-def _checkpoint_path(uri: str) -> Path:
-    path = Path(uri).resolve()
-    if not path.is_relative_to(Path(CHECKPOINT_ROOT).resolve()):
-        raise ValueError("checkpoint path is outside configured storage")
-    return path
-
-
 async def _read_checkpoint_metadata(uri: str) -> dict[str, object]:
-    path = _checkpoint_path(uri)
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        metadata = json.loads(
-            await asyncio.to_thread(
-                (path / "metadata.json").read_text,
-                encoding="utf-8",
-            )
-        )
-    if not isinstance(metadata, dict):
-        raise ValueError("checkpoint metadata must be an object")
-    return metadata
-
-
-def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
-    files = [file for file in checkpoint.rglob("*") if file.is_file()]
-    metadata_file = checkpoint / "metadata.json"
-    return {
-        "model_id": checkpoint.parent.parent.name,
-        "name": checkpoint.name,
-        "path": str(checkpoint),
-        "time": checkpoint.stat().st_mtime,
-        "size_bytes": sum(file.stat().st_size for file in files),
-        "metadata": (
-            json.loads(metadata_file.read_text(encoding="utf-8"))
-            if metadata_file.is_file()
-            else None
-        ),
-    }
-
-
-def _scan_checkpoints(model_id: str | None) -> list[dict[str, object]]:
-    root = Path(CHECKPOINT_ROOT)
-    if not root.is_dir():
-        return []
-    model_dirs = [root / model_id] if model_id is not None else list(root.iterdir())
-    return [
-        _checkpoint_entry(checkpoint)
-        for model_dir in model_dirs
-        if (model_dir / "weights").is_dir()
-        for checkpoint in (model_dir / "weights").iterdir()
-        if checkpoint.is_dir()
-    ]
+    return await ModalCheckpointStorage(
+        checkpoint_volume, CHECKPOINT_ROOT, lock=CHECKPOINT_READ_LOCK
+    ).read_metadata(uri)
 
 
 async def _list_checkpoints(model_id: str | None) -> list[dict[str, object]]:
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        return await asyncio.to_thread(_scan_checkpoints, model_id)
+    return await ModalCheckpointStorage(
+        checkpoint_volume, CHECKPOINT_ROOT, lock=CHECKPOINT_READ_LOCK
+    ).list(model_id)
 
 
 async def _delete_checkpoint(uri: str) -> None:
-    path = _checkpoint_path(uri)
-    async with CHECKPOINT_READ_LOCK:
-        await asyncio.to_thread(checkpoint_volume.reload)
-        try:
-            await asyncio.to_thread(shutil.rmtree, path)
-        except FileNotFoundError:
-            raise RecordNotFound("checkpoint", uri) from None
-        await asyncio.to_thread(checkpoint_volume.commit)
+    await ModalCheckpointStorage(
+        checkpoint_volume, CHECKPOINT_ROOT, lock=CHECKPOINT_READ_LOCK
+    ).delete(uri)
 
 
 image = (
