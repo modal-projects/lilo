@@ -15,6 +15,7 @@ def response(
     token: int = 5,
     *,
     end_version: int | None = None,
+    cached_tokens: int = 0,
 ) -> httpx.Response:
     return httpx.Response(
         200,
@@ -24,6 +25,7 @@ def response(
                 "output_token_logprobs": [[-0.1, token]],
                 "weight_version_start": version,
                 "weight_version_end": (version if end_version is None else end_version),
+                "cached_tokens": cached_tokens,
             }
         },
     )
@@ -86,6 +88,7 @@ def test_grouped_sampling_shares_session_and_dp_rank() -> None:
     assert len(result["sequences"]) == 4
     assert sessions == ["request-a"] * 4
     assert len({body["routed_dp_rank"] for body in bodies}) == 1
+    assert all("session_id" not in body for body in bodies)
     assert 0 <= bodies[0]["routed_dp_rank"] < 4
     assert {body["sampling_params"]["sampling_seed"] for body in bodies} == {
         10,
@@ -93,6 +96,96 @@ def test_grouped_sampling_shares_session_and_dp_rank() -> None:
         12,
         13,
     }
+
+
+def test_multiturn_affinity_tracks_prefix_cache_hit_rate() -> None:
+    cached_sequences: dict[tuple[str, int], list[int]] = {}
+    sessions = []
+    bodies = []
+
+    def handle(http_request: httpx.Request) -> httpx.Response:
+        session_id = http_request.headers["Modal-Session-ID"]
+        body = json.loads(http_request.content)
+        route = (session_id, body["routed_dp_rank"])
+        prompt = body["input_ids"]
+        previous = cached_sequences.get(route, [])
+        cached_tokens = 0
+        for actual, expected in zip(prompt, previous, strict=False):
+            if actual != expected:
+                break
+            cached_tokens += 1
+        output_token = 100 + len(bodies)
+        cached_sequences[route] = [*prompt, output_token]
+        sessions.append(session_id)
+        bodies.append(body)
+        return response(7, token=output_token, cached_tokens=cached_tokens)
+
+    prompt = [11, 12, 13, 14]
+    prompt_lengths = []
+    cache_hits = []
+    expected_reusable = []
+    for turn in range(4):
+        request = task()
+        request["request_id"] = f"sample-a:{turn}"
+        request["payload"]["cache_affinity_key"] = "trajectory-a"
+        request["payload"]["prompt"]["chunks"][0]["tokens"] = list(prompt)
+        result = asyncio.run(
+            sample_task(
+                request,
+                "http://rollout",
+                data_parallel_size=4,
+                transport=httpx.MockTransport(handle),
+            )
+        )
+        prompt_lengths.append(len(prompt))
+        cache_hits.append(result["prompt_cache_hit_tokens"])
+        if turn:
+            expected_reusable.append(len(prompt) - 1)
+        prompt.extend(result["sequences"][0]["tokens"])
+        prompt.append(20 + turn)
+
+    assert len(set(sessions)) == 1
+    assert len({body["routed_dp_rank"] for body in bodies}) == 1
+    assert {body["session_id"] for body in bodies} == set(sessions)
+    assert cache_hits == [0, *expected_reusable]
+    eligible_prefix_hit_rate = sum(cache_hits[1:]) / sum(expected_reusable)
+    assert eligible_prefix_hit_rate == 1.0
+    assert sum(cache_hits) / sum(prompt_lengths) > 0.7
+
+
+def test_affinity_route_is_namespaced_by_sampling_session_and_key() -> None:
+    sessions = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        sessions.append(request.headers["Modal-Session-ID"])
+        return response(7)
+
+    for sampling_session_id, affinity_key in (
+        ("sample-a", "trajectory-a"),
+        ("sample-b", "trajectory-a"),
+        ("sample-a", "trajectory-b"),
+    ):
+        request = task()
+        request["sampling_session_id"] = sampling_session_id
+        request["payload"]["cache_affinity_key"] = affinity_key
+        asyncio.run(
+            sample_task(
+                request,
+                "http://rollout",
+                transport=httpx.MockTransport(handle),
+            )
+        )
+
+    assert len(set(sessions)) == 3
+    assert all(session.startswith("affinity-") for session in sessions)
+
+
+@pytest.mark.parametrize("key", ["", "   ", 42, "x" * 257])
+def test_invalid_cache_affinity_key_is_rejected(key) -> None:
+    request = task()
+    request["payload"]["cache_affinity_key"] = key
+    with pytest.raises(ValueError, match="cache_affinity_key"):
+        asyncio.run(sample_task(request, "http://rollout"))
 
 
 def test_missing_max_tokens_defaults_to_remaining_context() -> None:
