@@ -92,6 +92,7 @@ def _comparison_metrics(
         ("cmp/rollout_time_s", sampling_time),
         ("cmp/loss", loss),
         ("cmp/entropy", entropy),
+        ("cmp/prompt_len_mean", prompt_len),
         ("cmp/truncated_ratio", truncated),
     ):
         if value is not None:

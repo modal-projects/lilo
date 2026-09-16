@@ -23,6 +23,7 @@ import chz
 import tinker
 from datasets import load_dataset
 from longrlvr_comparison_common import DATASET as DATASET_NAME
+from longrlvr_comparison_common import MAX_TOKENS
 from tinker_cookbook import renderers
 from tinker_cookbook.completers import StopCondition
 from tinker_cookbook.rl.problem_env import ProblemGroupBuilder
@@ -284,6 +285,7 @@ class LongRLVREnv(Env):
                 "chunk_recall": reward.chunk_recall,
                 "chunk_f2": reward.chunk_f2,
                 "format": reward.format_valid,
+                "truncated": float(len(action) == MAX_TOKENS),
             },
             logs={
                 "answer": _single_section(response, "answer") or "",

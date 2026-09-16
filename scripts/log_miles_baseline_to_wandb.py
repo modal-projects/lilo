@@ -31,7 +31,11 @@ def _merge_rows(paths: list[Path]) -> list[dict[str, float]]:
     return [merged[step] | {"step": step} for step in sorted(merged)]
 
 
-def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float]:
+def _comparison_row(
+    row: dict[str, float],
+    trainer_gpus: int,
+    prompt_len_mean: float | None,
+) -> dict[str, float]:
     if "cmp/reward_mean" in row:
         return {
             key: value
@@ -41,7 +45,7 @@ def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float
     step_time = row.get("step_time_s", row.get("step_time", 0.0))
     response_len = row.get("response_length_mean", row.get("response_len", 0.0))
     samples = row.get("samples", 128.0)
-    prompt_len = row.get("prompt_length_mean", 0.0)
+    prompt_len = row.get("prompt_length_mean", prompt_len_mean)
     result = {
         "cmp/reward_mean": row.get("reward_mean", row.get("reward", 0.0)),
         "cmp/response_len_mean": response_len,
@@ -51,9 +55,7 @@ def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float
     }
     if "train_time_s" in row:
         result["cmp/train_time_s"] = row["train_time_s"]
-    if "tokens_per_gpu_per_sec" in row:
-        result["cmp/tokens_per_gpu_per_s"] = row["tokens_per_gpu_per_sec"]
-    elif step_time and prompt_len:
+    if step_time and prompt_len is not None:
         result["cmp/tokens_per_gpu_per_s"] = (
             (prompt_len + response_len) * samples / step_time / trainer_gpus
         )
@@ -78,6 +80,11 @@ def main() -> None:
     parser.add_argument("--project", default="miles-lora-longcontext")
     parser.add_argument("--entity", default="modal-labs")
     parser.add_argument("--trainer-gpus", type=int, default=8)
+    parser.add_argument(
+        "--prompt-len-mean",
+        type=float,
+        help="Fallback Miles prompt length for the Lilo-compatible throughput metric.",
+    )
     args = parser.parse_args()
 
     run = wandb.init(
@@ -87,11 +94,15 @@ def main() -> None:
         name=args.name,
         config={
             "trainer_gpus": args.trainer_gpus,
+            "prompt_len_mean": args.prompt_len_mean,
             "sources": [str(p) for p in args.source],
         },
     )
     for row in _merge_rows(args.source):
-        wandb.log(_comparison_row(row, args.trainer_gpus), step=int(row["step"]))
+        wandb.log(
+            _comparison_row(row, args.trainer_gpus, args.prompt_len_mean),
+            step=int(row["step"]),
+        )
     run.finish()
     print(run.url)
 
