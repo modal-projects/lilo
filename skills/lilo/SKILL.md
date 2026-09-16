@@ -7,25 +7,29 @@ description: Work with Lilo training and sampling on Modal, including deployment
 
 Lilo provides a Tinker-compatible API backed by training and inference resources on Modal. This skill explains the resource and state semantics that matter when using it. Adapt the examples to the user's application and algorithm.
 
-## Cost and utilization
+## Getting started
 
-Lilo costs follow allocated GPU resources and time, rather than a hosted per-token price. Training and inference have separate allocations. Small batches do not shrink the configured trainer topology, and an allocated trainer can cost money while waiting for input, weight publication, or the controller.
+Install Lilo into the application project, for example with `uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'`. Use the Python version and dependencies supported by that revision; scoped deployment support and runtime requirements are documented in `docs/scoped-runs.md`.
 
-Think in terms of useful training progress per allocated GPU-hour. More inference capacity can reduce trainer waiting but also increase total spend. Warm replicas trade idle cost for lower startup latency. Overlapping sampling and training can help when the application's algorithm permits it; changing policy-lag or update semantics is an application decision.
+For an existing deployment, connect with its URL and API key:
 
-Modal container logs and GPU metrics help distinguish startup, active training, and waiting between operations. A busy GPU during forward/backward does not imply good utilization across the whole loop. Lilo's optional OTLP telemetry can provide finer attribution; configuration is described in the installed revision's `docs/observability.md`.
+```python
+import tinker
+
+service = tinker.ServiceClient(base_url=url, api_key=api_key)
+```
+
+To deploy in your own Modal workspace, use an existing Modal profile or authenticate with `uv run modal token new`. Select the intended Modal environment before creating secrets or deploying. Sampler access uses a Modal proxy token stored as `MODAL_PROXY_TOKEN_ID` and `MODAL_PROXY_TOKEN_SECRET` in the `lilo-proxy` secret in that environment; the repository README describes token creation and persistent-service setup.
+
+Modal credentials authorize deployment, the proxy token authorizes sampler access, and the Lilo API key authorizes clients. Scoped deployment generates the client API key unless one is supplied. Existing-endpoint clients only need their URL and API key.
 
 ## Full fine-tuning (FFT)
 
 FFT updates the full model and keeps model and optimizer state on a dedicated trainer. Its deployment, publication, and checkpoint costs differ from adapter training.
 
-### Deployment options
+### Start a scoped deployment
 
 **Prefer a scoped single-tenant deployment for a new FFT run.** It puts the engine, sampler capacity, and resource lifetime under the run's ownership. The alternatives are connecting to an existing endpoint, or operating a persistent shared service for multiple clients. A shared service can still allocate a dedicated trainer for each FFT model; a shared API does not mean shared FFT GPU state.
-
-Install Lilo into the application project (for example, `uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'`). Scoped runs require a revision that includes `lilo.run`; the current scoped implementation uses Python 3.12. Authenticate Modal using an existing profile or `uv run modal token new`, and select the intended Modal environment before creating secrets or deploying.
-
-Sampler access uses a Modal proxy token stored as `MODAL_PROXY_TOKEN_ID` and `MODAL_PROXY_TOKEN_SECRET` in the `lilo-proxy` secret in that environment. The repository README explains proxy-token creation. `lilo.run` generates the client API key unless one is supplied; this is separate from Modal credentials and the sampler proxy token. Existing-endpoint clients only need their URL and API key.
 
 A scoped setup, using an illustrative built-in engine recipe:
 
@@ -43,11 +47,10 @@ with lilo.run(engine=engine) as (url, api_key):
 
 An engine recipe defines the model, context limits, trainer/sampler GPU topology, and backend settings. Recipes come from `lilo.engines`; a custom recipe can live in the user's project. Sampler replica counts are a separate choice: scoped runs take `latest=lilo.Pool(min_containers=..., max_containers=..., scaledown_window=...)`. Client-level `rollout` settings belong to the shared-service interface and are rejected by scoped model creation.
 
-A scope permits one active training model. Creating another full training client does not attach to the existing learner. Other processes can connect using the scope's URL and API key while its owner remains alive. Deploying requires Modal access and sampler proxy credentials; using an existing endpoint requires its API credentials.
+A scope permits one active training model. Creating another full training client does not attach to the existing learner. Other processes can connect using the scope's URL and API key while its owner remains alive.
 
 The process holding `lilo.run` owns the deployment. Its preemption, timeout, or disconnect can end the trainer's lifetime too. A controller retry opens fresh resources; it does not restore training. Normal context exit stops owned resources but does not automatically checkpoint. Completed checkpoints persist in the checkpoint Volume; abrupt owner death can leave separately deployed pinned samplers to scale down when idle.
 
-Scoped API availability depends on the installed revision. Its `docs/scoped-runs.md` describes supported options; the repository README covers persistent-service deployment.
 
 ### Modifying engines
 
@@ -115,3 +118,11 @@ Capture is ordered with training, while persistence can overlap later work where
 A checkpoint captured at update 20 still restores update 20 even if its write finishes during update 22. Its returned path and captured progress need to survive the controller, and it becomes a recovery point only after successful persistence. Until then, recovery uses the previous completed checkpoint. The checkpoint does not preserve the controller's Python memory.
 
 An optimizer timeout can have an unknown outcome: a blind retry can apply an update twice. That differs from an isolated sampling failure, which does not itself establish trainer loss.
+
+## Cost and utilization
+
+Lilo costs follow allocated GPU resources and time, rather than a hosted per-token price. Training and inference have separate allocations. Small batches do not shrink the configured trainer topology, and an allocated trainer can cost money while waiting for input, weight publication, or the controller.
+
+Think in terms of useful training progress per allocated GPU-hour. More inference capacity can reduce trainer waiting but also increase total spend. Warm replicas trade idle cost for lower startup latency. Overlapping sampling and training can help when the application's algorithm permits it; changing policy-lag or update semantics is an application decision.
+
+Modal container logs and GPU metrics help distinguish startup, active training, and waiting between operations. A busy GPU during forward/backward does not imply good utilization across the whole loop. Lilo's optional OTLP telemetry can provide finer attribution; configuration is described in the installed revision's `docs/observability.md`.
