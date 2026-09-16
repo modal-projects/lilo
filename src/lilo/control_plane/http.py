@@ -190,6 +190,9 @@ def create_control_plane_app(
             raise HTTPException(status_code=401, detail="unauthorized")
 
     app = FastAPI(dependencies=[Depends(authorize)])
+    from lilo.telemetry.trainer import CommandMiddleware
+
+    app.add_middleware(CommandMiddleware)
 
     async def skip_rejected_operation(request: Request, exc: Exception) -> None:
         path = request.url.path

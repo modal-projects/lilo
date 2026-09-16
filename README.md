@@ -182,3 +182,13 @@ policy update. Copy examples you want to run into your project; repository
 
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
+
+See [Observability](docs/observability.md) for OTLP export to Datadog or a custom
+destination, experiment labels, and the complete span/metric inventory.
+
+## Examples
+
+[Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
+with GRPO or TailRL advantages for correctness and short solutions. It includes
+an isolated judge, checkpoint recovery, estimator/reward forks, held-out Pass@k
+and Best-of-k evaluation, plotting tools and learning curves.

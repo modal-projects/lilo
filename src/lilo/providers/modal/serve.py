@@ -14,8 +14,8 @@ from collections.abc import Awaitable, Callable
 import httpx
 import modal
 
-from lilo.engine import EngineServer
-from lilo.engine.backend import HttpExecutor
+from lilo.engine import Engine
+from lilo.engine.backend_http import HttpBackendClient
 from lilo.engine.http import create_engine_app
 
 from .engines import EngineInstanceRecord, instance_key
@@ -41,7 +41,7 @@ async def _kick_trainer_reconciler(definition_id: str) -> None:
 
 async def serve_engine(
     kv: ModalKeyValueStore,
-    make_server: Callable[[], Awaitable[EngineServer]],
+    make_server: Callable[[], Awaitable[Engine]],
     *,
     definition_id: str,
     revision: str,
@@ -61,6 +61,13 @@ async def serve_engine(
     engine = None
     try:
         engine = await make_server()
+        from lilo.telemetry.trainer import TrainerTelemetry
+
+        telemetry = TrainerTelemetry(
+            instance_id, definition_id, record.boot_id,
+            scoped=bool(os.environ.get("LILO_SCOPED_REGISTRY")),
+        )
+        engine.observer = telemetry
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)
         with modal.forward(ENGINE_PORT) as tunnel:
@@ -83,6 +90,7 @@ async def serve_engine(
         try:
             if engine is not None:
                 await engine.close()
+                telemetry.close()
         finally:
             record = record.model_copy(update={"state": "stopped"})
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
@@ -125,7 +133,7 @@ def run_engine_with_backend(
         ]
     )
     backend = subprocess.Popen(
-        [*launcher, "lilo.engine.backend", executor_reference, str(port)],
+        [*launcher, "lilo.engine.backend_http", executor_reference, str(port)],
         env=env,
         start_new_session=True,
     )
@@ -136,13 +144,16 @@ def run_engine_with_backend(
         except ProcessLookupError:
             pass
 
-    executor = HttpExecutor(
+    executor = HttpBackendClient(
         f"http://127.0.0.1:{port}",
         read_timeout=operation_timeout,
-        on_read_timeout=lambda: signal_backend(signal.SIGKILL),
+        # A lost command response leaves gradient/optimizer state uncertain.
+        # Terminate all ranks so the process monitor exits the engine instead
+        # of leaving its model (and GPUs) live after the client has failed.
+        on_transport_error=lambda: signal_backend(signal.SIGKILL),
     )
 
-    async def make_server() -> EngineServer:
+    async def make_server() -> Engine:
         try:
             async with asyncio.timeout(startup_timeout):
                 while True:
@@ -152,13 +163,15 @@ def run_engine_with_backend(
                         )
                     try:
                         if (await executor.http.get("/healthz")).is_success:
-                            return EngineServer(executor, max_models=max_models)
+                            return Engine(executor, max_models=max_models)
                     except httpx.TransportError:
                         pass
                     await asyncio.sleep(2)
         except TimeoutError as exc:
             signal_backend(signal.SIGTERM)
-            raise TimeoutError(f"backend startup exceeded {startup_timeout:g}s") from exc
+            raise TimeoutError(
+                f"backend startup exceeded {startup_timeout:g}s"
+            ) from exc
 
     async def serve_until_backend_exits() -> None:
         serving = asyncio.create_task(

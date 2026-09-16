@@ -40,6 +40,13 @@ resumed = create_full_training_client(service, base_model)
 resumed.load_state_with_optimizer(saved.path).result(timeout=60 * 60)
 ```
 
+Transport failures on the engine's local connection to its GPU worker also
+terminate the backend process group and exit the engine. A lost response can
+leave a gradient accumulation or optimizer update applied without confirmation;
+the command is not retried, and the failed connection rejects further commands.
+Recover from a completed checkpoint rather than replaying the uncertain update.
+This applies to backend transport failures, not errors polling the public API.
+
 ### Checkpoint archives are not served
 
 Lilo does not provide a presigned URL from Tinker's checkpoint archive
@@ -49,6 +56,11 @@ Modal Volume:
 ```bash
 modal volume get <checkpoint-volume> /<checkpoint-path> <local-destination>
 ```
+
+New training checkpoints are stored as `<checkpoint-name>/<model-id>/` in the
+volume, so you can browse by the name passed to `save_state`. The model ID keeps
+identically named checkpoints from different runs separate. Public
+`tinker://<model-id>/weights/<checkpoint-name>` paths use this volume layout.
 
 ## Differences from the Tinker SDK
 

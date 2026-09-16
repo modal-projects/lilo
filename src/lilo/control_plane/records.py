@@ -72,6 +72,7 @@ class SamplingSessionCreationRecord(DurableRecord):
 
 
 class SamplingSessionRecord(DurableRecord):
+    telemetry_tags: dict[str, str] = Field(default_factory=dict)
     sampling_session_id: Identifier
     session_id: Identifier
     sampling_session_seq_id: int = Field(ge=0)
@@ -104,6 +105,7 @@ class SamplerExportResultRecord(DurableRecord):
 
 
 class SamplerArtifactRecord(DurableRecord):
+    telemetry_tags: dict[str, str] = Field(default_factory=dict)
     model_path: NonEmptyString
     model_id: ModelIdentifier
     export_seq_id: int = Field(gt=0)
