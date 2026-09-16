@@ -185,3 +185,9 @@ architecture.
 
 See [Observability](docs/observability.md) for OTLP export to Datadog or a custom
 destination, experiment labels, and the complete span/metric inventory.
+
+## Examples
+
+[Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
+with GRPO rewards for correctness and short solutions. It includes an isolated
+judge, checkpoint recovery, reward forks, plotting tools and learning curves.

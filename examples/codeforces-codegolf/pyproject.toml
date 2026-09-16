@@ -1,0 +1,31 @@
+[project]
+name = "lilo-codegolf-example"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = ["lilo", "transformers==5.16.1", "pyarrow", "matplotlib", "jinja2>=3.1.6"]
+
+[tool.uv.sources]
+lilo = {path = "../..", editable = true}
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["codegolf*"]
+
+[dependency-groups]
+dev = ["pytest>=9.1.1", "ruff==0.16.6"]
+
+[project.scripts]
+codegolf = "codegolf.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B", "UP"]
