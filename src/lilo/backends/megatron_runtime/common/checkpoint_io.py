@@ -9,6 +9,8 @@ import modal
 import torch.distributed as dist
 from megatron.core import parallel_state
 
+from lilo.telemetry.backend import measured
+
 
 def rank_tag() -> str:
     ranks = [
@@ -34,6 +36,7 @@ def write_checkpoint_metadata(uri: str, metadata: dict[str, Any] | None) -> None
     os.replace(temporary, path)
 
 
+@measured("checkpoint_commit")
 def commit_checkpoint_volume(group) -> None:
     """Commit after every checkpoint-persistence rank finishes writing."""
     if group is not None:

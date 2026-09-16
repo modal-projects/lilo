@@ -9,7 +9,7 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 from tinker.types.forward_backward_request import ForwardBackwardRequest
 
 from lilo.engine import (
-    EngineServer,
+    Engine,
     FutureStatus,
     HttpEngineClient,
     create_engine_app,
@@ -19,7 +19,7 @@ from tests.support import EchoExecutor
 
 
 def http_client(
-    server: EngineServer,
+    server: Engine,
     *,
     token: str | None = "secret",
 ) -> HttpEngineClient:
@@ -52,7 +52,7 @@ def forward_backward_json(seq_id: int, data: object = None) -> bytes:
 
 def test_full_round_trip_over_http() -> None:
     async def run() -> None:
-        server = EngineServer(EchoExecutor())
+        server = Engine(EchoExecutor())
         client = http_client(server)
 
         assert await client.accept_model("model-a", {"rank": 8})
@@ -106,7 +106,7 @@ def test_full_round_trip_over_http() -> None:
 
 def test_proto_forward_backward_over_http() -> None:
     async def run() -> None:
-        server = EngineServer(EchoExecutor())
+        server = Engine(EchoExecutor())
         client = http_client(server)
         assert await client.accept_model("model-a", {})
 
@@ -141,7 +141,7 @@ def test_proto_forward_backward_over_http() -> None:
 
 def test_typed_errors_cross_http() -> None:
     async def run() -> None:
-        server = EngineServer(EchoExecutor())
+        server = Engine(EchoExecutor())
         client = http_client(server)
 
         with pytest.raises(RecordNotFound):
@@ -169,7 +169,7 @@ def test_typed_errors_cross_http() -> None:
 
 def test_bad_token_is_rejected() -> None:
     async def run() -> None:
-        server = EngineServer(EchoExecutor())
+        server = Engine(EchoExecutor())
         client = http_client(server, token="wrong")
         with pytest.raises(httpx.HTTPStatusError):
             await client.accept_model("model-a", {})

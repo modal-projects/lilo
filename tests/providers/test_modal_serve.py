@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from lilo.engine import FutureStatus
-from lilo.engine.backend import HttpExecutor
+from lilo.engine.backend_http import HttpBackendClient
 from lilo.providers.modal import serve
 
 
@@ -38,12 +38,12 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
 
     async def transport(request):
         posted.append(request.url.path)
-        if request.url.path == "/execute_batch":
+        if request.url.path == "/execute_forward_backward_batch":
             raise error_type("lost worker response", request=request)
         return httpx.Response(200, json={"result": None})
 
     def executor(url, **kwargs):
-        return HttpExecutor(url, transport=httpx.MockTransport(transport), **kwargs)
+        return HttpBackendClient(url, transport=httpx.MockTransport(transport), **kwargs)
 
     async def serving(kv, make_server, **kwargs):
         engine = await make_server()
@@ -73,7 +73,7 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
 
     monkeypatch.setattr(serve.subprocess, "Popen", popen)
     monkeypatch.setattr(serve.os, "killpg", killpg)
-    monkeypatch.setattr(serve, "HttpExecutor", executor)
+    monkeypatch.setattr(serve, "HttpBackendClient", executor)
     monkeypatch.setattr(serve, "serve_engine", serving)
 
     with pytest.raises(RuntimeError, match="backend exited with code"):
@@ -86,5 +86,5 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
         )
     assert observed[0].status == FutureStatus.FAILED
     assert signals and all(sig == signal.SIGKILL for sig in signals)
-    assert posted.count("/execute_batch") == 1
+    assert posted.count("/execute_forward_backward_batch") == 1
     assert closed == [True]

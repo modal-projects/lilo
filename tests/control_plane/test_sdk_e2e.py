@@ -62,13 +62,13 @@ LORA_METADATA = {
 
 
 async def lora_checkpoint_metadata(path: str) -> dict[str, object]:
-    if not path.endswith("/weights/snapshot"):
+    if "/snapshot/" not in path:
         raise FileNotFoundError(path)
     return LORA_METADATA
 
 
 async def full_checkpoint_metadata(path: str) -> dict[str, object]:
-    if not path.endswith("/weights/snapshot"):
+    if "/snapshot/" not in path:
         raise FileNotFoundError(path)
     return {
         "schema_version": 1,
@@ -349,7 +349,7 @@ def volume_plane(tmp_path, monkeypatch) -> tuple[ControlPlane, object, list[str]
             return await super().execute(model_id, kind, payload)
 
         async def persist_checkpoint(self, model_id, payload, snapshot):
-            target = root / model_id / "weights" / payload.destination
+            target = root / payload.destination / model_id
             target.mkdir(parents=True)
             (target / "checkpoint_rank0.pt").write_bytes(b"\0" * 64)
             (target / "metadata.json").write_text(json.dumps(LORA_METADATA))
@@ -379,6 +379,8 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
         training = service.create_lora_training_client(base_model=BASE_MODEL, rank=32)
         training.save_state("first").result(timeout=30)
         saved = training.save_state("second").result(timeout=30)
+        first = root / "first" / training.model_id
+        second = root / "second" / training.model_id
 
         listing = rest.list_checkpoints(training.model_id).result(timeout=30)
         assert [c.checkpoint_id for c in listing.checkpoints] == [
@@ -407,7 +409,7 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
             timeout=30
         ).metrics == {"lr": 1e-4}
         training.load_state(newest.tinker_path).result(timeout=30)
-        assert loaded[-1] == str(root / training.model_id / "weights" / "second")
+        assert loaded[-1] == str(second)
 
         with pytest.raises(tinker.APIStatusError) as archive:
             rest.get_checkpoint_archive_url_from_tinker_path(
@@ -416,7 +418,7 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
         assert archive.value.status_code == 405
         assert archive.value.body["error"] == "unsupported"
         assert (
-            f"modal volume get lilo-checkpoints /{training.model_id}/weights/second"
+            f"modal volume get lilo-checkpoints /{second.relative_to(root)}"
             in archive.value.body["message"]
         )
         with pytest.raises(tinker.NotFoundError):
@@ -427,7 +429,7 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
         rest.delete_checkpoint_from_tinker_path(newest.tinker_path).result(timeout=30)
         remaining = rest.list_checkpoints(training.model_id).result(timeout=30)
         assert [c.checkpoint_id for c in remaining.checkpoints] == ["weights/first"]
-        assert not (root / training.model_id / "weights" / "second").exists()
+        assert not second.exists()
         with pytest.raises(tinker.NotFoundError):
             rest.delete_checkpoint_from_tinker_path(newest.tinker_path).result(
                 timeout=30
@@ -436,7 +438,7 @@ def test_real_sdk_lists_and_deletes_checkpoints(tmp_path, monkeypatch) -> None:
             rest.delete_checkpoint(training.model_id, "weights/%2e%2e/first").result(
                 timeout=30
             )
-        assert (root / training.model_id / "weights" / "first").is_dir()
+        assert first.is_dir()
 
 
 def test_real_sdk_lost_model_fails_fast(tmp_path, monkeypatch) -> None:

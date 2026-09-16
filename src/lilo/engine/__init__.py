@@ -7,13 +7,13 @@ from .api import (
     OperationKind,
 )
 from .http import HttpEngineClient, create_engine_app
-from .server import EngineServer
+from .server import Engine
 
 __all__ = [
     "JSON_OPERATIONS",
     "DistributedExecutor",
     "EngineApi",
-    "EngineServer",
+    "Engine",
     "Executor",
     "FutureState",
     "FutureStatus",

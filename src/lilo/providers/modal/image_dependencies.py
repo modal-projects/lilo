@@ -19,6 +19,7 @@ MEGATRON_RUNTIME_PACKAGES = (
     *TINKER_CLIENT_PACKAGES,
     "numpy",
     "opentelemetry-api==1.43.0",
+    "opentelemetry-exporter-otlp-proto-http==1.43.0",
     "opentelemetry-exporter-prometheus==0.64b0",
     "opentelemetry-sdk==1.43.0",
     "safetensors",
