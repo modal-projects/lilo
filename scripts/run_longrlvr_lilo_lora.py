@@ -54,6 +54,91 @@ from tinker_cookbook.rl.train import main as train_main
 
 BASE_URL = os.environ.get("TINKER_BASE_URL", "")
 SCRIPT_PATH = Path(__file__).resolve()
+TRAINER_GPUS = 4
+
+
+def _comparison_metrics(
+    metrics: dict[str, object], trainer_gpus: int
+) -> dict[str, float]:
+    """Return metrics shared with the Miles baseline namespace."""
+
+    def get(*names: str) -> float | None:
+        for name in names:
+            value = metrics.get(name)
+            if isinstance(value, (int, float)):
+                return float(value)
+        return None
+
+    reward = get("env/all/reward/total")
+    response_len = get("env/all/ac_tokens_per_turn")
+    step_time = get("time/total")
+    train_time = get("time/train_step")
+    sampling_time = get("time/sampling_time_mean")
+    samples = get("env/all/total_episodes")
+    prompt_len = get("env/all/ob_tokens_per_turn")
+    loss = get("loss:mean", "loss", "loss/mean", "train/loss")
+    entropy = get("optim/entropy")
+    truncated = get(
+        "env/all/truncated_ratio",
+        "env/all/truncated",
+        "env/all/frac_truncated",
+    )
+    common: dict[str, float] = {}
+    for key, value in (
+        ("cmp/reward_mean", reward),
+        ("cmp/response_len_mean", response_len),
+        ("cmp/step_time_s", step_time),
+        ("cmp/train_time_s", train_time),
+        ("cmp/rollout_time_s", sampling_time),
+        ("cmp/loss", loss),
+        ("cmp/entropy", entropy),
+        ("cmp/truncated_ratio", truncated),
+    ):
+        if value is not None:
+            common[key] = value
+    if step_time and samples:
+        common["cmp/samples_per_s"] = samples / step_time
+    if (
+        step_time
+        and samples
+        and trainer_gpus
+        and prompt_len is not None
+        and response_len is not None
+    ):
+        common["cmp/tokens_per_gpu_per_s"] = (
+            samples * (prompt_len + response_len) / step_time / trainer_gpus
+        )
+    return common
+
+
+class _ComparisonLogger:
+    def __init__(self, wrapped, trainer_gpus: int):
+        self._wrapped = wrapped
+        self._trainer_gpus = trainer_gpus
+
+    @property
+    def store(self):
+        return self._wrapped.store
+
+    def log_hparams(self, config):
+        return self._wrapped.log_hparams(config)
+
+    def log_metrics(self, metrics, step=None):
+        combined = dict(metrics)
+        combined.update(_comparison_metrics(metrics, self._trainer_gpus))
+        return self._wrapped.log_metrics(combined, step)
+
+    def log_long_text(self, key, text):
+        return self._wrapped.log_long_text(key, text)
+
+    def close(self):
+        return self._wrapped.close()
+
+    def sync(self):
+        return self._wrapped.sync()
+
+    def get_logger_url(self):
+        return self._wrapped.get_logger_url()
 
 
 def _with_rollout_worker_count(original, worker_count: int):
@@ -160,6 +245,7 @@ async def run(
     seed: int,
     wandb_group: str,
     run_name: str,
+    trainer_gpus: int,
 ) -> None:
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
     from tinker_cookbook.rl import rollouts as rl_rollouts
@@ -208,6 +294,14 @@ async def run(
         rl_train.do_async_training,
         source_groups_per_batch,
     )
+    original_setup_logging = rl_train.ml_log.setup_logging
+
+    def setup_comparison_logging(*args, **kwargs):
+        return _ComparisonLogger(
+            original_setup_logging(*args, **kwargs),
+            trainer_gpus,
+        )
+
     dataset_builder = LongRLVRDatasetBuilder(
         batch_size=source_groups_per_batch,
         group_size=group_size,
@@ -268,6 +362,11 @@ async def run(
             "do_async_training",
             do_async_training,
         ),
+        patch.object(
+            rl_train.ml_log,
+            "setup_logging",
+            setup_comparison_logging,
+        ),
     ):
         await train_main(config)
 
@@ -293,6 +392,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=DATASET_SEED)
     parser.add_argument("--wandb-group", default=WANDB_GROUP)
     parser.add_argument("--run-name")
+    parser.add_argument("--trainer-gpus", type=int, default=TRAINER_GPUS)
     parser.add_argument("--log-path", type=Path)
     parser.add_argument(
         "--detach",
@@ -343,6 +443,8 @@ def main() -> None:
             args.wandb_group,
             "--run-name",
             run_name,
+            "--trainer-gpus",
+            str(args.trainer_gpus),
             "--log-path",
             str(log_path),
         ]
@@ -370,6 +472,7 @@ def main() -> None:
             seed=args.seed,
             wandb_group=args.wandb_group,
             run_name=run_name,
+            trainer_gpus=args.trainer_gpus,
         )
     )
     print(log_path)
