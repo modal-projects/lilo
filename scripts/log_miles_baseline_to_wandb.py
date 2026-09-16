@@ -42,21 +42,19 @@ def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float
     response_len = row.get("response_length_mean", row.get("response_len", 0.0))
     samples = row.get("samples", 128.0)
     prompt_len = row.get("prompt_length_mean", 0.0)
-    tokens_per_gpu = row.get(
-        "tokens_per_gpu_per_sec",
-        (prompt_len + response_len) * samples / step_time / trainer_gpus
-        if step_time and prompt_len
-        else 0.0,
-    )
     result = {
         "cmp/reward_mean": row.get("reward_mean", row.get("reward", 0.0)),
         "cmp/response_len_mean": response_len,
         "cmp/step_time_s": step_time,
-        "cmp/train_time_s": row.get("train_time_s", step_time),
         "cmp/rollout_time_s": row.get("rollout_time_s", 0.0),
         "cmp/samples_per_s": samples / step_time if step_time else 0.0,
-        "cmp/tokens_per_gpu_per_s": tokens_per_gpu,
     }
+    if "train_time_s" in row:
+        result["cmp/train_time_s"] = row["train_time_s"]
+    if step_time and prompt_len:
+        result["cmp/tokens_per_gpu_per_s"] = (
+            (prompt_len + response_len) * samples / step_time / trainer_gpus
+        )
     if "train_loss" in row:
         result["cmp/loss"] = row["train_loss"]
     if "truncated_ratio" in row:
