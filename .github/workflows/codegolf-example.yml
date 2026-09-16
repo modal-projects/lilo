@@ -1,0 +1,27 @@
+name: Codegolf example
+on:
+  pull_request:
+    paths: ['examples/codeforces-codegolf/**', 'src/lilo/**', '.github/workflows/codegolf-example.yml']
+  push:
+    branches: [main]
+    paths: ['examples/codeforces-codegolf/**', 'src/lilo/**', '.github/workflows/codegolf-example.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/codeforces-codegolf
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install uv==0.9.26
+      - run: uv sync --frozen
+      - run: uv run pytest -q
+      - run: uv run ruff check codegolf tests fork_checkpoint.py figures/render.py
+      - run: uv run ruff format --check codegolf tests fork_checkpoint.py figures/render.py
+      - run: uv run codegolf config
+      - run: uv run python figures/render.py

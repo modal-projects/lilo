@@ -99,7 +99,9 @@ async def open_pinned_app(
 
     from .scoped import register_sampler
 
-    _, model_id, version = key.split(":")
+    # SDK checkpoint-created models use IDs such as "<session>:train:1".
+    _, model_and_version = key.split(":", 1)
+    model_id, version = model_and_version.rsplit(":", 1)
     child = modal.App(name + "-pin-" + hashlib.sha256(key.encode()).hexdigest()[:12])
     server = register_sampler(
         child,

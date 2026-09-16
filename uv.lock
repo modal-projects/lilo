@@ -156,6 +156,63 @@ wheels = [
 ]
 
 [[package]]
+name = "charset-normalizer"
+version = "3.5.1"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1.tar.gz", hash = "sha256:6117b84ea48435e5356dc737f5121485c30920ba43375fa7b434fd753df0eac3", size = 171764, upload-time = "2026-08-15T08:20:44.807Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:eda059b6bc8bc0812d626fd91a7ce01bf583df0a61296eff390fd94141a34e30", size = 363585, upload-time = "2026-08-15T08:16:46.646Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:aa2bb0b37202dca27175591f761108b5d34096ade1191ffe4808bdf6b1571488", size = 251189, upload-time = "2026-08-15T08:16:48.287Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:0b2b1b3fa5670c127b246df1d0c059defd41f689a868a3b9d79df9b1cac42d22", size = 239724, upload-time = "2026-08-15T08:16:49.67Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:6e5e4d73d588ca5ed09df1b7dcd1b203d1df3c542e3f50d126c947d432b10731", size = 280078, upload-time = "2026-08-15T08:16:51.228Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:b54e7e13267d49ffbfe68e25b3cbd774dab38fa37238f71265e91b36146eb21c", size = 276650, upload-time = "2026-08-15T08:16:52.625Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c7b742bf31c88566b4bb6335a7f393bb322e580b6bb98df7bd0c25e6e3519ce8", size = 262325, upload-time = "2026-08-15T08:16:54.085Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:6ba32c4d2abf1d2fe7cf27d280f4cca5664233b0f885549c7761719eb977f486", size = 261140, upload-time = "2026-08-15T08:16:55.604Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:0722590aabf9dc6a6c0343d523c05458fa2b5047dbe6302fd526bb570600753f", size = 252791, upload-time = "2026-08-15T08:16:57.103Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:aa1099b956fb795e686d073568f6dc002a0bb89765ea6d5b055dd7d9bf1b116c", size = 240730, upload-time = "2026-08-15T08:16:58.418Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_ppc64le.whl", hash = "sha256:bd6c173f04743d483881bffa1478d5a4624475b8cd1d2194956a75548e191c18", size = 280791, upload-time = "2026-08-15T08:16:59.918Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:f298e218441525d3794428b4c8b8fb8662c6d3ea79925d4807ee6b9a96a3bca5", size = 259598, upload-time = "2026-08-15T08:17:01.421Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_s390x.whl", hash = "sha256:6e2912d4babbc65196ac13c2f53468dc57fb8b9c25ef913e8c59ddf7c6dc0e1b", size = 278217, upload-time = "2026-08-15T08:17:02.782Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:3d27167433c0d5f18dc850f07d0b3816221984fecdc405d6c157a6f0b8f8e9e6", size = 263417, upload-time = "2026-08-15T08:17:04.216Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-win32.whl", hash = "sha256:ac00177c4831ffa650f8609e4bdddd5fe09c03b1c0c47acece7e6ea20421598b", size = 181774, upload-time = "2026-08-15T08:17:05.58Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-win_amd64.whl", hash = "sha256:f9b1e28d0e8dbfa858abdba91d6b547beaf2df1a59bec6da6faae7b96a4991a9", size = 206653, upload-time = "2026-08-15T08:17:07.075Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp311-cp311-win_arm64.whl", hash = "sha256:ae31a1a1db2ee6cc2942fccaf695c934bc7f3db9f2133a3fef1f367cf1a4ab10", size = 185630, upload-time = "2026-08-15T08:17:08.502Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:5b6d1386bf0096d26d3a863dc0a487a5b4eb9aa93cf5ba69683d29dde6b9d60f", size = 344456, upload-time = "2026-08-15T08:17:10.072Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4582c27e8c889d64811987b5967fbd3ae0c823fe1fd933b543d55ac20bb475fa", size = 238530, upload-time = "2026-08-15T08:17:11.563Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:1d1c7a53a6c2103925cdd6d7229f8c567379f211c869793df679f2e9f738c369", size = 230200, upload-time = "2026-08-15T08:17:12.919Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:e6621fb2a4988d6e53eedc455e5903e2679f3967b8acb3d639f1b63c14a2e893", size = 262222, upload-time = "2026-08-15T08:17:14.571Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:7c0c10730342b0c9b35dd1d619beb8214e520bd96a1f870f452680b238aab3e0", size = 258951, upload-time = "2026-08-15T08:17:16.158Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b9af956078716df40d985fb0dfeb2c2120c5ca92ba4ff4b388acfd01cdc14d08", size = 248801, upload-time = "2026-08-15T08:17:17.683Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:f9f8405c2c758532c74fed975dbee57be1f31a6e865c031870c79a6ed3212ada", size = 244070, upload-time = "2026-08-15T08:17:19.191Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:96fef3e886d6a9874b14f27fc193fbdc69d5d8035783d86aa4e1cea594e695f9", size = 240110, upload-time = "2026-08-15T08:17:20.547Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:5d8531a6569d025f68e2321e7638fb7978f23db58e5f69f56913837aae03816e", size = 232836, upload-time = "2026-08-15T08:17:21.895Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_ppc64le.whl", hash = "sha256:aae2ee51122d3ae968a3837d97dc24a0aeebb0dea23694422cd172bd30017cd6", size = 262712, upload-time = "2026-08-15T08:17:23.727Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:7235dc28fc6dd9d832ac7c7bce95367dedb85929f17368a0c2bee1e080b9acbf", size = 242977, upload-time = "2026-08-15T08:17:25.157Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_s390x.whl", hash = "sha256:4abdc5f9ad448c1ecbfae2974b820535d6bc6e7eef63babbab3d81cf46968c71", size = 260207, upload-time = "2026-08-15T08:17:26.602Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:ba501e667c17d8411f98e67a022d9604ef179aff0e459b7e292c796837c13573", size = 250562, upload-time = "2026-08-15T08:17:27.971Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-win32.whl", hash = "sha256:cfa1c0cc3a8f9f53f1243a5a99ac36fd003880199383b37672e86ddda9cb07e2", size = 178507, upload-time = "2026-08-15T08:17:29.277Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-win_amd64.whl", hash = "sha256:3617ac3cfd8b9888f145ad89dd6e692285834b0201c6074a5eeaad3fd4d668c2", size = 200551, upload-time = "2026-08-15T08:17:30.668Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp312-cp312-win_arm64.whl", hash = "sha256:88e85ab89cb822c1e635f51d6d32e488f94e002e70e2f492bdb8b945543f345a", size = 180700, upload-time = "2026-08-15T08:17:32.028Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-macosx_10_9_universal2.whl", hash = "sha256:41876ee62a3dddf48ff1121ad8f0798032aa03f2fd35f21f34a4cab14f18d8d2", size = 331467, upload-time = "2026-08-15T08:19:50.959Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:a6dac12ff6b846103483683f60c5f8fee205121adc58ffd87e90a90a3af69e99", size = 253057, upload-time = "2026-08-15T08:19:52.654Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:cee5dd7c6fb5dd52a0fe2a740f9bc6e3593f5f8b1788bde49de02086f30182b2", size = 240930, upload-time = "2026-08-15T08:19:54.163Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux2014_armv7l.manylinux_2_17_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:343fb4f2821043bd87095f7b08a1a181febc8e36ac64212143bbfd0a0e1bc235", size = 230822, upload-time = "2026-08-15T08:19:55.807Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:ae4a097991662cd4fff0ddc74e0fe7874f82e00042fa0ea00855645ed0c79598", size = 260037, upload-time = "2026-08-15T08:19:57.312Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:4b599739b93b2cbeded49645ae3c8d1405c29ddfbceac1545c87a3f9580a9e96", size = 255097, upload-time = "2026-08-15T08:19:59.056Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:b39b69b347e5e47a3b5b8cfc005c68c1ba347474e3960236c4944a8ecd174962", size = 250166, upload-time = "2026-08-15T08:20:00.612Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:a2028475ba855475b8b4d3cfeb4994269c967aea8b9892dfba907f4263a863a3", size = 241821, upload-time = "2026-08-15T08:20:02.321Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:36047af20e17097c3bb9476c2b7655f2f7aa51322c0ba58c07695bedf755a950", size = 232529, upload-time = "2026-08-15T08:20:04.008Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_ppc64le.whl", hash = "sha256:4c4fb141a727957c93edfe5c32a26ceb6b5f6461d67146e2d39f51e16170bea8", size = 260348, upload-time = "2026-08-15T08:20:05.877Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_riscv64.whl", hash = "sha256:2f293479cce755c75f1697e87c409b7ae4c555c7dfecb6e988ad13abba943031", size = 247234, upload-time = "2026-08-15T08:20:07.487Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_s390x.whl", hash = "sha256:3588e376b3ea2eea84976f67273d679f229e24c66dce7b82ae45aef04ff6e072", size = 256917, upload-time = "2026-08-15T08:20:09.142Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:e199fb99720074809a7720f1c0b4d919eea8b87e88713e0f8f602f7bef543d9d", size = 254846, upload-time = "2026-08-15T08:20:10.727Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-win32.whl", hash = "sha256:dd732602a7009217f658d5863d12d79d373a4de0eebc111094bcdd3bb8e0a6cc", size = 174216, upload-time = "2026-08-15T08:20:12.334Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-win_amd64.whl", hash = "sha256:70055ff39b97c99e7ae40ea3e393fb62aa2e44dbd9b29f8d14f42fb0025c3959", size = 199764, upload-time = "2026-08-15T08:20:13.908Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-cp37-abi3-win_arm64.whl", hash = "sha256:87e4f41d375c0b9be2fb5251aee4b8a689169e134535aed81bf085c3b647451e", size = 287318, upload-time = "2026-08-15T08:20:15.551Z" },
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/charset-normalizer/3.5.1/charset_normalizer-3.5.1-py3-none-any.whl", hash = "sha256:6df0ec430f9a831772c23ca5a224cba36517a58a84bb32c32bb59a9fa67c47f6", size = 68658, upload-time = "2026-08-15T08:20:43.306Z" },
+]
+
+[[package]]
 name = "click"
 version = "8.4.2"
 source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
@@ -258,6 +315,18 @@ source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.
 sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/fsspec/2026.7.0/fsspec-2026.7.0.tar.gz", hash = "sha256:c803c40f4cf860b49dea58ee3e1c33cb9c790520e233537e1340049f89b82a88", size = 317040, upload-time = "2026-07-28T16:34:51.052Z" }
 wheels = [
     { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/fsspec/2026.7.0/fsspec-2026.7.0-py3-none-any.whl", hash = "sha256:b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279", size = 206583, upload-time = "2026-07-28T16:34:49.538Z" },
+]
+
+[[package]]
+name = "googleapis-common-protos"
+version = "1.75.3"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "protobuf" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/googleapis-common-protos/1.75.3/googleapis_common_protos-1.75.3.tar.gz", hash = "sha256:57c435ac2c68b108999b6db075d9053e4d7a936ba57b4a3d45667b1346f1738a", size = 153905, upload-time = "2026-09-03T22:31:21.869Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/googleapis-common-protos/1.75.3/googleapis_common_protos-1.75.3-py3-none-any.whl", hash = "sha256:a018d2bf098ca9fb6faa08d5bb780e2a2c2f73c566f069761331386c9596d3f2", size = 306984, upload-time = "2026-09-03T22:30:45.133Z" },
 ]
 
 [[package]]
@@ -408,6 +477,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "httpx" },
     { name = "modal" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-sdk" },
     { name = "protobuf" },
     { name = "pydantic" },
     { name = "stitch" },
@@ -427,6 +498,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "modal", specifier = ">=1.5.3" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.39,<2" },
+    { name = "opentelemetry-sdk", specifier = ">=1.39,<2" },
     { name = "protobuf", specifier = ">=5.29" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "stitch", git = "https://github.com/modal-projects/stitch.git?rev=375a9396a7b05770dc4ed9cc5fe34fc4d5a472d5" },
@@ -601,6 +674,75 @@ dependencies = [
 sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-api/1.44.0/opentelemetry_api-1.44.0.tar.gz", hash = "sha256:67647e5e9566edcf421166fdf022b3537f818635daa852b289e34604dc6fb33a", size = 72406, upload-time = "2026-07-16T15:25:32.678Z" }
 wheels = [
     { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-api/1.44.0/opentelemetry_api-1.44.0-py3-none-any.whl", hash = "sha256:94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef", size = 60018, upload-time = "2026-07-16T15:25:11.657Z" },
+]
+
+[[package]]
+name = "opentelemetry-exporter-otlp-proto-common"
+version = "1.44.0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "opentelemetry-proto" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-exporter-otlp-proto-common/1.44.0/opentelemetry_exporter_otlp_proto_common-1.44.0.tar.gz", hash = "sha256:dc87a5a5bc58f149a56d1547e4691588fa12994cdc3bc039a694ccb3375862ac", size = 20202, upload-time = "2026-07-16T15:25:37.658Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-exporter-otlp-proto-common/1.44.0/opentelemetry_exporter_otlp_proto_common-1.44.0-py3-none-any.whl", hash = "sha256:9a9fe61bba73d802904bc989f1d6b4a7b1ee40f06c40e98d6f85af65aaebb694", size = 17045, upload-time = "2026-07-16T15:25:18.201Z" },
+]
+
+[[package]]
+name = "opentelemetry-exporter-otlp-proto-http"
+version = "1.44.0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "googleapis-common-protos" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-common" },
+    { name = "opentelemetry-proto" },
+    { name = "opentelemetry-sdk" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-exporter-otlp-proto-http/1.44.0/opentelemetry_exporter_otlp_proto_http-1.44.0.tar.gz", hash = "sha256:c633d7270ad6b57cd4cfbe8b0007a9e2e7c0cb50bd6c50fe2a7b245f721a09d8", size = 25806, upload-time = "2026-07-16T15:25:39.162Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-exporter-otlp-proto-http/1.44.0/opentelemetry_exporter_otlp_proto_http-1.44.0-py3-none-any.whl", hash = "sha256:838592fce774c1c8bb7b9a0a7facbfa82e17be5a8a4e94cef10cb84ae026bae3", size = 21850, upload-time = "2026-07-16T15:25:20.006Z" },
+]
+
+[[package]]
+name = "opentelemetry-proto"
+version = "1.44.0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "protobuf" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-proto/1.44.0/opentelemetry_proto-1.44.0.tar.gz", hash = "sha256:c547a79c2f8c0c515d31509154682e5921c7cfd5ca67b70e1f9266e2c3e103f3", size = 46488, upload-time = "2026-07-16T15:25:45.34Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-proto/1.44.0/opentelemetry_proto-1.44.0-py3-none-any.whl", hash = "sha256:898b155a0e1557afd867478fb6158e8122a46329ca0bb8dc53cc55e98f017f56", size = 72483, upload-time = "2026-07-16T15:25:28.429Z" },
+]
+
+[[package]]
+name = "opentelemetry-sdk"
+version = "1.44.0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-sdk/1.44.0/opentelemetry_sdk-1.44.0.tar.gz", hash = "sha256:cebe7f65dc12f26ead75c6064de12fd2a9052e5060c0272d402cfa203aae123b", size = 208624, upload-time = "2026-07-16T15:25:46.078Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-sdk/1.44.0/opentelemetry_sdk-1.44.0-py3-none-any.whl", hash = "sha256:df081c4c6bcfdb1211e3e86140376792643128a25f8d72d1d27675936e7e96ad", size = 137221, upload-time = "2026-07-16T15:25:29.534Z" },
+]
+
+[[package]]
+name = "opentelemetry-semantic-conventions"
+version = "0.65b0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-semantic-conventions/0.65b0/opentelemetry_semantic_conventions-0.65b0.tar.gz", hash = "sha256:f9b2b81e9d5b64f11bc952075e7e9c7fb0aab075c7fd1c46d597f1b919852d60", size = 148774, upload-time = "2026-07-16T15:25:46.902Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/opentelemetry-semantic-conventions/0.65b0/opentelemetry_semantic_conventions-0.65b0-py3-none-any.whl", hash = "sha256:1cacde7b0ad306f84c5ef08c3dbe1bbaf20165bba6f8bff43b670e555a086bcb", size = 204645, upload-time = "2026-07-16T15:25:30.688Z" },
 ]
 
 [[package]]
@@ -906,6 +1048,21 @@ wheels = [
 ]
 
 [[package]]
+name = "requests"
+version = "2.34.2"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+dependencies = [
+    { name = "certifi" },
+    { name = "charset-normalizer" },
+    { name = "idna" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/requests/2.34.2/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/requests/2.34.2/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
+]
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
@@ -1136,6 +1293,15 @@ dependencies = [
 sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/typing-inspection/0.4.4/typing_inspection-0.4.4.tar.gz", hash = "sha256:547274fa6b0a561ccf549cc9524b999a578e737d015d8709d021f9d0d13bea47", size = 76928, upload-time = "2026-08-12T12:37:25.997Z" }
 wheels = [
     { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/typing-inspection/0.4.4/typing_inspection-0.4.4-py3-none-any.whl", hash = "sha256:65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147", size = 14750, upload-time = "2026-08-12T12:37:24.648Z" },
+]
+
+[[package]]
+name = "urllib3"
+version = "2.7.0"
+source = { registry = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/" }
+sdist = { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/urllib3/2.7.0/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+wheels = [
+    { url = "https://modal-labs-459781239556.d.codeartifact.us-east-1.amazonaws.com/pypi/modal-pypi/simple/urllib3/2.7.0/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
 ]
 
 [[package]]

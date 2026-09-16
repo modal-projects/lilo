@@ -12,9 +12,10 @@ from megatron.core import parallel_state
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
 from lilo.engine.spmd import DistributedExecutor, initialize_distributed_runtime
+from lilo.telemetry.backend import measured
 
 from .contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ModelSpec,
     SamplerPublication,
@@ -67,7 +68,7 @@ class LoraJobState:
     load_optimizer: bool = False
 
 
-class LoraMegatronBackend(CommandBackend):
+class LoraMegatronBackend(Backend):
     def __init__(
         self,
         config: EngineModelConfig,
@@ -429,6 +430,7 @@ class LoraMegatronBackend(CommandBackend):
                 self.jobs[item.model_id].accumulating = True
         return outputs
 
+    @measured("optimizer")
     def _optim_step_batch(
         self,
         model_ids: tuple[str, ...],
@@ -480,7 +482,7 @@ class LoraMegatronBackend(CommandBackend):
             OptimStepResponse(metrics=metrics.copy()) for _model_id in model_ids
         )
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         snapshot = self._sampler_captures[capture_id]
         try:
             persist_adapter_snapshot(snapshot)
@@ -508,7 +510,7 @@ class LoraMegatronBackend(CommandBackend):
                 else None
             ),
             "optimizer_step": state.optimizer_step,
-            "_path": str(self.checkpoint_dir / model_id / "weights" / destination),
+            "_path": str(self.checkpoint_dir / destination / model_id),
         }
 
     def _shutdown(self) -> None:

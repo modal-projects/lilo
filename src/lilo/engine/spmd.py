@@ -14,18 +14,18 @@ from tinker import AdamParams, ForwardBackwardOutput
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
 from lilo.backends.contract import (
-    CommandBackend,
+    Backend,
     ForwardBatch,
     ForwardItem,
     ModelSpec,
 )
 
-from .api import Execution, OperationKind
+from .api import Command, OperationKind
 from .operations import (
-    LoadWeightsPayload,
+    LoadCheckpointPayload,
     OperationPayload,
+    SaveCheckpointPayload,
     SaveWeightsForSamplerPayload,
-    SaveWeightsPayload,
 )
 
 # Follower broadcasts wait for the next command, including time spent idle.
@@ -90,7 +90,7 @@ def initialize_distributed_runtime() -> tuple[Any, Any, Any]:
 class DistributedExecutor:
     def __init__(
         self,
-        backend: CommandBackend,
+        backend: Backend,
         *,
         command_group=None,
         checkpoint_persistence_group=None,
@@ -117,11 +117,13 @@ class DistributedExecutor:
         payload: OperationPayload,
     ) -> object:
         if kind == OperationKind.FORWARD_BACKWARD:
-            (result,) = await self.execute_batch((Execution(model_id, kind, payload),))
+            (result,) = await self.execute_forward_backward_batch(
+                (Command(model_id, kind, payload),)
+            )
             return result
 
         if kind == OperationKind.LOAD_WEIGHTS:
-            if not isinstance(payload, LoadWeightsPayload):
+            if not isinstance(payload, LoadCheckpointPayload):
                 raise TypeError("load_weights requires a load payload")
             await asyncio.to_thread(
                 self._dispatch,
@@ -166,9 +168,9 @@ class DistributedExecutor:
 
         raise ValueError(f"unsupported operation: {kind.value}")
 
-    async def execute_batch(
+    async def execute_forward_backward_batch(
         self,
-        executions: tuple[Execution, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         if not executions:
             raise ValueError("forward_backward batch cannot be empty")
@@ -215,14 +217,14 @@ class DistributedExecutor:
             raise RuntimeError("backend returned the wrong result count")
         return tuple(_serialize_forward_output(output) for output in outputs)
 
-    async def capture_operation(
+    async def capture_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
         payload: OperationPayload,
     ) -> object:
         if kind == OperationKind.SAVE_WEIGHTS:
-            if not isinstance(payload, SaveWeightsPayload):
+            if not isinstance(payload, SaveCheckpointPayload):
                 raise TypeError("save_weights requires a checkpoint payload")
             snapshot_id = uuid.uuid4().hex
             await asyncio.to_thread(
@@ -256,7 +258,7 @@ class DistributedExecutor:
             }
         raise ValueError(f"{kind.value} has no persistence phase")
 
-    async def persist_operation(
+    async def persist_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
@@ -264,7 +266,7 @@ class DistributedExecutor:
         capture: object,
     ) -> object:
         if kind == OperationKind.SAVE_WEIGHTS:
-            if not isinstance(payload, SaveWeightsPayload):
+            if not isinstance(payload, SaveCheckpointPayload):
                 raise TypeError("save_weights requires a checkpoint payload")
             if not isinstance(capture, Mapping):
                 raise ValueError("snapshot handle must be an object")
@@ -286,7 +288,7 @@ class DistributedExecutor:
             await asyncio.to_thread(
                 self._dispatch,
                 self.sampler_persistence_group,
-                "persist_sampler_snapshot",
+                "publish_sampler_snapshot",
                 (capture_id,),
             )
             return dict(publication)
@@ -303,7 +305,8 @@ class DistributedExecutor:
     async def close(self) -> None:
         await asyncio.to_thread(self._shutdown)
 
-    def follow(self, group=None) -> None:
+    def run_follower_loop(self, group=None) -> None:
+        """Block while receiving and executing rank-zero commands."""
         checkpoint_persistence = None
         sampler_persistence = None
         if group is None:
@@ -312,14 +315,14 @@ class DistributedExecutor:
                 or self.checkpoint_persistence_group is None
                 or self.sampler_persistence_group is None
             ):
-                raise RuntimeError("follow requires distributed command groups")
+                raise RuntimeError("run_follower_loop requires distributed command groups")
             checkpoint_persistence = threading.Thread(
-                target=self.follow,
+                target=self.run_follower_loop,
                 args=(self.checkpoint_persistence_group,),
                 name="tinker-checkpoint-persistence-follower",
             )
             sampler_persistence = threading.Thread(
-                target=self.follow,
+                target=self.run_follower_loop,
                 args=(self.sampler_persistence_group,),
                 name="tinker-sampler-persistence-follower",
             )
@@ -353,7 +356,7 @@ class DistributedExecutor:
     def _persist_checkpoint(
         self,
         model_id: str,
-        payload: SaveWeightsPayload,
+        payload: SaveCheckpointPayload,
         snapshot: Mapping[str, Any],
     ) -> dict[str, str]:
         if snapshot.get("model_id") != model_id:

@@ -171,17 +171,14 @@ def build_app(
     def prepare_assets():
         from huggingface_hub import snapshot_download
 
-        # Explicit revisions are always resolved by HF; unpinned recipes may reuse
-        # the existing local asset cache, matching the shared deployment recipes.
-        if engine.revision or not os.path.isfile(
-            engine.training.hf_checkpoint + "/config.json"
-        ):
-            snapshot_download(
-                engine.model,
-                revision=engine.revision,
-                local_dir=engine.training.hf_checkpoint,
-            )
-            assets.commit()
+        # Let HF validate/resume the snapshot. config.json alone can survive an
+        # interrupted download without the model's weight shards or tokenizer.
+        snapshot_download(
+            engine.model,
+            revision=engine.revision,
+            local_dir=engine.training.hf_checkpoint,
+        )
+        assets.commit()
 
     @app.function(
         name="trainer",

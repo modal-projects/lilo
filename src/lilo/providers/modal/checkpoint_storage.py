@@ -30,8 +30,8 @@ def _checkpoint_entry(checkpoint: Path) -> dict[str, object]:
     files = [file for file in checkpoint.rglob("*") if file.is_file()]
     metadata_file = checkpoint / "metadata.json"
     return {
-        "model_id": checkpoint.parent.parent.name,
-        "name": checkpoint.name,
+        "model_id": checkpoint.name,
+        "name": checkpoint.parent.name,
         "path": str(checkpoint),
         "time": checkpoint.stat().st_mtime,
         "size_bytes": sum(file.stat().st_size for file in files),
@@ -47,14 +47,17 @@ def _scan_checkpoints(root: str, model_id: str | None) -> list[dict[str, object]
     root = Path(root)
     if not root.is_dir():
         return []
-    model_dirs = [root / model_id] if model_id is not None else list(root.iterdir())
-    return [
-        _checkpoint_entry(checkpoint)
-        for model_dir in model_dirs
-        if (model_dir / "weights").is_dir()
-        for checkpoint in (model_dir / "weights").iterdir()
-        if checkpoint.is_dir()
-    ]
+    entries = []
+    for name_dir in root.iterdir():
+        if not name_dir.is_dir():
+            continue
+        candidates = (
+            [name_dir / model_id] if model_id is not None else name_dir.iterdir()
+        )
+        for checkpoint in candidates:
+            if checkpoint.is_dir() and (checkpoint / "metadata.json").is_file():
+                entries.append(_checkpoint_entry(checkpoint))
+    return entries
 
 
 class ModalCheckpointStorage:

@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from megatron.core.distributed import finalize_model_grads
 
+from lilo.telemetry.backend import measured
+
 from ..common.optimizer import set_adam_params
 
 
+@measured("optimizer")
 def run_fft_optimizer_step(optimizer, model, *, adam) -> tuple[bool, float]:
     set_adam_params(optimizer, adam)
     try:

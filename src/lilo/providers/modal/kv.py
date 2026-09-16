@@ -17,7 +17,8 @@ EXPORT_KV_NAME = "lilo-exports"
 ARTIFACT_KV_NAME = "lilo-artifacts"
 FFT_POOL_KV_NAME = "lilo-fft-pools"
 LIST_ITEMS_ATTEMPTS = 3
-LIST_ITEMS_TIMEOUT_SECONDS = 30.0
+# A healthy scan of ~4,800 session records can take over 40 seconds.
+LIST_ITEMS_TIMEOUT_SECONDS = 120.0
 DeleteDict = Callable[..., Awaitable[None]]
 
 STORE_NAMES = {

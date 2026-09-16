@@ -139,10 +139,18 @@ async def ensure_fft_pool(spec: dict) -> str:
     min_containers=0,
     timeout=60 * 60,
     retries=2,
-    secrets=[proxy_secret],
+    secrets=[proxy_secret, modal.Secret.from_name("lilo-api")],
 )
 @modal.concurrent(max_inputs=128)
 async def execute_sample(task: dict) -> dict:
+    from lilo.telemetry.otlp import sample_trace
+
+    stats: dict = {}
+    with sample_trace(task, stats):
+        return await _execute_sample(task, stats)
+
+
+async def _execute_sample(task: dict, stats: dict) -> dict:
     from lilo.inference.sampling import sample_task
 
     definition_id = str(task["engine_definition_id"])
@@ -172,6 +180,7 @@ async def execute_sample(task: dict) -> dict:
         headers=proxy_auth_headers(),
         on_wait=lambda: _touch_fft_pool(spec),
         context_length=definition.MAX_CONTEXT_LENGTH,
+        stats=stats,
     )
 
 
@@ -409,32 +418,36 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
     stopped = []
     registry = fft_pool_kv()
     for key, value in await registry.list_items("fft_pool:"):
-        spec = FFTPoolSpec.from_dict(value)
-        if spec.latest:
-            if spec.app_name in active_latest:
-                continue
-        else:
-            if await _last_touched(registry, spec, value) > (
-                time.time() - FFT_POOL_IDLE_TIMEOUT
-            ):
-                continue
-            try:
-                replicas = await ModalFlashPool(
-                    spec.app_name,
-                    "Server",
-                ).discover_replicas_async()
-            except modal.exception.NotFoundError:
-                await registry.delete(key)
+        try:
+            spec = FFTPoolSpec.from_dict(value)
+            if spec.latest:
+                if spec.app_name in active_latest:
+                    continue
+            else:
+                if await _last_touched(registry, spec, value) > (
+                    time.time() - FFT_POOL_IDLE_TIMEOUT
+                ):
+                    continue
+                try:
+                    replicas = await ModalFlashPool(
+                        spec.app_name,
+                        "Server",
+                    ).discover_replicas_async()
+                except modal.exception.NotFoundError:
+                    await registry.delete(key)
+                    await registry.delete(_touch_key(spec))
+                    continue
+                if replicas:
+                    continue
                 await registry.delete(_touch_key(spec))
-                continue
-            if replicas:
-                continue
-            await registry.delete(_touch_key(spec))
-        await asyncio.to_thread(stop_pool, spec)
-        await registry.delete(key)
-        stopped.append(spec.app_name)
-        if not spec.latest and await registry.get(_touch_key(spec)) is not None:
-            await ensure_fft_pool.spawn.aio(spec.as_dict())
+            await asyncio.to_thread(stop_pool, spec)
+            await registry.delete(key)
+            stopped.append(spec.app_name)
+            if not spec.latest and await registry.get(_touch_key(spec)) is not None:
+                await ensure_fft_pool.spawn.aio(spec.as_dict())
+        except Exception:
+            # Retain failed entries for retry without starving unrelated pools.
+            logging.getLogger(__name__).exception("Failed to clean FFT pool %s", key)
     return tuple(stopped)
 
 
