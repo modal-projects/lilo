@@ -42,7 +42,44 @@ def row_score(row, config):
     )
 
 
-def advantages(rewards: list[float], std_floor: float = 0.5) -> list[float]:
+def tailrl_advantages(rewards: list[float]) -> list[float]:
+    """Mean-centered TailRL, with the released code-optimization N scaling.
+
+    For ascending rewards, w_i = sum_{j<=i} (r_j-r_{j-1})/(N-j+1),
+    and A_i = N * (w_i - mean(w)). See arXiv:2609.02987v2, Sec. 4
+    and Appendix D, and Zanette-Labs/TailRL code_opt/advantages.py at
+    commit 5682c6ac03387355e017ce966693266bb148fa10.
+
+    The N factor matches a loss averaged over sequences. There is no std
+    normalization, clipping, or rank transform. Centering cancels the first
+    reward gap, so start at the minimum for numerical stability and to handle
+    signed codegolf rewards directly. Equal rewards receive equal advantages.
+    """
+    if not all(math.isfinite(r) for r in rewards):
+        raise ValueError("TailRL rewards must be finite")
+    n = len(rewards)
+    if n <= 1:
+        return [0.0] * n
+    order = sorted(range(n), key=rewards.__getitem__)
+    previous = rewards[order[0]]
+    cumulative = 0.0
+    weights = [0.0] * n
+    for rank, index in enumerate(order):
+        reward = rewards[index]
+        cumulative += (reward - previous) / (n - rank)
+        weights[index] = n * cumulative
+        previous = reward
+    mean = math.fsum(weights) / n
+    return [weight - mean for weight in weights]
+
+
+def advantages(
+    rewards: list[float], std_floor: float = 0.5, *, estimator: str = "grpo"
+) -> list[float]:
+    if estimator == "tailrl":
+        return tailrl_advantages(rewards)
+    if estimator != "grpo":
+        raise ValueError(f"Unknown advantage estimator: {estimator}")
     mean = sum(rewards) / len(rewards)
     std = math.sqrt(sum((r - mean) ** 2 for r in rewards) / len(rewards))
     return [(r - mean) / max(std, std_floor) for r in rewards]

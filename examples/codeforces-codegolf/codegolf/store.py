@@ -7,6 +7,12 @@ import time
 import uuid
 from pathlib import Path
 
+from codegolf.config import with_config_defaults
+
+
+def _comparable_spec(spec):
+    return {**spec, "config": with_config_defaults(spec["config"])}
+
 
 def atomic_json(path: Path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +53,7 @@ class Store:
         if target <= 0:
             raise ValueError("The training step target must be positive")
         old = self.read("spec.json")
-        if old is not None and old != spec:
+        if old is not None and _comparable_spec(old) != _comparable_spec(spec):
             previous_target = old["config"]["steps"]
             old_tokens = old["config"].get("max_tokens")
             new_tokens = spec["config"].get("max_tokens")
@@ -58,7 +64,7 @@ class Store:
                 }
                 checkpoint = self.read("checkpoint.json")
                 if (
-                    expected != spec
+                    _comparable_spec(expected) != _comparable_spec(spec)
                     or not isinstance(old_tokens, int)
                     or not isinstance(new_tokens, int)
                     or not old_tokens < new_tokens <= 65536
@@ -80,7 +86,10 @@ class Store:
                 )
             else:
                 previous_inputs = {**old, "config": {**old["config"], "steps": target}}
-                if previous_inputs != spec or target <= previous_target:
+                if (
+                    _comparable_spec(previous_inputs) != _comparable_spec(spec)
+                    or target <= previous_target
+                ):
                     raise ValueError(
                         "Resume configuration or dataset differs from the saved run"
                     )
