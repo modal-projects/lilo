@@ -49,7 +49,7 @@ An engine recipe defines the model, context limits, trainer/sampler GPU topology
 
 A scope permits one active training model. Creating another full training client does not attach to the existing learner. Other processes can connect using the scope's URL and API key while its owner remains alive.
 
-The process holding `lilo.run` owns the deployment. Its preemption, timeout, or disconnect can end the trainer's lifetime too. A controller retry opens fresh resources; it does not restore training. Normal context exit stops owned resources but does not automatically checkpoint. Completed checkpoints persist in the checkpoint Volume; abrupt owner death can leave separately deployed pinned samplers to scale down when idle.
+The process holding `lilo.run` owns the deployment. Its preemption, timeout, or disconnect can end the trainer's lifetime too. A controller retry opens fresh resources; it does not restore training. Normal context exit stops owned resources but does not automatically checkpoint. Completed checkpoints persist in the checkpoint Volume. Pinned samplers run in owned ephemeral child apps; abrupt owner death also ends those apps after Modal detects the lost owner, so cleanup is eventual rather than instantaneous.
 
 
 ### Modifying engines

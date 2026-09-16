@@ -1,6 +1,8 @@
 CORE_PACKAGES = (
     "fastapi>=0.141.1",
     "httpx>=0.28.1",
+    "opentelemetry-sdk==1.43.0",
+    "opentelemetry-exporter-otlp-proto-http==1.43.0",
     "modal>=1.5.3",
     "protobuf>=5.29",
     "pydantic>=2.13.4",

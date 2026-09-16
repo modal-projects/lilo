@@ -46,6 +46,7 @@ async def serve_engine(
     definition_id: str,
     revision: str,
     instance_id: str,
+    notify_reconciler: bool = True,
 ) -> None:
     import uvicorn
 
@@ -59,15 +60,16 @@ async def serve_engine(
     )
     await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
     engine = None
+    trainer_telemetry = None
     try:
         engine = await make_server()
         from lilo.telemetry.trainer import TrainerTelemetry
 
-        telemetry = TrainerTelemetry(
+        trainer_telemetry = TrainerTelemetry(
             instance_id, definition_id, record.boot_id,
             scoped=bool(os.environ.get("LILO_SCOPED_REGISTRY")),
         )
-        engine.observer = telemetry
+        engine.observer = trainer_telemetry
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)
         with modal.forward(ENGINE_PORT) as tunnel:
@@ -76,7 +78,8 @@ async def serve_engine(
             )
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
             try:
-                await _kick_trainer_reconciler(definition_id)
+                if notify_reconciler:
+                    await _kick_trainer_reconciler(definition_id)
             except Exception:
                 logging.getLogger(__name__).exception(
                     "trainer reconcile %s",
@@ -90,7 +93,8 @@ async def serve_engine(
         try:
             if engine is not None:
                 await engine.close()
-                telemetry.close()
+                if trainer_telemetry is not None:
+                    trainer_telemetry.close()
         finally:
             record = record.model_copy(update={"state": "stopped"})
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
@@ -108,6 +112,7 @@ def run_engine_with_backend(
     max_models: int = 8,
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
+    notify_reconciler: bool = True,
 ) -> None:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
@@ -147,7 +152,10 @@ def run_engine_with_backend(
     executor = HttpBackendClient(
         f"http://127.0.0.1:{port}",
         read_timeout=operation_timeout,
-        on_read_timeout=lambda: signal_backend(signal.SIGKILL),
+        # A lost command response leaves gradient/optimizer state uncertain.
+        # Terminate all ranks so the process monitor exits the engine instead
+        # of leaving its model (and GPUs) live after the client has failed.
+        on_transport_error=lambda: signal_backend(signal.SIGKILL),
     )
 
     async def make_server() -> Engine:
@@ -178,6 +186,7 @@ def run_engine_with_backend(
                 definition_id=definition_id,
                 revision=revision,
                 instance_id=instance_id,
+                notify_reconciler=notify_reconciler,
             )
         )
         try:
