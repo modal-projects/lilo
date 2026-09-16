@@ -49,7 +49,7 @@ def test_checkpoint_storage_creates_one_v2_volume_without_live_lookup() -> None:
 
 
 def test_all_definitions_share_checkpoint_storage() -> None:
-    assert len(FULL_DEFINITIONS) == len(DEFINITIONS) == 5
+    assert FULL_DEFINITIONS == DEFINITIONS
     assert CHECKPOINT_VOLUME_NAME == "lilo-checkpoints"
     assert CHECKPOINT_ROOT == "/checkpoints"
 

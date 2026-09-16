@@ -40,7 +40,7 @@ class CapturedDeltaShard:
 
 
 @dataclass(frozen=True)
-class FFTCapturedDelta:
+class CapturedFullDelta:
     ref: VersionRef
     parent: VersionRef
     metadata: dict[str, Any]
@@ -58,8 +58,8 @@ class _PrefetchedChunk:
     ready: Any
 
 
-class FFTDeltaWriter:
-    """Encode bridge-exported weights against the last published snapshot.
+class FullDeltaWriter:
+    """Encode exported Hugging Face weights against the last published snapshot.
 
     Rank zero keeps the previous Hugging Face weights in pinned CPU memory.
     Each capture moves those bytes to the GPU, finds changed bytes there, and
@@ -77,7 +77,7 @@ class FFTDeltaWriter:
     def capture(
         self,
         *,
-        bridge,
+        exporter,
         model,
         model_id: str,
         publish_version: int,
@@ -85,13 +85,13 @@ class FFTDeltaWriter:
         base_model: str,
         hf_checkpoint: str,
         bulletin_root: str,
-    ) -> FFTCapturedDelta:
+    ) -> CapturedFullDelta:
         ref = VersionRef(model_id, publish_version)
         parent = VersionRef(model_id, publish_version - 1)
         board = FFTSnapshotBulletin(bulletin_root)
         writer = dist.get_rank() == 0
         setup_error: Exception | None = None
-        # All ranks must agree that the parent loaded before the bridge export,
+        # All ranks must agree that the parent loaded before weight export,
         # which may itself use collectives.
         if writer:
             try:
@@ -142,7 +142,7 @@ class FFTDeltaWriter:
 
         pool = ThreadPoolExecutor(max_workers=workers)
         try:
-            for exported in bridge.export_hf_weights(
+            for exported in exporter.export_hf_weights(
                 model,
                 cpu=False,
                 show_progress=False,
@@ -206,7 +206,7 @@ class FFTDeltaWriter:
         compressed_bytes = sum(
             tensor.nbytes for shard in shards for tensor in shard.tensors.values()
         )
-        return FFTCapturedDelta(
+        return CapturedFullDelta(
             ref=ref,
             parent=parent,
             metadata=metadata,
@@ -221,7 +221,7 @@ class FFTDeltaWriter:
 
     def persist(
         self,
-        snapshot: FFTCapturedDelta,
+        snapshot: CapturedFullDelta,
         *,
         bulletin_root: str,
         bulletin_volume: str,
