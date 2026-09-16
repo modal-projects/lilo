@@ -169,7 +169,7 @@ def test_lora_backend_implements_generic_contract(monkeypatch) -> None:
     assert optim[0].metrics == {"grad_norm:mean": 0.5}
     publication = backend.capture_sampler_snapshot("model-a", "capture-a", 4)
     assert publication.publish_version == 4
-    backend.persist_sampler_snapshot("capture-a")
+    backend.publish_sampler_snapshot("capture-a")
     assert persisted == ["snapshot"]
     backend.unload_model("model-a")
     assert "model-a" not in backend.jobs
@@ -205,7 +205,7 @@ def test_fft_backend_implements_generic_contract(monkeypatch) -> None:
     )
     publication = backend.capture_sampler_snapshot("model-a", "capture-a", 11)
     assert publication.publish_version == 2
-    backend.persist_sampler_snapshot("capture-a")
+    backend.publish_sampler_snapshot("capture-a")
     assert "capture-a" not in backend._sampler_captures
     backend.unload_model("model-a")
     assert calls == [("capture", "model-a", "capture-a")]

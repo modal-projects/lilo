@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -8,7 +9,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from .api import Execution, Executor, OperationKind
+from lilo.telemetry import backend as telemetry
+from lilo.telemetry.otlp import provider
+
+from .api import Command, Executor, OperationKind
 from .operations import (
     OperationPayload,
     parse_model_spec,
@@ -32,11 +36,11 @@ class ExecuteBody(BaseModel):
     payload: Any
 
 
-class ExecuteBatchBody(BaseModel):
+class ForwardBackwardBatchBody(BaseModel):
     executions: tuple[ExecuteBody, ...]
 
 
-class PersistedOperationBody(ExecuteBody):
+class SnapshotBody(ExecuteBody):
     capture: Any = None
 
 
@@ -44,11 +48,22 @@ def create_backend_app(executor: Executor) -> FastAPI:
     app = FastAPI()
     app.state.executor_closed = False
 
+    @app.middleware("http")
+    async def collect_measurements(request, call_next):
+        with telemetry.recording(request.headers.get("x-lilo-telemetry") == "1"):
+            return await call_next(request)
+
     async def run(action: Awaitable[object]) -> JSONResponse:
+        def respond(content, status=200):
+            measurements = telemetry.active.get()
+            if measurements is not None:
+                content["telemetry"] = measurements.as_dict()
+            return JSONResponse(status_code=status, content=content)
+
         try:
-            return JSONResponse({"result": await action})
-        except Exception as exc:
-            return JSONResponse(status_code=500, content={"error": str(exc)})
+            return respond({"result": await action})
+        except Exception as exc:  # noqa: BLE001 - executor errors cross the HTTP boundary
+            return respond({"error": str(exc)}, status=500)
 
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
@@ -70,12 +85,14 @@ def create_backend_app(executor: Executor) -> FastAPI:
             )
         )
 
-    @app.post("/execute_batch")
-    async def execute_batch(body: ExecuteBatchBody) -> JSONResponse:
+    @app.post("/execute_forward_backward_batch")
+    async def execute_forward_backward_batch(
+        body: ForwardBackwardBatchBody,
+    ) -> JSONResponse:
         return await run(
-            executor.execute_batch(
+            executor.execute_forward_backward_batch(
                 tuple(
-                    Execution(
+                    Command(
                         item.model_id,
                         item.kind,
                         parse_operation_payload(item.kind, item.payload),
@@ -85,20 +102,20 @@ def create_backend_app(executor: Executor) -> FastAPI:
             )
         )
 
-    @app.post("/capture_operation")
-    async def capture_operation(body: PersistedOperationBody) -> JSONResponse:
+    @app.post("/capture_snapshot")
+    async def capture_snapshot(body: SnapshotBody) -> JSONResponse:
         return await run(
-            executor.capture_operation(
+            executor.capture_snapshot(
                 body.model_id,
                 body.kind,
                 parse_operation_payload(body.kind, body.payload),
             )
         )
 
-    @app.post("/persist_operation")
-    async def persist_operation(body: PersistedOperationBody) -> JSONResponse:
+    @app.post("/persist_snapshot")
+    async def persist_snapshot(body: SnapshotBody) -> JSONResponse:
         return await run(
-            executor.persist_operation(
+            executor.persist_snapshot(
                 body.model_id,
                 body.kind,
                 parse_operation_payload(body.kind, body.payload),
@@ -122,7 +139,9 @@ def create_backend_app(executor: Executor) -> FastAPI:
     return app
 
 
-class HttpExecutor:
+class HttpBackendClient:
+    """Proxy the executor interface to the training subprocess over HTTP."""
+
     def __init__(
         self,
         base_url: str,
@@ -130,13 +149,19 @@ class HttpExecutor:
         transport: httpx.AsyncBaseTransport | None = None,
         read_timeout: float | None = None,
         on_read_timeout: Callable[[], None] | None = None,
+        on_transport_error: Callable[[], None] | None = None,
     ) -> None:
         self.read_timeout = read_timeout
         self.on_read_timeout = on_read_timeout
+        self.on_transport_error = on_transport_error
+        self._transport_failed = False
         self.http = httpx.AsyncClient(
             base_url=base_url,
             transport=transport,
             timeout=httpx.Timeout(30.0, read=read_timeout),
+            # Commands mutate training state. Avoid racing the local server's
+            # idle connection timeout, and never retry an ambiguous command.
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
 
     async def accept_model(self, model_id: str, spec: object) -> None:
@@ -157,12 +182,12 @@ class HttpExecutor:
             },
         )
 
-    async def execute_batch(
+    async def execute_forward_backward_batch(
         self,
-        executions: tuple[Execution, ...],
+        executions: tuple[Command, ...],
     ) -> tuple[object, ...]:
         result = await self._post(
-            "/execute_batch",
+            "/execute_forward_backward_batch",
             {
                 "executions": [
                     {
@@ -176,14 +201,14 @@ class HttpExecutor:
         )
         return tuple(result)
 
-    async def capture_operation(
+    async def capture_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
         payload: OperationPayload,
     ) -> object:
         return await self._post(
-            "/capture_operation",
+            "/capture_snapshot",
             {
                 "model_id": model_id,
                 "kind": kind.value,
@@ -191,7 +216,7 @@ class HttpExecutor:
             },
         )
 
-    async def persist_operation(
+    async def persist_snapshot(
         self,
         model_id: str,
         kind: OperationKind,
@@ -199,7 +224,7 @@ class HttpExecutor:
         capture: object,
     ) -> object:
         return await self._post(
-            "/persist_operation",
+            "/persist_snapshot",
             {
                 "model_id": model_id,
                 "kind": kind.value,
@@ -215,14 +240,34 @@ class HttpExecutor:
         await self._post("/close", {})
 
     async def _post(self, path: str, body: dict) -> object:
+        if self._transport_failed:
+            raise RuntimeError("backend transport failed; checkpoint recovery required")
+        telemetry.received.set(None)
+        enabled = provider() is not None
         try:
-            response = await self.http.post(path, json=body)
+            response = await self.http.post(
+                path,
+                json=body,
+                headers={"x-lilo-telemetry": "1"} if enabled else {},
+            )
         except httpx.ReadTimeout as exc:
-            if self.on_read_timeout is not None:
-                self.on_read_timeout()
+            self._fence_transport_failure(read_timeout=True)
             raise TimeoutError(
                 f"backend {path} exceeded {self.read_timeout:g}s"
             ) from exc
+        except httpx.TransportError as exc:
+            self._fence_transport_failure()
+            raise RuntimeError(
+                f"backend {path} transport failed ({type(exc).__name__}); "
+                "execution outcome unknown; checkpoint recovery required"
+            ) from exc
+        if enabled:
+            try:
+                evidence = response.json().get("telemetry")
+                if isinstance(evidence, dict):
+                    telemetry.received.set(evidence)
+            except (ValueError, AttributeError):
+                pass
         if not response.is_success:
             try:
                 message = response.json()["error"]
@@ -230,6 +275,19 @@ class HttpExecutor:
                 message = response.text
             raise RuntimeError(message)
         return response.json()["result"]
+
+    def _fence_transport_failure(self, *, read_timeout: bool = False) -> None:
+        if self._transport_failed:
+            return
+        self._transport_failed = True
+        callback = self.on_transport_error
+        if callback is None and read_timeout:
+            callback = self.on_read_timeout
+        if callback is not None:
+            try:
+                callback()
+            except Exception:
+                logging.getLogger(__name__).exception("fence backend transport failure")
 
     async def close(self) -> None:
         await self.http.aclose()
@@ -245,7 +303,7 @@ def main() -> None:
     module_name, _, attr = reference.partition(":")
     executor = getattr(importlib.import_module(module_name), attr)()
     if int(os.environ.get("RANK", "0")) > 0:
-        executor.follow()
+        executor.run_follower_loop()
         return
     import uvicorn
 

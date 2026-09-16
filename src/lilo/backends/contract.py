@@ -65,7 +65,7 @@ class SamplerPublication:
     optimizer_step: int
 
 
-class CommandBackend(Protocol):
+class Backend(Protocol):
     def accept_model(self, model_id: str, spec: ModelSpec) -> None: ...
 
     def forward_backward(
@@ -148,7 +148,7 @@ class CommandBackend(Protocol):
         """
         ...
 
-    def persist_sampler_snapshot(self, capture_id: str) -> None:
+    def publish_sampler_snapshot(self, capture_id: str) -> None:
         """Persist and publish a detached sampler snapshot.
 
         This runs asynchronously and may overlap later GPU operations. It

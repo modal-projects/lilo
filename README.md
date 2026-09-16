@@ -183,6 +183,9 @@ policy update. Copy examples you want to run into your project; repository
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
 
+See [Observability](docs/observability.md) for OTLP export to Datadog or a custom
+destination, experiment labels, and the complete span/metric inventory.
+
 ## Examples
 
 [Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
