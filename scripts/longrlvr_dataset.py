@@ -17,12 +17,12 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import partial
-from pathlib import Path
 from typing import Any
 
 import chz
 import tinker
 from datasets import load_dataset
+from longrlvr_comparison_common import DATASET as DATASET_NAME
 from tinker_cookbook import renderers
 from tinker_cookbook.completers import StopCondition
 from tinker_cookbook.rl.problem_env import ProblemGroupBuilder
@@ -37,21 +37,6 @@ from tinker_cookbook.rl.types import (
     StepResult,
 )
 from tinker_cookbook.tokenizer_utils import get_tokenizer
-
-MODEL_NAME = "Qwen/Qwen3.5-9B"
-RENDERER_NAME = "qwen3_5_disable_thinking"
-DATASET_NAME = "Guanzheng/LongRLVR-Data"
-CONTEXT_LENGTH = 16_384
-MAX_GENERATION_TOKENS = 4_096
-MAX_PROMPT_TOKENS = 12_288
-GROUP_SIZE = 8
-GROUPS_PER_BATCH = 16
-SOURCE_GROUP_MULTIPLIER = 1.5
-MAX_STEPS = 10
-LEARNING_RATE = 1e-6
-GRAD_CLIP_NORM = 1.0
-SEED = 0
-SCRIPT_PATH = Path(__file__).resolve()
 
 _SECTION_PATTERNS = {
     "answer": re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE),

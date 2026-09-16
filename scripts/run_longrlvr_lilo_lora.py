@@ -15,83 +15,45 @@ import asyncio
 import inspect
 import math
 import os
-import re
 import subprocess
 import sys
 import textwrap
 import time
-from collections import Counter
 from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
 import tinker
 from grouped_tinker_completer import GroupedTinkerTokenCompleter
-from tinker_cookbook import checkpoint_utils, renderers
+from longrlvr_comparison_common import (
+    ADAM_BETAS,
+    ADAM_EPS,
+    CONTEXT_LENGTH,
+    DATASET_SEED,
+    GRAD_CLIP,
+    GROUP_SIZE,
+    GROUPS_PER_BATCH,
+    LEARNING_RATE,
+    LOSS_FN,
+    LOSS_FN_CONFIG,
+    MAX_STEPS,
+    MAX_STEPS_OFF_POLICY,
+    MAX_TOKENS,
+    MODEL_NAME,
+    RENDERER_NAME,
+    SAVE_EVERY,
+    SOURCE_GROUPS_PER_BATCH,
+    TEMPERATURE,
+    WANDB_GROUP,
+    WANDB_PROJECT,
+    WEIGHT_DECAY,
+)
+from tinker_cookbook import checkpoint_utils
 from tinker_cookbook.rl.train import AsyncConfig, Config
 from tinker_cookbook.rl.train import main as train_main
 
-MODEL_NAME = "Qwen/Qwen3.5-9B"
-RENDERER_NAME = "qwen3_5_disable_thinking"
-DATASET_NAME = "Guanzheng/LongRLVR-Data"
 BASE_URL = os.environ.get("TINKER_BASE_URL", "")
-
-CONTEXT_LENGTH = 16_384
-MAX_GENERATION_TOKENS = 4_096
-GROUP_SIZE = 8
-GROUPS_PER_BATCH = 16
-SOURCE_GROUP_MULTIPLIER = 1.5
-MAX_STEPS = 5
-LEARNING_RATE = 1e-4
-GRAD_CLIP_NORM = 1.0
-SEED = 0
 SCRIPT_PATH = Path(__file__).resolve()
-
-_SECTION_PATTERNS = {
-    "answer": re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE),
-    "useful_chunks": re.compile(
-        r"<useful_chunks>(.*?)</useful_chunks>",
-        re.DOTALL | re.IGNORECASE,
-    ),
-}
-_CHUNK_PATTERN = re.compile(r"<CHUNK_(\d+)>", re.IGNORECASE)
-_TOKEN_PATTERN = re.compile(r"\w+", re.UNICODE)
-_CONCISE_INSTRUCTION = (
-    "Keep the reasoning concise and reserve enough tokens to always emit "
-    "<useful_chunks>...</useful_chunks> and <answer>...</answer>."
-)
-
-
-def _single_section(response: str, name: str) -> str | None:
-    matches = _SECTION_PATTERNS[name].findall(response)
-    return matches[0].strip() if len(matches) == 1 else None
-
-
-def _token_f1(candidate: str, reference: str) -> float:
-    candidate_tokens = Counter(_TOKEN_PATTERN.findall(candidate.casefold()))
-    reference_tokens = Counter(_TOKEN_PATTERN.findall(reference.casefold()))
-    if not candidate_tokens or not reference_tokens:
-        return 0.0
-    overlap = sum((candidate_tokens & reference_tokens).values())
-    precision = overlap / sum(candidate_tokens.values())
-    recall = overlap / sum(reference_tokens.values())
-    return 2 * precision * recall / (precision + recall) if overlap else 0.0
-
-
-def _concise_prompt(prompt: list[renderers.Message]) -> list[renderers.Message]:
-    messages = [dict(message) for message in prompt]
-    if not messages:
-        return messages
-    content = messages[-1].get("content")
-    if not isinstance(content, str) or _CONCISE_INSTRUCTION in content:
-        return messages
-    marker = "\n\nDocument:"
-    messages[-1]["content"] = (
-        content.replace(marker, f"\n{_CONCISE_INSTRUCTION}{marker}", 1)
-        if marker in content
-        else f"{_CONCISE_INSTRUCTION}\n\n{content}"
-    )
-    return messages
 
 
 def _with_rollout_worker_count(original, worker_count: int):
@@ -192,10 +154,12 @@ async def run(
     group_size: int,
     groups_per_batch: int,
     source_group_multiplier: float,
-    max_generation_tokens: int,
+    max_tokens: int,
     base_url: str,
     log_path: str,
     seed: int,
+    wandb_group: str,
+    run_name: str,
 ) -> None:
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
     from tinker_cookbook.rl import rollouts as rl_rollouts
@@ -206,11 +170,11 @@ async def run(
     save_checkpoint = checkpoint_utils.save_checkpoint_async
 
     def clipped_adam_params(*args, **kwargs):
-        kwargs.setdefault("beta1", 0.9)
-        kwargs.setdefault("beta2", 0.95)
-        kwargs.setdefault("eps", 1e-8)
-        kwargs.setdefault("weight_decay", 0.0)
-        kwargs.setdefault("grad_clip_norm", GRAD_CLIP_NORM)
+        kwargs.setdefault("beta1", ADAM_BETAS[0])
+        kwargs.setdefault("beta2", ADAM_BETAS[1])
+        kwargs.setdefault("eps", ADAM_EPS)
+        kwargs.setdefault("weight_decay", WEIGHT_DECAY)
+        kwargs.setdefault("grad_clip_norm", GRAD_CLIP)
         return create_adam_params(*args, **kwargs)
 
     async def create_lora_training(
@@ -250,33 +214,34 @@ async def run(
         num_groups=steps * source_groups_per_batch,
         model_name=MODEL_NAME,
         renderer_name=RENDERER_NAME,
-        max_prompt_tokens=CONTEXT_LENGTH - max_generation_tokens,
+        max_prompt_tokens=CONTEXT_LENGTH - max_tokens,
         seed=seed,
     )
+    os.environ["WANDB_RUN_GROUP"] = wandb_group
     config = Config(
         learning_rate=LEARNING_RATE,
         dataset_builder=dataset_builder,
         model_name=MODEL_NAME,
         recipe_name="longrlvr",
         renderer_name=RENDERER_NAME,
-        max_tokens=max_generation_tokens,
+        max_tokens=max_tokens,
         log_path=log_path,
         eval_every=0,
-        save_every=1,
+        save_every=SAVE_EVERY,
         base_url=base_url,
-        wandb_project="miles-lora-longcontext",
-        wandb_name="phase1-lilo",
-        loss_fn="ppo",
-        loss_fn_config={
-            "clip_low_threshold": 0.8,
-            "clip_high_threshold": 1.28,
-        },
+        wandb_project=WANDB_PROJECT,
+        wandb_name=run_name,
+        loss_fn=LOSS_FN,
+        loss_fn_config=LOSS_FN_CONFIG,
+        lora_rank=32,
+        temperature=TEMPERATURE,
+        kl_penalty_coef=0.0,
         remove_constant_reward_groups=True,
         compute_post_kl=False,
         num_groups_to_log=1,
         rollout_json_export=True,
         async_config=AsyncConfig(
-            max_steps_off_policy=1,
+            max_steps_off_policy=MAX_STEPS_OFF_POLICY,
             groups_per_batch=groups_per_batch,
         ),
         max_steps=steps,
@@ -317,15 +282,17 @@ def main() -> None:
     parser.add_argument(
         "--source-group-multiplier",
         type=float,
-        default=SOURCE_GROUP_MULTIPLIER,
+        default=SOURCE_GROUPS_PER_BATCH / GROUPS_PER_BATCH,
     )
     parser.add_argument(
         "--max-generation-tokens",
         type=int,
-        default=MAX_GENERATION_TOKENS,
+        default=MAX_TOKENS,
     )
     parser.add_argument("--base-url", default=BASE_URL)
-    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--seed", type=int, default=DATASET_SEED)
+    parser.add_argument("--wandb-group", default=WANDB_GROUP)
+    parser.add_argument("--run-name")
     parser.add_argument("--log-path", type=Path)
     parser.add_argument(
         "--detach",
@@ -348,6 +315,7 @@ def main() -> None:
         parser.error("--base-url or TINKER_BASE_URL is required")
 
     stamp = time.strftime("%Y%m%d%H%M%S")
+    run_name = args.run_name or f"{args.wandb_group}-{stamp}"
     log_path = args.log_path or Path(
         f"scripts/results/longrlvr_qwen3_5_9b_lilo_lora_16k.{stamp}"
     )
@@ -371,6 +339,10 @@ def main() -> None:
             args.base_url,
             "--seed",
             str(args.seed),
+            "--wandb-group",
+            args.wandb_group,
+            "--run-name",
+            run_name,
             "--log-path",
             str(log_path),
         ]
@@ -392,10 +364,12 @@ def main() -> None:
             group_size=args.group_size,
             groups_per_batch=args.groups_per_batch,
             source_group_multiplier=args.source_group_multiplier,
-            max_generation_tokens=args.max_generation_tokens,
+            max_tokens=args.max_generation_tokens,
             base_url=args.base_url,
             log_path=str(log_path),
             seed=args.seed,
+            wandb_group=args.wandb_group,
+            run_name=run_name,
         )
     )
     print(log_path)
