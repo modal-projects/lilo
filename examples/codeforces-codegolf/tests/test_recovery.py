@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from codegolf import train as module
+from codegolf.reward import advantages, score
 from codegolf.store import Store
 
 
@@ -34,7 +35,9 @@ class Sampler:
             SimpleNamespace(
                 sequences=[
                     SimpleNamespace(
-                        tokens=[20 + i % 2], logprobs=[-0.2], stop_reason="stop"
+                        tokens=[20 + i % 2] + [30] * i,
+                        logprobs=[-0.2] * (i + 1),
+                        stop_reason="stop",
                     )
                     for i in range(num_samples)
                 ]
@@ -44,7 +47,8 @@ class Sampler:
 
 @pytest.mark.parametrize("async_mode", [False, True])
 @pytest.mark.parametrize("failure", ["optimizer", "publication"])
-def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode):
+@pytest.mark.parametrize("estimator", ["grpo", "tailrl"])
+def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimator):
     created, restored, released = [], [], []
     identities = []
     fault = [True]
@@ -68,7 +72,28 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode):
 
         async def forward_backward_async(self, items, loss, **kwargs):
             assert loss == "ppo"
-            assert len(items) == 2
+            assert len(items) == cfg.group_size
+            rewards = [
+                score(
+                    i % 2 == 0,
+                    "print(1)" if i % 2 == 0 else "print(0)",
+                    scale=cfg.reward_scale,
+                    bonus=cfg.reward_bonus,
+                    output_tokens=i + 1,
+                    token_penalty=cfg.output_token_penalty,
+                    token_scale=cfg.output_token_scale,
+                )
+                for i in range(cfg.group_size)
+            ]
+            expected = advantages(rewards, cfg.advantage_std_floor, estimator=estimator)
+            total_weights = []
+            for i, (item, a) in enumerate(zip(items, expected, strict=True)):
+                inputs = item.loss_fn_inputs
+                assert inputs["advantages"].data == pytest.approx([0] + [a] * (i + 1))
+                assert inputs["logprobs"].data == pytest.approx([0] + [-0.2] * (i + 1))
+                assert inputs["weights"].data[0] == 0
+                total_weights.append(sum(inputs["weights"].data))
+            assert total_weights == pytest.approx([total_weights[0]] * len(items))
             return Future(SimpleNamespace(metrics={}))
 
         async def optim_step_async(self, params):
@@ -136,8 +161,10 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode):
     cfg = config_type(
         steps=3,
         prompts_per_step=1,
-        group_size=2,
+        group_size=4,
         eval_problems=1,
+        eval_samples=4 if estimator == "tailrl" else 1,
+        advantage_estimator=estimator,
         checkpoint_every=1,
         eval_every=1,
     )
@@ -162,6 +189,16 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode):
         "0002",
         "0003",
     ]
+    for at in range(4):
+        metric = store.read(f"eval/{at:04d}.json")
+        assert metric["samples"] == cfg.eval_samples
+        assert metric["eval_samples"] == cfg.eval_samples
+        assert metric["pass_at_k"]["1"] == metric["pass_rate"]
+        assert metric["best_of_k"]["1"] == metric["reward"]
+        assert metric["pass_at_k"][str(cfg.eval_samples)] == 1.0
+        if estimator == "tailrl":
+            assert metric["pass_at_k"]["2"] == pytest.approx(5 / 6)
+    assert store.read("metrics/0003.json")["advantage_estimator"] == estimator
     # Extending a completed run must restore its optimizer, then take new steps.
     result = asyncio.run(
         module.train(tmp_path / "run", data, None, dataclasses.replace(cfg, steps=5))

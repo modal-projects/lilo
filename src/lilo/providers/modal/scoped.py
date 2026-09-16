@@ -133,6 +133,7 @@ def build_app(
     from lilo.inference.sampling import sample_task
 
     from .engines import ModalEnginePlatform
+    from .checkpoint_storage import ModalCheckpointStorage
     from .fft_pool import proxy_auth_headers
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
@@ -173,17 +174,14 @@ def build_app(
     def prepare_assets():
         from huggingface_hub import snapshot_download
 
-        # Explicit revisions are always resolved by HF; unpinned recipes may reuse
-        # the existing local asset cache, matching the shared deployment recipes.
-        if engine.revision or not os.path.isfile(
-            engine.training.hf_checkpoint + "/config.json"
-        ):
-            snapshot_download(
-                engine.model,
-                revision=engine.revision,
-                local_dir=engine.training.hf_checkpoint,
-            )
-            assets.commit()
+        # Let HF validate/resume the snapshot. config.json alone can survive an
+        # interrupted download without the model's weight shards or tokenizer.
+        snapshot_download(
+            engine.model,
+            revision=engine.revision,
+            local_dir=engine.training.hf_checkpoint,
+        )
+        assets.commit()
 
     @app.function(
         name="trainer",
@@ -442,6 +440,7 @@ def build_app(
             return call.object_id
 
         stores = ModalSessionKeyValueStores()
+        storage = ModalCheckpointStorage(checkpoints)
         plane = ScopedControlPlane(
             shared_kv(),
             ModalEnginePlatform(shared_kv(), spawn_engine),
@@ -450,6 +449,10 @@ def build_app(
             ensure_sampling_pool=ensure_pool,
             sampling_task_stores=stores,
             sampling_tasks=ModalSamplingTaskPlatform(stores, spawn_sampling),
+            read_checkpoint_metadata=storage.read_metadata,
+            list_checkpoints=storage.list,
+            delete_checkpoint=storage.delete,
+            checkpoint_root=storage.root,
         )
         definition = SimpleNamespace(
             CATALOG_VISIBLE=True,

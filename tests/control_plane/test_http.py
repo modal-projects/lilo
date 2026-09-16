@@ -312,6 +312,45 @@ def test_base_sampling_session_prefers_full_definition() -> None:
     asyncio.run(run())
 
 
+def test_sample_endpoint_forwards_optional_cache_affinity_key() -> None:
+    class CaptureControlPlane:
+        def __init__(self) -> None:
+            self.requests = []
+
+        async def submit_sample(self, request):
+            self.requests.append(request)
+            return f"request-{len(self.requests)}"
+
+    async def run() -> None:
+        plane = CaptureControlPlane()
+        app = create_control_plane_app(plane, DEFINITIONS, api_key=None)
+        client = httpx.AsyncClient(
+            base_url="http://control-plane",
+            transport=httpx.ASGITransport(app=app),
+        )
+        base = {"sampling_session_id": "sample-a", "seq_id": 0}
+
+        legacy = await client.post("/api/v1/asample", json=base)
+        affinity = await client.post(
+            "/api/v1/asample",
+            json={**base, "seq_id": 1, "cache_affinity_key": "trajectory-a"},
+        )
+        invalid = await client.post(
+            "/api/v1/asample",
+            json={**base, "seq_id": 2, "cache_affinity_key": "   "},
+        )
+
+        assert legacy.status_code == 200
+        assert "cache_affinity_key" not in plane.requests[0]
+        assert affinity.status_code == 200
+        assert plane.requests[1]["cache_affinity_key"] == "trajectory-a"
+        assert invalid.status_code == 400
+        assert len(plane.requests) == 2
+        await client.aclose()
+
+    asyncio.run(run())
+
+
 def test_full_model_info_is_not_lora() -> None:
     async def run() -> None:
         client = http_client()

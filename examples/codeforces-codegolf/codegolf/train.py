@@ -19,6 +19,7 @@ from lilo.client import create_full_training_client_async
 from tinker import types
 
 from codegolf.config import Config
+from codegolf.evaluation import sampling_metrics
 from codegolf.judge import judge
 from codegolf.pipeline import RolloutBuffer
 from codegolf.prompts import CODEGOLF_PROMPT, ORIGINAL_PROMPT, THINKING_CODEGOLF_PROMPT
@@ -188,6 +189,10 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     )
 
                 response = await retry_read(sample, store, "sampling_retry")
+                if len(response.sequences) != n:
+                    raise RuntimeError(
+                        f"Expected {n} samples, got {len(response.sequences)}"
+                    )
                 rows = []
                 for sequence in response.sequences:
                     tokens = list(sequence.tokens)
@@ -225,9 +230,12 @@ async def _train(root, data, app, cfg, commit, telemetry):
 
             async def evaluate(at):
                 records = await gather_work(
-                    *(group(p, 1, f"eval-{at:04d}") for p in evaluation)
+                    *(group(p, cfg.eval_samples, f"eval-{at:04d}") for p in evaluation)
                 )
-                await store.write(f"eval/{at:04d}.json", summarize(records, at))
+                await store.write(
+                    f"eval/{at:04d}.json",
+                    {**summarize(records, at), **sampling_metrics(records)},
+                )
 
             if step >= cfg.steps:
                 if store.read(f"eval/{step:04d}.json") is None:
@@ -303,7 +311,9 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 total_sequences = sum(len(g["rows"]) for g in records)
                 for g in records:
                     adv = advantages(
-                        [r["reward"] for r in g["rows"]], cfg.advantage_std_floor
+                        [r["reward"] for r in g["rows"]],
+                        cfg.advantage_std_floor,
+                        estimator=cfg.advantage_estimator,
                     )
                     for r, a in zip(g["rows"], adv, strict=True):
                         items.append(
@@ -335,6 +345,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 step = next_step
                 metric = summarize(records, step)
                 metric.update(
+                    advantage_estimator=cfg.advantage_estimator,
                     seconds=time.time() - started,
                     training=fb_result.metrics,
                     optimizer=optim_result.metrics,

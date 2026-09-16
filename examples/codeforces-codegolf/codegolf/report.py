@@ -11,6 +11,13 @@ def report(root: Path):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    config = (
+        json.loads((root / "spec.json").read_text())["config"]
+        if (root / "spec.json").exists()
+        else {}
+    )
+    estimator = config.get("advantage_estimator", "grpo")
+    estimator_label = "TailRL" if estimator == "tailrl" else estimator.upper()
     rows = [
         json.loads(p.read_text()) for p in sorted((root / "metrics").glob("*.json"))
     ]
@@ -87,16 +94,44 @@ def report(root: Path):
             )
     axes[0].legend()
     axes[-1].set_xlabel("Trainer step")
-    fig.suptitle("Qwen3.5-9B · Codeforces codegolf · GRPO")
+    fig.suptitle(f"Qwen3.5-9B · Codeforces codegolf · {estimator_label}")
     fig.tight_layout()
     fig.savefig(root / "reward.png", dpi=160)
+    plt.close(fig)
+    if any(r.get("eval_samples", 1) > 1 for r in evaluation):
+        fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
+        for ax, key, metric_label in zip(
+            axes,
+            ["pass_at_k", "best_of_k"],
+            ["Pass@k", "Best-of-k reward"],
+            strict=True,
+        ):
+            budgets = sorted({int(k) for row in evaluation for k in row.get(key, {})})
+            for k in budgets:
+                points = [r for r in evaluation if str(k) in r.get(key, {})]
+                ax.plot(
+                    [r["step"] for r in points],
+                    [r[key][str(k)] for r in points],
+                    "o-",
+                    label=f"k={k}",
+                )
+            ax.set_ylabel(metric_label)
+            ax.grid(alpha=0.2)
+            ax.legend()
+        axes[0].set_ylim(-0.02, 1.02)
+        axes[-1].set_xlabel("Trainer step")
+        fig.suptitle(
+            f"Codeforces codegolf · {estimator_label} · Held-out sampling budgets"
+        )
+        fig.tight_layout()
+        fig.savefig(root / "sampling.png", dpi=160)
+        plt.close(fig)
     (root / "metrics.json").write_text(json.dumps(rows, indent=2))
     summary = {
         "steps": rows[-1]["step"],
         "recorded_updates": len(rows),
-        "target_steps": json.loads((root / "spec.json").read_text())["config"]["steps"]
-        if (root / "spec.json").exists()
-        else None,
+        "target_steps": config.get("steps"),
+        "advantage_estimator": estimator,
         "first": rows[0],
         "last": rows[-1],
         "evaluation": evaluation,

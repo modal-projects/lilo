@@ -1,7 +1,7 @@
 # Scoped runs
 
-Start Lilo with an engine definition and use the returned URL and API key with
-Tinker. Other processes can connect using the same credentials.
+Start an engine and connect with Tinker. Other processes can use the same URL and
+API key while the context is open.
 
 ```python
 import lilo
@@ -12,56 +12,54 @@ engine = qwen3_5_4b_full_64k()
 with lilo.run(
     engine=engine,
     warm=True,
-
     latest=lilo.Pool(min_containers=1, max_containers=2),
 ) as (url, api_key):
     service = tinker.ServiceClient(base_url=url, api_key=api_key)
     trainer = lilo.create_full_training_client(service, engine.model)
-    # Existing Tinker forward_backward, optim_step and sampling methods.
+    # Use Tinker's training and sampling methods.
 ```
 
-`warm=True` starts one trainer and waits for it to load before entering the
-`with` body. Samplers start separately on demand. It uses an explicit
-invocation, not a minimum-container setting. One training model can be active
-at a time. Trainers stay alive while the context is open rather than being
-reclaimed by an idle cleaner.
+`warm=True` waits for the trainer to load before entering the `with` body.
+One training model can be active at a time. Samplers start separately on demand;
+`latest` sets the latest sampler’s replica limits and scaledown window. Its minimum activates
+when a model is created. Base and pinned samplers have a zero minimum.
 
-`latest` controls replica counts and the scaledown window. Its minimum activates
-when a model is created. Base and pinned-version samplers always have a zero minimum.
-Pinned versions are created on demand through the normal Tinker sampling API;
-there is no separate pinned-pool configuration to provide.
+Use your Modal profile and the `lilo-proxy` secret, or pass
+`proxy_secret=modal.Secret.from_name(...)`. An API key is generated for each run
+unless you supply `api_key`. App names default to `lilo-<hash>`.
 
-Apps default to `lilo-<hash>`. The sampler functions are `base_sampler` and
-`latest_sampler`.
+## Recovering a lost trainer
 
-## Replacing a lost trainer
-
-After confirmed trainer loss, create another full training client using the same
-service. Creating a second model while the first is active is rejected.
+When a training request reports HTTP 410 with `error="model_lost"`, create a
+replacement through the same service using a saved full-training checkpoint:
 
 ```python
-trainer = lilo.create_full_training_client(service, engine.model)
-trainer.load_state_with_optimizer(checkpoint_path).result()
+trainer = service.create_training_client_from_state_with_optimizer(checkpoint_path)
 latest = trainer.save_weights_and_get_sampling_client()
 ```
 
-The new model has its own publication history. Latest replicas follow its assignment. Stitch drains old generations, then
-the scoped CPU-delta sidecar retires the old container. Modal starts a fresh
-replica at the same endpoint to load the new model’s publications. A request for the new model waits until a replica has that
-model's required version. Old latest clients receive HTTP 410 after reassignment: use the
-new sampling client. Base sampling and pinned publications are unaffected.
-The app does not automatically restore checkpoints or replay failed updates.
+This works within the existing `lilo.run()` scope even when Modal restarted the
+same trainer invocation in a new process. The replacement uses the available
+trainer; a second model is still rejected while the first model is healthy or
+initializing. The old training client remains lost.
 
-## Your own engine
+Alternatively, create a full training client with
+`lilo.create_full_training_client(service, engine.model)` and explicitly call
+`trainer.load_state_with_optimizer(checkpoint_path).result()`.
 
-An engine definition specifies the complete execution recipe: model source,
-context and packing limits, GPU topology, backend settings, images, and sampler
-configuration. Pool limits change replica counts, not that recipe.
+Use the new latest client; old latest clients receive HTTP 410. Base sampling and
+previously pinned versions remain available. Recovery is explicit: the deployment
+does not restore checkpoints or replay failed updates automatically.
+Resume the data iterator and step counter from the saved checkpoint's position;
+updates since that checkpoint must be replayed. No background health polling is
+required: application code can recover when an ordinary training request fails.
 
-Create a Python file in your own project; no Lilo checkout or registry edit is needed:
+## Custom engines
+
+An engine defines the model, context limits, GPU layout, backend settings, and
+images. Define one in your own Python module and pass it to `lilo.run`:
 
 ```python
-# my_engine.py
 from dataclasses import replace
 from lilo.engines import qwen3_6_27b_full_64k
 
@@ -73,23 +71,15 @@ engine = replace(
 )
 ```
 
-Pass that object to `lilo.run(engine=engine)`. Full configuration types are exposed
-in `lilo.engines`: `Engine`, `EngineModelConfig`, `OptimizerConfig`, and
-`SamplingConfig`. Custom images are ordinary `modal.Image` objects. Changes to a
-recipe need their own memory and correctness validation.
-
-Use your existing Modal profile and sampler proxy credentials. The default proxy
-secret is `lilo-proxy`; override it with `proxy_secret=modal.Secret.from_name(...)`.
-The API key is generated per run unless supplied explicitly.
+Configuration types are exported from `lilo.engines`: `Engine`,
+`EngineModelConfig`, `OptimizerConfig`, and `SamplingConfig`.
+Custom images are ordinary `modal.Image` objects.
 
 ## Cleanup
 
-The API, trainer, base and latest samplers belong to one ephemeral app. Pinned
-samplers are also ephemeral apps, with their contexts held by the `lilo.run`
-owner. Normal exit closes pinned contexts before the main app. If the owner is
-killed, both parent and pinned apps stop after Modal detects owner disconnect
-(heartbeat expiry is asynchronous). Saved checkpoints remain; exit does not
-implicitly save a checkpoint. Modal retains stopped app history.
+Normal exit closes pinned sampler apps before the parent app. Both are ephemeral
+and stop after Modal detects owner disconnect if the owning process dies.
+Saved checkpoints remain; exiting does not save a checkpoint automatically.
 
 Pinned sampling refreshes `(model_id, version)` demand in the existing ownership
 Dict and resolves its route on every sampling retry. Missing routes wait with

@@ -141,6 +141,33 @@ backend packing/padding. Input-token count is omitted if any input chunk has no
 known text-token length. Executor spans measure wall-clock time, including
 backend transport and synchronization. They do not measure GPU kernel time.
 
+Megatron backend phases are children of the physical trainer span. They measure
+preparation, forward or combined forward/backward scheduling, result collection,
+and optimizer work on rank zero. Forward/backward scheduling may interleave
+microbatches; it is recorded as one interval. These are host wall-clock intervals
+and do not introduce CUDA synchronization or measure individual GPU kernels.
+
+Workload attributes have distinct scopes:
+
+- `lilo.loss_tokens` counts positions with a nonzero resolved loss weight and a
+  target other than `-100`. It is a position count, not a sum of weights or a
+  guarantee of a nonzero gradient. It appears on each command and is summed on
+  the physical batch after preparation.
+- `lilo.padded_tokens` and `lilo.packed_microbatch_count` describe the whole packed
+  batch before data-parallel sharding, including packing padding. They exclude
+  dummy microbatches added for rank balancing and are not divided among commands.
+- `lilo.checkpoint_bytes` is the logical size of files in a completed training
+  checkpoint directory, including all rank shards, metadata, and any model export.
+  It measures stored file bytes rather than upload traffic or in-memory tensors.
+  Size is omitted if it cannot be read. Sampler publications do not report this
+  training-checkpoint attribute.
+
+Checkpoint capture and persistence retain their existing command and trainer
+spans. Within persistence, `lilo.backend.checkpoint_write` measures rank-zero
+file serialization and writes; `lilo.backend.checkpoint_commit` measures the
+existing wait for all writers and the volume commit. Persistence can overlap
+later training operations.
+
 ## Viewing telemetry in Datadog
 
 After running a training or sampling operation, search APM for `service:lilo`
@@ -189,6 +216,8 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 | Span | `lilo.trainer.wait_persistence.save_weights`, `lilo.trainer.wait_persistence.save_weights_for_sampler` | Wait for preceding work in the same persistence lane |
 | Span | `lilo.trainer.capture.save_weights`, `lilo.trainer.capture.save_weights_for_sampler` | Capture state for persistence/publication |
 | Span | `lilo.trainer.persist.save_weights`, `lilo.trainer.persist.save_weights_for_sampler` | Background persistence/publication |
+| Span | `lilo.backend.prepare`, `lilo.backend.forward`, `lilo.backend.forward_backward`, `lilo.backend.collect`, `lilo.backend.outputs`, `lilo.backend.optimizer` | Rank-zero backend phases; children of the physical trainer operation |
+| Span | `lilo.backend.checkpoint_write`, `lilo.backend.checkpoint_commit` | Rank-zero file writing, then writer synchronization and volume commit |
 | Span | `lilo.sample` | Sampling acceptance → worker completion; worker start if acceptance timestamp unavailable |
 | Span | `lilo.sample.attempt` | One upstream sampling HTTP attempt, including retries; child of sampling root |
 | Gauge | `lilo.trainer.state` | One-hot operation state, observed/exported every five seconds |
@@ -196,8 +225,9 @@ configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
 | Span family | Additional exported attributes |
 | --- | --- |
 | Trainer and command identity | `lilo.trainer_instance_id`, `lilo.definition_id`, `lilo.boot_id`, `lilo.component`; `lilo.model_id`, `lilo.request_id` where there is one owner |
-| Command | `lilo.seq_id`, `lilo.operation`, `lilo.example_count`, `lilo.input_tokens` where applicable; `lilo.incomplete=true` on graceful shutdown with unfinished work |
-| Trainer phase/batch | `lilo.lane`, `lilo.operation`, `lilo.command_count`; aggregate `lilo.example_count`, `lilo.input_tokens` when known for all participants |
+| Command | `lilo.seq_id`, `lilo.operation`, `lilo.example_count`, `lilo.input_tokens`, `lilo.loss_tokens`, `lilo.checkpoint_bytes` where applicable; `lilo.incomplete=true` on graceful shutdown with unfinished work |
+| Trainer phase/batch | `lilo.lane`, `lilo.operation`, `lilo.command_count`; aggregate `lilo.example_count`, `lilo.input_tokens`, `lilo.loss_tokens` when known for all participants; `lilo.padded_tokens`, `lilo.packed_microbatch_count`, `lilo.checkpoint_bytes` when supplied by the backend |
+| Backend phase | Physical operation attributes plus `lilo.rank=0` and `lilo.component=backend` |
 | Control | `lilo.operation`, `lilo.component`, `http.response.status_code`, `error.type` on exceptions; model/request identity after successful handoff |
 | Experiment-aware spans | `lilo.run_id`, `lilo.run_attempt_id` under the rules above |
 | Sampling root | `lilo.request_id`, `lilo.model_id`, `lilo.base_model`, `lilo.num_samples`, `lilo.version_requested`, `lilo.latest`, `lilo.start_boundary`, `lilo.input_tokens`, `lilo.output_tokens`, `lilo.attempt_count`, `lilo.retry_count`, `error.type`; `lilo.version_served_start`, `lilo.version_served_end` for single-sequence requests |
@@ -215,27 +245,3 @@ exported.
 | Execution lane | `idle`, `accept`, `unload`, `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, `skip` |
 | Checkpoint lane | `idle`, `save_weights` |
 | Sampler lane | `idle`, `save_weights_for_sampler` |
-
-## Delivery and data handling
-
-Spans are exported in background batches. Trainer-state reporting begins when
-the engine server is constructed, after process initialization. Operations shorter
-than the sampling interval may not appear in the state metric; their spans retain
-the operation's start and end times.
-
-Abrupt process termination can lose open or buffered spans. Graceful shutdown
-marks unfinished command roots with `lilo.incomplete=true` and error status.
-Buffered commands discarded during unloading also end with error status.
-Deduplicated submissions reuse the original trace context while it remains in
-the engine's cache of the most recent 2,048 accepted commands; older submissions
-may have standalone control-plane spans.
-
-Export failures do not change operation results. Lilo uses private OpenTelemetry
-providers, leaving application-wide providers and instrumentation unchanged.
-Credentials are configured on the server; API clients do not need access to the
-telemetry destination.
-
-Exported data excludes prompts, generated text, token arrays, gradients,
-checkpoint contents, exception messages and stacks, API credentials, and metadata
-other than the documented experiment labels. Lilo exports traces and metrics;
-dashboards, notebooks, and retention policies are managed in the destination.

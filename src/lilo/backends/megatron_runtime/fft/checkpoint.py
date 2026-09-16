@@ -22,6 +22,8 @@ from megatron.core.dist_checkpointing.mapping import (
     ShardedTensorFactory,
 )
 
+from lilo.telemetry.backend import checkpoint_size, phase
+
 from ..common.checkpoint_io import (
     commit_checkpoint_volume,
     rank_tag,
@@ -202,47 +204,49 @@ def write_fft_checkpoint(
     metadata: dict[str, Any] | None = None,
     persistence_group,
 ) -> str:
-    path = fft_checkpoint_path(uri)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(checkpoint, path)
-    if hf_weights is not None:
-        save_torch_state_dict(
-            hf_weights,
-            path.parent,
-            safe_serialization=True,
-        )
-        for name in ("config.json", "generation_config.json"):
-            source = Path(hf_checkpoint) / name
-            if source.is_file():
-                shutil.copy2(source, path.parent / name)
+    with phase("checkpoint_write"):
+        path = fft_checkpoint_path(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(checkpoint, path)
+        if hf_weights is not None:
+            save_torch_state_dict(
+                hf_weights,
+                path.parent,
+                safe_serialization=True,
+            )
+            for name in ("config.json", "generation_config.json"):
+                source = Path(hf_checkpoint) / name
+                if source.is_file():
+                    shutil.copy2(source, path.parent / name)
 
-    if dist.get_rank() == 0:
-        metadata_path = fft_checkpoint_metadata_path(uri)
-        temporary = None
-        try:
-            with NamedTemporaryFile(
-                mode="w",
-                encoding="utf-8",
-                dir=metadata_path.parent,
-                prefix=f".{metadata_path.name}.",
-                delete=False,
-            ) as handle:
-                temporary = Path(handle.name)
-                json.dump(
-                    checkpoint["metadata"],
-                    handle,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                )
-                handle.write("\n")
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, metadata_path)
-        finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-    write_checkpoint_metadata(uri, metadata)
+        if dist.get_rank() == 0:
+            metadata_path = fft_checkpoint_metadata_path(uri)
+            temporary = None
+            try:
+                with NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    dir=metadata_path.parent,
+                    prefix=f".{metadata_path.name}.",
+                    delete=False,
+                ) as handle:
+                    temporary = Path(handle.name)
+                    json.dump(
+                        checkpoint["metadata"],
+                        handle,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
+                    handle.write("\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, metadata_path)
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+        write_checkpoint_metadata(uri, metadata)
     commit_checkpoint_volume(persistence_group)
+    checkpoint_size(uri)
     return uri
 
 

@@ -30,6 +30,11 @@ def build_parser():
     parser.add_argument("--steps", type=int, default=DEFAULT_STEPS)
     parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_VARIANT)
     parser.add_argument(
+        "--eval-samples",
+        type=int,
+        help="Samples per held-out problem (default: 8 for TailRL, 1 otherwise)",
+    )
+    parser.add_argument(
         "--rollouts",
         action="store_true",
         help="Fetch raw rollouts too, for entropy and diversity diagnostics",
@@ -40,12 +45,13 @@ def build_parser():
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    if args.command in {"config", "launch"}:
+        try:
+            cfg = config_for(args.variant, args.steps, eval_samples=args.eval_samples)
+        except ValueError as exc:
+            parser.error(str(exc))
     if args.command == "config":
-        print(
-            json.dumps(
-                dataclasses.asdict(config_for(args.variant, args.steps)), indent=2
-            )
-        )
+        print(json.dumps(dataclasses.asdict(cfg), indent=2))
         return
     if not os.environ.get("MODAL_ENVIRONMENT"):
         parser.error("Set MODAL_ENVIRONMENT to the deployment environment")
@@ -85,13 +91,14 @@ def main():
             history.parent.mkdir(parents=True, exist_ok=True)
             history.write_text(json.dumps(previous_handle, indent=2))
         call = modal.Function.from_name(APP_NAME, "run").spawn(
-            args.run, args.steps, args.variant
+            args.run, args.steps, args.variant, eval_samples=args.eval_samples
         )
         value = {
             "call_id": call.object_id,
             "run": args.run,
             "steps": args.steps,
             "variant": args.variant,
+            "eval_samples": cfg.eval_samples,
         }
         handle.write_text(json.dumps(value, indent=2))
         print(json.dumps(value))

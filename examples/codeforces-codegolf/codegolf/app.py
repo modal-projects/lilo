@@ -41,6 +41,7 @@ def run(
     run_name: str = DEFAULT_RUN,
     steps: int = DEFAULT_STEPS,
     variant: str = DEFAULT_VARIANT,
+    eval_samples: int | None = None,
 ):
     from codegolf.train import train
 
@@ -49,7 +50,7 @@ def run(
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
-    cfg = config_for(variant, steps)
+    cfg = config_for(variant, steps, eval_samples=eval_samples)
     volume.reload()
     import lilo
     from lilo.engines import qwen3_5_9b_full_64k
@@ -130,11 +131,12 @@ def main(
     steps: int = DEFAULT_STEPS,
     smoke: bool = False,
     variant: str = DEFAULT_VARIANT,
+    eval_samples: int | None = None,
 ):
     if smoke:
         print(judge_smoke.remote())
         return
-    print(run.remote(run_name, steps, variant))
+    print(run.remote(run_name, steps, variant, eval_samples=eval_samples))
 
 
 @app.function(image=image, timeout=600)

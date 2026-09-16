@@ -69,11 +69,12 @@ async def sample_task(
         raise ValueError("topk_prompt_logprobs must be non-negative")
     if data_parallel_size < 1:
         raise ValueError("data_parallel_size must be positive")
-    group_session_id = str(task["request_id"])
-    session_id = session_id or group_session_id
+    request_id = str(task["request_id"])
+    cache_affinity_id = _cache_affinity_id(task)
+    routing_session_id = cache_affinity_id or session_id or request_id
     routed_dp_rank = (
         int.from_bytes(
-            hashlib.sha256(session_id.encode()).digest()[:8],
+            hashlib.sha256(routing_session_id.encode()).digest()[:8],
             "big",
         )
         % data_parallel_size
@@ -106,8 +107,9 @@ async def sample_task(
                     version=version,
                     latest=latest,
                     index=index,
-                    group_session_id=group_session_id,
-                    session_id=session_id,
+                    request_id=request_id,
+                    routing_session_id=routing_session_id,
+                    cache_affinity_id=cache_affinity_id,
                     routed_dp_rank=routed_dp_rank,
                     prompt_logprobs=prompt_logprobs and index == 0,
                     topk_prompt_logprobs=(topk_prompt_logprobs if index == 0 else 0),
@@ -134,7 +136,6 @@ async def sample_task(
         stats.update(
             prompt_tokens=len(prompt),
             generated_tokens=sum(len(sequence["tokens"]) for sequence in sequences),
-            cache_hit_tokens=int(meta.get("cached_tokens") or 0),
             version_served_start=meta.get("weight_version_start"),
             version_served_end=meta.get("weight_version_end"),
         )
@@ -162,8 +163,9 @@ async def _sample_one(
     version: int | None,
     latest: bool,
     index: int,
-    group_session_id: str,
-    session_id: str,
+    request_id: str,
+    routing_session_id: str,
+    cache_affinity_id: str | None,
     routed_dp_rank: int,
     prompt_logprobs: bool,
     topk_prompt_logprobs: int,
@@ -182,6 +184,8 @@ async def _sample_one(
         "return_logprob": True,
         "routed_dp_rank": routed_dp_rank,
     }
+    if cache_affinity_id is not None:
+        body["session_id"] = cache_affinity_id
     if prompt_logprobs or topk_prompt_logprobs:
         body["logprob_start_len"] = 0
     if topk_prompt_logprobs:
@@ -212,7 +216,7 @@ async def _sample_one(
             if index == 0 and not waiting_logged:
                 print(
                     "execute_sample route_wait "
-                    f"request={group_session_id} model={model_id} "
+                    f"request={request_id} model={model_id} "
                     f"version={version}",
                     flush=True,
                 )
@@ -230,9 +234,9 @@ async def _sample_one(
             continue
         waiting_logged = False
         gateway_url = gateways[(index + reroute_attempt) % len(gateways)]
-        modal_session_id = session_id
+        modal_session_id = routing_session_id
         if reroute_attempt:
-            modal_session_id = f"{session_id}:retry-{reroute_attempt}"
+            modal_session_id = f"{routing_session_id}:retry-{reroute_attempt}"
         headers = {**(base_headers or {}), "Modal-Session-ID": modal_session_id}
         if model_id is not None:
             constrain_request(
@@ -265,7 +269,7 @@ async def _sample_one(
             if index == 0:
                 print(
                     "execute_sample reroute "
-                    f"request={group_session_id} attempt={reroute_attempt} "
+                    f"request={request_id} attempt={reroute_attempt} "
                     f"upstream={gateway_url} reason={reason}",
                     flush=True,
                 )
@@ -298,7 +302,7 @@ async def _sample_one(
                     if index == 0 and reroute_attempt:
                         print(
                             "execute_sample reroute_complete "
-                            f"request={group_session_id} attempts={reroute_attempt} "
+                            f"request={request_id} attempts={reroute_attempt} "
                             f"upstream={gateway_url}",
                             flush=True,
                         )
@@ -316,7 +320,7 @@ async def _sample_one(
                     if index == 0:
                         print(
                             "execute_sample reroute "
-                            f"request={group_session_id} attempt={reroute_attempt} "
+                            f"request={request_id} attempt={reroute_attempt} "
                             f"upstream={gateway_url} status={response.status_code} "
                             f"body={response.text[:120]!r}",
                             flush=True,
@@ -339,6 +343,25 @@ async def _backoff(stats: dict[str, Any] | None, seconds: float) -> None:
     if stats is not None:
         stats["wait_s"] = stats.get("wait_s", 0.0) + seconds
     await asyncio.sleep(seconds)
+
+
+def _cache_affinity_id(task: dict[str, Any]) -> str | None:
+    affinity_key = task["payload"].get("cache_affinity_key")
+    if affinity_key is None:
+        return None
+    if (
+        not isinstance(affinity_key, str)
+        or not affinity_key.strip()
+        or len(affinity_key) > 256
+    ):
+        raise ValueError(
+            "cache_affinity_key must be a non-empty string of at most 256 characters"
+        )
+    sampling_session_id = str(task["sampling_session_id"])
+    digest = hashlib.sha256(
+        f"{sampling_session_id}\0{affinity_key}".encode()
+    ).hexdigest()
+    return f"affinity-{digest[:32]}"
 
 
 def _prompt_tokens(prompt: dict[str, Any]) -> list[int]:
@@ -376,16 +399,12 @@ def _sampling_params(
         output["stop_token_ids"] = stop
     elif stop is not None:
         output["stop"] = stop
-    if remaining_context is not None:
+    if params.get("max_tokens") is not None:
+        output["max_new_tokens"] = int(params["max_tokens"])
+    elif remaining_context is not None:
         if remaining_context <= 0:
             raise ValueError("prompt leaves no room in the context window")
-        requested = params.get("max_tokens")
-        output["max_new_tokens"] = min(
-            int(requested) if requested is not None else remaining_context,
-            remaining_context,
-        )
-    elif params.get("max_tokens") is not None:
-        output["max_new_tokens"] = int(params["max_tokens"])
+        output["max_new_tokens"] = remaining_context
     return output
 
 

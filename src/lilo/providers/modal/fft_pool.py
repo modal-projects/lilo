@@ -155,7 +155,15 @@ def stop_pool(spec: FFTPoolSpec) -> None:
     environment = os.environ.get("MODAL_ENVIRONMENT")
     if environment:
         command.extend(["--env", environment])
-    subprocess.run(command, check=True)
+    result = subprocess.run(command, capture_output=True, text=True)
+    # Modal's CLI exits with 1 when the desired stopped state already holds.
+    # Keep other failures visible so the registry entry can be retried later.
+    already_stopped = result.returncode == 1 and any(
+        line.strip().startswith("App is already stopped.")
+        for line in (result.stdout + "\n" + result.stderr).splitlines()
+    )
+    if not already_stopped:
+        result.check_returncode()
 
 
 def _container_upstream(container) -> str | None:
