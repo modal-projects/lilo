@@ -7,8 +7,8 @@ from tinker import types
 
 from tests.support import SingleEnginePlatform, TinkerStubExecutor, serve
 from lilo.control_plane import ControlPlane, create_control_plane_app
-from lilo.engine import EngineServer
-from lilo.engine.backend import HttpExecutor, create_backend_app
+from lilo.engine import Engine
+from lilo.engine.backend_http import HttpBackendClient, create_backend_app
 from lilo.engine.http import HttpEngineClient, create_engine_app
 from lilo.providers.local import InMemoryKeyValueStore
 
@@ -32,7 +32,7 @@ def base_url():
         backend_url = stack.enter_context(
             serve(create_backend_app(TinkerStubExecutor()))
         )
-        engine_server = EngineServer(HttpExecutor(backend_url))
+        engine_server = Engine(HttpBackendClient(backend_url))
         engine_url = stack.enter_context(
             serve(create_engine_app(engine_server, token=ENGINE_TOKEN))
         )

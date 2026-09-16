@@ -12,6 +12,8 @@ from typing import Any
 import torch
 from megatron.bridge.peft.multi_lora_layers import expose_adapter_slot
 
+from lilo.telemetry.backend import checkpoint_size, phase
+
 from ..common.checkpoint_io import (
     commit_checkpoint_volume,
     rank_tag,
@@ -29,17 +31,19 @@ def write_training_checkpoint(
     metadata: dict[str, Any],
     persistence_group,
 ) -> str:
-    output = Path(uri)
-    output.mkdir(parents=True, exist_ok=True)
-    payload: dict[str, Any] = {
-        "adapter_megatron": adapter_state,
-        "optimizer_step": optimizer_step,
-    }
-    if optimizer_state is not None:
-        payload["optimizer"] = optimizer_state
-    torch.save(payload, output / f"checkpoint_{rank_tag()}.pt")
-    write_checkpoint_metadata(uri, metadata)
+    with phase("checkpoint_write"):
+        output = Path(uri)
+        output.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, Any] = {
+            "adapter_megatron": adapter_state,
+            "optimizer_step": optimizer_step,
+        }
+        if optimizer_state is not None:
+            payload["optimizer"] = optimizer_state
+        torch.save(payload, output / f"checkpoint_{rank_tag()}.pt")
+        write_checkpoint_metadata(uri, metadata)
     commit_checkpoint_volume(persistence_group)
+    checkpoint_size(uri)
     return uri
 
 

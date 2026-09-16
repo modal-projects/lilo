@@ -98,3 +98,31 @@ def test_full_definitions_configure_checkpoint_dir_and_environment() -> None:
         volume_name = env["LILO_CHECKPOINT_VOLUME"]
         assert isinstance(volume_name, ast.Name)
         assert volume_name.id == "CHECKPOINT_VOLUME_NAME"
+
+
+def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
+    import asyncio
+    import importlib
+
+    app = importlib.import_module("lilo.providers.modal.app")
+    monkeypatch.setattr(app, "CHECKPOINT_ROOT", str(tmp_path))
+    for relative in ("final/run-a", "final/run-b"):
+        checkpoint = tmp_path / relative
+        checkpoint.mkdir(parents=True)
+        (checkpoint / "metadata.json").write_text("{}")
+    (tmp_path / "empty").mkdir()
+    (tmp_path / "notes.txt").write_text("notes")
+    entries = app._scan_checkpoints(None)
+    assert {(e["model_id"], e["name"]) for e in entries} == {
+        ("run-a", "final"), ("run-b", "final")
+    }
+    assert len(entries) == 2
+    assert app._scan_checkpoints("run-a")[0]["path"] == str(tmp_path / "final/run-a")
+    assert app._scan_checkpoints("missing") == []
+    with (
+        patch.object(app.checkpoint_volume, "reload"),
+        patch.object(app.checkpoint_volume, "commit"),
+    ):
+        asyncio.run(app._delete_checkpoint(str(tmp_path / "final/run-a")))
+    assert app._scan_checkpoints("run-a") == []
+    assert len(app._scan_checkpoints("run-b")) == 1

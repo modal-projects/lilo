@@ -9,6 +9,8 @@ from typing import Any
 import torch
 from tinker import ForwardBackwardOutput, TensorData
 
+from lilo.telemetry import backend as telemetry
+
 from ...contract import ForwardBatch
 
 
@@ -22,6 +24,8 @@ def log_packing(
     rank: int,
 ) -> dict[str, float]:
     padded_tokens = sum(int(packed_bin["tokens"].numel()) for packed_bin in packed)
+    telemetry.count("lilo.padded_tokens", padded_tokens)
+    telemetry.count("lilo.packed_microbatch_count", len(packed))
     metrics = {
         "packing_input_sequences:sum": float(input_sequences),
         "packing_raw_tokens:sum": float(raw_tokens),
@@ -183,6 +187,15 @@ def build_sequence_batches(
                     "target_tokens and weights must match input_ids length"
                 )
 
+            if telemetry.active.get() is not None:
+                telemetry.count(
+                    "lilo.loss_tokens",
+                    sum(
+                        label != -100 and weight != 0
+                        for label, weight in zip(labels, weights, strict=True)
+                    ),
+                    model_id=item.model_id,
+                )
             sequence = {
                 "job_id": job_id,
                 "output_index": output_index,
@@ -609,6 +622,7 @@ def _merge_payloads(
     return merged
 
 
+@telemetry.measured("collect")
 def synchronize_collectors(
     output_collector,
     metric_collector,
@@ -661,6 +675,7 @@ def synchronize_collectors(
     return payload["outputs"], payload["metrics"]
 
 
+@telemetry.measured("outputs")
 def build_outputs(
     batch: ForwardBatch,
     output_collector: dict[int, list[dict[str, Any]]],
@@ -722,6 +737,7 @@ def build_outputs(
     return tuple(outputs)
 
 
+@telemetry.measured("prepare")
 def prepare_microbatches(
     batch: ForwardBatch,
     adapter_slots: dict[str, int] | None,
@@ -803,7 +819,7 @@ def run_megatron_pipeline(
         no_sync = getattr(chunk, "no_sync", None)
         if callable(no_sync):
             contexts.enter_context(no_sync())
-    with contexts:
+    with contexts, telemetry.phase("forward" if forward_only else "forward_backward"):
         get_forward_backward_func()(
             forward_step_func=forward_step,
             data_iterator=iter(microbatches),

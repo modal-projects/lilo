@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 
@@ -17,6 +17,8 @@ class SamplingTask:
     publish_version: int | None
     payload: dict
     latest: bool = False
+    accepted_at: float | None = None
+    telemetry_tags: dict[str, str] = field(default_factory=dict)
 
 
 class SamplingTaskStatus(StrEnum):

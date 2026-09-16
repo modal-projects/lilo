@@ -26,12 +26,12 @@ class OperationPayloadModel(BaseModel):
     extensions: dict[str, Any] = Field(default_factory=dict)
 
 
-class LoadWeightsPayload(OperationPayloadModel):
+class LoadCheckpointPayload(OperationPayloadModel):
     uri: str
     restore_optimizer: bool = False
 
 
-class SaveWeightsPayload(OperationPayloadModel):
+class SaveCheckpointPayload(OperationPayloadModel):
     destination: str = "latest"
     include_optimizer: bool = True
     overwrite: bool = False
@@ -48,8 +48,8 @@ class SkipPayload(OperationPayloadModel):
 OperationPayload: TypeAlias = (
     ForwardBackwardInput
     | AdamParams
-    | LoadWeightsPayload
-    | SaveWeightsPayload
+    | LoadCheckpointPayload
+    | SaveCheckpointPayload
     | SaveWeightsForSamplerPayload
     | SkipPayload
 )
@@ -58,8 +58,8 @@ _PAYLOAD_TYPES = {
     OperationKind.FORWARD: ForwardBackwardInput,
     OperationKind.FORWARD_BACKWARD: ForwardBackwardInput,
     OperationKind.OPTIM_STEP: AdamParams,
-    OperationKind.LOAD_WEIGHTS: LoadWeightsPayload,
-    OperationKind.SAVE_WEIGHTS: SaveWeightsPayload,
+    OperationKind.LOAD_WEIGHTS: LoadCheckpointPayload,
+    OperationKind.SAVE_WEIGHTS: SaveCheckpointPayload,
     OperationKind.SAVE_WEIGHTS_FOR_SAMPLER: SaveWeightsForSamplerPayload,
 }
 _LORA_FIELDS = {
@@ -108,7 +108,7 @@ def parse_operation_payload(
         restore_optimizer = bool(
             raw.get("restore_optimizer", raw.get("optimizer", False))
         )
-        return LoadWeightsPayload(
+        return LoadCheckpointPayload(
             uri=raw.get("path") or raw.get("uri"),
             restore_optimizer=restore_optimizer,
             extensions=_extensions(raw, known),
@@ -141,7 +141,7 @@ def parse_operation_payload(
             or "\0" in destination
         ):
             raise ValueError("checkpoint name must be a single path component")
-        return SaveWeightsPayload(
+        return SaveCheckpointPayload(
             destination=destination,
             include_optimizer=bool(raw.get("include_optimizer", True)),
             overwrite=bool(raw.get("overwrite", False)),

@@ -55,6 +55,9 @@ def create_engine_app(server: EngineApi, *, token: str | None = None) -> FastAPI
             raise HTTPException(status_code=401, detail="unauthorized")
 
     app = FastAPI(dependencies=[Depends(authorize)])
+    from lilo.telemetry.trainer import CommandMiddleware
+
+    app.add_middleware(CommandMiddleware, receiver=True)
 
     @app.exception_handler(RecordNotFound)
     async def not_found(request: Request, exc: RecordNotFound) -> JSONResponse:
@@ -168,7 +171,44 @@ class HttpEngineClient:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
+
+        async def inject_context(request):
+            from lilo.telemetry.trainer import headers as trace_headers
+
+            request.headers.update(trace_headers())
+
+        async def read_context(response):
+            import json
+
+            from opentelemetry.context import set_value
+            from opentelemetry.propagate import extract
+
+            from lilo.telemetry.trainer import accepted_root
+
+            canonical = response.headers.get("x-lilo-command-traceparent")
+            if canonical:
+                context = extract({"traceparent": canonical})
+                try:
+                    raw = json.loads(response.headers.get("x-lilo-command-tags", "{}"))
+                    tags = {
+                        k: v
+                        for k, v in raw.items()
+                        if k
+                        in (
+                            "lilo.run_id",
+                            "lilo.run_attempt_id",
+                            "lilo.model_id",
+                            "lilo.request_id",
+                        )
+                        and isinstance(v, str)
+                        and len(v) <= 256
+                    }
+                except (ValueError, AttributeError):
+                    tags = {}
+                accepted_root.set(set_value("lilo.command.tags", tags, context))
+
         self.http = httpx.AsyncClient(
+            event_hooks={"request": [inject_context], "response": [read_context]},
             base_url=base_url,
             headers=headers,
             transport=transport,
