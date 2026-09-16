@@ -6,9 +6,19 @@ import os
 APP_NAME = os.environ.get("CODEGOLF_APP", "lilo-codegolf-example")
 VOLUME_NAME = os.environ.get("CODEGOLF_VOLUME", APP_NAME)
 DEFAULT_RUN = "golf"
-DEFAULT_VARIANT = "async-v6"
-DEFAULT_STEPS = 500
-VARIANTS = ("tailrl", "async-v7", "async-v6", "async-v5", "reward-v3", "reward-v4")
+DEFAULT_VARIANT = "prompt-v8"
+DEFAULT_STEPS = 1000
+VARIANTS = (
+    "thinking-v10",
+    "thinking-v9",
+    "prompt-v8",
+    "tailrl",
+    "async-v7",
+    "async-v6",
+    "async-v5",
+    "reward-v3",
+    "reward-v4",
+)
 ADVANTAGE_ESTIMATORS = ("grpo", "tailrl")
 
 
@@ -74,10 +84,32 @@ class TailRLConfig(TunedAsyncConfig):
     eval_samples: int = 8
 
 
+@dataclasses.dataclass
+class ExplicitPromptConfig(StrongGolfConfig):
+    explicit_codegolf_prompt: bool = True
+
+
+@dataclasses.dataclass
+class ThinkingConfig(ExplicitPromptConfig):
+    enable_thinking: bool = True
+
+
+@dataclasses.dataclass
+class LongThinkingConfig(ThinkingConfig):
+    # Sampling clamps this to 65,536 minus the prompt and one reserved token.
+    max_tokens: int = 65536
+
+
 def config_for(variant=DEFAULT_VARIANT, steps=DEFAULT_STEPS, *, eval_samples=None):
     if steps <= 0:
         raise ValueError("steps must be positive")
-    if variant == "tailrl":
+    if variant == "thinking-v10":
+        config = LongThinkingConfig(steps=steps)
+    elif variant == "thinking-v9":
+        config = ThinkingConfig(steps=steps)
+    elif variant == "prompt-v8":
+        config = ExplicitPromptConfig(steps=steps)
+    elif variant == "tailrl":
         config = TailRLConfig(steps=steps)
     elif variant == "async-v7":
         config = StrongGolfConfig(steps=steps)

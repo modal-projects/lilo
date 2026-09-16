@@ -126,6 +126,8 @@ def build_app(
     pinned,
     checkpoint_volume_name,
     proxy_secret,
+    *,
+    telemetry_secret=None,
 ):
     from lilo.control_plane import create_control_plane_app
     from lilo.inference.sampling import sample_task
@@ -159,6 +161,7 @@ def build_app(
     checkpoints = modal.Volume.from_name(
         checkpoint_volume_name, create_if_missing=True, version=2
     )
+    telemetry_secrets = [telemetry_secret] if telemetry_secret is not None else []
     api_secret = modal.Secret.from_dict({"TINKER_API_KEY": api_key})
 
     @app.function(
@@ -194,7 +197,7 @@ def build_app(
         single_use_containers=True,
         retries=0,
         volumes={"/assets": assets, "/bulletin": bulletin, "/checkpoints": checkpoints},
-        secrets=[api_secret, proxy_secret],
+        secrets=[*telemetry_secrets, api_secret, proxy_secret],
     )
     def trainer(instance_id):
         from modal.config import config
@@ -356,7 +359,7 @@ def build_app(
         serialized=True,
         timeout=3600,
         retries=0,
-        secrets=[proxy_secret],
+        secrets=[*telemetry_secrets, proxy_secret],
     )
     @modal.concurrent(max_inputs=128)
     async def execute_sample(task):
@@ -379,10 +382,19 @@ def build_app(
             )
             gateway = ScopedFlashPool(route).gateway_url()
         try:
-            return await sample_task(
-                task, gateway,
-                data_parallel_size=gpu_count(engine.sampler_gpu) // engine.sampling.tensor_parallel_size,
-                headers=proxy_auth_headers(), context_length=engine.training.seq_length)
+            from lilo.telemetry.otlp import sample_trace
+
+            stats = {}
+            with sample_trace(task, stats):
+                return await sample_task(
+                    task,
+                    gateway,
+                    data_parallel_size=gpu_count(engine.sampler_gpu)
+                    // engine.sampling.tensor_parallel_size,
+                    headers=proxy_auth_headers(),
+                    context_length=engine.training.seq_length,
+                    stats=stats,
+                )
         finally:
             if pinned_request:
                 try:
@@ -406,7 +418,7 @@ def build_app(
         image=image,
         serialized=True,
         timeout=1200,
-        secrets=[api_secret],
+        secrets=[*telemetry_secrets, api_secret],
         volumes={"/checkpoints": checkpoints},
         routing_region="us-west",
     )

@@ -6,9 +6,28 @@ correctness and brevity. GRPO is the default; `--variant tailrl` selects
 [Tail-Likelihood Reinforcement Learning](https://zanette-labs.github.io/TailRL-website/).
 The model has no execution tool.
 
+The `thinking-v10` variant uses the full available 65,536-token context: the
+sampler subtracts prompt length and one reserved token from the output allowance.
+Thinking and final code share that allowance. Its reward is unchanged, including
+the output-token penalty capped at 0.20 once 16,384 output tokens are reached.
+The earlier `thinking-v9` retains its 16,384-token output limit.
+
+The `thinking-v9` variant enables Qwen's thinking mode. Its final answer is still
+judged for correctness and code length; thinking and final output share the
+16,384-token budget and both count toward the existing output-token penalty.
+Only code after `</think>` is judged; an unfinished thinking section submits no
+solution. Both thinking and answer tokens participate in the policy update.
+The prompt permits thinking while requiring a compact, code-only final answer.
+
+To start this variant from base weights, use a new run name:
+
+```bash
+uv run --env-file .env codegolf launch --run golf-thinking --variant thinking-v9 --steps 1000
+```
+
 ## Asynchronous execution
 
-The default `async-v6` overlaps rollout generation and judging with learner
+The default `prompt-v8` overlaps rollout generation and judging with learner
 updates. The historical `async-v5` variant retains a four-batch queue.
 Four producers prefill a bounded two-batch ready queue, then keep
 producing while a single consumer serializes trainer mutations. Sampling requests
@@ -29,11 +48,9 @@ batch time, learner wait, update time, and weight-publication time. Checkpointin
 and fixed-policy evaluation remain synchronization points; a buffer cannot
 promise continuous GPU utilization if sampling throughput is insufficient.
 
-## Recorded results
+## Recorded results from the earlier shared deployment
 
-The figures below document the original GRPO experiment.
-
-Snapshot through **step 748**, from an ongoing run targeting **1,000** steps.
+Historical snapshot through **step 748**, from a run targeting **1,000** steps.
 The validated split contains **123 training problems and 16 held-out problems**.
 
 ![Reward, correctness and lengths](figures/reward-0-748.png)
@@ -88,28 +105,29 @@ clear reductions and are not a random sample.
 
 ## Reward and configuration
 
-The recorded snapshot below uses `async-v6` (the default). The experimental
-`--variant async-v7` doubles the passing-code bonus to 0.30 and increases the
-output-token penalty to 0.20, keeping the scales, trainer and async pipeline
-unchanged. The live v7 continuation forks checkpoint 750 and targets 1,000; its
-results are not included in the step-748 snapshot. Passing still earns at least
-0.80 and failing at most zero. Compare correctness and lengths across the fork,
-not raw reward.
+The default `prompt-v8` explicitly tells the model that solutions are judged on
+correctness and source length, and asks it to omit comments and explanations.
+It uses the stronger reward introduced in `async-v7`:
 
 ```text
-penalty = 0.08 * min(output_tokens / 16384, 1)
-reward  = 1 + 0.15 * exp(-code_utf8_bytes / 2048) - penalty  # all tests pass
+penalty = 0.20 * min(output_tokens / 16384, 1)
+reward  = 1 + 0.30 * exp(-code_utf8_bytes / 2048) - penalty  # all tests pass
 reward  = -penalty                                        # otherwise
 advantage = (reward - group_mean) / max(group_std, 0.5)
 ```
 
+The historical step-748 snapshot uses `async-v6`, with bonus 0.15 and token
+penalty 0.08. Its later `async-v7` continuation and the new `prompt-v8` run are
+not included in those figures. Compare correctness and lengths across reward
+changes, not raw reward.
+
 All output tokens count, including prose outside the extracted code. Passing
-earns at least 0.92; failing earns at most zero. The standard-deviation floor
+earns at least 0.80; failing earns at most zero. The standard-deviation floor
 keeps tiny length differences from becoming unit-sized updates. `reward-v3`
 retains the previous `1 + 0.1 * exp(-bytes / 256)` passing reward without an
 output penalty. Neither reward guarantees stability.
 
-[Configuration](codegolf/config.py): 500 steps by default (`--steps 1000` for the recorded target), 4×8 samples per step,
+[Configuration](codegolf/config.py): 1,000 steps by default, 4×8 samples per step,
 16,384 output tokens, temperature 1, Adam learning rate 1e-6, PPO clipping
 [0.8, 1.2], full model + optimizer checkpoints every 50 steps and at completion,
 held-out evaluation every 20. Prompt targets are masked and sampled solutions
@@ -201,14 +219,23 @@ evaluate the restored policy before the first update. When overriding
 
 ## Setup and execution
 
-Follow the [Lilo setup guide](../../README.md) first. The shared deployment,
-model assets and `lilo-api` secret containing `TINKER_API_KEY` must exist in your
-chosen environment. From this directory, with Python 3.11 or 3.12:
+This draft uses the scoped deployment from [PR #21](https://github.com/modal-projects/lilo/pull/21).
+The remote CPU controller opens `lilo.run(...)` with the existing **8×H200,
+TP2 × CP2 × DP2, 65,536-token** trainer recipe. Each sampler uses one H200.
+The generated API URL/key stay in the controller process. Python 3.12 is required.
+Configure Modal access, the `lilo-proxy` secret, and the existing `lilo-api`
+secret containing your OTLP settings in the chosen environment.
+
+The final observability guide has been reviewed and the full GPU recovery probe
+passed. On September 14, 2026, `qwen9b-prompt-v8` was launched in
+`modal-labs / connor-dev-2`, using the `codegolf-scoped` app and volume. It starts
+from base weights: the prior prompt-v8 attempt had no completed checkpoint.
+The historical figures above are not results from this scoped implementation.
 
 ```bash
 uv sync --frozen
 cp .env.example .env
-# Fill in your Modal profile/environment, Lilo URL and API key.
+# Fill in your Modal profile/environment; this run generates its own API credentials.
 # Configure Modal credentials separately. Never commit .env.
 uv run codegolf config
 uv run --env-file .env modal deploy -m codegolf.app
@@ -219,7 +246,7 @@ uv run --env-file .env modal run -m codegolf.app::judge_transport_smoke
 uv run --env-file .env codegolf launch --run golf --steps 1000
 ```
 
-The local API URL is captured when deploying. Customize `CODEGOLF_APP` and
+Customize `CODEGOLF_APP` and
 `CODEGOLF_VOLUME` for isolation, including the volume upload command above.
 Run only one controller per deployment. The launch command saves its handle
 locally and runs remotely after terminal disconnect. Smoke tests use CPU sandboxes;
@@ -255,11 +282,12 @@ Internal recovery is bounded to 30 attempts.
 Every-50 checkpointing can lose 49 updates, or 50 if checkpoint commit fails.
 Before the first checkpoint a fresh run restarts from base weights. Repeated
 preemption, GPU allocation waits or persistent bugs can prevent progress despite
-a live call. Verify successful updates after restoration. Hard cancellation can
-skip Python cleanup: stopping the controller alone does not guarantee its trainer
-and inference pool are released. These resources depend on Lilo's idle cleanup;
-[PR #17](https://github.com/modal-projects/lilo/pull/17) fixes the already-stopped
-pool bug observed in this experiment.
+a live call. Verify successful updates after restoration. Hard cancellation can skip Python cleanup. The scoped API, trainer and latest
+samplers belong to the controller-owned ephemeral app and stop on owner disconnect;
+this is asynchronous, so verify container termination when stopping a run. The
+experiment uses latest sampling only and creates no separately deployed pinned pools.
+A controller retry opens a new scope and restores the persisted checkpoint; trainer
+replacement within a live controller stays in the same scope.
 
 The CLI refuses duplicate launches while its saved call is live, and refuses to
 replace failed handles automatically. Inspect failures/checkpoints before archiving
@@ -307,3 +335,62 @@ TailRL tests cover the released numerical example, binary MaxRL recovery, signed
 rewards, ties, permutations, the finite-budget gradient identity, exhaustive
 sampling-metric checks, and both synchronous and asynchronous checkpoint recovery.
 The historical GRPO figures above were recorded before this cleaned example.
+
+The figures come from the earlier implementation; this scoped run has its own
+metrics and checkpoint ledger.
+
+## Run observability
+
+The controller forwards only `OTEL_*` settings from its existing Modal secret to
+scoped Lilo services using `telemetry_secret`. It never forwards the shared API
+key. The trainer image retains its existing OTel 1.43 dependency versions; the
+HTTP exporter matches them.
+
+Every model is created with allowlisted `user_metadata.run_id` and `attempt_id`.
+These become `lilo.run_id` and `lilo.run_attempt_id` on trainer operations, sampling requests and their HTTP retries. Controller reward,
+correctness, passing UTF-8 bytes, response token length, sampled entropy, pipeline
+metrics and checkpoint/recovery receipts use the same identity. No prompts, code,
+logprob arrays, credentials or arbitrary metadata are included in OTLP payloads.
+
+Filter Datadog traces with `@lilo.run_id:RUN` and metrics with `lilo.run_id:RUN`;
+group spans by `lilo.run_attempt_id` to distinguish replacements. Trainer state is sampled
+every five seconds on separate execution, checkpoint and sampler persistence lanes.
+Use `.fill(null)` so missing samples do not imply idle time. Sampled entropy here
+is mean negative sampled-token log probability, not full-distribution entropy.
+Durable run files determine which steps survived rollback; telemetry cannot retract
+already exported metrics. A notebook is created explicitly outside the runtime.
+
+The implementation follows the final [observability guide](../../docs/observability.md)
+from observability PR #23, including its active command participation spans:
+canonical command roots, linked
+physical execution traces, metadata snapshots through sampler artifacts/sessions,
+and no per-sample model lookup. Trainer-state metrics retain physical instance
+labels. Because this scoped deployment belongs to exactly one experiment, its
+OTel **resource** also carries `lilo.run_id`. Scoped trainers promote that
+deployment identity to a metric datapoint tag, enabling a whole-run filter with
+direct OTLP intake while preserving shared-trainer metric semantics. Group trainer-state
+series by `lilo.trainer_instance_id`, not experiment attempt ID.
+
+CPU-only Modal probes in `modal-labs/connor-dev-2` verified nested ownership and
+normal scope exit. Killing the owner of a child with `min_containers=1` stopped
+the child with zero containers approximately three minutes later (the heartbeat
+timeout). This is eventual cleanup, and a retry may briefly overlap allocation
+with its previous scope. The actual controller image also passed a CPU-only preflight: all scoped functions
+registered, the 8-H200/64K recipe and 16K output budget were confirmed, and both
+OTLP exporters initialized from the existing secret.
+
+A real 8×H200 recovery probe then trained twice, saved full model/optimizer state,
+and computed an uninterrupted third update as a reference. After forcibly killing
+the trainer, a replacement restored the checkpoint: forward loss and deterministic
+sample tokens matched exactly. Its third update succeeded, with gradient norm
+within 0.0006% and post-update loss within 0.013% of the reference. Final sampling
+succeeded and the scoped app stopped with zero containers. This validates the
+core restore path; it does not establish long-run convergence or eliminate
+checkpoint rollback loss.
+
+Datadog showed training and sampling across both recovery attempts under one run
+ID, including sampling HTTP retries. A separate exporter probe verified that
+run-filtered physical trainer metrics reach Datadog after the scoped metric-tag
+fix in [observability PR #23](https://github.com/modal-projects/lilo/pull/23).
+The [run notebook](https://app.datadoghq.com/notebook/15541726) uses the same run
+filter across controller, trainer and sampler telemetry.

@@ -22,8 +22,10 @@ from codegolf.config import Config
 from codegolf.evaluation import sampling_metrics
 from codegolf.judge import judge
 from codegolf.pipeline import RolloutBuffer
+from codegolf.prompts import CODEGOLF_PROMPT, ORIGINAL_PROMPT, THINKING_CODEGOLF_PROMPT
 from codegolf.reward import advantages, datum, extract_code, row_score
 from codegolf.store import Store
+from codegolf.telemetry import RunTelemetry
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +66,15 @@ async def release(training):
 
 
 async def train(root: Path, data: Path, app: modal.App, cfg: Config, commit=None):
-    store = Store(root, commit)
+    telemetry = RunTelemetry(root.name)
+    try:
+        return await _train(root, data, app, cfg, commit, telemetry)
+    finally:
+        await asyncio.to_thread(telemetry.close)
+
+
+async def _train(root, data, app, cfg, commit, telemetry):
+    store = Store(root, commit, observer=telemetry.observe)
     digest = hashlib.sha256(data.read_bytes()).hexdigest()
     spec = {"config": dataclasses.asdict(cfg), "dataset_sha256": digest}
     await store.prepare(spec)
@@ -115,18 +125,24 @@ async def train(root: Path, data: Path, app: modal.App, cfg: Config, commit=None
         )
         try:
             await store.event("trainer_create", recovery=recovery, checkpoint=state)
+            telemetry.attempt_id = uuid.uuid4().hex
+            attempt = {
+                "run_id": root.name,
+                "attempt_id": telemetry.attempt_id,
+                "step": step,
+                "recovery": recovery,
+                "time": time.time(),
+            }
+            await store.write(f"attempts/{telemetry.attempt_id}.json", attempt)
             training = await create_full_training_client_async(
                 service,
                 cfg.model,
-                rollout={
-                    "min_containers": getattr(cfg, "rollout_min_replicas", 1),
-                    "max_containers": getattr(cfg, "rollout_max_replicas", 2),
-                    "scaledown_window": 1200,
-                },
+                user_metadata={"run_id": root.name, "attempt_id": telemetry.attempt_id},
             )
-            await store.write(
-                "live.json", {"model_id": training.model_id, "step": step}
-            )
+            attempt["model_id"] = training.model_id
+            await store.write(f"attempts/{telemetry.attempt_id}.json", attempt)
+            await store.write("live.json", attempt)
+            await store.event("model_bound", model_id=training.model_id, step=step)
             if state["path"]:
                 await (
                     await training.load_state_with_optimizer_async(state["path"])
@@ -147,14 +163,20 @@ async def train(root: Path, data: Path, app: modal.App, cfg: Config, commit=None
                     [
                         {
                             "role": "system",
-                            "content": "Solve the programming problem in Python 3. Make the correct program as short as possible in UTF-8 bytes. Read standard input and write standard output. Output only executable Python code, without explanation or markdown.",
+                            "content": (
+                                THINKING_CODEGOLF_PROMPT
+                                if getattr(cfg, "enable_thinking", False)
+                                else CODEGOLF_PROMPT
+                                if getattr(cfg, "explicit_codegolf_prompt", False)
+                                else ORIGINAL_PROMPT
+                            ),
                         },
                         {"role": "user", "content": problem["statement"]},
                     ],
                     tokenize=True,
                     return_dict=False,
                     add_generation_prompt=True,
-                    enable_thinking=False,
+                    enable_thinking=getattr(cfg, "enable_thinking", False),
                 )
 
                 async def sample():
@@ -178,7 +200,10 @@ async def train(root: Path, data: Path, app: modal.App, cfg: Config, commit=None
                     if not tokens or len(tokens) != len(lp):
                         raise RuntimeError("Invalid sampled tokens/logprobs")
                     text = tokenizer.decode(tokens, skip_special_tokens=True)  # noqa: B023
-                    code = extract_code(text)
+                    code = extract_code(
+                        text,
+                        require_thinking_end=getattr(cfg, "enable_thinking", False),
+                    )
                     rows.append(
                         {
                             "tokens": tokens,
@@ -394,6 +419,8 @@ def summarize(records, step):
         else None,
         "samples": len(rows),
         "completion_tokens": statistics.fmean(len(r["tokens"]) for r in rows),
+        "sampled_entropy": -sum(sum(r.get("logprobs", [])) for r in rows)
+        / max(1, sum(len(r.get("logprobs", [])) for r in rows)),
         "truncated": sum(r["truncated"] for r in rows),
         "informative_groups": sum(
             len({r["reward"] for r in g["rows"]}) > 1 for g in records

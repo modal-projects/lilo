@@ -4,7 +4,7 @@ import json
 import pytest
 
 from codegolf import cli
-from codegolf.config import Config, config_for
+from codegolf.config import DEFAULT_STEPS, Config, config_for
 from fork_checkpoint import validate_config_change
 
 
@@ -79,5 +79,5 @@ def test_cli_launch_forwards_evaluation_budget(tmp_path, monkeypatch, capsys):
         ],
     )
     cli.main()
-    assert launched == [(("tail", 500, "tailrl"), {"eval_samples": 16})]
+    assert launched == [(("tail", DEFAULT_STEPS, "tailrl"), {"eval_samples": 16})]
     assert json.loads(capsys.readouterr().out)["eval_samples"] == 16

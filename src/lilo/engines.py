@@ -93,3 +93,12 @@ def qwen3_6_27b_full_64k() -> Engine:
         sampling=SamplingConfig(tensor_parallel_size=4, memory_fraction=0.90,
                                 cpu_weight_cache_max_compile_group_gb=32),
     )
+
+
+def qwen3_5_9b_full_64k() -> Engine:
+    """Codegolf's existing 8-H200 recipe: TP2 × CP2 × DP2, 64K packing."""
+    original = qwen3_5_4b_full_64k()
+    return replace(
+        original, name="qwen3_5_9b_full_64k", model="Qwen/Qwen3.5-9B",
+        trainer_gpu="H200:8", sampler_gpu="H200:1",
+    )

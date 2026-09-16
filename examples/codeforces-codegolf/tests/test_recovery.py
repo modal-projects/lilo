@@ -50,6 +50,7 @@ class Sampler:
 @pytest.mark.parametrize("estimator", ["grpo", "tailrl"])
 def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimator):
     created, restored, released = [], [], []
+    identities = []
     fault = [True]
 
     class Trainer:
@@ -112,6 +113,8 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
             return Future()
 
     async def create(*args, **kwargs):
+        assert "rollout" not in kwargs
+        identities.append(kwargs["user_metadata"])
         trainer = Trainer()
         created.append(trainer)
         return trainer
@@ -172,6 +175,8 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
     result = asyncio.run(module.train(tmp_path / "run", data, None, cfg))
     assert result == {"step": 3, "path": "checkpoint/3"}
     assert len(created) == 2
+    assert len({identity["attempt_id"] for identity in identities}) == len(created)
+    assert len({identity["run_id"] for identity in identities}) == 1
     assert restored == [1]
     assert created[-1].step == 3
     assert released == ["0", "1"]

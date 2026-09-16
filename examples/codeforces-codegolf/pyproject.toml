@@ -1,8 +1,8 @@
 [project]
 name = "lilo-codegolf-example"
 version = "0.1.0"
-requires-python = ">=3.11,<3.13"
-dependencies = ["lilo", "transformers==5.16.1", "pyarrow", "matplotlib", "jinja2>=3.1.6"]
+requires-python = ">=3.12,<3.13"
+dependencies = ["lilo", "opentelemetry-sdk==1.43.0", "opentelemetry-exporter-otlp-proto-http==1.43.0", "transformers==5.16.1", "pyarrow", "matplotlib", "jinja2>=3.1.6"]
 
 [tool.uv.sources]
 lilo = {path = "../..", editable = true}

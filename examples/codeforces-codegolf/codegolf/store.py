@@ -25,11 +25,12 @@ def atomic_json(path: Path, value):
 
 
 class Store:
-    def __init__(self, root: Path, commit=None):
+    def __init__(self, root: Path, commit=None, observer=None):
         self.root = root
         root.mkdir(parents=True, exist_ok=True)
         self.commit = commit
         self.lock = asyncio.Lock()
+        self.observer = observer
 
     def read(self, name, default=None):
         path = self.root / name
@@ -40,6 +41,8 @@ class Store:
             atomic_json(self.root / name, value)
             if self.commit:
                 await self.commit()
+        if self.observer:
+            self.observer(name, value)
 
     async def event(self, kind, **fields):
         await self.write(

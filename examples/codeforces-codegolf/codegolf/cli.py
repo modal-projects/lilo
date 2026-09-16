@@ -4,6 +4,7 @@ import argparse
 import dataclasses
 import json
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -54,7 +55,7 @@ def main():
         return
     if not os.environ.get("MODAL_ENVIRONMENT"):
         parser.error("Set MODAL_ENVIRONMENT to the deployment environment")
-    if not args.run or "/" in args.run or args.run in {".", ".."}:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", args.run) or args.run in {".", ".."}:
         parser.error("Invalid run name")
     handle = Path("artifacts/handles") / f"{args.run}-handle.json"
     legacy = Path(f"{args.run}-handle.json")

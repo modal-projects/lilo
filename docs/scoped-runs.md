@@ -81,6 +81,67 @@ Normal exit closes pinned sampler apps before the parent app. Both are ephemeral
 and stop after Modal detects owner disconnect if the owning process dies.
 Saved checkpoints remain; exiting does not save a checkpoint automatically.
 
-Pinned apps idle for roughly ten minutes are stopped. Active sampling requests
-prevent eviction, and existing pinned handles recreate an app on their next
-request. Modal retains stopped app history.
+Pinned sampling refreshes `(model_id, version)` demand in the existing ownership
+Dict and resolves its route on every sampling retry. Missing routes wait with
+backoff while the owner polls demand once per second and opens missing apps.
+No Lilo installation or Modal credentials are required in external Tinker clients.
+The owner holds app contexts in memory and limits concurrent app creation to two;
+there is no version-count cap or persistent provisioning-state machine.
+
+Demand idle for ten minutes is removed together with its route, and the owner
+closes the corresponding app. Active sampling leases prevent idle eviction;
+abandoned leases expire. Stale demand also expires if an app never started.
+A sampling retry recreates demand lost during cleanup; old-app cleanup cannot
+remove a replacement route or fresh demand. Existing pinned handles therefore
+recreate an idle-evicted app on their next request. The scan grows with recent
+requested versions, not all historically published versions.
+
+[Ephemeral pinned lifecycle validation](scoped-pinned-ephemeral-result.json) used
+CPU HTTP substitutes with the production owner, app factory, and sampling retry
+loop: missing-route/startup retries, idle eviction and recreation, and normal exit
+passed. Hard-cancelling the owner stopped its child with a minimum container in
+about three minutes, with zero containers remaining. This validates ownership and
+routing; it is not a new GPU inference validation.
+
+## Smoke test
+
+`python scripts/scoped_smoke.py` runs a real training update, base sampling from
+another Tinker client, latest sampling, and pinned-version sampling, then exits
+the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
+
+`python scripts/scoped_recovery_smoke.py` additionally saves a full checkpoint,
+cancels the trainer invocation, restores through a new full training client, and
+checks replacement latest sampling, old-handle rejection, and pinned continuity.
+
+Earlier deployed-pool validation: [verified run results](scoped-smoke-result.json): training, base/latest/pinned
+sampling, and pinned-app shutdown before the parent, with zero remaining containers.
+
+Earlier deployed-pool validation: [verified recovery results](scoped-recovery-result.json): trainer cancellation,
+checkpoint restoration, replacement latest sampling, old-handle rejection, and
+pinned-app reclamation followed by recreation through the same handle. All test
+apps stopped with zero remaining containers.
+
+## OpenTelemetry
+
+Pass an OTLP configuration secret to `lilo.run(telemetry_secret=...)` to enable
+traces on the scoped API, trainer and sampling worker, and five-second trainer
+operation gauges. Use an OTel-only secret; keep API/proxy credentials separate.
+The codegolf example forwards only `OTEL_*` keys from its existing controller
+secret. Exporting is best effort and does not require a telemetry volume or a
+Datadog-specific dependency.
+
+Set `user_metadata={"run_id": "my-run", "attempt_id": "replacement-1"}` when
+creating the full training client. Lilo validates these two labels, snapshots them
+through models, artifacts and sampling sessions, and propagates `lilo.run_id` / `lilo.run_attempt_id` to trainer
+operations and sampling retries. Use the same run ID and a fresh attempt ID after
+replacement. These are correlation labels, not authorization boundaries. Prompts,
+generated code and arbitrary metadata are excluded. Metrics exported before a
+checkpoint rollback remain historical observations; the application checkpoint
+ledger determines committed progress.
+
+The [observability guide](observability.md) defines the trace boundaries and metric
+labels. Physical trainer-state metrics have no model experiment labels. When one
+scoped deployment belongs exclusively to one experiment, its owner may include
+`lilo.run_id` in `OTEL_RESOURCE_ATTRIBUTES`. Scoped trainers also emit this as a
+metric datapoint tag so direct OTLP intake can filter the deployment's metrics.
+Do not apply a single experiment resource label to a shared deployment.

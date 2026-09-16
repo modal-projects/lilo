@@ -38,6 +38,7 @@ def run(
     api_key: str | None = None,
     checkpoint_volume: str = "lilo-checkpoints",
     proxy_secret=None,
+    telemetry_secret=None,
 ):
     """Yield (url, api_key); stop pinned apps before the ephemeral parent.
 
@@ -78,6 +79,7 @@ def run(
             pinned,
             checkpoint_volume,
             proxy_secret or modal.Secret.from_name("lilo-proxy"),
+            telemetry_secret=telemetry_secret,
         )
         app, api, manage, servers, prepare_assets, sampler_image = resources
         with app.run():

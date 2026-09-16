@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 from pathlib import Path
 
 import modal
+from lilo.providers.modal.scoped import control_image
 
 from codegolf.config import (
     APP_NAME,
@@ -18,18 +20,11 @@ from codegolf.config import (
 
 app = modal.App(APP_NAME)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True, version=2)
-image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
-        "modal>=1.5.3",
-        "tinker>=0.24.1,<0.25",
-        "transformers==5.16.1",
-        "httpx",
-        "jinja2==3.1.6",
-        "matplotlib",
-    )
-    .add_local_python_source("codegolf", "lilo")
-)
+image = control_image(
+    "transformers==5.16.1",
+    "jinja2==3.1.6",
+    "matplotlib",
+).add_local_python_source("codegolf")
 
 
 @app.function(
@@ -38,7 +33,7 @@ image = (
     secrets=[modal.Secret.from_name("lilo-api")],
     timeout=24 * 3600,
     memory=8192,
-    env={"TINKER_BASE_URL": os.environ.get("TINKER_BASE_URL", "")},
+    env={"MODAL_ENVIRONMENT": os.environ.get("MODAL_ENVIRONMENT", "")},
     retries=modal.Retries(max_retries=10, initial_delay=10, max_delay=60),
     max_containers=1,
 )
@@ -50,24 +45,47 @@ def run(
 ):
     from codegolf.train import train
 
-    if not run_name or "/" in run_name or run_name in {".", ".."}:
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", run_name) or run_name in {".", ".."}:
         raise ValueError("Invalid run name")
-    if not os.environ.get("TINKER_BASE_URL"):
-        raise ValueError("Set TINKER_BASE_URL before deploying the example")
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
     cfg = config_for(variant, steps, eval_samples=eval_samples)
     volume.reload()
-    return asyncio.run(
-        train(
-            Path("/runs") / run_name,
-            Path("/runs/problems.json"),
-            app,
-            cfg,
-            volume.commit.aio,
-        )
+    import lilo
+    from lilo.engines import qwen3_5_9b_full_64k
+
+    # The remote CPU controller owns the ephemeral deployment. A retry opens a
+    # fresh scope; train() restores only its last committed full checkpoint.
+    telemetry_env = {
+        key: value for key, value in os.environ.items() if key.startswith("OTEL_")
+    }
+    resource_attrs = telemetry_env.get("OTEL_RESOURCE_ATTRIBUTES", "")
+    telemetry_env["OTEL_RESOURCE_ATTRIBUTES"] = ",".join(
+        item for item in (resource_attrs, f"lilo.run_id={run_name}") if item
     )
+    with lilo.run(
+        engine=qwen3_5_9b_full_64k(),
+        warm=False,
+        name=f"codegolf-{run_name}",
+        telemetry_secret=modal.Secret.from_dict(telemetry_env),
+        latest=lilo.Pool(
+            min_containers=getattr(cfg, "rollout_min_replicas", 1),
+            max_containers=getattr(cfg, "rollout_max_replicas", 2),
+            scaledown_window=1200,
+        ),
+    ) as (url, api_key):
+        os.environ["TINKER_BASE_URL"] = url
+        os.environ["TINKER_API_KEY"] = api_key
+        return asyncio.run(
+            train(
+                Path("/runs") / run_name,
+                Path("/runs/problems.json"),
+                app,
+                cfg,
+                volume.commit.aio,
+            )
+        )
 
 
 @app.function(image=image, timeout=600)

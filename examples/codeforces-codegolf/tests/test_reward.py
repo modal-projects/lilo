@@ -55,3 +55,13 @@ def test_golf_reward_strength_and_output_penalty():
     assert reward(False, 1, 0) == 0
     assert reward(False, 1, 16384) == -0.08
     assert reward(False, 1, 32768) == -0.08
+
+
+def test_thinking_must_finish_before_a_solution_is_judged():
+    # The generation prompt already opens <think>; completions need not repeat it.
+    draft = "Try this:\n```python\nprint(0)\n```"
+    assert extract_code(draft, require_thinking_end=True) == ""
+    assert (
+        extract_code(draft + "</think>\nprint(1)", require_thinking_end=True)
+        == "print(1)"
+    )
