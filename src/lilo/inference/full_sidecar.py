@@ -24,6 +24,7 @@ def main() -> None:
     parser.add_argument("--bulletin-volume", default="")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--pinned-version", type=int)
+    parser.add_argument("--scoped-registry")
     args = parser.parse_args()
 
     refresh = None
@@ -47,6 +48,14 @@ def main() -> None:
         args.base_checkpoint_dir,
         delta_update_mode="cpu",
     )
+    if args.scoped_registry:
+        import modal
+        from .scoped_sidecar import AssignedSnapshotStore, serve_assigned
+        registry = modal.Dict.from_name(args.scoped_registry)
+        store = AssignedSnapshotStore(bulletin, args.run_id, registry)
+        serve_assigned(store, engine, run_id=args.run_id, registry=registry,
+                       host=args.host, port=args.port)
+        return
     serve(
         store,
         engine,

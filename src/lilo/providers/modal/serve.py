@@ -46,6 +46,7 @@ async def serve_engine(
     definition_id: str,
     revision: str,
     instance_id: str,
+    notify_reconciler: bool = True,
 ) -> None:
     import uvicorn
 
@@ -76,7 +77,8 @@ async def serve_engine(
             )
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
             try:
-                await _kick_trainer_reconciler(definition_id)
+                if notify_reconciler:
+                    await _kick_trainer_reconciler(definition_id)
             except Exception:
                 logging.getLogger(__name__).exception(
                     "trainer reconcile %s",
@@ -108,6 +110,7 @@ def run_engine_with_backend(
     max_models: int = 8,
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
+    notify_reconciler: bool = True,
 ) -> None:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
@@ -181,6 +184,7 @@ def run_engine_with_backend(
                 definition_id=definition_id,
                 revision=revision,
                 instance_id=instance_id,
+                notify_reconciler=notify_reconciler,
             )
         )
         try:

@@ -110,7 +110,7 @@ def test_delta_writer_publishes_first_delta_from_base(tmp_path, monkeypatch) -> 
     published_pools = []
     publish_version = delta_module.stitch_publish_version
     monkeypatch.setenv("LILO_DEFINITION_ID", "full-test")
-    monkeypatch.setattr(delta_module, "FFTLatestPool", lambda *_: pool)
+    monkeypatch.setattr(delta_module, "publication_pool", lambda *_: pool)
     monkeypatch.setattr(
         delta_module,
         "stitch_publish_version",

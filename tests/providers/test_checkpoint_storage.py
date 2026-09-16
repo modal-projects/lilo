@@ -105,6 +105,9 @@ def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
     import importlib
 
     app = importlib.import_module("lilo.providers.modal.app")
+    from lilo.providers.modal.checkpoint_storage import _scan_checkpoints
+    def scan(model_id):
+        return _scan_checkpoints(str(tmp_path), model_id)
     monkeypatch.setattr(app, "CHECKPOINT_ROOT", str(tmp_path))
     for relative in ("final/run-a", "final/run-b"):
         checkpoint = tmp_path / relative
@@ -112,17 +115,17 @@ def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
         (checkpoint / "metadata.json").write_text("{}")
     (tmp_path / "empty").mkdir()
     (tmp_path / "notes.txt").write_text("notes")
-    entries = app._scan_checkpoints(None)
+    entries = scan(None)
     assert {(e["model_id"], e["name"]) for e in entries} == {
         ("run-a", "final"), ("run-b", "final")
     }
     assert len(entries) == 2
-    assert app._scan_checkpoints("run-a")[0]["path"] == str(tmp_path / "final/run-a")
-    assert app._scan_checkpoints("missing") == []
+    assert scan("run-a")[0]["path"] == str(tmp_path / "final/run-a")
+    assert scan("missing") == []
     with (
         patch.object(app.checkpoint_volume, "reload"),
         patch.object(app.checkpoint_volume, "commit"),
     ):
         asyncio.run(app._delete_checkpoint(str(tmp_path / "final/run-a")))
-    assert app._scan_checkpoints("run-a") == []
-    assert len(app._scan_checkpoints("run-b")) == 1
+    assert scan("run-a") == []
+    assert len(scan("run-b")) == 1

@@ -437,3 +437,47 @@ def test_default_transport_enables_tcp_keepalive() -> None:
     ) as default_transport:
         asyncio.run(sample_task(task(), "http://rollout"))
     default_transport.assert_called_once_with()
+
+
+def test_dynamic_route_wait_refreshes_demand_and_retries_deleted_gateway():
+    async def check():
+        lookups, requests, events = [], [], []
+
+        async def resolve():
+            lookups.append(True)  # The scoped resolver refreshes demand here.
+            if len(lookups) == 1:
+                return ()
+            return ("http://old",) if len(lookups) == 2 else ("http://new",)
+
+        def handle(request):
+            requests.append(request)
+            return httpx.Response(404) if request.url.host == "old" else response(7)
+
+        request = task()
+        request["payload"]["cache_affinity_key"] = "trajectory-a"
+        with patch("lilo.inference.sampling.asyncio.sleep", AsyncMock()):
+            result = await sample_task(
+                request,
+                resolve,
+                headers={"Modal-Key": "proxy-id", "Modal-Secret": "proxy-secret"},
+                data_parallel_size=4,
+                on_event=events.append,
+                transport=httpx.MockTransport(handle),
+            )
+        assert [r.url.host for r in requests] == ["old", "new"]
+        assert len(lookups) == 3
+        assert result["sequences"][0]["tokens"] == [5]
+        assert all(r.headers["Modal-Key"] == "proxy-id" for r in requests)
+        assert all(r.headers["Modal-Secret"] == "proxy-secret" for r in requests)
+        bodies = [json.loads(r.content) for r in requests]
+        assert len({b["session_id"] for b in bodies}) == 1
+        assert len({b["routed_dp_rank"] for b in bodies}) == 1
+        assert all(
+            r.headers["Modal-Session-ID"] == b["session_id"]
+            for r, b in zip(requests, bodies, strict=True)
+        )
+        attempts = [e["attrs"] for e in events if e["name"] == "sample_attempt"]
+        assert [a["http_status"] for a in attempts] == [404, 200]
+        assert [a["ok"] for a in attempts] == [False, True]
+
+    asyncio.run(check())

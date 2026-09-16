@@ -5,7 +5,32 @@ Modal. Individual engine containers run `forward_backward` and `optim_step`
 jobs and publish weights to autoscaling sampling infrastructure based on
 [Stitch](https://github.com/modal-projects/stitch).
 
-## Quick start
+## Scoped training runs
+
+For a dedicated full-training run, use Python 3.12 and configure your Modal
+credentials and `lilo-proxy` secret as described below. Then:
+
+```python
+import lilo
+import tinker
+from lilo.engines import qwen3_5_4b_full_64k
+
+engine = qwen3_5_4b_full_64k()
+with lilo.run(engine=engine) as (url, api_key):
+    service = tinker.ServiceClient(base_url=url, api_key=api_key)
+    training = lilo.create_full_training_client(service, engine.model)
+    # Train and sample through the Tinker SDK here.
+```
+
+The scope creates its own API URL/key and owns the trainer and sampling apps.
+Exiting releases the compute; saved checkpoints remain. One full-training model
+is active per scope. Other processes may connect while its owner remains alive.
+This path does not require deploying the shared API or creating a `lilo-api`
+secret. See [scoped runs](docs/scoped-runs.md) for recovery and custom engines,
+and the [Codeforces example](examples/codeforces-codegolf/README.md) for a complete
+training loop with sandbox judging and checkpoints.
+
+## Shared deployment quick start
 
 Install Lilo into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.
