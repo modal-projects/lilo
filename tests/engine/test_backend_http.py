@@ -235,3 +235,89 @@ def test_backend_runner_serves_executor_in_subprocess() -> None:
     finally:
         backend.terminate()
         backend.wait(timeout=10)
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [httpx.ReadError, httpx.WriteError, httpx.RemoteProtocolError, httpx.ConnectError],
+)
+def test_lost_backend_response_fences_commands_without_replay(error_type) -> None:
+    async def run() -> None:
+        applied = []
+        fenced = []
+
+        async def lose_response(request):
+            # The command may have mutated state before its response was lost.
+            applied.append(request.url.path)
+            raise error_type("connection lost", request=request)
+
+        executor = HttpBackendClient(
+            "http://backend",
+            transport=httpx.MockTransport(lose_response),
+            on_transport_error=lambda: fenced.append(True),
+        )
+        payload = parse_operation_payload(OperationKind.OPTIM_STEP, {"adam_params": {}})
+        with pytest.raises(RuntimeError, match="execution outcome unknown") as error:
+            await executor.execute("model-a", OperationKind.OPTIM_STEP, payload)
+        assert isinstance(error.value.__cause__, error_type)
+        with pytest.raises(RuntimeError, match="checkpoint recovery required"):
+            await executor.execute("model-a", OperationKind.OPTIM_STEP, payload)
+        assert applied == ["/execute"]
+        assert fenced == [True]
+        await executor.close()
+
+    asyncio.run(run())
+
+
+def test_backend_application_error_does_not_fence_transport() -> None:
+    async def run() -> None:
+        responses = [
+            httpx.Response(500, json={"error": "invalid input"}),
+            httpx.Response(200, json={"result": "ok"}),
+        ]
+        fenced = []
+        executor = HttpBackendClient(
+            "http://backend",
+            transport=httpx.MockTransport(lambda request: responses.pop(0)),
+            on_transport_error=lambda: fenced.append(True),
+        )
+        payload = parse_operation_payload(OperationKind.OPTIM_STEP, {"adam_params": {}})
+        with pytest.raises(RuntimeError, match="invalid input"):
+            await executor.execute("model-a", OperationKind.OPTIM_STEP, payload)
+        assert (
+            await executor.execute("model-a", OperationKind.OPTIM_STEP, payload) == "ok"
+        )
+        assert fenced == []
+        await executor.close()
+
+    asyncio.run(run())
+
+
+def test_backend_commands_do_not_reuse_idle_connections() -> None:
+    from fastapi import FastAPI, Request
+
+    from tests.support import serve
+
+    app = FastAPI()
+    peers = []
+
+    @app.post("/execute")
+    async def execute(request: Request):
+        peers.append(request.client.port)
+        return {"result": "ok"}
+
+    async def run(url):
+        executor = HttpBackendClient(url)
+        payload = parse_operation_payload(OperationKind.OPTIM_STEP, {"adam_params": {}})
+        try:
+            for _ in range(2):
+                assert (
+                    await executor.execute("model-a", OperationKind.OPTIM_STEP, payload)
+                    == "ok"
+                )
+        finally:
+            await executor.close()
+
+    with serve(app) as url:
+        asyncio.run(run(url))
+    assert len(set(peers)) == 2
