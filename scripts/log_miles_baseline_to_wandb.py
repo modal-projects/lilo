@@ -32,6 +32,12 @@ def _merge_rows(paths: list[Path]) -> list[dict[str, float]]:
 
 
 def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float]:
+    if "cmp/reward_mean" in row:
+        return {
+            key: value
+            for key, value in row.items()
+            if key.startswith("cmp/") and isinstance(value, (int, float))
+        }
     step_time = row.get("step_time_s", row.get("step_time", 0.0))
     response_len = row.get("response_length_mean", row.get("response_len", 0.0))
     samples = row.get("samples", 128.0)
@@ -60,7 +66,13 @@ def _comparison_row(row: dict[str, float], trainer_gpus: int) -> dict[str, float
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", action="append", type=Path, required=True)
+    parser.add_argument(
+        "--source",
+        action="append",
+        type=Path,
+        required=True,
+        help="CSV containing baseline fields or already-normalized cmp/* fields.",
+    )
     parser.add_argument("--name", default="miles-6a-baseline")
     parser.add_argument("--group", default="baseline-miles")
     parser.add_argument("--project", default="miles-lora-longcontext")
