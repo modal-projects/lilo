@@ -1,7 +1,9 @@
 """Isolated single-tenant option; identical hardware and backend to the shared trainer."""
+
 # ruff: noqa: F401
 import modal
-from ..deployment import trainer_max_containers
+
+from ..deployment import trainer_deployment_env, trainer_max_containers
 from .qwen3_5_9b_base_miles_lora_16k import (
     MODEL_NAME,
     HF_CHECKPOINT,
@@ -44,10 +46,19 @@ CATALOG_VISIBLE = False
 TRAINER_MODELS_PER_INSTANCE = 1
 app = modal.App(f"lilo-{DEFINITION_ID}")
 
-@app.function(image=image, gpu=f"{GPU_TYPE}:{GPUS}", volumes=TRAINER_VOLUMES,
-              secrets=[api_secret, proxy_secret], timeout=86_400,
-              max_containers=trainer_max_containers(), single_use_containers=True)
+
+@app.function(
+    image=image,
+    gpu=f"{GPU_TYPE}:{GPUS}",
+    volumes=TRAINER_VOLUMES,
+    secrets=[api_secret, proxy_secret],
+    timeout=86_400,
+    max_containers=trainer_max_containers(),
+    env=trainer_deployment_env(),
+    single_use_containers=True,
+)
 def qwen3_5_9b_base_miles_lora_16k_single(instance_id: str) -> None:
     run_trainer(instance_id, definition_id=DEFINITION_ID, max_models=1)
+
 
 ENGINE_FUNCTION = qwen3_5_9b_base_miles_lora_16k_single

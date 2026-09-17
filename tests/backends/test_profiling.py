@@ -192,16 +192,14 @@ def test_backend_starts_and_stops_torch_profile(tmp_path, monkeypatch) -> None:
 
 def test_trainer_deployment_env_forwards_profile_vars(monkeypatch) -> None:
     monkeypatch.delenv("LILO_TRAINER_MAX_CONTAINERS", raising=False)
-    monkeypatch.delenv("LILO_APP_NAME", raising=False)
     monkeypatch.delenv("LILO_TORCH_PROFILE_STEP", raising=False)
     monkeypatch.delenv("LILO_TORCH_PROFILE_DIR", raising=False)
     monkeypatch.setenv("LILO_TORCH_PROFILE_STEP", "2")
     monkeypatch.setenv("LILO_TORCH_PROFILE_DIR", "/traces")
-    monkeypatch.setenv("LILO_APP_NAME", "lilo-profile")
 
     from lilo.providers.modal.deployment import trainer_deployment_env
 
     env = trainer_deployment_env()
     assert env["LILO_TORCH_PROFILE_STEP"] == "2"
     assert env["LILO_TORCH_PROFILE_DIR"] == "/traces"
-    assert env["LILO_APP_NAME"] == "lilo-profile"
+    assert "LILO_APP_NAME" not in env

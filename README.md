@@ -217,7 +217,7 @@ Set these environment variables in the deploying shell before `modal deploy`;
 Deploying a separate app for a profiling run:
 
 ```bash
-LILO_APP_NAME=lilo-profile LILO_TORCH_PROFILE_STEP=2 \
+LILO_TORCH_PROFILE_STEP=2 \
   uv run modal deploy -m lilo.providers.modal.app
 ```
 
