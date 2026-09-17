@@ -1,4 +1,11 @@
-# Lilo 27B Long-Context Rungs (Qwen3.8-27B LoRA r32 on LongRLVR)
+# Lilo (Miles-backend) 27B Long-Context Rungs (Qwen3.8-27B LoRA r32 on LongRLVR)
+
+Scope: this is the **Lilo** side of the Lilo-vs-raw-Miles comparison. Lilo is
+the Tinker-compatible server; these runs use its `MilesCommandBackend`
+(`src/lilo/backends/miles_lora.py`, `miles_runtime/`), which runs a Miles Ray
+trainer actor inside the Lilo trainer container and drives it through Miles'
+Tinker runtime, with Lilo's own SGLang rollout pools. The raw-Miles ramp (W&B
+group `baseline-miles-27b`) was run separately; see the side-by-side below.
 
 ## Summary
 
@@ -99,6 +106,50 @@ bottleneck); no failures. ~58 min for 5 steps.
 | 4 | 472.8 | 451.0 | 138.7 | 0.271 | 1399.5 | 0.658 | 562.2 | 0.0 |
 
 prompt_len_mean ≈ 38–44k. reward_mean 0.476 → 0.658.
+
+### Lilo vs raw Miles side-by-side
+
+Raw-Miles runs from W&B group `baseline-miles-27b` (same recipe, same H200
+topology per rung; Miles' `topology` config field quoted). Values are
+per-step `cmp/*` from W&B history; "steady" = steps 1–4 (Miles' step 4
+logged only reward/len, so its steady range is steps 1–3 for timing).
+
+| ctx | side | run | trainer topology | steady step_time_s | steady train_time_s | steady samples/s | steady tok/GPU/s | reward_mean step0→4 | resp_len_mean | trunc_ratio |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 16k | Lilo | [`lilo-27b-16k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/uwcvqxpb) | TP4×CP1×DP2 | 135–177 | 124–166 | 0.72–0.95 | 1161–1428 | 0.389→0.713 | 666–1472 | 0–0.047 |
+| 16k | Miles | [`miles-27b-16k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/vv9l76wt) | TP4×CP1×DP2 | 149–172 | 110–126 | 0.74–0.86 | 1143–1267 | 0.548→0.767 | 550–1078 | 0–0.039 |
+| 64k | Lilo | [`lilo-27b-64k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/h2yt8e23) | TP4×CP2×DP1 | 501–815 | 482–803 | 0.16–0.26 | 795–1153 | 0.434→0.660 | 540–1148 | 0–0.031 |
+| 64k | Miles | [`miles-27b-64k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/5uvc8lks) | TP4×CP2×DP1 | 773–1038 | 582–783 | 0.12–0.17 | 738–848 | 0.464→0.643 | 491–902 | 0 |
+| 128k | Lilo | [`lilo-27b-128k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/t9feh1se) | TP2×CP4×DP1 | 465–677 | 445–649 | 0.19–0.28 | 1036–1400 | 0.476→0.658 | 546–1154 | 0–0.047 |
+| 128k | Miles | [`miles-27b-128k-5`](https://wandb.ai/modal-labs/miles-lora-longcontext/runs/nakynr4k) | TP2×CP4×DP1 | 888–994 | 679–759 | 0.13–0.14 | 1093–1197 | 0.493→0.537 | 449–1079 | 0–0.016 |
+| 256k | Lilo | — | TP1×CP8 / TP2×CP4 | OOM | | | | | | |
+
+Raw-Miles per-step values:
+
+| run | step | step_time_s | train_time_s | samples_per_s | tok/GPU/s | reward_mean | resp_len_mean | trunc_ratio |
+|---|---|---|---|---|---|---|---|---|
+| miles-27b-16k-5 | 0 | 517.4 | 277.2 | 0.247 | 364.0 | 0.548 | 668.2 | 0.0 |
+| | 1 | 169.3 | 123.2 | 0.756 | 1143.1 | 0.477 | 864.1 | 0.0 |
+| | 2 | 172.3 | 125.9 | 0.743 | 1157.8 | 0.312 | 1077.8 | 0.0 |
+| | 3 | 149.6 | 111.2 | 0.856 | 1267.1 | 0.574 | 802.6 | 0.039 |
+| | 4 | 148.6 | 110.4 | 0.861 | 1262.5 | 0.767 | 550.0 | 0.0 |
+| miles-27b-64k-5 | 0 | 1550.1 | 1016.2 | 0.083 | 438.8 | 0.464 | 799.1 | 0.0 |
+| | 1 | 1038.0 | 783.3 | 0.123 | 738.5 | 0.427 | 815.2 | 0.0 |
+| | 2 | 819.4 | 616.5 | 0.156 | 848.2 | 0.409 | 890.5 | 0.0 |
+| | 3 | 772.7 | 581.7 | 0.166 | 846.1 | 0.508 | 902.1 | 0.0 |
+| | 4 | — | — | — | — | 0.643 | 491.0 | 0.0 |
+| miles-27b-128k-5 | 0 | 1452.4 | 928.5 | 0.088 | 743.1 | 0.493 | 684.4 | 0.0 |
+| | 1 | 994.4 | 759.0 | 0.129 | 1092.7 | 0.339 | 968.2 | 0.0 |
+| | 2 | 972.1 | 741.4 | 0.132 | 1104.8 | 0.329 | 1079.0 | 0.016 |
+| | 3 | 888.3 | 679.0 | 0.144 | 1196.8 | 0.543 | 876.0 | 0.016 |
+| | 4 | — | — | — | — | 0.537 | 448.7 | 0.0 |
+
+Notes: in these runs Lilo's `step_time_s` ≈ `train_time_s` (rollouts for step
+n+1 appear to overlap training under `max_steps_off_policy=1`), while Miles' `step_time_s`
+includes a serial rollout phase — compare `train_time_s` and
+`tok/GPU/s` for the trainer itself. Reward trajectories are noisy at
+5 steps and are not a meaningful discriminator. Miles' 16k run was on
+2 nodes (trainer + separate sglang node); Lilo's used its own H200 pool.
 
 ### 256k — smoke only, OOM (no run)
 
