@@ -315,7 +315,7 @@ class Topology:
     def __init__(
         self,
         *,
-        gpu_type: str = "H100",
+        gpu_type: str = "H200",
         actor_num_nodes: int = 1,
         tp: int = 4,
         cp: int = 1,
@@ -482,7 +482,12 @@ def main() -> None:
     parser.add_argument("--context-k", type=int, default=16, choices=[16, 64, 128, 256])
     parser.add_argument("--steps", type=int, default=5)
     parser.add_argument("--seed", type=int, default=SEED)
-    parser.add_argument("--gpu-type", default="H100")
+    parser.add_argument(
+        "--gpu-type",
+        default="H200",
+        help="Modal GPU type for trainer AND rollout nodes. 'H200' is exact; plain 'H100' "
+        "may be auto-upgraded to H200 by Modal, use 'H100!' to forbid that.",
+    )
     parser.add_argument("--actor-nodes", type=int, default=1)
     parser.add_argument("--tp", type=int, default=4)
     parser.add_argument("--cp", type=int, default=1)
