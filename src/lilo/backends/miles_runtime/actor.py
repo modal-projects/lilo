@@ -160,6 +160,28 @@ def _gather_tinker_logprobs_across_cp() -> None:
         if getattr(module, "get_log_probs_and_entropy", None) is original:
             module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
+    # get_rollout_data slices rollout_log_probs/teacher_log_probs to the CP
+    # shard for the native (non-tinker) losses. The tinker loss path pairs
+    # them with full-response log_probs (gathered above) and full-length
+    # advantages/loss_weights, so the slice must be disabled on this path.
+    from miles.backends.training_utils import cp_utils, data
+
+    original_slice = cp_utils.slice_log_prob_with_cp
+    if getattr(original_slice, "__lilo_unslices_cp__", False):
+        return
+
+    def slice_log_prob_with_cp(value, total_length, response_length, qkv_format, max_seq_len=None):
+        return value
+
+    slice_log_prob_with_cp.__lilo_unslices_cp__ = True
+    cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
+    from miles.backends.training_utils import mm_data
+    from miles.backends.training_utils.loss_hub import math_utils
+
+    for module in (data, mm_data, math_utils):
+        if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
+            module.slice_log_prob_with_cp = slice_log_prob_with_cp
+
 
 _gather_tinker_logprobs_across_cp()
 
