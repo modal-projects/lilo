@@ -13,12 +13,15 @@ identical to the Qwen3.5-9B 16k launcher.
 Examples:
     uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 16 --steps 1
     uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 64 --steps 5 --cp 2
+    uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 5 --actor-nodes 2 --tp 2 --cp 8 --pad-to-tokens 250000
 """
 
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
+import random
 import re
 import statistics
 from collections import Counter
@@ -68,6 +71,9 @@ _SECTION_PATTERNS = {
     ),
 }
 _CHUNK_PATTERN = re.compile(r"<CHUNK_(\d+)>", re.IGNORECASE)
+_CHUNK_BLOCK = re.compile(r"<CHUNK_(\d+)>(.*?)</CHUNK_\1>", re.DOTALL)
+_DOC_MARKER = "Document:"
+_QUESTION_MARKER = "\n\nQuestion:"
 _TOKEN_PATTERN = re.compile(r"\w+", re.UNICODE)
 _CONCISE_INSTRUCTION = (
     "Keep the reasoning concise and reserve enough tokens to always emit "
@@ -107,6 +113,68 @@ def _concise_prompt(prompt: list[dict[str, str]]) -> list[dict[str, str]]:
         else f"{_CONCISE_INSTRUCTION}\n\n{content}"
     )
     return messages
+
+
+def _split_document(content: str) -> tuple[str, list[str], str] | None:
+    """Return (head, chunk_bodies, tail) or None if the prompt isn't in the LongRLVR shape."""
+    doc_start = content.find(_DOC_MARKER)
+    q_start = content.rfind(_QUESTION_MARKER)
+    if doc_start < 0 or q_start < 0 or q_start < doc_start:
+        return None
+    head = content[: doc_start + len(_DOC_MARKER)]
+    body = content[doc_start + len(_DOC_MARKER) : q_start]
+    tail = content[q_start:]
+    blocks = _CHUNK_BLOCK.findall(body)
+    if not blocks or [int(i) for i, _ in blocks] != list(range(len(blocks))):
+        return None
+    return head, [b for _, b in blocks], tail
+
+
+def _render_document(head: str, chunks: Sequence[str], tail: str) -> str:
+    body = "\n".join(f"<CHUNK_{i}>{c}</CHUNK_{i}>" for i, c in enumerate(chunks))
+    return f"{head}\n {body}\n{tail}"
+
+
+def _pad_with_distractors(
+    chunks: list[str],
+    ref_chunks: list[int],
+    pool: Sequence[list[str]],
+    *,
+    target_chars: int,
+    rng: random.Random,
+) -> tuple[list[str], list[int]]:
+    """Interleave whole distractor documents (from `pool`) around the real document until
+    total chars >= target_chars. The real doc stays contiguous and in order; ref_chunks are
+    renumbered to their new positions. Deterministic given rng."""
+    real_chars = sum(len(c) for c in chunks)
+    docs: list[list[str]] = []
+    total = real_chars
+    order = list(range(len(pool)))
+    rng.shuffle(order)
+    for idx in order:
+        if total >= target_chars:
+            break
+        doc = pool[idx]
+        need = target_chars - total
+        doc_chars = sum(len(c) for c in doc)
+        if doc_chars > need:
+            take: list[str] = []
+            acc = 0
+            for c in doc:
+                if acc >= need:
+                    break
+                take.append(c)
+                acc += len(c)
+            doc = take
+            doc_chars = acc
+        if doc:
+            docs.append(doc)
+            total += doc_chars
+    insert_at = rng.randint(0, len(docs))
+    docs.insert(insert_at, chunks)
+    offset = sum(len(d) for d in docs[:insert_at])
+    merged = [c for d in docs for c in d]
+    return merged, [offset + r for r in ref_chunks]
 
 
 def _score_response(
@@ -154,11 +222,13 @@ class LongRLVRDataset(DatasetConfig):
         max_prompt_tokens: int,
         min_prompt_tokens: int = 0,
         seed: int = SEED,
+        pad_to_tokens: int | None = None,
     ) -> None:
         self.num_prompts = num_prompts
         self.seed = seed
         self.max_prompt_tokens = max_prompt_tokens
         self.min_prompt_tokens = min_prompt_tokens
+        self.pad_to_tokens = pad_to_tokens
         super().__init__()
 
     def input_key(self) -> str:
@@ -195,12 +265,38 @@ class LongRLVRDataset(DatasetConfig):
             MODEL_NAME,
             trust_remote_code=True,
         )
+        pool: list[list[str]] = []
+        if self.pad_to_tokens is not None:
+            pool_dataset = load_dataset(
+                DATASET_NAME,
+                split="train",
+                streaming=True,
+            ).shuffle(
+                seed=self.seed,
+                buffer_size=max(256, 4 * self.num_prompts),
+            )
+            for pool_row in itertools.islice(pool_dataset, 96):
+                pool_prompt = pool_row.get("prompt")
+                if not isinstance(pool_prompt, list) or not pool_prompt:
+                    continue
+                pool_prompt = _concise_prompt(pool_prompt)
+                pool_content = pool_prompt[-1].get("content")
+                if not isinstance(pool_content, str):
+                    continue
+                parsed_pool = _split_document(pool_content)
+                if parsed_pool is not None:
+                    pool.append(parsed_pool[1])
+                    if len(pool) == 64:
+                        break
         rows: list[dict[str, Any]] = []
         prompt_lengths: list[int] = []
+        base_prompt_lengths: list[int] = []
         seen_questions: set[str] = set()
         scanned = 0
         too_long = 0
         too_short = 0
+        unparsable = 0
+        pad_failed = 0
         for row in dataset:
             scanned += 1
             prompt = row.get("prompt")
@@ -218,27 +314,105 @@ class LongRLVRDataset(DatasetConfig):
             ):
                 continue
             prompt = _concise_prompt(prompt)
-            # Cheap character-level prefilter; ~2% of LongRLVR prompts fit in
-            # 12k tokens, so tokenizing every 40k-token prompt is the bottleneck.
-            prompt_chars = sum(len(str(m.get("content", ""))) for m in prompt)
-            if prompt_chars > 6 * self.max_prompt_tokens:
-                too_long += 1
-                continue
-            prompt_text = tokenizer.apply_chat_template(
-                prompt,
-                tokenize=False,
-                add_generation_prompt=True,
-                enable_thinking=False,
-            )
-            prompt_tokens = tokenizer(prompt_text, add_special_tokens=False)[
-                "input_ids"
-            ]
-            if len(prompt_tokens) > self.max_prompt_tokens:
-                too_long += 1
-                continue
+            if self.pad_to_tokens is None:
+                # Cheap character-level prefilter; ~2% of LongRLVR prompts fit in
+                # 12k tokens, so tokenizing every 40k-token prompt is the bottleneck.
+                prompt_chars = sum(len(str(m.get("content", ""))) for m in prompt)
+                if prompt_chars > 6 * self.max_prompt_tokens:
+                    too_long += 1
+                    continue
+                prompt_text = tokenizer.apply_chat_template(
+                    prompt,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                )
+                prompt_tokens = tokenizer(prompt_text, add_special_tokens=False)[
+                    "input_ids"
+                ]
+                if len(prompt_tokens) > self.max_prompt_tokens:
+                    too_long += 1
+                    continue
+                ref_ints = [int(chunk) for chunk in reference_chunks]
+                label_extra: dict[str, Any] = {}
+            else:
+                ref_ints = [int(chunk) for chunk in reference_chunks]
+                content = prompt[-1].get("content")
+                if not isinstance(content, str):
+                    unparsable += 1
+                    continue
+                parsed = _split_document(content)
+                if parsed is None:
+                    unparsable += 1
+                    continue
+                head, chunks, tail = parsed
+                pool_for_row = [
+                    distractors
+                    for distractors in pool
+                    if distractors is not chunks and distractors[:1] != chunks[:1]
+                ]
+                rng = random.Random(f"{self.seed}:{question}")
+                base_text = tokenizer.apply_chat_template(
+                    prompt,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=False,
+                )
+                base_tokens = len(
+                    tokenizer(base_text, add_special_tokens=False)["input_ids"]
+                )
+                if base_tokens > self.max_prompt_tokens:
+                    too_long += 1
+                    continue
+                ratio = len(base_text) / max(base_tokens, 1)
+                target_chars = int(self.pad_to_tokens * ratio)
+                padded_chunks, new_refs = _pad_with_distractors(
+                    chunks,
+                    ref_ints,
+                    pool_for_row,
+                    target_chars=target_chars,
+                    rng=rng,
+                )
+                prompt_tokens = []
+                for _ in range(8):
+                    padded_prompt = [dict(message) for message in prompt]
+                    padded_prompt[-1]["content"] = _render_document(
+                        head, padded_chunks, tail
+                    )
+                    prompt_text = tokenizer.apply_chat_template(
+                        padded_prompt,
+                        tokenize=False,
+                        add_generation_prompt=True,
+                        enable_thinking=False,
+                    )
+                    prompt_tokens = tokenizer(prompt_text, add_special_tokens=False)[
+                        "input_ids"
+                    ]
+                    if len(prompt_tokens) <= self.max_prompt_tokens:
+                        prompt = padded_prompt
+                        break
+                    real_offset = new_refs[0] - ref_ints[0]
+                    real_end = real_offset + len(chunks)
+                    if real_end < len(padded_chunks):
+                        padded_chunks.pop()
+                    elif real_offset > 0:
+                        padded_chunks.pop(0)
+                        new_refs = [ref - 1 for ref in new_refs]
+                    else:
+                        break
+                else:
+                    prompt_tokens = []
+                if len(prompt_tokens) > self.max_prompt_tokens or not prompt_tokens:
+                    pad_failed += 1
+                    continue
+                label_extra = {
+                    "base_prompt_tokens": base_tokens,
+                }
             if len(prompt_tokens) < self.min_prompt_tokens:
                 too_short += 1
                 continue
+            if self.pad_to_tokens is not None:
+                base_prompt_lengths.append(base_tokens)
             seen_questions.add(question)
             prompt_lengths.append(len(prompt_tokens))
             rows.append(
@@ -248,8 +422,11 @@ class LongRLVRDataset(DatasetConfig):
                         {
                             "question": question,
                             "ground_truth": ground_truth,
-                            "ref_chunks": [int(chunk) for chunk in reference_chunks],
+                            "ref_chunks": (
+                                new_refs if self.pad_to_tokens is not None else ref_ints
+                            ),
                             "prompt_tokens": len(prompt_tokens),
+                            **label_extra,
                         },
                         ensure_ascii=False,
                     ),
@@ -260,18 +437,26 @@ class LongRLVRDataset(DatasetConfig):
         if len(rows) != self.num_prompts:
             raise RuntimeError(
                 f"found only {len(rows)} usable prompts; expected {self.num_prompts} "
-                f"(scanned {scanned}, too_long {too_long}, too_short {too_short})"
+                f"(scanned {scanned}, too_long {too_long}, too_short {too_short}, "
+                f"unparsable {unparsable}, pad_failed {pad_failed})"
             )
         quantiles = (
             statistics.quantiles(prompt_lengths, n=4) if len(prompt_lengths) > 1 else []
         )
         print(
             "LongRLVR prompt-length distribution "
-            f"(cap {self.max_prompt_tokens}, floor {self.min_prompt_tokens}): "
+            f"(cap {self.max_prompt_tokens}, floor {self.min_prompt_tokens}, "
+            f"pad_to={self.pad_to_tokens}): "
             f"n={len(prompt_lengths)} scanned={scanned} too_long={too_long} "
-            f"too_short={too_short} min={min(prompt_lengths)} "
+            f"too_short={too_short} unparsable={unparsable} pad_failed={pad_failed} "
+            f"min={min(prompt_lengths)} "
             f"mean={statistics.fmean(prompt_lengths):.0f} "
-            f"quartiles={[round(q) for q in quantiles]} max={max(prompt_lengths)}",
+            f"quartiles={[round(q) for q in quantiles]} max={max(prompt_lengths)}"
+            + (
+                f" base_mean={statistics.fmean(base_prompt_lengths):.0f}"
+                if self.pad_to_tokens is not None
+                else ""
+            ),
             flush=True,
         )
         destination = Path(path)
@@ -355,6 +540,7 @@ def build_config(
     steps: int,
     topology: Topology,
     min_prompt_fraction: float = 0.0,
+    pad_to_tokens: int | None = None,
     seed: int = SEED,
     use_wandb: bool = True,
     run_suffix: str = "",
@@ -368,6 +554,7 @@ def build_config(
         max_prompt_tokens=max_prompt_tokens,
         min_prompt_tokens=min_prompt_tokens,
         seed=seed,
+        pad_to_tokens=pad_to_tokens,
     )
     # With CP a sequence is sharded across cp ranks, so the per-GPU token
     # budget only has to hold context_length / cp tokens.
@@ -497,11 +684,18 @@ def main() -> None:
     parser.add_argument("--sglang-mem-fraction", type=float, default=0.8)
     parser.add_argument("--sglang-max-running-requests", type=int, default=32)
     parser.add_argument(
+        "--pad-to-tokens",
+        type=int,
+        default=None,
+        help="Pad each prompt with distractor documents from other LongRLVR rows up to "
+        "~this many tokens (deterministic given --seed). Must be <= prompt cap.",
+    )
+    parser.add_argument(
         "--min-prompt-fraction",
         type=float,
         default=None,
         help="Drop prompts shorter than this fraction of the prompt cap "
-        "(default 0 at 16k, 0.5 at >=64k so prompts actually use the budget).",
+        "(default 0 at 16k, 0.5 at >=64k, or 0.9 when padding).",
     )
     parser.add_argument("--run-suffix", default="")
     parser.add_argument("--dry-run", action="store_true")
@@ -518,8 +712,15 @@ def main() -> None:
     min_prompt_fraction = (
         args.min_prompt_fraction
         if args.min_prompt_fraction is not None
-        else (0.0 if args.context_k <= 16 else 0.5)
+        else (
+            0.9
+            if args.pad_to_tokens is not None
+            else (0.0 if args.context_k <= 16 else 0.5)
+        )
     )
+    max_prompt_tokens = context_length - MAX_GENERATION_TOKENS
+    if args.pad_to_tokens is not None and args.pad_to_tokens > max_prompt_tokens:
+        parser.error("--pad-to-tokens must be <= the prompt cap")
     topology = Topology(
         gpu_type=args.gpu_type,
         actor_num_nodes=args.actor_nodes,
@@ -536,13 +737,15 @@ def main() -> None:
         steps=args.steps,
         topology=topology,
         min_prompt_fraction=min_prompt_fraction,
+        pad_to_tokens=args.pad_to_tokens,
         seed=args.seed,
         use_wandb=not args.no_wandb,
         run_suffix=args.run_suffix,
     )
     print(
         f"Context {context_length} (prompt cap {context_length - MAX_GENERATION_TOKENS}, "
-        f"prompt floor {int(min_prompt_fraction * (context_length - MAX_GENERATION_TOKENS))})"
+        f"prompt floor {int(min_prompt_fraction * (context_length - MAX_GENERATION_TOKENS))}, "
+        f"pad_to={args.pad_to_tokens})"
     )
     print(
         f"Topology: {topology.describe()}, max_tokens_per_gpu="

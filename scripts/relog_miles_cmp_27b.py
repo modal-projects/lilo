@@ -47,6 +47,10 @@ def cmp_metrics(m: dict) -> dict:
         d["cmp/reward_mean"] = float(m["rollout/raw_reward"])
     if "rollout/response_lengths" in m:
         d["cmp/response_len_mean"] = float(m["rollout/response_lengths"])
+    if "rollout/total_lengths" in m and "rollout/response_lengths" in m:
+        d["cmp/prompt_len_mean"] = float(m["rollout/total_lengths"]) - float(
+            m["rollout/response_lengths"]
+        )
     if "rollout/truncated" in m:
         d["cmp/truncated_ratio"] = float(m["rollout/truncated"])
     if "perf/actor_train_time" in m:
