@@ -20,8 +20,8 @@ MAX_CONTEXT_LENGTH = 262_144
 
 GPU_TYPE = "H200"
 GPUS = 8
-TENSOR_MODEL_PARALLEL_SIZE = 1
-CONTEXT_PARALLEL_SIZE = 8
+TENSOR_MODEL_PARALLEL_SIZE = 2
+CONTEXT_PARALLEL_SIZE = 4
 MAX_LORA_SLOTS = 6
 MAX_LORA_RANK = 32
 DEFAULT_LORA_ALPHA = 32
@@ -130,7 +130,7 @@ def run_trainer(
             "max_lora_rank": MAX_LORA_RANK,
             "default_lora_alpha": DEFAULT_LORA_ALPHA,
             "target_modules": TARGET_MODULES,
-            "max_tokens_per_gpu": MAX_CONTEXT_LENGTH // CONTEXT_PARALLEL_SIZE,
+            "max_tokens_per_gpu": 65_536,
             "extra_args": (
                 "--seq-length",
                 str(MAX_CONTEXT_LENGTH),
