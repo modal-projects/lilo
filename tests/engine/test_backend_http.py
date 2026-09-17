@@ -321,3 +321,52 @@ def test_backend_commands_do_not_reuse_idle_connections() -> None:
     with serve(app) as url:
         asyncio.run(run(url))
     assert len(set(peers)) == 2
+
+
+@pytest.mark.parametrize("fatal", [False, True])
+def test_miles_worker_failure_fences_trainer_across_executor_http(fatal):
+    from types import SimpleNamespace
+    from lilo.backends.miles_runtime.runtime import MilesRuntime
+    from lilo.engine.spmd import DistributedExecutor
+
+    async def run():
+        fenced, calls = [], []
+        runtime = MilesRuntime.__new__(MilesRuntime)
+        runtime._closed = False
+        runtime._failure = None
+        runtime._call = asyncio.run
+
+        async def worker_failure():
+            calls.append("worker")
+            return {"error": "trainer cell lost"}
+
+        def accept(*args):
+            if fatal:
+                runtime._run(worker_failure())
+            raise ValueError("invalid model specification")
+
+        app = create_backend_app(
+            DistributedExecutor(SimpleNamespace(accept_model=accept))
+        )
+        client = HttpBackendClient(
+            "http://backend",
+            transport=httpx.ASGITransport(app=app),
+            on_transport_error=lambda: fenced.append(True),
+        )
+        try:
+            with pytest.raises(
+                RuntimeError, match="trainer cell lost" if fatal else "invalid model"
+            ):
+                await client.accept_model("a", MODEL_SPEC)
+            if fatal:
+                with pytest.raises(RuntimeError, match="checkpoint recovery required"):
+                    await client.accept_model("b", MODEL_SPEC)
+                assert calls == ["worker"]
+                assert fenced == [True]
+            else:
+                assert fenced == []
+                assert runtime._failure is None
+        finally:
+            await client.close()
+
+    asyncio.run(run())

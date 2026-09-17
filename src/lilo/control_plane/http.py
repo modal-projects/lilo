@@ -158,16 +158,22 @@ def create_control_plane_app(
     retrieve_window: float = 30.0,
     checkpoint_volume: str = "lilo-checkpoints",
 ) -> FastAPI:
+    all_definitions = tuple(definitions)
     definitions = tuple(
-        definition
-        for definition in definitions
-        if definition.CATALOG_VISIBLE
+        definition for definition in all_definitions if definition.CATALOG_VISIBLE
     )
 
     def definition_for(
         model_name: str,
         parameterization: Parameterization,
     ) -> str | None:
+        explicit = [
+            d
+            for d in all_definitions
+            if d.DEFINITION_ID == model_name and d.PARAMETERIZATION == parameterization
+        ]
+        if explicit:
+            return explicit[0].DEFINITION_ID
         matches = [
             definition.DEFINITION_ID
             for definition in definitions
@@ -183,6 +189,8 @@ def create_control_plane_app(
     def supports_model(model_name: str) -> bool:
         return any(
             definition.MODEL_NAME == model_name for definition in definitions
+        ) or any(
+            definition.DEFINITION_ID == model_name for definition in all_definitions
         )
 
     async def authorize(request: Request) -> None:
@@ -256,7 +264,9 @@ def create_control_plane_app(
         app.add_exception_handler(kind, handle_error)
 
     @app.exception_handler(HTTPException)
-    async def handle_http_exception(request: Request, exc: HTTPException) -> JSONResponse:
+    async def handle_http_exception(
+        request: Request, exc: HTTPException
+    ) -> JSONResponse:
         error = {401: "unauthorized", 405: "unsupported"}.get(
             exc.status_code, "invalid_request"
         )
@@ -358,7 +368,11 @@ def create_control_plane_app(
             model_seq_id=body.model_seq_id,
             definition_id=definition_id,
             spec={
-                "base_model": body.base_model,
+                "base_model": next(
+                    d.MODEL_NAME
+                    for d in all_definitions
+                    if d.DEFINITION_ID == definition_id
+                ),
                 "lora_config": body.lora_config,
                 "parameterization": {"type": parameterization},
                 "rollout": body.rollout and body.rollout.model_dump(exclude_none=True),
@@ -393,7 +407,15 @@ def create_control_plane_app(
         session = await control_plane.create_sampling_session(
             session_id=body.session_id,
             sampling_session_seq_id=body.sampling_session_seq_id,
-            base_model=body.base_model,
+            base_model=(
+                next(
+                    d.MODEL_NAME
+                    for d in all_definitions
+                    if d.DEFINITION_ID == definition_id
+                )
+                if definition_id
+                else body.base_model
+            ),
             model_path=body.model_path,
             engine_definition_id=definition_id,
         )
@@ -478,7 +500,7 @@ def create_control_plane_app(
                 base_model=body.base_model,
                 user_metadata=body.user_metadata,
                 optimizer=body.optimizer,
-                definition_ids={d.DEFINITION_ID for d in definitions},
+                definition_ids={d.DEFINITION_ID for d in all_definitions},
             )
             return {
                 "request_id": creation.request_id,

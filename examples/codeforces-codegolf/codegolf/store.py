@@ -37,12 +37,18 @@ class Store:
         return json.loads(path.read_text()) if path.exists() else default
 
     async def write(self, name, value):
+        await self.write_many({name: value})
+
+    async def write_many(self, values):
+        """Write related records and commit them before notifying observers."""
         async with self.lock:
-            atomic_json(self.root / name, value)
-            if self.commit:
+            for name, value in values.items():
+                atomic_json(self.root / name, value)
+            if values and self.commit:
                 await self.commit()
         if self.observer:
-            self.observer(name, value)
+            for name, value in values.items():
+                self.observer(name, value)
 
     async def event(self, kind, **fields):
         await self.write(
@@ -116,18 +122,21 @@ class Store:
 
     async def resume(self):
         state = self.read("checkpoint.json", {"step": 0, "path": None})
+        changed = False
         # Exclude uncheckpointed steps from the canonical curve on rollback.
         for path in (self.root / "metrics").glob("*.json"):
             if int(path.stem) > state["step"]:
                 dest = self.root / "rolled_back" / f"{time.time_ns()}-{path.name}"
                 dest.parent.mkdir(exist_ok=True)
                 path.replace(dest)
+                changed = True
         # Evaluations beyond the restored policy version are stale too.
         for path in (self.root / "eval").glob("*.json"):
             if int(path.stem) > state["step"]:
                 dest = self.root / "rolled_back" / f"eval-{time.time_ns()}-{path.name}"
                 dest.parent.mkdir(exist_ok=True)
                 path.replace(dest)
-        if self.commit:
+                changed = True
+        if changed and self.commit:
             await self.commit()
         return state

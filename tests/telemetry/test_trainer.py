@@ -533,3 +533,71 @@ def test_backend_measurements_cross_http_without_changing_results(
         (phase,) = [s for s in spans if s.name == "lilo.backend." + name]
         assert phase.parent.span_id == persist.context.span_id
     assert "lilo.loss_tokens" not in save.attributes
+
+
+@pytest.mark.parametrize("first_fails", [False, True])
+def test_parallel_publication_state_stays_active_until_last_worker(setup, first_fails):
+    telemetry, exporter, reader = setup
+
+    async def run():
+        started = {model: asyncio.Event() for model in ("a", "b")}
+        release = {model: asyncio.Event() for model in started}
+
+        class Executor(EchoExecutor):
+            async def persist_snapshot(self, model_id, kind, payload, capture):
+                started[model_id].set()
+                await release[model_id].wait()
+                if model_id == "a" and first_fails:
+                    raise RuntimeError("publication failed")
+                return {"publish_version": 1}
+
+        def sampler_state():
+            points = (
+                reader.get_metrics_data()
+                .resource_metrics[0]
+                .scope_metrics[0]
+                .metrics[0]
+                .data.data_points
+            )
+            return {
+                p.attributes["lilo.operation"]
+                for p in points
+                if p.attributes["lilo.lane"] == "sampler" and p.value
+            }
+
+        server = Engine(
+            Executor(), observer=telemetry, sampler_persistence_concurrency=2
+        )
+        try:
+            futures = {}
+            for model in started:
+                await server.accept_model(model, {})
+                futures[model] = await server.save_weights_for_sampler(
+                    {"model_id": model, "seq_id": 1, "publish_version": 1}
+                )
+            await asyncio.wait_for(
+                asyncio.gather(*(event.wait() for event in started.values())), 1
+            )
+            assert sampler_state() == {"save_weights_for_sampler"}
+            release["a"].set()
+            first = await server.retrieve_future(futures["a"], timeout=1)
+            assert first.status.value == ("failed" if first_fails else "complete")
+            assert sampler_state() == {"save_weights_for_sampler"}
+            release["b"].set()
+            assert (
+                await server.retrieve_future(futures["b"], timeout=1)
+            ).status.value == "complete"
+            assert sampler_state() == {"idle"}
+        finally:
+            for event in release.values():
+                event.set()
+            await server.close()
+
+    asyncio.run(run())
+    spans = [
+        span
+        for span in exporter.get_finished_spans()
+        if span.name == "lilo.trainer.persist.save_weights_for_sampler"
+    ]
+    assert len(spans) == 2
+    assert {span.attributes["lilo.model_id"] for span in spans} == {"a", "b"}
