@@ -28,6 +28,7 @@ class MilesBackendConfig:
     model_type: str
     actor_num_gpus_per_node: int
     tensor_model_parallel_size: int = 1
+    context_parallel_size: int = 1
     expert_model_parallel_size: int = 1
     expert_tensor_parallel_size: int = 1
     max_lora_slots: int = 8
@@ -50,7 +51,9 @@ class MilesBackendConfig:
 
     @property
     def data_parallel_size(self) -> int:
-        return self.world_size // self.tensor_model_parallel_size
+        return self.world_size // (
+            self.tensor_model_parallel_size * self.context_parallel_size
+        )
 
     @property
     def peft_target_modules(self) -> tuple[str, ...]:
@@ -66,6 +69,7 @@ class MilesBackendConfig:
         positive = {
             "actor_num_gpus_per_node": self.actor_num_gpus_per_node,
             "tensor_model_parallel_size": self.tensor_model_parallel_size,
+            "context_parallel_size": self.context_parallel_size,
             "expert_model_parallel_size": self.expert_model_parallel_size,
             "expert_tensor_parallel_size": self.expert_tensor_parallel_size,
             "max_lora_slots": self.max_lora_slots,
@@ -88,10 +92,14 @@ class MilesBackendConfig:
             raise ValueError("default_lora_alpha must be a positive integer")
         if not 0 <= self.lora_dropout < 1:
             raise ValueError("lora_dropout must be in [0, 1)")
-        if self.world_size % self.tensor_model_parallel_size != 0:
+        if (
+            self.world_size
+            % (self.tensor_model_parallel_size * self.context_parallel_size)
+            != 0
+        ):
             raise ValueError(
                 "actor_num_gpus_per_node must be a multiple of "
-                "tensor_model_parallel_size"
+                "tensor_model_parallel_size * context_parallel_size"
             )
 
     def miles_arguments(self) -> list[str]:
@@ -135,7 +143,7 @@ class MilesBackendConfig:
             "--pipeline-model-parallel-size",
             "1",
             "--context-parallel-size",
-            "1",
+            str(self.context_parallel_size),
             "--expert-model-parallel-size",
             str(self.expert_model_parallel_size),
             "--expert-tensor-parallel-size",

@@ -228,6 +228,7 @@ class MilesCommandBackend(Backend):
                 "world_size": self.config.world_size,
                 "data_parallel_size": self.config.data_parallel_size,
                 "tensor_model_parallel_size": (self.config.tensor_model_parallel_size),
+                "context_parallel_size": self.config.context_parallel_size,
                 "expert_model_parallel_size": (self.config.expert_model_parallel_size),
                 "expert_tensor_parallel_size": (
                     self.config.expert_tensor_parallel_size
@@ -439,6 +440,7 @@ class MilesCommandBackend(Backend):
             "world_size": self.config.world_size,
             "data_parallel_size": self.config.data_parallel_size,
             "tensor_model_parallel_size": self.config.tensor_model_parallel_size,
+            "context_parallel_size": self.config.context_parallel_size,
             "expert_model_parallel_size": self.config.expert_model_parallel_size,
             "expert_tensor_parallel_size": self.config.expert_tensor_parallel_size,
             "pipeline_model_parallel_size": 1,

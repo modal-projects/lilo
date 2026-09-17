@@ -5,6 +5,161 @@ import logging
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
 
+def _preserve_advantages_in_dp_shards() -> None:
+    """Work around radixark/miles#3145 omitting Tinker advantages from DP shards."""
+
+    from miles.ray.rollout import train_data_conversion
+
+    original = train_data_conversion._package_shards
+    if getattr(original, "__lilo_preserves_advantages__", False):
+        return
+
+    def package_shards(args, data, partitions):
+        shards = original(args, data, partitions)
+        if "advantages" in data:
+            for shard, partition in zip(shards, partitions, strict=True):
+                shard["advantages"] = [data["advantages"][index] for index in partition]
+        return shards
+
+    package_shards.__lilo_preserves_advantages__ = True
+    train_data_conversion._package_shards = package_shards
+
+
+_preserve_advantages_in_dp_shards()
+
+
+def _pad_local_shard(
+    tensor,
+    total_length: int,
+    response_length: int,
+    *,
+    qkv_format: str,
+    max_seq_len,
+):
+    """Place this CP rank's zigzag logprob shard into a full-length response."""
+    import torch
+    from miles.backends.training_utils.cp_utils import (
+        get_logits_and_tokens_offset_with_cp,
+    )
+
+    _, _, logits_offset, _ = get_logits_and_tokens_offset_with_cp(
+        total_length, response_length, qkv_format, max_seq_len
+    )
+    prompt_length = total_length - response_length
+
+    chunk_0 = tensor[: logits_offset[0][1] - logits_offset[0][0]]
+    chunk_1 = tensor[logits_offset[0][1] - logits_offset[0][0] :]
+    assert chunk_1.shape[0] == logits_offset[1][1] - logits_offset[1][0]
+
+    def zero(length: int):
+        return torch.zeros(
+            [length] + list(tensor.shape[1:]),
+            dtype=tensor.dtype,
+            device=tensor.device,
+            requires_grad=True,
+        )
+
+    if chunk_0.shape[0] == 0 and chunk_1.shape[0] == 0:
+        padded = zero(response_length)
+    elif chunk_0.shape[0] != 0 and chunk_1.shape[0] == 0:
+        left = zero(logits_offset[0][0] - (prompt_length - 1))
+        right = zero(total_length - 1 - logits_offset[0][1])
+        padded = torch.cat([left, chunk_0, right], dim=0)
+    elif chunk_0.shape[0] == 0 and chunk_1.shape[0] != 0:
+        left = zero(logits_offset[1][0] - (prompt_length - 1))
+        right = zero(total_length - 1 - logits_offset[1][1])
+        padded = torch.cat([left, chunk_1, right], dim=0)
+    else:
+        left = zero(logits_offset[0][0] - (prompt_length - 1))
+        mid = zero(logits_offset[1][0] - logits_offset[0][1])
+        right = zero(total_length - 1 - logits_offset[1][1])
+        padded = torch.cat([left, chunk_0, mid, chunk_1, right], dim=0)
+
+    assert padded.shape[0] == response_length, (
+        f"Expected {response_length}, got {padded.shape}"
+    )
+    return padded
+
+
+def _gather_tinker_logprobs_across_cp() -> None:
+    """Reassemble full-response logprobs for Miles' Tinker loss path under CP>1."""
+    import torch.distributed as dist
+    from miles.backends.training_utils.loss_hub import logit_processors
+    from miles.backends.training_utils.parallel import get_parallel_state
+
+    original = logit_processors.get_log_probs_and_entropy
+    if getattr(original, "__lilo_gathers_cp__", False):
+        return
+
+    def get_log_probs_and_entropy(
+        logits,
+        *,
+        args,
+        unconcat_tokens,
+        total_lengths,
+        response_lengths,
+        with_entropy=False,
+        entropy_requires_grad=True,
+        non_loss_data=True,
+        max_seq_lens=None,
+        rollout_sampling_mask=None,
+    ):
+        out = original(
+            logits,
+            args=args,
+            unconcat_tokens=unconcat_tokens,
+            total_lengths=total_lengths,
+            response_lengths=response_lengths,
+            with_entropy=with_entropy,
+            entropy_requires_grad=entropy_requires_grad,
+            non_loss_data=non_loss_data,
+            max_seq_lens=max_seq_lens,
+            rollout_sampling_mask=rollout_sampling_mask,
+        )
+        parallel_state = get_parallel_state()
+        if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
+            return out
+        log_probs = []
+        for index, (lp, total_length, response_length) in enumerate(
+            zip(out["log_probs"], total_lengths, response_lengths, strict=True)
+        ):
+            max_seq_len = max_seq_lens[index] if max_seq_lens is not None else None
+            padded = _pad_local_shard(
+                lp,
+                total_length,
+                response_length,
+                qkv_format=args.qkv_format,
+                max_seq_len=max_seq_len,
+            )
+            summed = padded.detach().clone()
+            dist.all_reduce(summed, group=parallel_state.cp.group)
+            log_probs.append(padded + (summed - padded.detach()))
+        out["log_probs"] = log_probs
+        return out
+
+    get_log_probs_and_entropy.__lilo_gathers_cp__ = True
+    logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
+
+    import miles.backends.fsdp_utils.actor as fsdp_actor
+    import miles.backends.megatron_utils.actor as megatron_actor
+    import miles.backends.megatron_utils.model as megatron_model
+    from miles.backends.training_utils import loss
+    from miles.backends.training_utils.loss_hub import tinker_losses
+
+    for module in (
+        loss,
+        tinker_losses,
+        megatron_actor,
+        megatron_model,
+        fsdp_actor,
+    ):
+        if getattr(module, "get_log_probs_and_entropy", None) is original:
+            module.get_log_probs_and_entropy = get_log_probs_and_entropy
+
+
+_gather_tinker_logprobs_across_cp()
+
+
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     """Upstream multi-LoRA actor with Qwen MTP and weights-only save support."""
 
