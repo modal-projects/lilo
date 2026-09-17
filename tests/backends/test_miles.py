@@ -172,6 +172,29 @@ def test_config_translates_stable_fields_to_miles_arguments() -> None:
     assert capture_dir == Path("/tmp/lilo-miles-captures")
 
 
+def test_config_context_parallel_topology() -> None:
+    config = _config(
+        actor_num_gpus_per_node=8,
+        tensor_model_parallel_size=4,
+        context_parallel_size=2,
+    )
+
+    assert config.data_parallel_size == 1
+    arguments = config.miles_arguments()
+    assert arguments[arguments.index("--context-parallel-size") + 1] == "2"
+
+
+def test_config_rejects_non_divisible_context_parallel_topology() -> None:
+    config = _config(
+        actor_num_gpus_per_node=8,
+        tensor_model_parallel_size=4,
+        context_parallel_size=4,
+    )
+
+    with pytest.raises(ValueError, match="must be a multiple"):
+        config.validate()
+
+
 def test_config_rejects_non_divisible_data_parallel_topology() -> None:
     config = _config(
         actor_num_gpus_per_node=4,
