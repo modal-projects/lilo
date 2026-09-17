@@ -10,6 +10,7 @@ from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 from lilo.backends import ForwardBatch, ForwardItem, ModelSpec
 from lilo.backends.miles_config import MilesBackendConfig, parse_backend_config
 from lilo.backends.miles_lora import MilesCommandBackend
+from lilo.backends.miles_runtime.data import pad_slot_rows
 from lilo.inference.bulletin import SnapshotBulletin
 
 
@@ -44,6 +45,7 @@ class FakeMilesRuntime:
         loss_fn_config,
         forward_only,
     ):
+        self.last_slot_rows = tuple((slot, dict(row)) for slot, row in slot_rows)
         self.calls.append(
             (
                 "forward_backward",
@@ -221,7 +223,17 @@ def test_backend_routes_batches_and_preserves_per_model_state(tmp_path) -> None:
     assert 0 in backend.free_slots
 
 
-def test_backend_rejects_dp_ragged_batches(tmp_path) -> None:
+def test_pad_slot_rows_adds_zero_weight_rows() -> None:
+    rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(11))
+    padded = pad_slot_rows(rows, 2, "cross_entropy")
+    assert len(padded) == 12
+    assert padded[-1] == (0, {"tokens": [1, 2], "target_len": 1})
+
+    rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(3))
+    assert len(pad_slot_rows(rows, 4, "cross_entropy")) == 4
+
+
+def test_backend_pads_dp_ragged_batches(tmp_path) -> None:
     runtime = FakeMilesRuntime()
     backend = MilesCommandBackend(
         _config(actor_num_gpus_per_node=4, tensor_model_parallel_size=2),
@@ -232,15 +244,21 @@ def test_backend_rejects_dp_ragged_batches(tmp_path) -> None:
     )
     backend.accept_model("model-a", _spec())
 
-    with pytest.raises(ValueError, match="must be a multiple of data_parallel_size=2"):
-        backend.forward_backward(
-            ForwardBatch(
-                items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
-                loss_fn="cross_entropy",
-            )
-        )
-
     outputs = backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(outputs) == 1
+    assert len(runtime.last_slot_rows) == 2
+    assert runtime.last_slot_rows[-1][1] == {
+        "tokens": [1, 2],
+        "target_len": 1,
+        "weights": [0.0],
+    }
+
+    backend.forward_backward(
         ForwardBatch(
             items=(
                 ForwardItem(
@@ -254,8 +272,18 @@ def test_backend_rejects_dp_ragged_batches(tmp_path) -> None:
             loss_fn="cross_entropy",
         )
     )
-    assert len(outputs) == 1
-    assert runtime.calls[-1][0] == "forward_backward"
+    assert len(runtime.last_slot_rows) == 2
+
+    dp1_runtime = FakeMilesRuntime()
+    dp1_backend = _backend(tmp_path / "dp1", dp1_runtime)
+    dp1_backend.accept_model("model-a", _spec())
+    dp1_backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(dp1_runtime.last_slot_rows) == 1
 
 
 def test_checkpoint_capture_persist_and_restore(tmp_path, monkeypatch) -> None:

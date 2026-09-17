@@ -19,6 +19,26 @@ class PreparedBatch:
     locations: tuple[tuple[int, int], ...]
 
 
+def pad_slot_rows(
+    slot_rows: tuple[tuple[int, dict[str, Any]], ...],
+    multiple: int,
+    loss_fn: str,
+) -> tuple[tuple[int, dict[str, Any]], ...]:
+    """Pad to a multiple of multiple with zero-weight rows for Miles DP sharding."""
+    if multiple <= 1 or len(slot_rows) % multiple == 0:
+        return slot_rows
+    slot, last = slot_rows[-1]
+    pad: dict[str, Any] = {"tokens": last["tokens"][:2], "target_len": 1}
+    if "weights" in last:
+        pad["weights"] = [0.0]
+    if "advantages" in last:
+        pad["advantages"] = [0.0]
+    if "sampling_logprobs" in last:
+        pad["sampling_logprobs"] = [0.0]
+    n_pad = -len(slot_rows) % multiple
+    return (*slot_rows, *((slot, dict(pad)) for _ in range(n_pad)))
+
+
 def prepare_batch(
     batch: ForwardBatch,
     slots: dict[str, int],
