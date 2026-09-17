@@ -43,6 +43,9 @@ context boundary: the optional inference probe uses 65,518 prompt tokens plus
 16 generated tokens.
 
 ```bash
+export MODAL_ENVIRONMENT=kailash-dev
+# Keep the hero build identical to the validated smoke build.
+export LILO_MILES_COMMIT=ef3807c0ef659d7c6d8494c4933bd7ee0332700f
 .venv/bin/python scripts/multilora_codegolf.py launch --run capacity-v1 --phase capacity --steps 2
 .venv/bin/python scripts/multilora_codegolf.py status --run capacity-v1
 # Only after full-context capacity and restore checks pass:
@@ -68,7 +71,7 @@ Capacity checks submit full-64K sequences from all four resident clients, verify
 finite outputs and actual parameter updates, and check model/optimizer
 checkpoint restoration and inference publication for every slot. The short RL
 run preserves full batch, generation, and evaluation budgets; only the number
-of updates is reduced. It fails after one recovery attempt so a persistent bug
+of updates is reduced. It fails on the first trainer failure so a persistent bug
 cannot be concealed by repeated restarts. The hero run uses the reference's
 bounded checkpoint recovery loop. A few passing steps establish functional
 operation, not long-run convergence or equivalence of LoRA and FFT rewards.
@@ -87,3 +90,22 @@ about 34 GiB used per H200 (samples, not an exact peak-memory measurement).
 Local receipts and logs remain in `scripts/results/multilora-codegolf/capacity-v1/`.
 The separate inference-boundary probe initially expected tokens beyond
 SGLang's two-token reservation (worker limit plus scheduler limit); the probe now accounts for that reservation.
+
+`smoke-v1` completed three real TailRL updates per client (12 successful
+optimizer updates, 32 rollouts each), with finite nonzero gradient norms.
+Mean absolute trainer-versus-behavior logprob differences ranged from 0.0057
+to 0.0156 across updates; these diagnostics include asynchronous policy lag.
+All four adapters also passed the full-context inference boundary probe.
+The initial evaluation pass rates were 8.6–17.2%. Historical single-turn FFT
+runs started at 12.5% on smaller evaluations; this is a sanity check, not a
+controlled reward comparison or evidence of convergence.
+
+CPU validation: the backend suite passed 459 tests (2 skipped); the final
+experiment and original codegolf tests passed 91 tests.
+
+The smoke controller finished successfully, including all four final model +
+optimizer checkpoints and all four step-3 evaluations (128 samples/client).
+Final pass rates were 11.7–12.5%; three updates do not establish learning
+quality. No trainer recovery was needed.
+
+[Smoke test app](https://modal.com/apps/modal-labs/kailash-dev/ap-I6Y8BYvTdawfzUJUblCZuY).
