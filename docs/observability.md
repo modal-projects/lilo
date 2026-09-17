@@ -126,25 +126,23 @@ persistence, and result availability. Waiting appears as gaps between those
 spans; there is no separate queue span. The trainer closes the command span when
 the result is ready, even if the client has stopped polling.
 
-A command's execution span shows how long that command participated in a backend
-operation. Several commands can share the same operation. Use `lilo.trainer.*`
-spans when counting actual batches or measuring total trainer work; summing the
-commands' execution times would count shared work more than once.
+A command's execution span measures its participation in a backend operation.
+Several commands can share that operation, so use `lilo.trainer.*` spans to count
+batches or measure total trainer work without counting the same work twice.
 
 Deduplicated submissions attach to the original command trace. Rejected
 submissions have standalone control-plane spans. Model creation and unloading
 have separate control-plane submission and trainer lifecycle spans.
 
-Each backend execution has its own trace linked to every participating command,
-even for a single-command batch. It reports the batch's total workload. Snapshot
-capture, persistence, and waiting for an earlier write have separate spans.
-Persistence can overlap later training. Model acceptance and unloading are also
-recorded separately.
+Each backend execution gets a trace with the batch's total workload and links
+to its commands. Separate spans show snapshot capture, persistence, and waiting
+for an earlier write, so overlapping persistence and training remain visible.
+Model acceptance and unloading also have their own spans.
 
 Counts refer to logical input examples and their supplied text tokens, before
 backend packing/padding. Input-token count is omitted if any input chunk has no
-known text-token length. Executor spans measure wall-clock time, including
-backend transport and synchronization. They do not measure GPU kernel time.
+known text-token length. Executor spans measure elapsed time on the host,
+including backend transport and synchronization.
 
 Megatron adds child spans for preparation, forward or combined forward/backward,
 result collection, and optimizer work on rank zero. Interleaved forward/backward
@@ -166,11 +164,10 @@ Workload attributes have distinct scopes:
   Size is omitted if it cannot be read. Sampler publications do not report this
   training-checkpoint attribute.
 
-Checkpoint capture and persistence retain their existing command and trainer
-spans. Within persistence, `lilo.backend.checkpoint_write` measures rank-zero
-file serialization and writes; `lilo.backend.checkpoint_commit` measures the
-existing wait for all writers and the volume commit. Persistence can overlap
-later training operations.
+Within checkpoint persistence, `lilo.backend.checkpoint_write` measures rank-zero
+serialization and file writes, while `lilo.backend.checkpoint_commit` measures
+the wait for all writers and the Volume commit. The enclosing command and trainer
+spans show where this work overlaps later training.
 
 ## Viewing telemetry in Datadog
 

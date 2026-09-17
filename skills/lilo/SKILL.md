@@ -9,8 +9,8 @@ Lilo runs training and sampling on Modal through the Tinker SDK. Below details l
 
 ## Connect or deploy
 
-For an existing endpoint, create `tinker.ServiceClient(base_url=url, api_key=key)`.
-Clients need only that URL and key, not Modal credentials.
+Connect to an existing endpoint with
+`tinker.ServiceClient(base_url=url, api_key=key)`, using its URL and API key.
 
 For a new deployment, install Lilo in the user's project:
 
@@ -57,9 +57,8 @@ See [scoped runs](../../docs/scoped-runs.md) for more details on setup and recov
 ## Configure the engine and sampler capacity
 
 An engine recipe sets the model, context limits, GPU layout, and backend options.
-Built-in recipes in `lilo.engines` return frozen dataclasses. Use
-`dataclasses.replace`, including for nested settings, to customize one in the
-user's project:
+Built-in recipes in `lilo.engines` return frozen dataclasses, so customize them
+with `dataclasses.replace`, including for nested settings:
 
 ```python
 from dataclasses import replace
@@ -71,8 +70,8 @@ engine = replace(
 )
 ```
 
-Changing the GPU type alone may not work: GPU count, parallelism, context length,
-and memory requirements must fit together.
+When changing GPU type, adjust the GPU count, parallelism, and context limits
+to fit the model's memory requirements.
 
 Set scoped sampler capacity with
 `lilo.run(engine=engine, latest=lilo.Pool(min_containers=..., max_containers=...,
@@ -82,8 +81,8 @@ configures resources.
 
 ## Publish weights before sampling
 
-Training and inference keep separate copies of the weights. After an update,
-publish the weights that the next rollouts need:
+Training and inference keep separate copies of the weights, so publish updated
+weights before using them for the next rollouts:
 
 ```python
 latest = training.save_weights_and_get_sampling_client()
@@ -113,8 +112,8 @@ its replicas are ready, and requests will receive HTTP 408 until the inference r
 | First forward/backward | Compile kernels; the delay appears while waiting for the result. |
 | First sample on a cold pool | Allocate inference GPUs, load and compile the model, and apply published weights. |
 
-Measure steady-state calls separately. Samplers can go cold after scaling down,
-and a new pinned version may start a separate pool even if the latest pool is warm.
+Samplers can go cold after scaling down or when starting a new pinned pool,
+so measure startup separately from steady-state calls.
 
 ## Checkpoint and recover
 
@@ -123,9 +122,9 @@ and a new pinned version may start a separate pool even if the latest pool is wa
 
 After trainer loss, a replacement trainign client can be created from a prior checkpoint. Within the same scope, old sampling_client/training_client handles will return HTTP 410 after this reassignment. 
 
-An optimizer timeout can mean the update succeeded but its response was lost.
-Do not blindly repeat it. A sampling failure alone does not mean the trainer was
-lost. See [FFT recovery and checkpointing](../../docs/full-fine-tunes.md) for the
+An optimizer timeout can mean the update succeeded but its response was lost,
+so check the outcome before retrying. Diagnose sampling failures separately
+before replacing the trainer. See [FFT recovery and checkpointing](../../docs/full-fine-tunes.md) for the
 supported recovery paths and an example of overlapping saves with training/using the asynchronous capture capabilities to maximize trainer utilization and not block future GPU work unnecesarily on disk writes.
 
 ## Diagnose cost and throughput

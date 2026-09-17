@@ -31,8 +31,8 @@ Recovery cancels the rollout workers and waits for them to finish, then clears
 the queue before replacing the trainer.
 
 Metrics record queue depth, in-flight and discarded batches, rollout time,
-trainer wait time, update time, and publication time. The loop still waits for
-checkpoints and evaluation. It also waits whenever sampling cannot keep up.
+trainer wait time, update time, and publication time. Checkpoints, evaluation,
+and insufficient sampling throughput can each leave the trainer waiting.
 
 ## Recorded results from the earlier shared deployment
 
@@ -67,9 +67,9 @@ visible on the step axis. An early async attempt replayed steps 351–369 after 
 restore; diagnostics select each metric's consumed sampling ticket so retained
 files from the old attempt cannot create gaps or double-count samples.
 
-The fixed evaluation has only 16 stochastic samples; one answer changes accuracy
-by 6.25 percentage points. Passing-code averages also change when the solved set
-changes. Repeated exposure to the small training set and falling sampled entropy
+The fixed evaluation has 16 stochastic samples, so one answer changes accuracy
+by 6.25 percentage points. The average passing-code length also depends on which
+problems were solved. Repeated exposure to the small training set and falling sampled entropy
 leave a risk of overfitting. Code diversity is the exact-string distinct fraction
 among eight submissions per problem, including incorrect submissions.
 
@@ -83,9 +83,8 @@ uv run python figures/render.py
 
 [Compare generated outputs at steps 150 and 620](figures/output-comparison.html):
 three selected held-out problems, with both versions passing the retained tests.
-The standalone page embeds the exact generated responses and Python code; choose
-a problem and toggle full response versus extracted code. Download/open the HTML
-in a browser. These examples were selected to show shorter solutions.
+Open the HTML in a browser to choose a problem and switch between the full
+response and extracted Python code. These examples were selected to show shorter solutions.
 
 ## Reward and configuration
 
@@ -105,9 +104,10 @@ penalty 0.08. Its later `async-v7` continuation and the new `prompt-v8` run are
 not included in those figures. Compare correctness and lengths across reward
 changes.
 
-All output tokens count, including prose outside the extracted code. Passing
-earns at least 0.80; failing earns at most zero. The standard-deviation floor
-keeps tiny length differences from becoming unit-sized updates. `reward-v3`
+All output tokens count toward the length penalty, including prose outside the
+extracted code. Passing earns at least 0.80 and failing earns at most zero, so
+correctness takes priority over length. The standard-deviation floor keeps tiny
+length differences from becoming unit-sized updates. `reward-v3`
 retains the previous `1 + 0.1 * exp(-bytes / 256)` passing reward without an
 output penalty.
 
@@ -260,8 +260,8 @@ uv run python -m codegolf.report runs/golf
 uv run python -m codegolf.diagnostics runs/golf
 ```
 
-Rollout downloads can be large; omit `--rollouts` for reward/correctness plots.
-Entropy/diversity require tokens and logprobs. Fetch removes stale metrics after
+Omit `--rollouts` when plotting reward and correctness to avoid large downloads.
+Include it for entropy and diversity plots, which need tokens and logprobs. Fetch removes stale metrics after
 rollback. Dataset preparation pins `deepmind/code_contests` revision
 `802411c3010cb00d1b05bad57ca77365a3c699d6`, selecting 160 Codeforces problems rated
 800–1400 and retaining public, private, and generated tests. A problem is kept
@@ -369,8 +369,8 @@ Trainer state is reported every five seconds for execution, checkpoint writing,
 and sampler publication. Use `.fill(null)` in Datadog so missing reports appear
 as gaps. Sampled entropy is mean negative sampled-token log probability.
 
-Metrics already sent to Datadog remain visible after a checkpoint rollback. Use
-the saved run files to determine which updates survived. The Datadog notebook
+Metrics already sent to Datadog remain visible after a checkpoint rollback,
+so use the saved run files to determine which updates survived. The Datadog notebook
 is created separately.
 
 ### Scoped-run validation

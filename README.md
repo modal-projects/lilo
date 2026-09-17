@@ -61,8 +61,8 @@ export MODAL_ENVIRONMENT=your-environment
 uv run modal environment list
 ```
 
-Replace `your-environment` with an existing environment name. Set it **before**
-creating secrets so secrets and deployments all use the same environment.
+Set `your-environment` to an existing environment **before** creating secrets
+so the secrets and deployment use the same environment.
 For automation, existing `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` credentials can
 be supplied instead of the interactive login.
 
@@ -117,10 +117,9 @@ uv run modal secret create lilo-proxy \
 uv run modal deploy -m lilo.providers.modal.app
 ```
 
-This deploys the control plane and bundled model definitions from the installed
-package. A successful deployment prints a URL for the `server` web function.
-Keep that URL for step 4. Redeploy after updating Lilo. You can reuse the same
-deployment for multiple training runs.
+This deploys the control plane and bundled model definitions, then prints the
+`server` URL to use in step 4. Reuse the deployment across training runs and
+redeploy after updating Lilo.
 
 Training and sampling allocate GPUs on demand. The bundled `Qwen/Qwen3.5-4B`
 definition used below has a four-H100 trainer and one H100 per sampling replica;
@@ -185,9 +184,9 @@ To save checkpoints, sample, or run longer jobs, see
 
 ### 5. Clean up
 
-After the script exits, session heartbeats stop. Lilo's periodic cleaner reclaims
-idle training models and their latest sampler pools; cleanup is not immediate.
-Check the apps and running containers in your Modal dashboard or list apps with:
+After the script exits, session heartbeats stop and Lilo's periodic cleaner
+reclaims idle training models and their latest sampler pools. Check that cleanup
+has finished in the Modal dashboard or list apps with:
 
 ```bash
 uv run modal app list
