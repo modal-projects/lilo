@@ -180,6 +180,11 @@ and the [raw Tinker RL example](scripts/rl_example.py) for sampling and a toy
 policy update. Copy examples you want to run into your project; repository
 `scripts/` are not installed with the package.
 
+The [W&B RL example](scripts/wandb_rl_example.py) extends it to a multi-step
+loop that logs reward, response length, and Lilo's training metrics to Weights
+& Biases from the client side; tinker-cookbook users can instead set
+`wandb_project`/`wandb_name` on the cookbook `Config`.
+
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
 
