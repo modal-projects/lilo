@@ -529,6 +529,7 @@ def test_checkpoint_rejects_different_resolved_main_commit(tmp_path):
 def test_miles_checkpoint_storage_lifecycle_uses_control_plane_layout(tmp_path):
     import asyncio
     from types import SimpleNamespace
+
     from lilo.control_plane.service import ControlPlane
     from lilo.providers.modal.checkpoint_storage import ModalCheckpointStorage
 
@@ -596,17 +597,18 @@ def test_mixed_clients_only_forward_fields_consumed_by_loss(tmp_path, loss_fn):
 )
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_nonfinite_adam_parameters_rejected_before_runtime(name, value):
-    from lilo.backends.miles_lora import _adam_parameters
     from types import SimpleNamespace
 
-    values = dict(
-        learning_rate=1e-4,
-        beta1=0.9,
-        beta2=0.99,
-        eps=1e-8,
-        weight_decay=0.0,
-        grad_clip_norm=1.0,
-    )
+    from lilo.backends.miles_lora import _adam_parameters
+
+    values = {
+        "learning_rate": 1e-4,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "eps": 1e-8,
+        "weight_decay": 0.0,
+        "grad_clip_norm": 1.0,
+    }
     values[name] = value
     with pytest.raises(ValueError, match="finite"):
         _adam_parameters(SimpleNamespace(**values))

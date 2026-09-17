@@ -16,8 +16,8 @@ from lilo.providers.contracts import (
 
 from .checkpoint_storage import (
     CHECKPOINT_ROOT,
-    ModalCheckpointStorage,
     CHECKPOINT_VOLUME_NAME,
+    ModalCheckpointStorage,
     checkpoint_volume,
 )
 from .definitions import (
