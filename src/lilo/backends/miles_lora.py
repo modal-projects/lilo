@@ -134,7 +134,6 @@ class MilesCommandBackend(Backend):
         slot_rows = pad_slot_rows(
             prepared.slot_rows,
             self.config.data_parallel_size,
-            str(batch.loss_fn),
         )
         raw_outputs = self.runtime.forward_backward(
             slot_rows,

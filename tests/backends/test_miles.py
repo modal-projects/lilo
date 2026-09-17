@@ -225,12 +225,12 @@ def test_backend_routes_batches_and_preserves_per_model_state(tmp_path) -> None:
 
 def test_pad_slot_rows_adds_zero_weight_rows() -> None:
     rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(11))
-    padded = pad_slot_rows(rows, 2, "cross_entropy")
+    padded = pad_slot_rows(rows, 2)
     assert len(padded) == 12
     assert padded[-1] == (0, {"tokens": [1, 2], "target_len": 1})
 
     rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(3))
-    assert len(pad_slot_rows(rows, 4, "cross_entropy")) == 4
+    assert len(pad_slot_rows(rows, 4)) == 4
 
 
 def test_backend_pads_dp_ragged_batches(tmp_path) -> None:

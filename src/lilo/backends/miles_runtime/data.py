@@ -22,7 +22,6 @@ class PreparedBatch:
 def pad_slot_rows(
     slot_rows: tuple[tuple[int, dict[str, Any]], ...],
     multiple: int,
-    loss_fn: str,
 ) -> tuple[tuple[int, dict[str, Any]], ...]:
     """Pad to a multiple of multiple with zero-weight rows for Miles DP sharding."""
     if multiple <= 1 or len(slot_rows) % multiple == 0:
