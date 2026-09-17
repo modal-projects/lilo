@@ -131,10 +131,11 @@ by an older policy. Retain the logprobs returned with those rollouts.
 Adapter capture uses the shared GPU command lane. Persistence can overlap later
 training and other adapters' publications, but only one publication per adapter
 can be in flight. Queueing another publication for that adapter blocks its
-later operations until the prior publication persists. Keep at most one
-`save_state()` future pending per controller; repeated checkpoint captures can
-wait on the engine-wide checkpoint writer and delay other clients. Model
-creation, loading, and unloading also wait for outstanding persistence.
+later operations until the prior publication persists. Checkpoints share one
+persistence worker. While it is busy, additional checkpoints stay queued and
+other clients' ready training can proceed. A queued checkpoint also holds up
+later commands from its own client. Model creation, loading, and unloading wait
+for outstanding persistence.
 
 Use `save_state()` for adapter and optimizer recovery, then
 `load_state_with_optimizer()` on a new matching LoRA client. Restore requires
