@@ -53,6 +53,7 @@ from longrlvr_comparison_common import (
 from tinker_cookbook import checkpoint_utils
 from tinker_cookbook.rl.train import AsyncConfig, Config
 from tinker_cookbook.rl.train import main as train_main
+from tinker_cookbook.tokenizer_utils import get_tokenizer, register_tokenizer
 
 BASE_URL = os.environ.get("TINKER_BASE_URL", "")
 SCRIPT_PATH = Path(__file__).resolve()
@@ -334,6 +335,9 @@ async def run(
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
     from tinker_cookbook.rl import rollouts as rl_rollouts
     from tinker_cookbook.rl import train as rl_train
+
+    if base_model != MODEL_NAME:
+        register_tokenizer(base_model, lambda: get_tokenizer(MODEL_NAME))
 
     create_adam_params = tinker.AdamParams
     create_lora = tinker.ServiceClient.create_lora_training_client_async
