@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import inspect
+import json
 import math
 import os
 import subprocess
@@ -174,6 +176,22 @@ def _comparison_metrics(
     return common
 
 
+def _pinned_prompt_metadata(prompt_file: str | None) -> dict[str, object]:
+    if prompt_file is None:
+        return {}
+    path = Path(prompt_file)
+    payload = path.read_bytes()
+    document = json.loads(payload)
+    rows = document if isinstance(document, list) else document["rows"]
+    if not isinstance(rows, list):
+        raise TypeError(f"prompt file must contain a JSON list: {path}")
+    return {
+        "pinned_prompt_file": str(path),
+        "pinned_prompt_sha256": hashlib.sha256(payload).hexdigest(),
+        "pinned_prompt_rows": len(rows),
+    }
+
+
 class _ComparisonLogger:
     def __init__(
         self,
@@ -331,6 +349,7 @@ async def run(
     std_normalize_advantages: bool,
     per_token_loss_scale: bool,
     base_model: str,
+    prompt_file: str | None,
 ) -> None:
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
     from tinker_cookbook.rl import rollouts as rl_rollouts
@@ -379,6 +398,7 @@ async def run(
 
     source_groups_per_batch = math.ceil(groups_per_batch * source_group_multiplier)
     advantage_diagnostics = {"total_tokens": 0.0}
+    pinned_prompt_metadata = _pinned_prompt_metadata(prompt_file)
 
     def compute_matched_advantages(trajectory_groups_P):
         (
@@ -414,8 +434,11 @@ async def run(
     original_setup_logging = rl_train.ml_log.setup_logging
 
     def setup_comparison_logging(*args, **kwargs):
+        wrapped = original_setup_logging(*args, **kwargs)
+        if pinned_prompt_metadata:
+            wrapped.log_hparams(pinned_prompt_metadata)
         return _ComparisonLogger(
-            original_setup_logging(*args, **kwargs),
+            wrapped,
             trainer_gpus,
             advantage_diagnostics,
             std_normalize_advantages,
@@ -430,6 +453,7 @@ async def run(
         renderer_name=RENDERER_NAME,
         max_prompt_tokens=CONTEXT_LENGTH - max_tokens,
         seed=seed,
+        prompt_file=prompt_file,
     )
     os.environ["WANDB_RUN_GROUP"] = wandb_group
     config = Config(
@@ -519,6 +543,7 @@ def main() -> None:
     )
     parser.add_argument("--base-url", default=BASE_URL)
     parser.add_argument("--base-model", default=MODEL_NAME)
+    parser.add_argument("--prompt-file")
     parser.add_argument("--seed", type=int, default=DATASET_SEED)
     parser.add_argument("--wandb-group", default=WANDB_GROUP)
     parser.add_argument("--run-name")
@@ -592,6 +617,7 @@ def main() -> None:
             str(args.trainer_gpus),
             "--base-model",
             args.base_model,
+            *(["--prompt-file", args.prompt_file] if args.prompt_file else []),
             "--max-steps-off-policy",
             str(args.max_steps_off_policy),
             *(["--std-normalize-advantages"] if args.std_normalize_advantages else []),
@@ -628,6 +654,7 @@ def main() -> None:
             std_normalize_advantages=args.std_normalize_advantages,
             per_token_loss_scale=args.per_token_loss_scale,
             base_model=args.base_model,
+            prompt_file=args.prompt_file,
         )
     )
     print(log_path)

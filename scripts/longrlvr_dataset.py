@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 import math
 import re
 import textwrap
@@ -305,17 +306,44 @@ class LongRLVRDataset(RLDataset):
         renderer_name: str,
         max_prompt_tokens: int,
         seed: int,
+        prompt_file: str | None = None,
     ) -> None:
         tokenizer = get_tokenizer(model_name)
         self.tokenizer = tokenizer
         self.renderer = renderers.get_renderer(renderer_name, tokenizer=tokenizer)
         self.batch_size = batch_size
         self.group_size = group_size
-        self.rows = self._load_rows(
-            num_groups=num_groups,
-            max_prompt_tokens=max_prompt_tokens,
-            seed=seed,
+        self.rows = (
+            self._load_rows_from_file(prompt_file, num_groups)
+            if prompt_file is not None
+            else self._load_rows(
+                num_groups=num_groups,
+                max_prompt_tokens=max_prompt_tokens,
+                seed=seed,
+            )
         )
+
+    @staticmethod
+    def _load_rows_from_file(
+        path: str,
+        num_groups: int,
+    ) -> list[dict[str, Any]]:
+        with open(path, encoding="utf-8") as stream:
+            payload = json.load(stream)
+        source_rows = payload if isinstance(payload, list) else payload["rows"]
+        if len(source_rows) < num_groups:
+            raise RuntimeError(
+                f"prompt file contains only {len(source_rows)} rows; "
+                f"expected at least {num_groups}"
+            )
+        return [
+            {
+                "prompt": row["prompt"],
+                "ground_truth": str(row["ground_truth"]),
+                "reference_chunks": tuple(int(chunk) for chunk in row["ref_chunks"]),
+            }
+            for row in source_rows[:num_groups]
+        ]
 
     def _load_rows(
         self,
@@ -408,6 +436,7 @@ class LongRLVRDatasetBuilder(RLDatasetBuilder):
     renderer_name: str
     max_prompt_tokens: int
     seed: int = 0
+    prompt_file: str | None = None
 
     async def __call__(self) -> tuple[LongRLVRDataset, None]:
         return (
@@ -419,6 +448,7 @@ class LongRLVRDatasetBuilder(RLDatasetBuilder):
                 renderer_name=self.renderer_name,
                 max_prompt_tokens=self.max_prompt_tokens,
                 seed=self.seed,
+                prompt_file=self.prompt_file,
             ),
             None,
         )
