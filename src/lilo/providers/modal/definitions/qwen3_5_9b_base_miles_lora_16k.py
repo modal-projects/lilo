@@ -111,10 +111,10 @@ def run_trainer(
     import json
 
     from huggingface_hub import snapshot_download
+    from modal.config import config
 
     from lilo.providers.modal.kv import shared_kv
     from lilo.providers.modal.serve import run_engine_with_backend
-    from modal.config import config
 
     if not os.path.exists(HF_CHECKPOINT):
         snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
