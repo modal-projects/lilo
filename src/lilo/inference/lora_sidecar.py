@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+import modal
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from stitch.types import VersionConstraint, VersionRef
@@ -31,9 +33,14 @@ def create_app(
         )
         app.state.adapter_lock = asyncio.Lock()
         app.state.registered_adapters = {}
+        app.state.adapter_resolutions = {}
         try:
             yield
         finally:
+            pending = list(app.state.adapter_resolutions.values())
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
             await app.state.client.aclose()
 
     app = FastAPI(lifespan=lifespan)
@@ -56,20 +63,15 @@ def create_app(
         served_version = None
         if run_id is not None:
             try:
-                ref = (
-                    VersionRef(str(run_id), constraint.exact_version) if constraint.exact_version is not None else None
+                ref, registration_error = await _prepare_adapter(
+                    app, bulletin, str(run_id), constraint
                 )
-                if ref is None or ref.identity not in app.state.registered_adapters:
-                    # Reload and registration share a lock because reload can
-                    # temporarily hide paths that SGLang is reading.
-                    async with app.state.adapter_lock:
-                        # Another request may have registered this exact version
-                        # while this request waited for the lock.
-                        if ref is None or ref.identity not in app.state.registered_adapters:
-                            ref = await _resolve(bulletin, str(run_id), constraint)
-                            registration_error = await _ensure_adapter(app, ref.identity, str(bulletin.resolve(ref)))
-                            if registration_error is not None:
-                                return _passthrough(registration_error)
+                if registration_error is not None:
+                    return Response(
+                        content=registration_error.content,
+                        status_code=registration_error.status_code,
+                        media_type=registration_error.headers.get("content-type"),
+                    )
                 payload["lora_path"] = ref.identity
                 served_version = ref.version
             except (SnapshotNotFound, ValueError) as exc:
@@ -84,7 +86,11 @@ def create_app(
         try:
             body = response.json()
         except ValueError:
-            return _passthrough(response)
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                media_type=response.headers.get("content-type"),
+            )
         if served_version is not None and isinstance(body, dict):
             metadata = body.setdefault("meta_info", {})
             metadata["weight_version_start"] = served_version
@@ -94,24 +100,81 @@ def create_app(
     return app
 
 
-async def _ensure_adapter(
+async def _prepare_adapter(
     app: FastAPI,
-    name: str,
-    path: str,
-) -> httpx.Response | None:
-    registered = app.state.registered_adapters
-    if registered.get(name) == path:
-        return None
-    if name in registered:
-        raise RuntimeError(f"adapter {name!r} changed its immutable path")
-    response = await app.state.client.post(
-        "/load_lora_adapter",
-        json={"lora_name": name, "lora_path": path, "pinned": False},
+    bulletin: SnapshotBulletin,
+    run_id: str,
+    constraint: VersionConstraint,
+) -> tuple[VersionRef, httpx.Response | None]:
+    ref = (
+        VersionRef(run_id, constraint.exact_version)
+        if constraint.exact_version is not None
+        else None
     )
-    if response.is_error:
-        return response
-    registered[name] = path
-    return None
+    if ref is not None and ref.identity in app.state.registered_adapters:
+        return ref, None
+    key = (run_id, constraint.exact_version, constraint.min_version)
+    pending = app.state.adapter_resolutions
+    task = pending.get(key)
+    if task is None:
+
+        async def prepare():
+            # Reload must not hide paths while SGLang reads a new adapter.
+            async with app.state.adapter_lock:
+                if ref is not None and ref.identity in app.state.registered_adapters:
+                    return ref, None
+                if ref is not None:
+                    resolved = ref
+                    try:
+                        path = await asyncio.to_thread(bulletin.resolve, resolved)
+                    except SnapshotNotFound:
+                        # Exact versions are immutable: reload only if this mount
+                        # does not yet contain the complete requested snapshot.
+                        await bulletin.refresh()
+                        path = await asyncio.to_thread(bulletin.resolve, resolved)
+                else:
+                    # Latest/minimum requests must see newly published policies.
+                    await bulletin.refresh()
+                    resolved = bulletin.read_latest(run_id)
+                    if resolved is None:
+                        raise SnapshotNotFound(run_id)
+                    if (
+                        constraint.min_version is not None
+                        and resolved.version < constraint.min_version
+                    ):
+                        raise SnapshotNotFound(
+                            f"{run_id} latest={resolved.version} required={constraint.min_version}"
+                        )
+                    if resolved.identity in app.state.registered_adapters:
+                        return resolved, None
+                    path = await asyncio.to_thread(bulletin.resolve, resolved)
+                response = await app.state.client.post(
+                    "/load_lora_adapter",
+                    json={
+                        "lora_name": resolved.identity,
+                        "lora_path": str(path),
+                        "pinned": False,
+                    },
+                )
+                if response.is_error:
+                    return resolved, response
+                app.state.registered_adapters[resolved.identity] = str(path)
+                return resolved, None
+
+        task = asyncio.create_task(prepare())
+        pending[key] = task
+
+        def finished(completed):
+            if pending.get(key) is completed:
+                del pending[key]
+            if not completed.cancelled():
+                # A disconnected caller may leave no waiter for this failure.
+                completed.exception()
+
+        task.add_done_callback(finished)
+    # Share only in-flight work. Later requests still resolve the latest version.
+    # One disconnected request must not cancel registration for other callers.
+    return await asyncio.shield(task)
 
 
 async def _post_generate(
@@ -149,30 +212,6 @@ async def _abort(client: httpx.AsyncClient, rid) -> None:
     )
 
 
-def _passthrough(response: httpx.Response) -> Response:
-    return Response(
-        content=response.content,
-        status_code=response.status_code,
-        media_type=response.headers.get("content-type"),
-    )
-
-
-async def _resolve(
-    bulletin: SnapshotBulletin,
-    run_id: str,
-    constraint: VersionConstraint,
-) -> VersionRef:
-    await bulletin.refresh()
-    if constraint.exact_version is not None:
-        return VersionRef(run_id, constraint.exact_version)
-    latest = bulletin.read_latest(run_id)
-    if latest is None:
-        raise SnapshotNotFound(run_id)
-    if constraint.min_version is not None and latest.version < constraint.min_version:
-        raise SnapshotNotFound(f"{run_id} latest={latest.version} required={constraint.min_version}")
-    return latest
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", default="0.0.0.0")
@@ -184,12 +223,8 @@ def main() -> None:
 
     refresh = None
     if args.bulletin_volume:
-        import modal
-
         refresh = modal.Volume.from_name(args.bulletin_volume, version=2).reload
     bulletin = SnapshotBulletin(Path(args.bulletin_root), refresh=refresh)
-    import uvicorn
-
     uvicorn.run(
         create_app(bulletin, args.upstream_url),
         host=args.host,

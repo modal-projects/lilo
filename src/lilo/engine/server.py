@@ -126,6 +126,7 @@ class Engine:
         self.max_results = max_results
         self.sampler_persistence_concurrency = sampler_persistence_concurrency
         self._sampler_inflight: set[str] = set()
+        self._serial_persistence_inflight: set[OperationKind] = set()
         self.draining = False
         self._models: dict[str, _ModelState] = {}
         self._futures: dict[str, FutureState] = {}
@@ -535,18 +536,9 @@ class Engine:
             # before consuming the operation so backpressure cannot stall dispatch.
             self._sampler_inflight.add(operation.model_id)
         else:
-            self._observe_state(
-                (operation.model_id,), f"executing:{operation.kind.value}"
-            )
-            wait_started = time.time()
-            await queue.join()
-            self._observe_span(
-                (operation.model_id,),
-                f"wait_persistence:{operation.kind.value}",
-                "gpu",
-                wait_started,
-                seq_ids=[operation.seq_id],
-            )
+            # Reserve before capture, but defer busy lanes in _ready_batch.
+            # Waiting here would stop dispatch for every other client.
+            self._serial_persistence_inflight.add(operation.kind)
         name = f"capture:{operation.kind.value}"
         self._observe_state((operation.model_id,), f"executing:{name}")
         started = time.time()
@@ -568,7 +560,9 @@ class Engine:
             async with self._lock:
                 if parallel_sampler:
                     self._sampler_inflight.remove(operation.model_id)
-                    self._work.notify_all()
+                else:
+                    self._serial_persistence_inflight.remove(operation.kind)
+                self._work.notify_all()
                 self._finish(
                     operation,
                     FutureState(FutureStatus.FAILED, error=_failure(exc, name)),
@@ -621,7 +615,9 @@ class Engine:
                         and self.sampler_persistence_concurrency > 1
                     ):
                         self._sampler_inflight.remove(job.operation.model_id)
-                        self._work.notify_all()
+                    else:
+                        self._serial_persistence_inflight.remove(job.operation.kind)
+                    self._work.notify_all()
             finally:
                 self._persistence_active[lane] -= 1
                 if self.observer is not None and self._persistence_active[lane] == 0:
@@ -665,6 +661,8 @@ class Engine:
                 continue
             operation = model.buffered.get(model.next_seq)
             if operation is not None:
+                if operation.kind in self._serial_persistence_inflight:
+                    continue
                 if (
                     operation.kind == OperationKind.SAVE_WEIGHTS_FOR_SAMPLER
                     and self.sampler_persistence_concurrency > 1

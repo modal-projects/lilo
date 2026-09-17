@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from codegolf import train as module
+from codegolf.config import AsyncConfig
 from codegolf.reward import advantages, score
 from codegolf.store import Store
 
@@ -155,8 +156,6 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
             }
         )
     )
-    from codegolf.config import AsyncConfig
-
     config_type = AsyncConfig if async_mode else module.Config
     cfg = config_type(
         steps=3,
@@ -216,8 +215,6 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
 
 
 def test_failed_rollout_drains_siblings_before_recovery():
-    import pytest
-
     async def scenario():
         started = asyncio.Event()
         cleaned = asyncio.Event()
@@ -241,3 +238,116 @@ def test_failed_rollout_drains_siblings_before_recovery():
         assert cleaned.is_set()
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_training_batches_commits_and_preserves_checkpoint_receipt(
+    tmp_path, monkeypatch, async_mode
+):
+    root = tmp_path / "run"
+    commits = []
+    previous = {}
+
+    async def commit():
+        current = {
+            str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*.json")
+        }
+        commits.append(
+            {name for name, data in current.items() if previous.get(name) != data}
+        )
+        previous.clear()
+        previous.update(current)
+        if "checkpoint.json" in current:
+            step = json.loads(current["checkpoint.json"])["step"]
+            assert f"metrics/{step:04d}.json" in current
+
+    class Trainer:
+        model_id = "test-model"
+
+        def get_tokenizer(self):
+            return Tokenizer()
+
+        async def save_weights_and_get_sampling_client_async(self):
+            return Sampler()
+
+        async def forward_backward_async(self, items, *args, **kwargs):
+            return Future(
+                SimpleNamespace(
+                    metrics={},
+                    loss_fn_outputs=[
+                        {"logprobs": item.loss_fn_inputs["logprobs"]} for item in items
+                    ],
+                )
+            )
+
+        async def optim_step_async(self, params):
+            return Future(SimpleNamespace(metrics={}))
+
+        async def save_state_async(self, name):
+            return Future(SimpleNamespace(path="checkpoint/3"))
+
+    async def create(*args, **kwargs):
+        return Trainer()
+
+    async def release(trainer):
+        pass
+
+    async def judge(code, tests, app):
+        return {
+            "passed": code == "print(1)",
+            "tests_passed": int(code == "print(1)"),
+            "tests_total": 1,
+        }
+
+    monkeypatch.setattr(module, "release", release)
+    monkeypatch.setattr(module, "judge", judge)
+    monkeypatch.setattr(module.tinker, "ServiceClient", lambda **kwargs: object())
+    monkeypatch.setenv("TINKER_BASE_URL", "https://unused.invalid")
+    monkeypatch.setenv("TINKER_API_KEY", "test")
+    data = tmp_path / "data.json"
+    data.write_text(
+        json.dumps(
+            {
+                "problems": [
+                    {
+                        "id": str(i),
+                        "statement": "Print 1",
+                        "reference": "print(1)",
+                        "tests": [],
+                    }
+                    for i in range(4)
+                ]
+            }
+        )
+    )
+    cfg = (AsyncConfig if async_mode else module.Config)(
+        steps=3,
+        prompts_per_step=2,
+        group_size=2,
+        eval_problems=2,
+        eval_samples=2,
+        checkpoint_every=3,
+        eval_every=3,
+    )
+    asyncio.run(module.train(root, data, None, cfg, commit, create_training=create))
+    for step in range(1, 4):
+        records = {
+            str(p.relative_to(root))
+            for p in (root / f"rollouts/step-{step:04d}").glob("*.json")
+        }
+        assert len(records) == 2
+        writes = [changed for changed in commits if records & changed]
+        assert len(writes) == 1 and records <= writes[0]
+    for step in (0, 3):
+        records = {
+            str(p.relative_to(root))
+            for p in (root / f"rollouts/eval-{step:04d}").glob("*.json")
+        }
+        writes = [changed for changed in commits if records & changed]
+        assert len(records) == 2 and len(writes) == 1
+        assert records | {f"eval/{step:04d}.json"} <= writes[0]
+    for step in (1, 2):
+        assert sum(f"metrics/{step:04d}.json" in changed for changed in commits) == 1
+    receipt = next(changed for changed in commits if "checkpoint.json" in changed)
+    assert "metrics/0003.json" in receipt
+    assert any(name.startswith("events/") for name in receipt)

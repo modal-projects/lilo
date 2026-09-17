@@ -1,10 +1,10 @@
 import asyncio
 import json
+
 import pytest
 
 from lilo.engine import Engine, FutureStatus, OperationKind
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
-
 from tests.support import EchoExecutor
 
 
@@ -918,5 +918,108 @@ def test_sampler_persistence_overlaps_later_gpu_operations() -> None:
         assert saved.status == FutureStatus.COMPLETE
         assert saved.result == {"publish_version": 1}
         await server.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind", ["checkpoint", "sampler"])
+def test_busy_persistence_lane_does_not_block_other_clients_training(kind):
+    async def run():
+        started = asyncio.Event()
+        release = asyncio.Event()
+        captures = []
+
+        class Executor(EchoExecutor):
+            async def capture_snapshot(self, model_id, operation_kind, payload):
+                captures.append(model_id)
+                return {}
+
+            async def persist_snapshot(
+                self, model_id, operation_kind, payload, capture
+            ):
+                if model_id == "a":
+                    started.set()
+                    await release.wait()
+                return {"publish_version": 1}
+
+        server = Engine(Executor(), sampler_persistence_concurrency=1)
+        for model in ("a", "b", "c"):
+            await server.accept_model(model, {})
+
+        async def save(model):
+            request = {"model_id": model, "seq_id": 1}
+            if kind == "checkpoint":
+                return await server.save_weights({**request, "name": model})
+            return await server.save_weights_for_sampler(
+                {**request, "publish_version": 1}
+            )
+
+        try:
+            first = await save("a")
+            await asyncio.wait_for(started.wait(), 1)
+            second = await save("b")
+            train = await forward_backward(server, 1, model_id="c")
+            assert (
+                await server.retrieve_future(train, timeout=0.1)
+            ).status == FutureStatus.COMPLETE
+            assert captures == ["a"]
+            assert (await server.retrieve_future(second)).status == FutureStatus.PENDING
+            release.set()
+            assert (
+                await server.retrieve_future(first, timeout=1)
+            ).status == FutureStatus.COMPLETE
+            assert (
+                await server.retrieve_future(second, timeout=1)
+            ).status == FutureStatus.COMPLETE
+            assert captures == ["a", "b"]
+        finally:
+            release.set()
+            await server.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("kind", ["checkpoint", "sampler"])
+@pytest.mark.parametrize("failure_phase", ["capture", "persist"])
+def test_serial_persistence_failure_releases_reservation(kind, failure_phase):
+    async def run():
+        class Executor(EchoExecutor):
+            async def capture_snapshot(self, model_id, operation_kind, payload):
+                if model_id == "a" and failure_phase == "capture":
+                    raise RuntimeError("capture failed")
+                return {}
+
+            async def persist_snapshot(
+                self, model_id, operation_kind, payload, capture
+            ):
+                if model_id == "a" and failure_phase == "persist":
+                    raise RuntimeError("persist failed")
+                return {"publish_version": 1}
+
+        server = Engine(Executor())
+        await server.accept_model("a", {})
+        await server.accept_model("b", {})
+        try:
+
+            async def save(model):
+                if kind == "checkpoint":
+                    return await server.save_weights(
+                        {"model_id": model, "seq_id": 1, "name": model}
+                    )
+                return await server.save_weights_for_sampler(
+                    {"model_id": model, "seq_id": 1, "publish_version": 1}
+                )
+
+            first = await save("a")
+            second = await save("b")
+            assert (
+                await server.retrieve_future(first, timeout=1)
+            ).status == FutureStatus.FAILED
+            assert (
+                await server.retrieve_future(second, timeout=1)
+            ).status == FutureStatus.COMPLETE
+            assert not server._serial_persistence_inflight
+        finally:
+            await server.close()
 
     asyncio.run(run())

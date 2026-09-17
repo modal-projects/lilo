@@ -140,3 +140,73 @@ def test_resume_requires_fork_to_change_estimator_or_eval_budget(tmp_path, chang
         assert store.read("spec.json") == legacy
 
     asyncio.run(exercise())
+
+
+def test_rollout_records_share_one_commit_before_observation(tmp_path):
+    async def exercise():
+        values = {f"rollouts/step-0001/{i}.json": {"problem_id": i} for i in range(4)}
+        commits = []
+        observed = []
+
+        async def commit():
+            assert not observed
+            assert {name: store.read(name) for name in values} == values
+            commits.append(True)
+
+        def observe(name, value):
+            assert commits == [True]
+            observed.append((name, value))
+
+        store = Store(tmp_path, commit=commit, observer=observe)
+        await store.write_many(values)
+        assert commits == [True]
+        assert observed == list(values.items())
+
+    asyncio.run(exercise())
+
+
+def test_failed_batch_commit_does_not_notify_observers(tmp_path):
+    async def exercise():
+        observed = []
+
+        async def commit():
+            raise RuntimeError("commit failed")
+
+        store = Store(
+            tmp_path, commit=commit, observer=lambda *args: observed.append(args)
+        )
+        with pytest.raises(RuntimeError, match="commit failed"):
+            await store.write_many({"rollouts/step-0001/a.json": {"rows": []}})
+        assert not observed
+
+    asyncio.run(exercise())
+
+
+def test_resume_commits_only_when_archiving_stale_results(tmp_path):
+    async def scenario():
+        commits = []
+
+        async def commit():
+            commits.append(True)
+
+        store = Store(tmp_path, commit=commit)
+        await store.resume()
+        assert not commits
+        await store.write_many(
+            {
+                "checkpoint.json": {"step": 1, "path": "checkpoint/1"},
+                "metrics/0001.json": {"step": 1},
+                "metrics/0002.json": {"step": 2},
+                "eval/0002.json": {"step": 2},
+            }
+        )
+        commits.clear()
+        assert (await store.resume())["step"] == 1
+        assert commits == [True]
+        assert store.read("metrics/0001.json") == {"step": 1}
+        assert store.read("metrics/0002.json") is None
+        assert store.read("eval/0002.json") is None
+        await store.resume()
+        assert commits == [True]
+
+    asyncio.run(scenario())
