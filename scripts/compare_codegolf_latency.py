@@ -9,6 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import modal
 
 
@@ -22,7 +23,7 @@ def collect(run, steps):
             except json.JSONDecodeError:
                 if attempt == 4:
                     raise
-                # A newly committed file can become visible before its contents.
+                # Retry transient empty/partial reads while results are being written.
                 time.sleep(0.5 * (attempt + 1))
 
     result = {
@@ -82,6 +83,7 @@ def summarize(run, first_step=1):
     groups = [group for row in rows for group in row["groups"]]
     if not rows:
         return {"updates": 0}
+    published = all("publish_seconds" in row["metric"]["pipeline"] for row in rows)
     return {
         "updates": len(rows),
         "samples": sum(group["samples"] for group in groups),
@@ -105,13 +107,16 @@ def summarize(run, first_step=1):
             row["metric"]["pipeline"]["update_seconds"] for row in rows
         ),
         "publish_seconds": statistics.mean(
-            row["metric"]["pipeline"].get("publish_seconds", 0) for row in rows
-        ),
+            row["metric"]["pipeline"]["publish_seconds"] for row in rows
+        )
+        if published
+        else None,
         "step_components_seconds": statistics.mean(
-            row["metric"]["seconds"]
-            + row["metric"]["pipeline"].get("publish_seconds", 0)
+            row["metric"]["seconds"] + row["metric"]["pipeline"]["publish_seconds"]
             for row in rows
-        ),
+        )
+        if published
+        else None,
         "rollout_persist_seconds": statistics.mean(
             row["metric"]["pipeline"]["rollout_persist_seconds"] for row in rows
         )
@@ -243,6 +248,62 @@ def main():
         ]
     )
     (args.output / "README.md").write_text("\n".join(lines) + "\n")
+
+    if all(
+        len(client["steps"]) == args.steps
+        for run in runs.values()
+        for client in run["clients"]
+    ):
+        fig, axes = plt.subplots(2, 2, figsize=(11, 7))
+        panels = [
+            ("sampling_group_seconds", "Sampling request (8 completions)", "Seconds"),
+            ("rollout_batch_seconds", "Produce a batch, including judging", "Seconds"),
+            (
+                "learner_rollout_wait_seconds",
+                "Learner waits for rollouts + storage",
+                "Seconds",
+            ),
+            ("group_max_tokens", "Mean longest completion per request", "Tokens"),
+        ]
+        for ax, (key, title, unit) in zip(axes.flat, panels, strict=True):
+            for label, offset, color in (
+                ("before", -0.19, "#777777"),
+                ("after", 0.19, "#168272"),
+            ):
+                values = [
+                    summarize({"clients": [client]})[key]
+                    for client in runs[label]["clients"]
+                ]
+                bars = ax.bar(
+                    [i + offset for i in range(4)],
+                    values,
+                    width=0.36,
+                    label=label.title(),
+                    color=color,
+                )
+                ax.bar_label(bars, fmt="%.1f", fontsize=8, padding=3)
+            ax.set(
+                title=title,
+                ylabel=unit,
+                xticks=range(4),
+                xticklabels=[f"Client {i}" for i in range(4)],
+            )
+            ax.set_ylim(0, ax.get_ylim()[1] * 1.15)
+            ax.spines[["top", "right"]].set_visible(False)
+        axes[0, 0].legend(frameon=False)
+        fig.suptitle("Codegolf multi-LoRA: before / after storage and scheduling fixes")
+        fig.text(
+            0.5,
+            0.015,
+            "3 updates × 4 clients per run · 32 samples/update · "
+            "stochastic outputs; generation lengths differ",
+            ha="center",
+            fontsize=9,
+        )
+        fig.tight_layout(rect=(0, 0.04, 1, 0.95))
+        for extension in ("png", "pdf"):
+            fig.savefig(args.output / f"latency-comparison.{extension}", dpi=160)
+        plt.close(fig)
 
 
 if __name__ == "__main__":
