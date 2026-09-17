@@ -1,17 +1,20 @@
 # Four-client multi-LoRA codegolf experiment
 
-This experiment lives on `codex/multilora-codegolf`, stacked on PR #15 at
-`140e642`. It does not change or redeploy the merge-ready PR or the shared `lilo`
-app. The launcher creates a separate Modal app, results volume, and rollout pool.
+This experiment lives on `codex/multilora-codegolf`, based on PR #15 at
+`140e642` with the subsequent LoRA reference-lifetime fixes carried over.
+Experiment configuration stays separate from PR #15 and the shared `lilo` app.
+The launcher creates a separate Modal app, results volume, and rollout pool.
 
 The runner reuses `examples/codeforces-codegolf/codegolf/train.py`, including
 TailRL advantages, reward, prompt formatting, sandbox judging, evaluation,
 checkpointing, and bounded asynchronous rollout buffers. Each client uses the
 reference `tailrl` configuration: Qwen/Qwen3.5-9B (not Qwen3.5-9B-Base), 4 prompts
 × 8 completions per update, 16,384 generated tokens, temperature 1, Adam 1e-6,
-PPO clipping [0.8, 1.2], seed 42, checkpoint every 50 updates, and evaluation of
+PPO clipping [0.8, 1.2], seed 42, checkpoint every 20 updates, and evaluation of
 16 problems with 8 samples each every 20 updates. All four clients share the
 same dataset/split; each has independent sampling, adapter, and optimizer state.
+Checkpoint cadence is the deliberate exception to the FFT reference, which saves
+every 50 updates. The shorter LoRA interval limits recovery loss.
 
 The trainer uses 8 H200s with TP8/CP1/DP1, four rank-32 adapters with alpha 32,
 full activation recomputation, and a 65,536-token context/packing budget. This
@@ -19,7 +22,8 @@ is intentionally a different parallel layout from the FFT reference's
 TP2/CP2/DP2: the current Miles integration requires DP1 and CP1. Multiple long
 sequences run in multiple microbatches, not simultaneously in one giant batch.
 The rollout pool has 4–8 separate one-H200 replicas with 64K context. These GPUs
-are additional to the eight trainer GPUs.
+are additional to the eight trainer GPUs. Each replica retains up to 64 adapter
+versions and reloads evicted versions on demand.
 
 The reference's PPO `weights` give each completion equal total loss weight.
 Miles PPO does not consume a separate weights field. The experiment folds its
