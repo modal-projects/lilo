@@ -34,6 +34,7 @@ from .definitions import (
     qwen3_8_27b_miles_lora_16k,
     qwen3_8_27b_miles_lora_64k,
     qwen3_8_27b_miles_lora_128k,
+    qwen3_8_27b_miles_lora_256k,
 )
 from .deployment import (
     trainer_deployment_env,
@@ -94,6 +95,7 @@ DEFINITIONS = (
     qwen3_8_27b_miles_lora_16k,
     qwen3_8_27b_miles_lora_64k,
     qwen3_8_27b_miles_lora_128k,
+    qwen3_8_27b_miles_lora_256k,
 )
 TRAINER_MAX_CONTAINERS = trainer_max_containers()
 TRAINER_DEPLOYMENT_ENV = trainer_deployment_env()
