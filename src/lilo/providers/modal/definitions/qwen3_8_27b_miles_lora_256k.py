@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 import modal
+import modal.experimental
 
 from ..checkpoint_storage import (
     CHECKPOINT_ROOT,
@@ -20,8 +21,13 @@ MAX_CONTEXT_LENGTH = 262_144
 
 GPU_TYPE = "H200"
 GPUS = 8
-TENSOR_MODEL_PARALLEL_SIZE = 1
-CONTEXT_PARALLEL_SIZE = 8
+TRAINER_NODES = 3
+# 24 = TP8 x CP3 x DP1. TP is the only axis that shards the 27B base weights
+# (~54 GB bf16 -> ~7 GB/GPU) and stays inside one node's NVLink domain; CP3
+# then spans nodes, where ring P2P only moves K/V blocks.
+TENSOR_MODEL_PARALLEL_SIZE = 8
+CONTEXT_PARALLEL_SIZE = 3
+MAX_TOKENS_PER_GPU = -(-MAX_CONTEXT_LENGTH // CONTEXT_PARALLEL_SIZE)
 MAX_LORA_SLOTS = 6
 MAX_LORA_RANK = 32
 DEFAULT_LORA_ALPHA = 32
@@ -96,9 +102,16 @@ huggingface_secret = modal.Secret.from_name("huggingface-secret")
     timeout=86_400,
     max_containers=trainer_max_containers(),
     single_use_containers=True,
+    experimental_options={"efa_enabled": True},
 )
+@modal.experimental.clustered(TRAINER_NODES, rdma=True)
 def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
-    run_trainer(instance_id)
+    from lilo.providers.modal.ray_cluster import start_trainer_cluster
+
+    ray_address = start_trainer_cluster(TRAINER_NODES)
+    if ray_address is None:
+        return
+    run_trainer(instance_id, ray_address=ray_address)
 
 
 def run_trainer(
@@ -107,6 +120,7 @@ def run_trainer(
     definition_id: str = DEFINITION_ID,
     max_models: int = MAX_LORA_SLOTS,
     deterministic_training: bool = False,
+    ray_address: str | None = None,
 ) -> None:
     import json
 
@@ -124,13 +138,14 @@ def run_trainer(
             "hf_checkpoint": HF_CHECKPOINT,
             "model_type": "qwen3.8-27B",
             "actor_num_gpus_per_node": GPUS,
+            "actor_num_nodes": TRAINER_NODES,
             "tensor_model_parallel_size": TENSOR_MODEL_PARALLEL_SIZE,
             "context_parallel_size": CONTEXT_PARALLEL_SIZE,
             "max_lora_slots": MAX_LORA_SLOTS,
             "max_lora_rank": MAX_LORA_RANK,
             "default_lora_alpha": DEFAULT_LORA_ALPHA,
             "target_modules": TARGET_MODULES,
-            "max_tokens_per_gpu": MAX_CONTEXT_LENGTH // CONTEXT_PARALLEL_SIZE,
+            "max_tokens_per_gpu": MAX_TOKENS_PER_GPU,
             "extra_args": (
                 "--seq-length",
                 str(MAX_CONTEXT_LENGTH),
@@ -164,6 +179,7 @@ def run_trainer(
             "LILO_DEFINITION_REVISION": config["image_id"],
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
+            **({"LILO_RAY_ADDRESS": ray_address} if ray_address else {}),
         },
         nproc=1,
         max_models=max_models,
