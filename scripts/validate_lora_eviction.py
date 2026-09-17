@@ -16,6 +16,17 @@ validation_image = image.add_local_file(
 )
 
 
+@app.function(image=validation_image, timeout=180)
+def unit_checks():
+    import subprocess
+
+    subprocess.run(
+        ["python", "-m", "pytest", "-q", "/root/test_sglang_lora_lifetime.py"],
+        check=True,
+    )
+    return {"status": "passed"}
+
+
 @app.function(
     image=validation_image,
     gpu="H200",
@@ -46,7 +57,7 @@ async def validate(adapter_path: str):
         max_loaded_loras=2,
         max_lora_rank=32,
         max_running_requests=1,
-        max_queued_requests=1,
+        max_queued_requests=4,
         memory_fraction=0.8,
         lora_target_modules=(
             "q_proj",
@@ -104,6 +115,34 @@ async def validate(adapter_path: str):
             await load("validation-0")
             r = await c.post("/generate", json=payload("validation-0", "warmup", 8))
             r.raise_for_status()
+            # Reject after acquiring an adapter but before scheduler dispatch.
+            invalid = payload("validation-0", "over-context", 1)
+            invalid["input_ids"] = [1] * 65537
+            r = await c.post("/generate", json=invalid, timeout=30)
+            assert r.status_code == 400, (r.status_code, r.text[:300])
+            # Prefix caching plus n child requests must retain one logical pin.
+            parallel = payload("validation-0", "parallel", 8)
+            parallel["sampling_params"]["n"] = 3
+            r = await c.post("/generate", json=parallel, timeout=30)
+            r.raise_for_status()
+            assert len(r.json()) == 3
+            # Close a streaming HTTP consumer while its scheduler request is live.
+            disconnected = payload("validation-0", "disconnected", 4096)
+            disconnected["stream"] = True
+            async with c.stream("POST", "/generate", json=disconnected) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data:"):
+                        break
+            # Abort a parallel group while its prefix/children are in flight.
+            parallel_abort = payload("validation-0", "parallel-abort", 4096)
+            parallel_abort["sampling_params"]["n"] = 3
+            pending = asyncio.create_task(c.post("/generate", json=parallel_abort))
+            await asyncio.sleep(1)
+            (
+                await c.post("/abort_request", json={"rid": "parallel-abort"})
+            ).raise_for_status()
+            await asyncio.wait_for(pending, 30)
             tasks = [
                 asyncio.create_task(
                     c.post(
@@ -140,6 +179,10 @@ async def validate(adapter_path: str):
             result = {
                 "status": "passed",
                 "pressure_statuses": statuses,
+                "over_context_rejection": "passed",
+                "parallel_samples": 3,
+                "stream_disconnect": "passed",
+                "parallel_abort": "passed",
                 "loads": loads,
                 "old_version_reload": "passed",
             }
@@ -150,10 +193,14 @@ async def validate(adapter_path: str):
 
 
 @app.local_entrypoint()
-def main(adapter_path: str):
+def main(adapter_path: str = "", unit_only: bool = False):
     import json
 
-    result = validate.remote(adapter_path)
+    if not unit_only and not adapter_path:
+        raise ValueError("Provide --adapter-path for GPU validation or use --unit-only")
+    result = unit_checks.remote() if unit_only else validate.remote(adapter_path)
     out = Path(__file__).resolve().parent / "results/lora-eviction-validation"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "gpu-result.json").write_text(json.dumps(result, indent=2) + "\n")
+    (out / ("unit-result.json" if unit_only else "gpu-result.json")).write_text(
+        json.dumps(result, indent=2) + "\n"
+    )
