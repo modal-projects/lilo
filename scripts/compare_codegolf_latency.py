@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -15,7 +16,14 @@ def collect(run, steps):
     volume = modal.Volume.from_name("lilo-multilora-codegolf")
 
     def read(path):
-        return json.loads(b"".join(volume.read_file(f"{run}/{path}")))
+        for attempt in range(5):
+            try:
+                return json.loads(b"".join(volume.read_file(f"{run}/{path}")))
+            except json.JSONDecodeError:
+                if attempt == 4:
+                    raise
+                # A newly committed file can become visible before its contents.
+                time.sleep(0.5 * (attempt + 1))
 
     result = {
         "run": run,
@@ -64,8 +72,13 @@ def collect(run, steps):
     return result
 
 
-def summarize(run):
-    rows = [row for client in run["clients"] for row in client["steps"]]
+def summarize(run, first_step=1):
+    rows = [
+        row
+        for client in run["clients"]
+        for row in client["steps"]
+        if row["metric"]["step"] >= first_step
+    ]
     groups = [group for row in rows for group in row["groups"]]
     if not rows:
         return {"updates": 0}
@@ -144,7 +157,39 @@ def main():
         if runs["before"]["manifest"][key] != runs["after"]["manifest"][key]:
             raise ValueError(f"Mismatched configuration: {key}")
     summary = {label: summarize(run) for label, run in runs.items()}
+    paired = {}
+    for label, run in runs.items():
+        paired[label] = {
+            (
+                client["client"],
+                row["metric"]["pipeline"]["sampling_ticket"],
+                group["problem_id"],
+            ): group
+            for client in run["clients"]
+            for row in client["steps"]
+            for group in row["groups"]
+        }
+    shared = paired["before"].keys() & paired["after"].keys()
+    matched = {"groups": len(shared)}
+    if shared:
+        for label in ("before", "after"):
+            matched[label] = {
+                key: statistics.mean(paired[label][pair][key] for pair in shared)
+                for key in (
+                    "sampling_seconds",
+                    "judge_seconds",
+                    "mean_tokens",
+                    "max_tokens",
+                )
+            }
+    (args.output / "matched-prompts.json").write_text(
+        json.dumps(matched, indent=2) + "\n"
+    )
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    warm_summary = {label: summarize(run, first_step=2) for label, run in runs.items()}
+    (args.output / "warm-summary.json").write_text(
+        json.dumps(warm_summary, indent=2) + "\n"
+    )
     print(json.dumps(summary, indent=2))
     lines = [
         "# Three-step codegolf latency comparison",
@@ -153,10 +198,13 @@ def main():
         "Both runs start from the base model with the same configuration. "
         "Outputs are stochastic.",
         "",
-        "Sampling measures the client request through receipt of all eight completions, "
-        "including transport, queueing, retries, and inference. Judging is timed separately. "
+        "Sampling measures the client request through receipt of all "
+        "eight completions, "
+        "including transport, queueing, retries, and inference. Judging "
+        "is timed separately. "
         "Rollout batch time includes all four groups and judging. Learner rollout wait "
-        "includes local rollout persistence. Step components exclude checkpoint/evaluation "
+        "includes local rollout persistence. Step components exclude "
+        "checkpoint/evaluation "
         "and metrics commit overhead.",
         "",
         "| Metric (mean) | Before | After |",
@@ -172,7 +220,24 @@ def main():
     lines.extend(
         [
             "",
-            "Step 1 includes trainer warmup. Step 3 takes the final checkpoint and evaluation; "
+            "## Updates 2 and 3",
+            "",
+            "| Metric (mean) | Before | After |",
+            "|---|---:|---:|",
+        ]
+    )
+    for key in warm_summary["before"]:
+        a, b = warm_summary["before"].get(key), warm_summary["after"].get(key)
+        lines.append(
+            f"| {key} | {a:.2f} | {b:.2f} |"
+            if a is not None and b is not None
+            else f"| {key} | {a} | {b} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Step 1 includes trainer warmup. Step 3 takes the final "
+            "checkpoint and evaluation; "
             "those costs are outside the step-components metric. The raw per-client "
             "measurements are in before.json and after.json.",
         ]
