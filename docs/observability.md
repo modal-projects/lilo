@@ -1,12 +1,18 @@
 # Observability
 
-Lilo exports traces for training commands, trainer operations, and sampling
-requests, plus a metric showing the trainer's current operation. Traces include
-workload counts and optional experiment labels for correlating activity across
-requests and models.
+For Tinker-SDK level metrics logging, the easiest solution is to use a library like Wandb -- we have an example of this in `scripts/wandb_rl_example.py`
 
-Export is disabled by default. To enable it, configure an OTLP HTTP/protobuf
-destination in the server environment.
+
+Lilo also comes with much more fine-grained tracking for each subsystem, ie. how long training commands, checkpoint writes, and sampling requests
+take as well as when the trainer is waiting between operations. It exports two kinds
+of measurements:
+
+- **Traces** record individual requests and operations. Each timed operation is
+  a span, with a start time, end time, and attributes such as token count.
+- **A trainer-state metric** reports the current operation every five seconds.
+  It shows what the trainer is doing, not GPU utilization.
+
+Lilo sends these measurements via OTLP (export off by default), from which Datadog or another compatible service can be used to receive and display these traces.
 
 ## Setup
 
@@ -89,63 +95,59 @@ training = create_full_training_client(
 Keep `run_id` unchanged when recovering an experiment into a replacement model;
 set a new `attempt_id` for the replacement. Only these two metadata keys are
 exported, and only nonempty strings of at most 256 characters are accepted.
-Arbitrary user metadata is not exported.
 
 | Metadata key | Exported attribute | Meaning |
 | --- | --- | --- |
 | `run_id` | `lilo.run_id` | Experiment identity shared across replacement models |
 | `attempt_id` | `lilo.run_attempt_id` | Experiment attempt; distinct from individual sampling HTTP attempts |
 
-Labels attach to command roots, command execution/result spans, control submissions,
-and trainer execution/lifecycle spans. Sampler artifacts snapshot these labels;
-sessions and submitted sampling tasks carry them to sampling roots and HTTP
-attempt spans. Artifacts and sessions created without labels remain untagged.
-Base-model sampling has no model experiment identity.
+The labels follow training commands and their results. Publishing sampler weights
+copies the labels into the publication, so sampling requests and retries can be
+traced back to the same experiment. Publications and sampling sessions created
+without labels remain untagged. Base-model sampling has no experiment label.
 
-A trainer execution receives a label only if **all** its participating commands
-have that same label. A batch crossing experiments has links to each command and
-is not attributed to a single experiment. Trainer-state metrics describe the
-physical trainer and do not copy experiment labels from models.
+A trainer batch gets a label only when **all** commands in it have the same
+value. A batch containing several experiments links to their commands instead.
+The trainer-state metric describes the shared trainer, so it does not copy
+experiment labels from individual models.
 
-For a single-tenant scoped deployment, the owner can set `lilo.run_id` in
-`OTEL_RESOURCE_ATTRIBUTES`. Scoped trainers also emit that deployment identity
-as a metric datapoint tag: direct Datadog OTLP intake does not necessarily promote
-custom resource attributes to searchable metric tags. The tag stays constant
-across model replacements, and physical metrics do not gain an attempt label.
-Shared deployments retain their original physical-only datapoint labels.
+If a scoped deployment belongs to just one experiment, set `lilo.run_id` in
+`OTEL_RESOURCE_ATTRIBUTES` to label the whole deployment. Lilo also copies this
+value onto trainer metric datapoints so it is searchable through Datadog's direct
+OTLP intake. The value stays the same when a model is replaced; these metrics
+have no attempt label. Do not assign one experiment's run ID to a shared
+deployment.
 
 ## Trace structure and lifecycle
 
-Each accepted engine command has a root `lilo.command.<operation>` span, beginning
-at control-plane submission receipt and ending when its trainer result is ready.
-The trainer owns completion, so client polling is not necessary to close it.
-Control submission, active execution/capture/persistence, and result-ready are
-children of that root. Waiting appears as gaps; no command queue span is emitted.
-Execution children link to the physical backend span and carry only their own
-command’s workload and experiment labels. These show participation latency; use
-`lilo.trainer.*` execution spans to count physical batches without duplication.
+Each accepted command gets a `lilo.command.<operation>` span from API submission
+to trainer result. Child spans record submission, execution, snapshot capture,
+persistence, and result availability. Waiting appears as gaps between those
+spans; there is no separate queue span. The trainer closes the command span when
+the result is ready, even if the client has stopped polling.
+
+A command's execution span measures its participation in a backend operation.
+Several commands can share that operation, so use `lilo.trainer.*` spans to count
+batches or measure total trainer work without counting the same work twice.
 
 Deduplicated submissions attach to the original command trace. Rejected
 submissions have standalone control-plane spans. Model creation and unloading
 have separate control-plane submission and trainer lifecycle spans.
 
-Backend executions are separate traces, with span links to every
-participating command, including when there is only one command. Thus a merged
-batch appears once, with aggregate workload counts, rather than being duplicated
-under several command roots. Capture, persistence, and waits for previous
-persistence are distinct physical intervals linked to their command. Persistence
-can overlap a subsequent execution. Lifecycle accept/unload spans are independent.
+Each backend execution gets a trace with the batch's total workload and links
+to its commands. Separate spans show snapshot capture, persistence, and waiting
+for an earlier write, so overlapping persistence and training remain visible.
+Model acceptance and unloading also have their own spans.
 
 Counts refer to logical input examples and their supplied text tokens, before
 backend packing/padding. Input-token count is omitted if any input chunk has no
-known text-token length. Executor spans measure wall-clock time, including
-backend transport and synchronization. They do not measure GPU kernel time.
+known text-token length. Executor spans measure elapsed time on the host,
+including backend transport and synchronization.
 
-Megatron backend phases are children of the physical trainer span. They measure
-preparation, forward or combined forward/backward scheduling, result collection,
-and optimizer work on rank zero. Forward/backward scheduling may interleave
-microbatches; it is recorded as one interval. These are host wall-clock intervals
-and do not introduce CUDA synchronization or measure individual GPU kernels.
+Megatron adds child spans for preparation, forward or combined forward/backward,
+result collection, and optimizer work on rank zero. Interleaved forward/backward
+microbatches appear as one interval. These measure host wall time without adding
+CUDA synchronization. 
 
 Workload attributes have distinct scopes:
 
@@ -162,11 +164,10 @@ Workload attributes have distinct scopes:
   Size is omitted if it cannot be read. Sampler publications do not report this
   training-checkpoint attribute.
 
-Checkpoint capture and persistence retain their existing command and trainer
-spans. Within persistence, `lilo.backend.checkpoint_write` measures rank-zero
-file serialization and writes; `lilo.backend.checkpoint_commit` measures the
-existing wait for all writers and the volume commit. Persistence can overlap
-later training operations.
+Within checkpoint persistence, `lilo.backend.checkpoint_write` measures rank-zero
+serialization and file writes, while `lilo.backend.checkpoint_commit` measures
+the wait for all writers and the Volume commit. The enclosing command and trainer
+spans show where this work overlaps later training.
 
 ## Viewing telemetry in Datadog
 
@@ -195,14 +196,14 @@ identifies the active operation in that lane. Missing reports appear as gaps;
 rollups can average samples into fractional values. This metric represents
 operation state, not GPU utilization.
 
-Configure Datadog APM retention for the spans that need to remain searchable.
-Finished child spans may arrive before their command root has finished.
+Configure Datadog APM retention for spans you need to search later. Child spans
+can arrive while the parent command is still running.
 
 ## Export inventory
 
-All spans include standard OpenTelemetry identity, parent/link context, start/end
-timestamps, status, and resource attributes (`service.name`, SDK metadata, and
-configured `OTEL_RESOURCE_ATTRIBUTES`). No log exporter is installed.
+All spans include IDs, parent or linked span IDs, start and end times, status,
+and resource attributes such as `service.name` and `OTEL_RESOURCE_ATTRIBUTES`.
+Lilo does not export logs through OTLP.
 
 | Signal | Name | Boundary / purpose |
 | --- | --- | --- |

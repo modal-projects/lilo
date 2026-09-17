@@ -105,13 +105,13 @@ routing; it is not a new GPU inference validation.
 
 ## Smoke test
 
-`python scripts/scoped_smoke.py` runs a real training update, base sampling from
-another Tinker client, latest sampling, and pinned-version sampling, then exits
-the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
+Use `scripts/scoped_e2e.py --mode gpu` to check training, base/latest/pinned
+sampling, recovery, and cleanup. See [E2E testing](scoped-e2e-testing.md) for the
+setup and command-line options.
 
-`python scripts/scoped_recovery_smoke.py` additionally saves a full checkpoint,
-cancels the trainer invocation, restores through a new full training client, and
-checks replacement latest sampling, old-handle rejection, and pinned continuity.
+For trainer-container restart and SDK checkpoint recovery, run
+`scripts/scoped_release_e2e.py`. It also checks authentication, pinned-pool
+recreation, and sampling after trainer replacement.
 
 Earlier deployed-pool validation: [verified run results](scoped-smoke-result.json): training, base/latest/pinned
 sampling, and pinned-app shutdown before the parent, with zero remaining containers.

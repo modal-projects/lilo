@@ -1,9 +1,8 @@
 # Lilo
 
-Lilo is a Tinker SDK-compatible training and sampling infrastructure built on
-Modal. Individual engine containers run `forward_backward` and `optim_step`
-jobs and publish weights to autoscaling sampling infrastructure based on
-[Stitch](https://github.com/modal-projects/stitch).
+Lilo runs model training and sampling on Modal through the Tinker SDK. Trainers
+run `forward_backward` and `optim_step`, then publish updated weights to sampling
+replicas managed by [Stitch](https://github.com/modal-projects/stitch).
 
 ## Scoped training runs
 
@@ -22,9 +21,10 @@ with lilo.run(engine=engine) as (url, api_key):
     # Train and sample through the Tinker SDK here.
 ```
 
-The scope creates its own API URL/key and owns the trainer and sampling apps.
-Exiting releases the compute; saved checkpoints remain. One full-training model
-is active per scope. Other processes may connect while its owner remains alive.
+`lilo.run` creates an API endpoint, API key, trainer, and sampling apps. Leaving
+the context stops those resources but keeps completed checkpoints. It does not
+save a checkpoint automatically. Each scope allows one active training model;
+other processes can connect while the process holding the context stays alive.
 This path does not require deploying the shared API or creating a `lilo-api`
 secret. See [scoped runs](docs/scoped-runs.md) for recovery and custom engines,
 and the [Codeforces example](examples/codeforces-codegolf/README.md) for a complete
@@ -61,8 +61,8 @@ export MODAL_ENVIRONMENT=your-environment
 uv run modal environment list
 ```
 
-Replace `your-environment` with an existing environment name. Set it **before**
-creating secrets so secrets and deployments all use the same environment.
+Set `your-environment` to an existing environment **before** creating secrets
+so the secrets and deployment use the same environment.
 For automation, existing `MODAL_TOKEN_ID` / `MODAL_TOKEN_SECRET` credentials can
 be supplied instead of the interactive login.
 
@@ -117,10 +117,9 @@ uv run modal secret create lilo-proxy \
 uv run modal deploy -m lilo.providers.modal.app
 ```
 
-This deploys the control plane and bundled model definitions from the installed
-package. A successful deployment prints a URL for the `server` web function.
-Keep that URL for step 4. Redeploy when you intentionally update Lilo; deployment
-is not required for every training run.
+This deploys the control plane and bundled model definitions, then prints the
+`server` URL to use in step 4. Reuse the deployment across training runs and
+redeploy after updating Lilo.
 
 Training and sampling allocate GPUs on demand. The bundled `Qwen/Qwen3.5-4B`
 definition used below has a four-H100 trainer and one H100 per sampling replica;
@@ -179,16 +178,15 @@ uv run python sft_smoke.py
 
 Expect a supported-model list followed by training and optimizer metrics.
 The first update can take several minutes for GPU allocation, model loading,
-and compilation; it is not representative of steady-state step time. This is
-a connectivity and training smoke test, not a model-quality evaluation. It does
-not save a checkpoint; read [Working with Full Fine-Tunes](docs/full-fine-tunes.md)
-for checkpointing, sampling, and longer runs.
+and compilation. This smoke test checks connectivity and one training update.
+To save checkpoints, sample, or run longer jobs, see
+[Working with Full Fine-Tunes](docs/full-fine-tunes.md).
 
 ### 5. Clean up
 
-After the script exits, session heartbeats stop. Lilo's periodic cleaner reclaims
-idle training models and their latest sampler pools; cleanup is not immediate.
-Check the apps and running containers in your Modal dashboard or list apps with:
+After the script exits, session heartbeats stop and Lilo's periodic cleaner
+reclaims idle training models and their latest sampler pools. Check that cleanup
+has finished in the Modal dashboard or list apps with:
 
 ```bash
 uv run modal app list
@@ -220,5 +218,6 @@ destination, experiment labels, and the complete span/metric inventory.
 
 [Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
 with GRPO or TailRL advantages for correctness and short solutions. It includes
-an isolated judge, checkpoint recovery, estimator/reward forks, held-out Pass@k
-and Best-of-k evaluation, plotting tools and learning curves.
+a sandboxed judge, checkpoint recovery, and commands to continue a checkpoint
+with a different reward or advantage estimator. It also includes held-out
+Pass@k and Best-of-k evaluation, plotting tools, and recorded learning curves.

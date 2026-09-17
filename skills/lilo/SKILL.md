@@ -1,37 +1,38 @@
 ---
 name: lilo
-description: Work with Lilo training and sampling on Modal, including deployment, GPU resource costs, cold starts, checkpoint recovery, weight synchronization, and trainer utilization.
+description: Set up and run Tinker-compatible training and sampling with Lilo on Modal. Use for deployment, engine configuration, weight publication, checkpoint recovery, and diagnosing startup or throughput.
 ---
 
 # Working with Lilo
 
-Lilo provides a Tinker-compatible API backed by training and inference resources on Modal. This skill explains the resource and state semantics that matter when using it. Adapt the examples to the user's application and algorithm.
+Lilo runs training and sampling on Modal through the Tinker SDK. Below details lilo-specific infra considerations that go beyond the Tinker SDK. 
 
-## Getting started
+## Connect or deploy
 
-Install Lilo into the application project, for example with `uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'`. Use the Python version and dependencies supported by that revision; scoped deployment support and runtime requirements are documented in `docs/scoped-runs.md`.
+Connect to an existing endpoint with
+`tinker.ServiceClient(base_url=url, api_key=key)`, using its URL and API key.
 
-For an existing deployment, connect with its URL and API key:
+For a new deployment, install Lilo in the user's project:
 
-```python
-import tinker
-
-service = tinker.ServiceClient(base_url=url, api_key=api_key)
+```bash
+uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'
 ```
 
-To deploy in your own Modal workspace, use an existing Modal profile or authenticate with `uv run modal token new`. Select the intended Modal environment before creating secrets or deploying. Sampler access uses a Modal proxy token stored as `MODAL_PROXY_TOKEN_ID` and `MODAL_PROXY_TOKEN_SECRET` in the `lilo-proxy` secret in that environment; the repository README describes token creation and persistent-service setup.
+Use the Python version supported by the installed revision; scoped runs currently
+require Python 3.12. Select the Modal workspace and environment before creating
+secrets. There are three separate credentials:
 
-Modal credentials authorize deployment, the proxy token authorizes sampler access, and the Lilo API key authorizes clients. Scoped deployment generates the client API key unless one is supplied. Existing-endpoint clients only need their URL and API key.
+- Modal credentials allow deployment and resource management.
+- The `lilo-proxy` secret holds `MODAL_PROXY_TOKEN_ID` and
+  `MODAL_PROXY_TOKEN_SECRET` for access to sampler pools.
+- The Lilo API key authenticates Tinker clients. A scoped run generates one;
+  a shared deployment reads it from the `lilo-api` secret.
 
-## Full fine-tuning (FFT)
+See the [README](../../README.md) for authentication and shared deployment commands.
 
-FFT updates the full model and keeps model and optimizer state on a dedicated trainer. Its deployment, publication, and checkpoint costs differ from adapter training.
+## Start a full fine-tuning run
 
-### Start a scoped deployment
-
-**Prefer a scoped single-tenant deployment for a new FFT run.** It puts the engine, sampler capacity, and resource lifetime under the run's ownership. The alternatives are connecting to an existing endpoint, or operating a persistent shared service for multiple clients. A shared service can still allocate a dedicated trainer for each FFT model; a shared API does not mean shared FFT GPU state.
-
-A scoped setup, using an illustrative built-in engine recipe:
+Use the scoped `lilo.run` for a new, dedicated full fine-tuning (FFT) run:
 
 ```python
 import lilo
@@ -42,87 +43,97 @@ engine = qwen3_5_4b_full_64k()
 with lilo.run(engine=engine) as (url, api_key):
     service = tinker.ServiceClient(base_url=url, api_key=api_key)
     training = lilo.create_full_training_client(service, engine.model)
-    # The application's training and sampling code runs within this lifetime.
+    # Train and sample here using the Tinker SDK.
 ```
 
-An engine recipe defines the model, context limits, trainer/sampler GPU topology, and backend settings. Recipes come from `lilo.engines`; a custom recipe can live in the user's project. Sampler replica counts are a separate choice: scoped runs take `latest=lilo.Pool(min_containers=..., max_containers=..., scaledown_window=...)`. Client-level `rollout` settings belong to the shared-service interface and are rejected by scoped model creation.
+A scope allows one active training model. Creating another client does not attach
+it to the existing model. Other processes can connect while the scope's owner is
+alive. For multiple training jobs behind one API, use a shared deployment (ie. multi-lora) -- each FFT model still gets its own dedicated trainer. 
 
-A scope permits one active training model. Creating another full training client does not attach to the existing learner. Other processes can connect using the scope's URL and API key while its owner remains alive.
+The process holding `lilo.run` owns its trainer and sampler apps within the scope. If the owner dies, Modal stops them after detecting the disconnect. Exiting does not automatically save a checkpoint, and retrying the controller creates a new scope, so the application must restore an explicitly saved past checkpoint upon retry. 
 
-The process holding `lilo.run` owns the deployment. Its preemption, timeout, or disconnect can end the trainer's lifetime too. A controller retry opens fresh resources; it does not restore training. Normal context exit stops owned resources but does not automatically checkpoint. Completed checkpoints persist in the checkpoint Volume. Pinned samplers run in owned ephemeral child apps; abrupt owner death also ends those apps after Modal detects the lost owner, so cleanup is eventual rather than instantaneous.
+See [scoped runs](../../docs/scoped-runs.md) for more details on setup and recovery.
 
+## Configure the engine and sampler capacity
 
-### Modifying engines
-
-Built-in recipes return frozen dataclasses. Customize one in the application with `dataclasses.replace`, including for nested settings; no Lilo registry edit is needed. For example, to change the sampler memory fraction:
+An engine recipe sets the model, context limits, GPU layout, and backend options.
+Built-in recipes in `lilo.engines` return frozen dataclasses, so customize them
+with `dataclasses.replace`, including for nested settings:
 
 ```python
 from dataclasses import replace
-from lilo.engines import qwen3_5_4b_full_64k
 
-base = qwen3_5_4b_full_64k()
 engine = replace(
-    base,
+    engine,
     name="my-engine",
-    sampling=replace(base.sampling, memory_fraction=0.90),
+    sampling=replace(engine.sampling, memory_fraction=0.90),
 )
-# Pass engine to lilo.run(engine=engine).
 ```
 
-The value is illustrative. Engine settings describe each replica's model, GPUs, parallelism, memory, and context/packing limits; `lilo.Pool` controls replica counts and idle retention. GPU count, parallelism, and memory requirements interact, so changing a GPU string alone may not produce a viable recipe. The configuration types are exposed from `lilo.engines`.
+When changing GPU type, adjust the GPU count, parallelism, and context limits
+to fit the model's memory requirements.
 
-### Publishing weights for sampling
+Set scoped sampler capacity with
+`lilo.run(engine=engine, latest=lilo.Pool(min_containers=..., max_containers=...,
+scaledown_window=...))`. For shared deployments, set `rollout` when creating the
+full training client. Scoped clients reject `rollout`; `user_metadata` never
+configures resources.
 
-The trainer and inference replicas hold separate weights. Training an update does not by itself make those weights available to sampling. FFT publication captures and persists incremental weight deltas, which replicas then apply; its cost is separate from training execution.
+## Publish weights before sampling
 
-Prefer the latest pool for training and other sampling. Use a pinned publication for specific evaluations that need a fixed weight version. These choices have different state and resource behavior:
+Training and inference keep separate copies of the weights, so publish updated
+weights before using them for the next rollouts:
 
 ```python
-# Publish to the reusable latest-policy pool.
 latest = training.save_weights_and_get_sampling_client()
+```
 
-# For an evaluation requiring a specific version, publish and pin it.
+This reuses the latest-policy pool (ie. monotonically increasing weight version). Thus, this handle gives a "min-version" guarantee, that given a sample request with a particular weight version, it will be served with *at least* that version. 
+
+For evaluation/any requests that needs a fixed version, instead used the *named* sampler path: 
+
+```python
 publication = training.save_weights_for_sampler(publication_name).result()
 pinned = training.create_sampling_client(publication.path)
 ```
 
-The **latest pool** follows publications from the learner. A handle establishes a minimum version, not a permanently fixed policy; later requests can use newer weights. Reusing the pool amortizes startup across updates.
+Because each pinned version can need its own inference allocation and cold start, the latest pool should be used for standard RL rollout sampling when the algorithm allows newer weight versions. FFT publications store incremental weight deltas, so larger deltas take longer to write and apply (can be roughly thought as linear scaling in the difference in weight versions). Neither publication API saves optimizer state or replaces training checkpoints, adhering with the Tinker semantics. 
 
-A **pinned pool** serves the named publication. It is useful when sampling must refer to one exact set of weights, but each distinct version can bring separate inference allocation and startup costs, even when the latest pool is warm.
 
-Neither API saves optimizer state or provides a full training checkpoint. Publication frequency trades synchronization overhead against weight freshness. Larger weight changes can increase delta size; the algorithm determines acceptable freshness, while Lilo determines the cost of making those weights available.
+## Allow for cold starts
 
-### Where cold-start latency appears
+Trainer and sampler startup occur separately in our decoupled design. A sampling handle can exist before
+its replicas are ready, and requests will receive HTTP 408 until the inference replicas are ready (sglang engine on each one has spun up and is ready to receive requests). 
 
-Trainer and sampler startup are separate. Obtaining a sampling handle does not mean inference replicas are ready. Cold starts can recur after resources scale down or when a new pinned pool is needed.
-
-| Call | Possible startup work |
+| Operation | Startup work to expect |
 | --- | --- |
-| Entering `lilo.run(..., warm=True)` | App and asset preparation, trainer allocation and loading before entering the body. `warm=False` defers trainer warmup. |
-| `lilo.create_full_training_client(...)` or its async variant | Model creation and trainer readiness, including loading and distributed initialization when cold. Inference can still be starting when this returns. |
-| First `training.forward_backward(...)` operation | First-use compilation; latency appears when waiting for the operation to complete. |
-| First `sampler.sample(...)` or `await sampler.sample_async(...)` on a cold pool | Inference allocation, model loading, compilation, and required weight application. |
+| Enter `lilo.run(..., warm=True)` | Prepare assets, allocate the trainer, and load the model. `warm=False` defers trainer warmup. |
+| Create a full training client | Wait for trainer readiness, including loading and distributed initialization if cold. |
+| First forward/backward | Compile kernels; the delay appears while waiting for the result. |
+| First sample on a cold pool | Allocate inference GPUs, load and compile the model, and apply published weights. |
 
-These initial timings can be much longer than steady-state calls. Keeping inference warm reduces repeated startup but incurs idle allocation cost.
+Samplers can go cold after scaling down or when starting a new pinned pool,
+so measure startup separately from steady-state calls.
 
-### Checkpoints and recovery
+## Checkpoint and recover
 
-`save_state(name)` saves full training state; `load_state_with_optimizer(path)` restores model and optimizer. Sampling publications cannot substitute for this. A replacement trainer needs restored state and a new sampling publication; in a surviving scope, old latest handles are rejected after trainer reassignment, so resumed sampling uses a new handle.
+`save_state(name)` saves both model parameters and optimizer state, from which these can be loaded by 
+`load_state_with_optimizer(path)` to resume the training run perfectly.
 
-Full FFT checkpoints include optimizer state and can take minutes to write. The tradeoff is saving overhead versus expensive progress lost to interruption. Roughly one state-losing interruption over 12 hours is a useful planning assumption, not a platform guarantee or checkpoint timer.
+After trainer loss, a replacement trainign client can be created from a prior checkpoint. Within the same scope, old sampling_client/training_client handles will return HTTP 410 after this reassignment. 
 
-If updates take a few minutes and saves take ten minutes, waiting for a save after every update can dominate the run. If an update itself takes an hour, saving each update may be worthwhile. Elapsed progress and save cost matter more than a universal step interval, including before the first useful checkpoint. A reproducible base model usually does not need a step-zero full save.
+An optimizer timeout can mean the update succeeded but its response was lost,
+so check the outcome before retrying. Diagnose sampling failures separately
+before replacing the trainer. See [FFT recovery and checkpointing](../../docs/full-fine-tunes.md) for the
+supported recovery paths and an example of overlapping saves with training/using the asynchronous capture capabilities to maximize trainer utilization and not block future GPU work unnecesarily on disk writes.
 
-Capture is ordered with training, while persistence can overlap later work where supported. A ten-minute background write is not necessarily ten minutes of GPU stall. Awaiting it before submitting more work can introduce that stall; queuing more saves than storage can finish adds overhead without making recovery points arrive faster. Sampling needs published weights, not completion of an unrelated full-state save.
+## Diagnose cost and throughput
 
-A checkpoint captured at update 20 still restores update 20 even if its write finishes during update 22. Its returned path and captured progress need to survive the controller, and it becomes a recovery point only after successful persistence. Until then, recovery uses the previous completed checkpoint. The checkpoint does not preserve the controller's Python memory.
+Costs depend on both allocated GPUs and time. Training and inference have separate
+allocations, and a small batch still uses the engine's configured GPU layout.
+A trainer waiting for rollouts or the controller can remain allocated and billed.
 
-An optimizer timeout can have an unknown outcome: a blind retry can apply an update twice. That differs from an isolated sampling failure, which does not itself establish trainer loss.
-
-## Cost and utilization
-
-Lilo costs follow allocated GPU resources and time, rather than a hosted per-token price. Training and inference have separate allocations. Small batches do not shrink the configured trainer topology, and an allocated trainer can cost money while waiting for input, weight publication, or the controller.
-
-Think in terms of useful training progress per allocated GPU-hour. More inference capacity can reduce trainer waiting but also increase total spend. Warm replicas trade idle cost for lower startup latency. Overlapping sampling and training can help when the application's algorithm permits it; changing policy-lag or update semantics is an application decision.
-
-Modal container logs and GPU metrics help distinguish startup, active training, and waiting between operations. A busy GPU during forward/backward does not imply good utilization across the whole loop. Lilo's optional OTLP telemetry can provide finer attribution; configuration is described in the installed revision's `docs/observability.md`.
+Use Modal container logs and GPU metrics, plus Lilo's optional traces and trainer
+operation metric to diagnose response latency/timing. The
+[observability guide](../../docs/observability.md) explains OTLP configuration,
+experiment labels, and what each measurement includes.

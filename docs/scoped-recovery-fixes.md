@@ -36,11 +36,12 @@ base control plane's model-creation callback semantics.
   initializing.
 - Existing checkpoint read/list/delete and scope-lifecycle tests pass.
 
-The live test is `scripts/scoped_restart_e2e.py`:
+The original restart test has been consolidated into
+`scripts/scoped_release_e2e.py`. Run the current test with:
 
 ```sh
 MODAL_ENVIRONMENT=your-test-environment PYTHONPATH=src:scripts \
-  python scripts/scoped_restart_e2e.py --report /tmp/scoped-restart.json
+  python scripts/scoped_release_e2e.py --report /tmp/scoped-release.json
 ```
 
 It uses four H100s for Qwen3.5-4B, saves an optimizer checkpoint, sends ContainerStop
@@ -52,6 +53,8 @@ There is no invocation-cancellation fallback. It also tests metadata lookup,
 checkpoint listing/deletion, old-client rejection, and final app cleanup.
 
 ### Live result — 2026-09-16
+
+This result was recorded with the original restart test.
 
 **Both requested recovery paths succeeded.** Of 21 live checks, 20 passed and
 one numerical diagnostic exceeded its tolerance. The script deliberately exits
