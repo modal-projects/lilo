@@ -31,12 +31,12 @@ def pack_slot_microbatches(slot_batches, lengths, budget):
 
 def configure_deterministic_batching():
     from miles.backends.megatron_utils import actor
-    from miles.backends.megatron_utils.lora import executor
+    from miles.backends.megatron_utils.lora import model as lora_model
     from miles.backends.training_utils import data
     from miles.utils.data import get_minimum_num_micro_batch_size
     from miles.utils.seqlen_balancing import get_seqlen_balanced_partitions
 
-    original = executor.get_data_iterator
+    original = lora_model.get_data_iterator
     if getattr(original, "_lilo_stable_microbatches", False):
         return
 
@@ -80,6 +80,6 @@ def configure_deterministic_batching():
         return original(args, model, prepared)
 
     plan._lilo_stable_microbatches = True
-    executor.get_data_iterator = plan
+    lora_model.get_data_iterator = plan
     if actor.get_data_iterator is original:
         actor.get_data_iterator = plan
