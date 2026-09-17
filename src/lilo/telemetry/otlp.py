@@ -10,8 +10,14 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-from opentelemetry.context import Context
+from opentelemetry.context import Context, attach, detach
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import SpanKind, StatusCode, set_span_in_context
+
+from .metadata import METADATA_KEYS
 
 logger = logging.getLogger(__name__)
 _sample = ContextVar("lilo_otlp_sample", default=None)
@@ -26,13 +32,6 @@ def provider():
     ):
         return None
     try:
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-            OTLPSpanExporter,
-        )
-        from opentelemetry.sdk.resources import Resource
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
         protocol = os.getenv(
             "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
             os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf"),
@@ -83,8 +82,6 @@ def sample_trace(task, stats):
         kind=SpanKind.SERVER,
         start_time=int(start * 1e9),
     )
-    from .metadata import METADATA_KEYS
-
     tags = {
         k: v
         for k, v in (task.get("telemetry_tags") or {}).items()
@@ -112,7 +109,17 @@ def sample_trace(task, stats):
         "attempts": 0,
         "retries": 0,
     }
+    submitted = task.get("submitted_at")
+    if isinstance(submitted, (int, float)) and start <= submitted <= now:
+        waiting = state["tracer"].start_span(
+            "lilo.sample.provider_handoff",
+            context=set_span_in_context(span),
+            start_time=int(submitted * 1e9),
+            attributes={"lilo.boundary": "before_spawn_to_worker_entry"},
+        )
+        waiting.end(end_time=int(now * 1e9))
     token = _sample.set(state)
+    context_token = attach(set_span_in_context(span))
     try:
         yield
     except BaseException as exc:
@@ -122,6 +129,7 @@ def sample_trace(task, stats):
     else:
         span.set_status(StatusCode.OK)
     finally:
+        detach(context_token)
         _sample.reset(token)
         _attributes(
             span,

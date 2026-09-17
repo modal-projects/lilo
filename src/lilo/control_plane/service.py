@@ -28,13 +28,13 @@ from lilo.providers.contracts import (
     SamplingTaskStatus,
     SessionKeyValueStores,
 )
+from lilo.telemetry.performance import stages
 
 from .keys import (
     model_creation_key,
     model_key,
     placement_claim_key,
     placement_key,
-    trainer_demand_key,
     sample_task_key,
     sampler_artifact_key,
     sampler_export_result_key,
@@ -44,6 +44,7 @@ from .keys import (
     session_closed_key,
     session_key,
     session_last_seen_key,
+    trainer_demand_key,
 )
 from .records import (
     ModelCreationRecord,
@@ -675,6 +676,7 @@ class ControlPlane:
         if self.ensure_sampling_pool is not None:
             await self.ensure_sampling_pool(session)
 
+    @stages("control").wrap("sample_admission")
     async def submit_sample(self, request: dict) -> str:
         if self.sampling_tasks is None:
             raise RecordUnavailable("sampling", "tasks", "unconfigured")
@@ -725,6 +727,7 @@ class ControlPlane:
         )
         return request_id
 
+    @stages("control").wrap("placement")
     async def engine_for(self, model_id: str) -> EngineApi:
         model = await self.get_model(model_id)
         await self._touch_session(model.session_id)

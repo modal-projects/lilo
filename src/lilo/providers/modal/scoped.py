@@ -132,8 +132,8 @@ def build_app(
     from lilo.control_plane import create_control_plane_app
     from lilo.inference.sampling import sample_task
 
-    from .engines import ModalEnginePlatform
     from .checkpoint_storage import ModalCheckpointStorage
+    from .engines import ModalEnginePlatform
     from .fft_pool import proxy_auth_headers
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
@@ -436,7 +436,9 @@ def build_app(
             await route_for(session.model_id, session.publish_version, session.latest)
 
         async def spawn_sampling(task):
-            call = await execute_sample.spawn.aio(asdict(task))
+            call = await execute_sample.spawn.aio(
+                {**asdict(task), "submitted_at": time.time()}
+            )
             return call.object_id
 
         stores = ModalSessionKeyValueStores()

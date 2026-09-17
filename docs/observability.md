@@ -1,7 +1,7 @@
 # Observability
 
 Lilo exports traces for training commands, trainer operations, and sampling
-requests, plus a metric showing the trainer's current operation. Traces include
+requests, plus live queue, stage, and GPU activity metrics. Traces include
 workload counts and optional experiment labels for correlating activity across
 requests and models.
 
@@ -67,8 +67,7 @@ Header values use standard OTLP percent-encoding, as shown by `Bearer%20` above.
 The destination must accept OTLP HTTP/protobuf and be reachable from the server
 processes.
 
-A trace endpoint alone enables only traces. A metric endpoint alone enables only
-the trainer-state metric. A general endpoint enables both. With no endpoints,
+A trace endpoint alone enables only traces. A metric endpoint alone enables metrics without tracing. A general endpoint enables both. With no endpoints,
 export is disabled. Set `OTEL_SDK_DISABLED=true` to disable both explicitly.
 
 ## Experiment labels
@@ -245,3 +244,87 @@ exported.
 | Execution lane | `idle`, `accept`, `unload`, `forward`, `forward_backward`, `optim_step`, `save_weights`, `load_weights`, `save_weights_for_sampler`, `skip` |
 | Checkpoint lane | `idle`, `save_weights` |
 | Sampler lane | `idle`, `save_weights_for_sampler` |
+
+
+## Multi-LoRA performance
+
+With an OTLP metrics endpoint configured, new rollout containers start SGLang
+with `--enable-metrics`. The sidecar reads its local `/metrics` endpoint and sends
+an approved set of counters, gauges, and histograms over OTLP HTTP/protobuf.
+It does not expose that endpoint through the public gateway. No separate
+Collector is required; the same OTLP destination can be Datadog or your Collector.
+
+The engine snapshots its queue once a second. Metrics export every five seconds;
+native serving and GPU samples run about every five seconds plus scrape/export
+time. These background tasks do not refresh volumes or synchronize CUDA.
+
+| Signal | What it measures |
+| --- | --- |
+| `lilo.trainer.queue.depth` | Buffered client commands, excluding lifecycle operations |
+| `lilo.trainer.queue.eligible` | Model-head commands that the current scheduler can select; a compatible batch may also consume subsequent forward/backward commands |
+| `lilo.trainer.queue.blocked` | Buffered commands grouped by sequence, model readiness, lifecycle barrier, persistence capacity, or same-adapter publication |
+| `lilo.trainer.queue.inflight` | Dispatched commands that have not finished, including capture and persistence |
+| `lilo.trainer.queue.oldest_age`, `last_progress_age` | Seconds since the oldest buffered command arrived, or since the last dispatch/completion |
+| `lilo.trainer.queue.lifecycle_depth` | Pending model registration/unload operations |
+| `lilo.stage.inflight`, `oldest_age`, `last_progress_age` | Live calls, oldest unfinished call age, and time since a call completed, by component and stage |
+| `lilo.stage.duration`, `completed` | Completed host-stage wall times and counts |
+| `lilo.trainer.batch.input_tokens`, `example_count`, `adapter_count` | Distributions of actual Miles batch sizes before internal packing |
+| `sglang.num_running_reqs`, `num_queue_reqs` | Native scheduler running and waiting counts, per scheduler rank |
+| `sglang.token_usage`, `cache_hit_rate`, `kv_*`, `mamba_usage` | Native cache occupancy, available/evictable tokens, and cache hits |
+| `sglang.lora_pool_slots_used`, `lora_pool_slots_total`, `lora_pool_utilization` | GPU adapter-slot occupancy |
+| `sglang.generation_tokens`, `prompt_tokens`, `cached_tokens` | Native token counters, exported as deltas |
+| `sglang.time_to_first_token_seconds`, `inter_token_latency_seconds`, `e2e_request_latency_seconds`, `queue_time_seconds` | Native latency histograms, when SGLang supplies observations |
+| `sglang.num_requests`, `num_aborted_requests`, `num_retracted_requests` | Native completion, abort, and retraction counters |
+| `lilo.gpu.activity`, `memory_activity`, `memory_used`, `memory_total`, `power` | Periodic `nvidia-smi` samples per device; activity is a percentage |
+| `lilo.gpu.capacity` | Visible GPU-seconds per container, exported as deltas |
+
+Stage spans use `lilo.<component>.<stage>`. Sampling distinguishes pool readiness,
+pool-lock acquisition, route readiness, retry backoff, and each inference HTTP
+attempt. The inference side distinguishes adapter-resolution waiting, lock
+acquisition, volume refresh, validation, adapter registration, and the SGLang
+request. The HTTP attempt propagates its trace context into the sidecar.
+
+Training adds a `lilo.command.queue` child from engine acceptance to dispatch.
+Separate stages cover backend HTTP, Miles dispatch, actor method execution,
+checkpoint-lock acquisition, and volume commit/refresh. Miles dispatch and actor
+spans carry the same `lilo.batch_id`; correlate them within a trainer container.
+Actor spans include data access, collectives, and execution. They do not isolate
+individual kernels. Backend phase spans also separate input preparation and
+output construction from the Miles call.
+
+The `lilo.sample.provider_handoff` span covers the time immediately before Modal
+spawn through sampling-worker entry, including transport and scheduling. It does
+not establish how much of that interval was spent in Modal's queue. Admission
+and placement have their own control-plane stages. Client work before submission
+requires instrumentation in the client script.
+
+To investigate a stall, compare live ages and queue state with GPU activity:
+
+- An idle trainer with no eligible work is waiting for its clients or a recorded
+  dependency. Check `queue.blocked` before blaming the dispatcher.
+- An idle trainer with eligible work aging needs a dispatch/backend investigation.
+- Inference requests aging in `adapter_lock_wait` identify registration contention.
+  Requests aging in `sglang_request` need the native queue/activity metrics to
+  distinguish serving backlog from transport or execution.
+- Growing native queues alongside high GPU activity indicate serving pressure.
+
+Use the rate of `sglang.generation_tokens` for generated tokens/sec. Divide its
+sum over an interval by `lilo.gpu.capacity` over the same containers and interval
+for tokens/GPU-second. Sum tokenizer token counters once per replica; do not
+multiply them by tensor-parallel ranks. Inter-token latency observations and
+request-average time per output token are different statistics.
+
+The first native counter/histogram scrape establishes a baseline; later scrapes
+export exact delta counts and histogram buckets. Resets establish a new baseline.
+Unknown metric labels are skipped, so adding custom SGLang labels requires
+reviewing the forwarding allowlist. Request IDs and adapter versions appear only
+in traces, not metric labels. GPU telemetry failure produces missing samples.
+
+Remaining limits: SGLang's adapter occupancy does not count GPU adapter swaps;
+registration frequency alone cannot prove thrashing. Native SGLang queues lack
+oldest-request age, and requests stuck before a Modal worker starts have no live
+worker gauge. Ray admission and actor data preparation are not individually
+measured. Trainer padded/loss tokens and MFU are omitted until measured at the
+packing/kernel boundary. Host stage times can overlap and must not be added as
+if they were GPU utilization. Export failures can lose telemetry; they do not
+retry training or sampling operations.

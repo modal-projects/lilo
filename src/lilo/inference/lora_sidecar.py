@@ -12,7 +12,12 @@ import modal
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from opentelemetry.propagate import extract
+from opentelemetry.trace import StatusCode
 from stitch.types import VersionConstraint, VersionRef
+
+from lilo.telemetry.performance import stages
+from lilo.telemetry.serving_metrics import ServingMetrics
 
 from .bulletin import SnapshotBulletin, SnapshotNotFound
 
@@ -34,6 +39,8 @@ def create_app(
         app.state.adapter_lock = asyncio.Lock()
         app.state.registered_adapters = {}
         app.state.adapter_resolutions = {}
+        metrics = ServingMetrics("inference", upstream_url)
+        metrics.start()
         try:
             yield
         finally:
@@ -42,8 +49,23 @@ def create_app(
                 task.cancel()
             await asyncio.gather(*pending, return_exceptions=True)
             await app.state.client.aclose()
+            await asyncio.to_thread(metrics.close)
 
     app = FastAPI(lifespan=lifespan)
+
+    @app.middleware("http")
+    async def trace_request(request, call_next):
+        if request.url.path != "/generate":
+            return await call_next(request)
+        with stages("inference").track(
+            "request", context=extract(dict(request.headers))
+        ) as span:
+            response = await call_next(request)
+            if span is not None:
+                span.set_attribute("http.response.status_code", response.status_code)
+                if response.status_code >= 400:
+                    span.set_status(StatusCode.ERROR)
+            return response
 
     @app.get("/health")
     async def health() -> Response:
@@ -80,7 +102,13 @@ def create_app(
                     status_code=409,
                 )
 
-        response = await _post_generate(app.state.client, request, payload)
+        with stages("inference").track("sglang_request") as span:
+            response = await _post_generate(app.state.client, request, payload)
+            if span is not None:
+                status = response.status_code if response is not None else 499
+                span.set_attribute("http.response.status_code", status)
+                if status >= 400:
+                    span.set_status(StatusCode.ERROR)
         if response is None:
             return Response(status_code=499)
         try:
@@ -120,21 +148,30 @@ async def _prepare_adapter(
 
         async def prepare():
             # Reload must not hide paths while SGLang reads a new adapter.
-            async with app.state.adapter_lock:
+            telemetry = stages("inference")
+            with telemetry.track(
+                "adapter_lock_wait", attributes={"lilo.model_id": run_id}
+            ):
+                await app.state.adapter_lock.acquire()
+            try:
                 if ref is not None and ref.identity in app.state.registered_adapters:
                     return ref, None
                 if ref is not None:
                     resolved = ref
                     try:
-                        path = await asyncio.to_thread(bulletin.resolve, resolved)
+                        with telemetry.track("adapter_validate"):
+                            path = await asyncio.to_thread(bulletin.resolve, resolved)
                     except SnapshotNotFound:
                         # Exact versions are immutable: reload only if this mount
                         # does not yet contain the complete requested snapshot.
-                        await bulletin.refresh()
-                        path = await asyncio.to_thread(bulletin.resolve, resolved)
+                        with telemetry.track("volume_refresh"):
+                            await bulletin.refresh()
+                        with telemetry.track("adapter_validate"):
+                            path = await asyncio.to_thread(bulletin.resolve, resolved)
                 else:
                     # Latest/minimum requests must see newly published policies.
-                    await bulletin.refresh()
+                    with telemetry.track("volume_refresh"):
+                        await bulletin.refresh()
                     resolved = bulletin.read_latest(run_id)
                     if resolved is None:
                         raise SnapshotNotFound(run_id)
@@ -147,19 +184,35 @@ async def _prepare_adapter(
                         )
                     if resolved.identity in app.state.registered_adapters:
                         return resolved, None
-                    path = await asyncio.to_thread(bulletin.resolve, resolved)
-                response = await app.state.client.post(
-                    "/load_lora_adapter",
-                    json={
-                        "lora_name": resolved.identity,
-                        "lora_path": str(path),
-                        "pinned": False,
+                    with telemetry.track("adapter_validate"):
+                        path = await asyncio.to_thread(bulletin.resolve, resolved)
+                with telemetry.track(
+                    "adapter_load",
+                    attributes={
+                        "lilo.model_id": run_id,
+                        "lilo.version": resolved.version,
                     },
-                )
+                ) as span:
+                    response = await app.state.client.post(
+                        "/load_lora_adapter",
+                        json={
+                            "lora_name": resolved.identity,
+                            "lora_path": str(path),
+                            "pinned": False,
+                        },
+                    )
+                    if span is not None:
+                        span.set_attribute(
+                            "http.response.status_code", response.status_code
+                        )
+                        if response.is_error:
+                            span.set_status(StatusCode.ERROR)
                 if response.is_error:
                     return resolved, response
                 app.state.registered_adapters[resolved.identity] = str(path)
                 return resolved, None
+            finally:
+                app.state.adapter_lock.release()
 
         task = asyncio.create_task(prepare())
         pending[key] = task
@@ -174,7 +227,10 @@ async def _prepare_adapter(
         task.add_done_callback(finished)
     # Share only in-flight work. Later requests still resolve the latest version.
     # One disconnected request must not cancel registration for other callers.
-    return await asyncio.shield(task)
+    with stages("inference").track(
+        "adapter_resolution_wait", attributes={"lilo.model_id": run_id}
+    ):
+        return await asyncio.shield(task)
 
 
 async def _post_generate(

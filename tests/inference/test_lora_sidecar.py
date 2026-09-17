@@ -3,10 +3,17 @@ import json
 
 import httpx
 from fastapi.testclient import TestClient
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from stitch.types import VersionRef
 
+from lilo.inference import lora_sidecar
 from lilo.inference.bulletin import SnapshotBulletin
 from lilo.inference.lora_sidecar import create_app
+from lilo.telemetry.performance import Stages
 
 
 def _publish(tmp_path, version):
@@ -533,3 +540,84 @@ def test_exact_version_refreshes_only_when_snapshot_is_missing(tmp_path):
             assert response.status_code == 200
             assert response.json()["meta_info"]["weight_version_start"] == 21
     assert refreshes == [True]
+
+
+def test_live_metrics_show_adapter_lock_wait_and_trace_context(tmp_path, monkeypatch):
+    bulletin = _publish(tmp_path, 3)
+    _publish(tmp_path, 4)
+    reader = InMemoryMetricReader()
+    metrics = MeterProvider(metric_readers=[reader])
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    stages = Stages("inference", metrics=metrics, tracer=provider.get_tracer("test"))
+    monkeypatch.setattr(lora_sidecar, "stages", lambda _: stages)
+
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def handle(req):
+            if req.url.path == "/load_lora_adapter":
+                entered.set()
+                await release.wait()
+            return httpx.Response(200, json={"meta_info": {}})
+
+        app = create_app(
+            bulletin, "http://sglang", transport=httpx.MockTransport(handle)
+        )
+        async with app.router.lifespan_context(app):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app), base_url="http://sidecar"
+            ) as client:
+
+                def request(version):
+                    return client.post(
+                        "/generate",
+                        json={
+                            "input_ids": [1],
+                            "weight_run_id": "model-a",
+                            "weight_version": {"exact_version": version},
+                        },
+                        headers={
+                            "traceparent": "00-11111111111111111111111111111111-2222222222222222-01"
+                        },
+                    )
+
+                first = asyncio.create_task(request(3))
+                await asyncio.wait_for(entered.wait(), 1)
+                second = asyncio.create_task(request(4))
+
+                async def wait_for_lock():
+                    while not any(
+                        p.value == 1
+                        and p.attributes["lilo.stage"] == "adapter_lock_wait"
+                        for p in stages.observe("inflight", None)
+                    ):
+                        await asyncio.sleep(0.001)
+
+                await asyncio.wait_for(wait_for_lock(), 1)
+                points = {
+                    p.attributes["lilo.stage"]: p.value
+                    for p in stages.observe("inflight", None)
+                }
+                assert points["adapter_load"] == 1
+                assert points["adapter_lock_wait"] == 1
+                assert points["request"] == 2
+                assert not any(
+                    s.name.endswith(".adapter_load")
+                    for s in exporter.get_finished_spans()
+                )
+                release.set()
+                responses = await asyncio.gather(first, second)
+                assert all(r.status_code == 200 for r in responses)
+                assert all(p.value == 0 for p in stages.observe("inflight", None))
+
+    try:
+        asyncio.run(run())
+        spans = exporter.get_finished_spans()
+        assert all(s.context.trace_id == int("1" * 32, 16) for s in spans)
+        roots = [s for s in spans if s.name == "lilo.inference.request"]
+        assert all(s.parent.span_id == int("2" * 16, 16) for s in roots)
+    finally:
+        metrics.shutdown()
+        provider.shutdown()

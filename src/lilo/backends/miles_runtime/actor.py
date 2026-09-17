@@ -2,9 +2,27 @@ from __future__ import annotations
 
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
+from lilo.telemetry.performance import stages
+
 
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     """Upstream multi-LoRA actor with Qwen MTP and weights-only save support."""
+
+    def forward_backward(self, batch_id, rollout_data_ref):
+        with stages("miles_actor").track(
+            "forward_backward", attributes={"lilo.batch_id": batch_id}
+        ):
+            return super().forward_backward(batch_id, rollout_data_ref)
+
+    def forward_only(self, batch_id, rollout_data_ref):
+        with stages("miles_actor").track(
+            "forward", attributes={"lilo.batch_id": batch_id}
+        ):
+            return super().forward_only(batch_id, rollout_data_ref)
+
+    def optim_step(self, adam_params_by_slot):
+        with stages("miles_actor").track("optimizer"):
+            return super().optim_step(adam_params_by_slot)
 
     def init(self, args, role, **kwargs):
         # Miles's LoRA builder inherits checkpoint MTP heads without honoring

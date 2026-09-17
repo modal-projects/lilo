@@ -82,3 +82,22 @@ def test_fft_sidecar_receives_store_scope() -> None:
     assert command[command.index("--base-checkpoint-dir") + 1] == "/model"
     assert command[command.index("--run-id") + 1] == "run-a"
     assert command[command.index("--pinned-version") + 1] == "7"
+
+
+def test_sglang_native_metrics_follow_otlp_configuration(monkeypatch):
+    monkeypatch.setenv(
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector/v1/metrics"
+    )
+    for disabled in (False, True):
+        monkeypatch.setenv("OTEL_SDK_DISABLED", str(disabled).lower())
+        with patch("subprocess.Popen") as popen:
+            start_sglang(
+                "/model",
+                port=8001,
+                context_length=1024,
+                max_loras_per_batch=1,
+                max_loaded_loras=1,
+                max_lora_rank=8,
+                max_running_requests=8,
+            )
+        assert ("--enable-metrics" in popen.call_args.args[0]) == (not disabled)

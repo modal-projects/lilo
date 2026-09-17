@@ -10,12 +10,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import modal
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
 from lilo.engine.spmd import DistributedExecutor
 from lilo.errors import BackendFailed
 from lilo.inference.bulletin import SnapshotBulletin
+from lilo.telemetry import backend as telemetry
+from lilo.telemetry.performance import stages
 
 from .contract import (
     Backend,
@@ -130,17 +133,27 @@ class MilesCommandBackend(Backend):
         if not batch.items:
             return ()
         self._require_jobs(tuple(item.model_id for item in batch.items))
-        prepared = prepare_batch(batch, self.job_to_slot)
-        raw_outputs = self.runtime.forward_backward(
-            prepared.slot_rows,
-            loss_fn=str(batch.loss_fn),
-            loss_fn_config=dict(batch.loss_fn_config),
-            forward_only=batch.forward_only,
+        with telemetry.phase("prepare"):
+            prepared = prepare_batch(batch, self.job_to_slot)
+        telemetry.count(
+            "lilo.adapter_count", len({slot for slot, _ in prepared.slot_rows})
         )
+        telemetry.count(
+            "lilo.input_tokens", sum(row["target_len"] for _, row in prepared.slot_rows)
+        )
+        telemetry.count("lilo.example_count", len(prepared.slot_rows))
+        with telemetry.phase("miles_rpc"), stages("backend").track("miles_rpc"):
+            raw_outputs = self.runtime.forward_backward(
+                prepared.slot_rows,
+                loss_fn=str(batch.loss_fn),
+                loss_fn_config=dict(batch.loss_fn_config),
+                forward_only=batch.forward_only,
+            )
         if not batch.forward_only:
             for item in batch.items:
                 self.jobs[item.model_id].accumulating = True
-        return build_outputs(batch, prepared, raw_outputs)
+        with telemetry.phase("outputs"):
+            return build_outputs(batch, prepared, raw_outputs)
 
     def optim_step(
         self,
@@ -159,7 +172,8 @@ class MilesCommandBackend(Backend):
         by_slot = {
             self.job_to_slot[model_id]: parameters.copy() for model_id in model_ids
         }
-        outcomes = self.runtime.optim_step(by_slot)
+        with telemetry.phase("optimizer"), stages("backend").track("optimizer"):
+            outcomes = self.runtime.optim_step(by_slot)
         outputs = []
         for model_id in model_ids:
             state = self.jobs[model_id]
@@ -246,20 +260,29 @@ class MilesCommandBackend(Backend):
         *,
         overwrite: bool = False,
     ) -> str:
-        with self._checkpoint_io_lock:
+        with stages("backend").track("checkpoint_lock_wait"):
+            self._checkpoint_io_lock.acquire()
+        try:
             try:
                 capture = self._checkpoint_captures[snapshot_id]
                 if capture["destination"] != destination:
                     raise ValueError("snapshot destination does not match its capture")
                 model_id = capture["model_id"]
                 target = self.checkpoint_dir / destination / model_id
-                _install_directory(capture["path"], target, overwrite=overwrite)
-                _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
+                with telemetry.phase("checkpoint_write"):
+                    _install_directory(capture["path"], target, overwrite=overwrite)
+                with (
+                    telemetry.phase("checkpoint_commit"),
+                    stages("backend").track("checkpoint_commit"),
+                ):
+                    _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
                 return str(target)
             finally:
                 capture = self._checkpoint_captures.pop(snapshot_id, None)
                 if capture is not None:
                     shutil.rmtree(capture["path"], ignore_errors=True)
+        finally:
+            self._checkpoint_io_lock.release()
 
     def load_checkpoint(
         self,
@@ -269,7 +292,9 @@ class MilesCommandBackend(Backend):
         restore_optimizer: bool = False,
     ) -> None:
         self._require_jobs((model_id,))
-        with self._checkpoint_io_lock:
+        with stages("backend").track("checkpoint_lock_wait"):
+            self._checkpoint_io_lock.acquire()
+        try:
             _reload_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
             checkpoint = Path(uri)
             try:
@@ -291,6 +316,8 @@ class MilesCommandBackend(Backend):
             state.optimizer_step = (
                 int(metadata.get("optimizer_step", 0)) if restore_optimizer else 0
             )
+        finally:
+            self._checkpoint_io_lock.release()
 
     def capture_sampler_snapshot(
         self,
@@ -482,17 +509,15 @@ def _install_directory(source: Path, target: Path, *, overwrite: bool) -> None:
 def _commit_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
-    modal.Volume.from_name(name).commit()
+    with stages("backend").track("volume_commit"):
+        modal.Volume.from_name(name).commit()
 
 
 def _reload_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
-    modal.Volume.from_name(name).reload()
+    with stages("backend").track("volume_refresh"):
+        modal.Volume.from_name(name).reload()
 
 
 def build_executor() -> DistributedExecutor:
