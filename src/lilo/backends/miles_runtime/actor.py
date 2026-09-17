@@ -170,7 +170,9 @@ def _gather_tinker_logprobs_across_cp() -> None:
     if getattr(original_slice, "__lilo_unslices_cp__", False):
         return
 
-    def slice_log_prob_with_cp(value, total_length, response_length, qkv_format, max_seq_len=None):
+    def slice_log_prob_with_cp(
+        value, total_length, response_length, qkv_format, max_seq_len=None
+    ):
         return value
 
     slice_log_prob_with_cp.__lilo_unslices_cp__ = True
