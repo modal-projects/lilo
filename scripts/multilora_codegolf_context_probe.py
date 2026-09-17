@@ -30,11 +30,18 @@ def main():
         "def solve():\n    x = int(input())\n    print(x + 1)\n",
         add_special_tokens=False,
     )
-    prompt = (chunk * (65519 // len(chunk) + 1))[:65519]
+    # This SGLang version reserves one token in get_worker_info and another
+    # in init_req_max_new_tokens: usable prompt+output is context_length - 2.
+    prompt = (chunk * (65518 // len(chunk) + 1))[:65518]
     deadline = time.monotonic() + 900
     while True:
         selected = {}
-        for key, value in artifacts.items():
+        try:
+            records = list(artifacts.items())
+        except modal.exception.NotFoundError:
+            # The artifact store is created lazily by the first publication.
+            records = []
+        for key, value in records:
             if key.startswith("sampler_artifact:"):
                 if (
                     value["model_id"] not in selected

@@ -85,6 +85,38 @@ async def placement(model_ids, app_id):
     }
 
 
+def make_client_factory(report, parent_app_id, release):
+    bound = {}
+    initial_placement = None
+
+    async def create_client(svc, model, *, user_metadata):
+        nonlocal initial_placement
+        assert model == "Qwen/Qwen3.5-9B"
+        c = await svc.create_lora_training_client_async(
+            base_model=DEFINITION, rank=RANK, user_metadata=user_metadata
+        )
+        bound[user_metadata["run_id"]] = c.model_id
+        try:
+            if len(bound) == CLIENTS and initial_placement is None:
+                # Creation waits for placement. Check the initial cohort once;
+                # after a shared failure peers may still hold old model IDs.
+                initial_placement = await placement(list(bound.values()), parent_app_id)
+                await report(
+                    "clients.json",
+                    {
+                        "clients": dict(bound),
+                        "placement": initial_placement,
+                    },
+                )
+            await report("latest_clients.json", {"clients": dict(bound)})
+        except BaseException:
+            await release(c)
+            raise
+        return c
+
+    return create_client
+
+
 @app.function(
     image=controller_image,
     volumes={"/runs": volume},
@@ -102,7 +134,7 @@ async def controller(url, parent_app_id, run_name, steps, phase):
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
-    volume.reload()
+    await volume.reload.aio()
     root = Path("/runs") / run_name
     root.mkdir(parents=True, exist_ok=True)
     lock = asyncio.Lock()
@@ -273,26 +305,7 @@ async def controller(url, parent_app_id, run_name, steps, phase):
                     "loss_translation": "nonnegative sequence weights folded into PPO advantages",
                 },
             )
-            bound = {}
-
-            async def create_client(svc, model, *, user_metadata):
-                assert model == "Qwen/Qwen3.5-9B"
-                c = await svc.create_lora_training_client_async(
-                    base_model=DEFINITION, rank=RANK, user_metadata=user_metadata
-                )
-                bound[user_metadata["run_id"]] = c.model_id
-                if len(bound) == CLIENTS:
-                    # Forward barrier ensures all placements exist before asserting sharing.
-                    await report(
-                        "clients.json",
-                        {
-                            "clients": dict(bound),
-                            "placement": await placement(
-                                list(bound.values()), parent_app_id
-                            ),
-                        },
-                    )
-                return c
+            create_client = make_client_factory(report, parent_app_id, release)
 
             semaphore = asyncio.Semaphore(cfg.judge_concurrency)
             # Reference solutions were sandbox-validated by the original FFT run.

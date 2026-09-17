@@ -89,3 +89,66 @@ def test_recipe_is_full_context_four_slots_and_same_model():
     assert constants["GPU_TYPE"] == "H200"
     assert constants["GPUS"] == constants["TENSOR_MODEL_PARALLEL_SIZE"] == 8
     assert constants["MAX_LORA_SLOTS"] == 4
+
+
+def test_client_recovery_does_not_require_peers_to_recover_first():
+    import asyncio
+    from types import SimpleNamespace
+
+    async def check():
+        tree = ast.parse((ROOT / "scripts/multilora_codegolf.py").read_text())
+        node = next(
+            n
+            for n in tree.body
+            if isinstance(n, ast.FunctionDef) and n.name == "make_client_factory"
+        )
+        checks, released, reports = [], [], []
+
+        async def placement(ids, app_id):
+            assert not checks, "Recovery must tolerate peers retaining old placements"
+            checks.append(ids)
+            return {"model_ids": ids, "engine_instance_id": "engine-old"}
+
+        async def release(c):
+            released.append(c.model_id)
+
+        async def report(name, value):
+            reports.append((name, value))
+
+        class Service:
+            next_id = 0
+
+            async def create_lora_training_client_async(self, **kw):
+                self.next_id += 1
+                return SimpleNamespace(model_id=f"model-{self.next_id}")
+
+        scope = {"placement": placement, "CLIENTS": 4, "RANK": 32, "DEFINITION": "test"}
+        exec(
+            compile(ast.Module(body=[node], type_ignores=[]), "<factory>", "exec"),
+            scope,
+        )
+        create = scope["make_client_factory"](report, "app-test", release)
+        service = Service()
+        for i in range(4):
+            await create(
+                service, "Qwen/Qwen3.5-9B", user_metadata={"run_id": f"client-{i}"}
+            )
+        replacement = await create(
+            service, "Qwen/Qwen3.5-9B", user_metadata={"run_id": "client-0"}
+        )
+        assert replacement.model_id == "model-5"
+        assert len(checks) == 1 and not released
+        assert reports[-1][1]["clients"]["client-0"] == "model-5"
+
+        # A report failure must not leak a newly allocated adapter slot.
+        async def broken_report(*args):
+            raise OSError("volume unavailable")
+
+        broken = scope["make_client_factory"](broken_report, "app-test", release)
+        with pytest.raises(OSError):
+            await broken(
+                service, "Qwen/Qwen3.5-9B", user_metadata={"run_id": "client-new"}
+            )
+        assert released == ["model-6"]
+
+    asyncio.run(check())

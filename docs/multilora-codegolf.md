@@ -38,8 +38,8 @@ The independent `lilo-multilora-codegolf` Volume must contain `problems.json`,
 `reference-validated.json`, and `reference-split.json` copied from the original
 FFT dataset. The dataset SHA-256 is
 `0d8d24a6abfe30ab5144e396b32880aba0a76be093dab0fbe8153dd6dd952db5`.
-No source experiment files are modified. SGLang reserves one token at the
-context boundary: the optional inference probe uses 65,519 prompt tokens plus
+No source experiment files are modified. SGLang reserves two tokens at the
+context boundary: the optional inference probe uses 65,518 prompt tokens plus
 16 generated tokens.
 
 ```bash
@@ -85,5 +85,5 @@ about 34 GiB used per H200 (samples, not an exact peak-memory measurement).
 
 [Capacity test app](https://modal.com/apps/modal-labs/kailash-dev/ap-v02kVD1OJNaLzaXimzDXQo).
 Local receipts and logs remain in `scripts/results/multilora-codegolf/capacity-v1/`.
-The separate inference-boundary probe initially expected one token beyond
-SGLang's reserved-token limit; the probe now accounts for that reservation.
+The separate inference-boundary probe initially expected tokens beyond
+SGLang's two-token reservation (worker limit plus scheduler limit); the probe now accounts for that reservation.
