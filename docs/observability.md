@@ -1,7 +1,10 @@
 # Observability
 
-Lilo can show how long training commands, checkpoint writes, and sampling requests
-take, and when the trainer is waiting between operations. It exports two kinds
+For Tinker-SDK level metrics logging, the easiest solution is to use a library like Wandb -- we have an example of this in `scripts/wandb_rl_example.py`
+
+
+Lilo also comes with much more fine-grained tracking for each subsystem, ie. how long training commands, checkpoint writes, and sampling requests
+take as well as when the trainer is waiting between operations. It exports two kinds
 of measurements:
 
 - **Traces** record individual requests and operations. Each timed operation is
@@ -9,9 +12,7 @@ of measurements:
 - **A trainer-state metric** reports the current operation every five seconds.
   It shows what the trainer is doing, not GPU utilization.
 
-Lilo sends these measurements using OTLP, the OpenTelemetry export protocol.
-Datadog or another compatible service receives, stores, and displays them. Export
-is off by default; configure an OTLP HTTP/protobuf endpoint to enable it.
+Lilo sends these measurements via OTLP (export off by default), from which Datadog or another compatible service can be used to receive and display these traces.
 
 ## Setup
 
@@ -94,7 +95,6 @@ training = create_full_training_client(
 Keep `run_id` unchanged when recovering an experiment into a replacement model;
 set a new `attempt_id` for the replacement. Only these two metadata keys are
 exported, and only nonempty strings of at most 256 characters are accepted.
-Arbitrary user metadata is not exported.
 
 | Metadata key | Exported attribute | Meaning |
 | --- | --- | --- |
@@ -149,7 +149,7 @@ backend transport and synchronization. They do not measure GPU kernel time.
 Megatron adds child spans for preparation, forward or combined forward/backward,
 result collection, and optimizer work on rank zero. Interleaved forward/backward
 microbatches appear as one interval. These measure host wall time without adding
-CUDA synchronization; they are not individual GPU kernel timings.
+CUDA synchronization. 
 
 Workload attributes have distinct scopes:
 
