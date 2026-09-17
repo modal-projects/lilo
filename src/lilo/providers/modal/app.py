@@ -6,9 +6,9 @@ import os
 import time
 from dataclasses import asdict
 
+import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
-import modal
 from lilo.providers.contracts import (
     Parameterization,
     SamplingTask,
@@ -27,6 +27,7 @@ from .definitions import (
     qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_9b_full_64k,
     qwen3_5_9b_miles_lora_16k,
+    qwen3_5_9b_miles_lora_16k_dp2,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,
@@ -51,13 +52,19 @@ from .kv import (
 )
 from .lora_pool import (
     LoraPoolSpec,
+)
+from .lora_pool import (
     deploy_pool as deploy_lora_pool,
+)
+from .lora_pool import (
     pool_gateway as lora_pool_gateway,
+)
+from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
 
-APP_NAME = "lilo"
+APP_NAME = os.environ.get("LILO_APP_NAME", "lilo")
 ROUTING_REGION = "us-west"
 SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
@@ -77,6 +84,7 @@ DEFINITIONS = (
     qwen3_5_9b_base_miles_lora_16k,
     qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_9b_miles_lora_16k,
+    qwen3_5_9b_miles_lora_16k_dp2,
     qwen3_5_35b_a3b_full_64k,
     qwen3_6_27b_full_64k,
     qwen3_6_35b_a3b_full_64k,

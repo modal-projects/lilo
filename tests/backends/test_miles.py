@@ -1,15 +1,16 @@
 import json
-import pytest
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import pytest
+from stitch.types import VersionRef
+from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 
 from lilo.backends import ForwardBatch, ForwardItem, ModelSpec
 from lilo.backends.miles_config import MilesBackendConfig, parse_backend_config
 from lilo.backends.miles_lora import MilesCommandBackend
 from lilo.inference.bulletin import SnapshotBulletin
-from stitch.types import VersionRef
-from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 
 
 class FakeMilesRuntime:
@@ -150,6 +151,7 @@ def test_config_translates_stable_fields_to_miles_arguments() -> None:
     )
 
     assert config.world_size == 4
+    assert config.data_parallel_size == 1
     assert config.peft_target_modules == (
         "q_proj",
         "k_proj",
@@ -168,13 +170,13 @@ def test_config_translates_stable_fields_to_miles_arguments() -> None:
     assert capture_dir == Path("/tmp/lilo-miles-captures")
 
 
-def test_config_rejects_data_parallel_topology() -> None:
+def test_config_rejects_non_divisible_data_parallel_topology() -> None:
     config = _config(
         actor_num_gpus_per_node=4,
-        tensor_model_parallel_size=2,
+        tensor_model_parallel_size=3,
     )
 
-    with pytest.raises(ValueError, match="data parallel size 1"):
+    with pytest.raises(ValueError, match="must be a multiple"):
         config.validate()
 
 

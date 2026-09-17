@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import inspect
 import math
 import os
@@ -24,6 +25,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import tinker
+import torch
 from grouped_tinker_completer import GroupedTinkerTokenCompleter
 from longrlvr_comparison_common import (
     ADAM_BETAS,
@@ -57,8 +59,59 @@ SCRIPT_PATH = Path(__file__).resolve()
 TRAINER_GPUS = 4
 
 
+def _matched_advantage_stats(
+    trajectory_groups_P,
+    *,
+    std_normalize: bool,
+    per_token_scale: bool,
+):
+    advantages_P = []
+    total_tokens = 0
+    first_before_std = None
+    first_after_std = None
+    for traj_group in trajectory_groups_P:
+        rewards_G = torch.tensor(
+            traj_group.get_total_rewards(),
+            dtype=torch.float32,
+        )
+        adv_G = rewards_G - rewards_G.mean()
+        if first_before_std is None:
+            first_before_std = float(adv_G.std().item()) if len(rewards_G) > 1 else 0.0
+        if std_normalize and len(rewards_G) > 1:
+            std = rewards_G.std()
+            if std > 0:
+                adv_G = adv_G / (std + 1e-6)
+        if first_after_std is None:
+            first_after_std = float(adv_G.std().item()) if len(adv_G) > 1 else 0.0
+        advantages_P.append(adv_G)
+        for traj in traj_group.trajectories_G:
+            total_tokens += sum(
+                len(transition.ac.tokens) for transition in traj.transitions
+            )
+    if per_token_scale and total_tokens > 0:
+        advantages_P = [advantages / total_tokens for advantages in advantages_P]
+    return advantages_P, total_tokens, first_before_std, first_after_std
+
+
+def matched_compute_advantages(
+    trajectory_groups_P,
+    *,
+    std_normalize: bool,
+    per_token_scale: bool,
+):
+    return _matched_advantage_stats(
+        trajectory_groups_P,
+        std_normalize=std_normalize,
+        per_token_scale=per_token_scale,
+    )[0]
+
+
 def _comparison_metrics(
-    metrics: dict[str, object], trainer_gpus: int
+    metrics: dict[str, object],
+    trainer_gpus: int,
+    advantage_diagnostics: dict[str, float | bool],
+    std_normalize_advantages: bool,
+    per_token_loss_scale: bool,
 ) -> dict[str, float]:
     """Return metrics shared with the Miles baseline namespace."""
 
@@ -109,13 +162,31 @@ def _comparison_metrics(
         common["cmp/tokens_per_gpu_per_s"] = (
             samples * (prompt_len + response_len) / step_time / trainer_gpus
         )
+    if std_normalize_advantages or per_token_loss_scale:
+        common.update(
+            {
+                "cmp/adv_total_tokens": float(advantage_diagnostics["total_tokens"]),
+                "cmp/std_normalize_advantages": float(std_normalize_advantages),
+                "cmp/per_token_loss_scale": float(per_token_loss_scale),
+            }
+        )
     return common
 
 
 class _ComparisonLogger:
-    def __init__(self, wrapped, trainer_gpus: int):
+    def __init__(
+        self,
+        wrapped,
+        trainer_gpus: int,
+        advantage_diagnostics: dict[str, float],
+        std_normalize_advantages: bool,
+        per_token_loss_scale: bool,
+    ):
         self._wrapped = wrapped
         self._trainer_gpus = trainer_gpus
+        self._advantage_diagnostics = advantage_diagnostics
+        self._std_normalize_advantages = std_normalize_advantages
+        self._per_token_loss_scale = per_token_loss_scale
 
     @property
     def store(self):
@@ -126,7 +197,15 @@ class _ComparisonLogger:
 
     def log_metrics(self, metrics, step=None):
         combined = dict(metrics)
-        combined.update(_comparison_metrics(metrics, self._trainer_gpus))
+        combined.update(
+            _comparison_metrics(
+                metrics,
+                self._trainer_gpus,
+                self._advantage_diagnostics,
+                self._std_normalize_advantages,
+                self._per_token_loss_scale,
+            )
+        )
         return self._wrapped.log_metrics(combined, step)
 
     def log_long_text(self, key, text):
@@ -247,6 +326,10 @@ async def run(
     wandb_group: str,
     run_name: str,
     trainer_gpus: int,
+    max_steps_off_policy: int,
+    std_normalize_advantages: bool,
+    per_token_loss_scale: bool,
+    base_model: str,
 ) -> None:
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
     from tinker_cookbook.rl import rollouts as rl_rollouts
@@ -291,6 +374,35 @@ async def run(
         return await save_checkpoint(*args, **kwargs)
 
     source_groups_per_batch = math.ceil(groups_per_batch * source_group_multiplier)
+    advantage_diagnostics = {"total_tokens": 0.0}
+
+    def compute_matched_advantages(trajectory_groups_P):
+        (
+            advantages_P,
+            total_tokens,
+            first_before_std,
+            first_after_std,
+        ) = _matched_advantage_stats(
+            trajectory_groups_P,
+            std_normalize=std_normalize_advantages,
+            per_token_scale=per_token_loss_scale,
+        )
+        advantage_diagnostics["total_tokens"] = float(total_tokens)
+        if first_before_std is not None and not advantage_diagnostics.get(
+            "sanity_logged", False
+        ):
+            print(
+                "[matched_advantages] step=0 "
+                f"std_before={first_before_std:.6f} "
+                f"std_after_normalize={first_after_std:.6f} "
+                f"total_tokens={total_tokens} "
+                f"std_normalize={std_normalize_advantages} "
+                f"per_token_scale={per_token_loss_scale}",
+                flush=True,
+            )
+            advantage_diagnostics["sanity_logged"] = True
+        return advantages_P
+
     do_async_training = _with_rollout_worker_count(
         rl_train.do_async_training,
         source_groups_per_batch,
@@ -301,6 +413,9 @@ async def run(
         return _ComparisonLogger(
             original_setup_logging(*args, **kwargs),
             trainer_gpus,
+            advantage_diagnostics,
+            std_normalize_advantages,
+            per_token_loss_scale,
         )
 
     dataset_builder = LongRLVRDatasetBuilder(
@@ -316,7 +431,7 @@ async def run(
     config = Config(
         learning_rate=LEARNING_RATE,
         dataset_builder=dataset_builder,
-        model_name=MODEL_NAME,
+        model_name=base_model,
         recipe_name="longrlvr",
         renderer_name=RENDERER_NAME,
         max_tokens=max_tokens,
@@ -336,7 +451,7 @@ async def run(
         num_groups_to_log=1,
         rollout_json_export=True,
         async_config=AsyncConfig(
-            max_steps_off_policy=MAX_STEPS_OFF_POLICY,
+            max_steps_off_policy=max_steps_off_policy,
             groups_per_batch=groups_per_batch,
         ),
         max_steps=steps,
@@ -362,6 +477,15 @@ async def run(
             rl_train,
             "do_async_training",
             do_async_training,
+        ),
+        (
+            patch.object(
+                rl_train,
+                "compute_advantages",
+                compute_matched_advantages,
+            )
+            if std_normalize_advantages or per_token_loss_scale
+            else contextlib.nullcontext()
         ),
         patch.object(
             rl_train.ml_log,
@@ -390,10 +514,24 @@ def main() -> None:
         default=MAX_TOKENS,
     )
     parser.add_argument("--base-url", default=BASE_URL)
+    parser.add_argument("--base-model", default=MODEL_NAME)
     parser.add_argument("--seed", type=int, default=DATASET_SEED)
     parser.add_argument("--wandb-group", default=WANDB_GROUP)
     parser.add_argument("--run-name")
     parser.add_argument("--trainer-gpus", type=int, default=TRAINER_GPUS)
+    parser.add_argument(
+        "--max-steps-off-policy",
+        type=int,
+        default=MAX_STEPS_OFF_POLICY,
+    )
+    parser.add_argument(
+        "--std-normalize-advantages",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--per-token-loss-scale",
+        action="store_true",
+    )
     parser.add_argument("--log-path", type=Path)
     parser.add_argument(
         "--detach",
@@ -412,6 +550,8 @@ def main() -> None:
         )
     if args.source_group_multiplier < 1:
         parser.error("--source-group-multiplier must be at least 1")
+    if args.max_steps_off_policy < 0:
+        parser.error("--max-steps-off-policy must be non-negative")
     if not args.base_url:
         parser.error("--base-url or TINKER_BASE_URL is required")
 
@@ -446,6 +586,12 @@ def main() -> None:
             run_name,
             "--trainer-gpus",
             str(args.trainer_gpus),
+            "--base-model",
+            args.base_model,
+            "--max-steps-off-policy",
+            str(args.max_steps_off_policy),
+            *(["--std-normalize-advantages"] if args.std_normalize_advantages else []),
+            *(["--per-token-loss-scale"] if args.per_token_loss_scale else []),
             "--log-path",
             str(log_path),
         ]
@@ -474,6 +620,10 @@ def main() -> None:
             wandb_group=args.wandb_group,
             run_name=run_name,
             trainer_gpus=args.trainer_gpus,
+            max_steps_off_policy=args.max_steps_off_policy,
+            std_normalize_advantages=args.std_normalize_advantages,
+            per_token_loss_scale=args.per_token_loss_scale,
+            base_model=args.base_model,
         )
     )
     print(log_path)
