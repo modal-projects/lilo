@@ -179,10 +179,9 @@ uv run python sft_smoke.py
 
 Expect a supported-model list followed by training and optimizer metrics.
 The first update can take several minutes for GPU allocation, model loading,
-and compilation; it is not representative of steady-state step time. This is
-a connectivity and training smoke test, not a model-quality evaluation. It does
-not save a checkpoint; read [Working with Full Fine-Tunes](docs/full-fine-tunes.md)
-for checkpointing, sampling, and longer runs.
+and compilation. This smoke test checks connectivity and one training update.
+To save checkpoints, sample, or run longer jobs, see
+[Working with Full Fine-Tunes](docs/full-fine-tunes.md).
 
 ### 5. Clean up
 

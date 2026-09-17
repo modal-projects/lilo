@@ -19,7 +19,7 @@ as the trainer consumes them one at a time. The run uses 4–8 inference replica
 and up to 64 concurrent judge sandboxes.
 
 `async-v5` uses a four-batch queue. `reward-v4` selects the original synchronous
-loop. These choices do not change the trainer's GPU layout.
+loop.
 
 Each batch records the minimum requested weight version and the log probabilities
 returned during sampling. Before an update, the trainer discards batches whose
@@ -28,8 +28,7 @@ serve newer weights, so the recorded lag can overestimate the actual lag. PPO
 uses the sampling log probabilities to compute importance ratios.
 
 Recovery cancels the rollout workers and waits for them to finish, then clears
-the queue before replacing the trainer. Queued rollouts are not reused after a
-checkpoint restore.
+the queue before replacing the trainer.
 
 Metrics record queue depth, in-flight and discarded batches, rollout time,
 trainer wait time, update time, and publication time. The loop still waits for
@@ -49,8 +48,8 @@ The validated split contains **123 training problems and 16 held-out problems**.
 The last 20 recorded updates average 95.2% training correctness and 40 seconds
 per ordinary step including weight publication. Held-out evaluation at 740 passes
 15/16 problems, with passing code averaging 737 UTF-8 bytes. These timings exclude
-checkpoint saves, evaluation, GPU allocation and recovery. They are client wall
-times, not measured GPU utilization or a controlled throughput benchmark.
+checkpoint saves, evaluation, GPU allocation and recovery. They measure elapsed
+time at the client.
 
 The run is synchronous through step 350, uses async rollouts with a four-batch
 ready queue at 351–450, then a two-batch queue from 451. Both async variants keep
@@ -58,7 +57,7 @@ four producers and enforce a maximum policy lag of four. At 748 the smaller-buff
 controller has trained on 298 batches and discarded 130 stale batches (30.4% of
 consumed plus discarded batches), compared with 43.5% before the buffer change.
 Pending work and discarded work from rolled-back attempts are excluded from
-these percentages. Smaller queues reduced waste but did not eliminate it.
+these percentages.
 
 Step 0 is held-out evaluation only. The output limit increased to 16,384 at 50;
 the reward changed at 150, so raw reward across that boundary is not comparable.
@@ -71,8 +70,7 @@ files from the old attempt cannot create gaps or double-count samples.
 The fixed evaluation has only 16 stochastic samples; one answer changes accuracy
 by 6.25 percentage points. Passing-code averages also change when the solved set
 changes. Repeated exposure to the small training set and falling sampled entropy
-limit what these results say about generalization. They do not establish
-convergence or rule out overfitting. Code diversity is the exact-string distinct fraction
+leave a risk of overfitting. Code diversity is the exact-string distinct fraction
 among eight submissions per problem, including incorrect submissions.
 
 The [aggregate snapshot](figures/metrics.json) and [renderer](figures/render.py)
@@ -87,8 +85,7 @@ uv run python figures/render.py
 three selected held-out problems, with both versions passing the retained tests.
 The standalone page embeds the exact generated responses and Python code; choose
 a problem and toggle full response versus extracted code. Download/open the HTML
-in a browser (GitHub's source view does not execute it). These examples were selected to show shorter solutions; they are not a random
-sample.
+in a browser. These examples were selected to show shorter solutions.
 
 ## Reward and configuration
 
@@ -106,24 +103,24 @@ advantage = (reward - group_mean) / max(group_std, 0.5)
 The historical step-748 snapshot uses `async-v6`, with bonus 0.15 and token
 penalty 0.08. Its later `async-v7` continuation and the new `prompt-v8` run are
 not included in those figures. Compare correctness and lengths across reward
-changes, not raw reward.
+changes.
 
 All output tokens count, including prose outside the extracted code. Passing
 earns at least 0.80; failing earns at most zero. The standard-deviation floor
 keeps tiny length differences from becoming unit-sized updates. `reward-v3`
 retains the previous `1 + 0.1 * exp(-bytes / 256)` passing reward without an
-output penalty. Neither reward guarantees stability.
+output penalty.
 
 [Configuration](codegolf/config.py): 1,000 steps by default, 4×8 samples per step,
 16,384 output tokens, temperature 1, Adam learning rate 1e-6, PPO clipping
 [0.8, 1.2], full model + optimizer checkpoints every 50 steps and at completion,
 held-out evaluation every 20. Prompt targets are masked and sampled solutions
 have equal total loss weight. There is no KL penalty or entropy bonus. Entropy
-plots estimate mean negative sampled-token log probability, not vocabulary entropy.
+plots estimate mean negative sampled-token log probability.
 
 The recorded trainer was **8×H200, 65,536 context, TP2/CP2/DP2**. This example
-uses Lilo's Qwen3.5-9B full-training definition; it does not deploy or change the
-shared trainer. Synchronous inference requests 1–2 replicas; async inference requests 4–8.
+uses Lilo's Qwen3.5-9B full-training definition in a scoped deployment.
+Synchronous inference requests 1–2 replicas; async inference requests 4–8.
 
 ### Thinking variants
 
@@ -195,16 +192,16 @@ comparison, e.g. `--variant async-v6 --eval-samples 8`, and match the initializa
 dataset, seed, training budget and reward. Run comparisons sequentially when
 sharing this single-controller deployment. Eight-sample evaluation generates
 128 completions on the default 16 held-out problems, eight times the old evaluation
-budget; it does not change the 32-rollout training batches.
+budget. Training still uses 32-rollout batches.
 
 Each `eval/STEP.json` retains the original sample means and adds `eval_samples`,
 `eval_problems`, `pass_at_k` and `best_of_k`. The latter maps use string keys for
 budgets `1, 2, 4, ...` up to `N`, including `N` itself. Estimates average over all
 size-`k` subsets within each problem, then average over problems. Pass@k uses judge
 verdicts; Best-of-k uses the full correctness/brevity reward. Budgets above `N` are
-never extrapolated. These measure selection with access to the judge, not a
-learned selector. `codegolf.report` writes `sampling.png` alongside `reward.png`,
-and includes the evaluation curves in `summary.json`.
+never extrapolated. These measure selection with access to the judge.
+`codegolf.report` writes `sampling.png` alongside `reward.png` and includes the
+evaluation curves in `summary.json`.
 
 Existing saved specs without the new fields resume as GRPO with one evaluation
 sample. Estimator and evaluation-budget changes require a new run or checkpoint
@@ -234,7 +231,7 @@ secret containing your OTLP settings in the chosen environment.
 On September 14, 2026, `qwen9b-prompt-v8` was launched in
 `modal-labs / connor-dev-2`, using the `codegolf-scoped` app and volume. It starts
 from base weights: the prior prompt-v8 attempt had no completed checkpoint.
-The historical figures above are not results from this scoped implementation.
+The figures above come from the earlier shared deployment.
 
 ```bash
 uv sync --frozen
@@ -297,7 +294,7 @@ waiting for GPUs or repeatedly failing.
 Hard cancellation can skip Python cleanup. The API, trainer, and latest samplers
 belong to the controller's ephemeral app and stop after Modal detects that the
 owner disconnected. Verify container termination when stopping a run. This
-example uses latest sampling only, without separate pinned pools.
+example uses latest sampling only.
 
 A controller retry opens a new scope and restores the saved checkpoint. Replacing
 only the trainer keeps the existing scope.
@@ -333,9 +330,8 @@ configuration, dataset preparation, commands, and plots.
 Submissions run without root access, network access, secrets, or mounted volumes.
 The sandboxes limit CPU, memory, process count, output size, and execution time.
 Expected outputs stay outside the sandbox. The judge compares hashes of
-whitespace-separated output tokens. It does not support custom checkers and is
-not the official Codeforces judge. Public problems may have appeared in the
-model's pretraining data.
+whitespace-separated output tokens. Custom checkers are unsupported. Public
+problems may have appeared in the model's pretraining data.
 
 ```bash
 uv run pytest -q
@@ -350,14 +346,11 @@ rewards, ties, permutations, the finite-budget gradient identity, exhaustive
 sampling-metric checks, and both synchronous and asynchronous checkpoint recovery.
 The historical GRPO figures above were recorded before this cleaned example.
 
-The figures come from the earlier implementation; this scoped run has its own
-metrics and checkpoint ledger.
-
 ## Run observability
 
 The controller passes its `OTEL_*` settings to the scoped services through
-`telemetry_secret`. It does not forward the shared API key. Lilo sends traces
-and metrics to the configured OTLP destination; see the
+`telemetry_secret`. Lilo sends traces and metrics to the configured OTLP
+destination; see the
 [observability guide](../../docs/observability.md) for setup and field definitions.
 
 Each model gets a run ID and an attempt ID. These labels connect controller
@@ -374,12 +367,11 @@ trainer containers.
 
 Trainer state is reported every five seconds for execution, checkpoint writing,
 and sampler publication. Use `.fill(null)` in Datadog so missing reports appear
-as gaps. This metric is not GPU utilization. Sampled entropy is mean negative
-sampled-token log probability, not entropy over the full vocabulary.
+as gaps. Sampled entropy is mean negative sampled-token log probability.
 
 Metrics already sent to Datadog remain visible after a checkpoint rollback. Use
 the saved run files to determine which updates survived. The Datadog notebook
-is created separately; the training process does not create it.
+is created separately.
 
 ### Scoped-run validation
 
@@ -397,8 +389,7 @@ the trainer, a replacement restored the checkpoint: forward loss and determinist
 sample tokens matched exactly. Its third update succeeded, with gradient norm
 within 0.0006% and post-update loss within 0.013% of the reference. Final sampling
 succeeded and the scoped app stopped with zero containers. This validates the
-core restore path; it does not establish long-run convergence or eliminate
-checkpoint rollback loss.
+core restore path.
 
 Datadog showed training and sampling across both recovery attempts under one run
 ID, including sampling HTTP retries. A separate exporter probe verified that
