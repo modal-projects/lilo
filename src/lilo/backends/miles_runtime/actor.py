@@ -144,10 +144,19 @@ def _gather_tinker_logprobs_across_cp() -> None:
 
     # Callers on the multi-LoRA path that bound the name at import time must
     # be re-pointed. Miles' non-Tinker losses handle CP natively.
+    import miles.backends.fsdp_utils.actor as fsdp_actor
+    import miles.backends.megatron_utils.actor as megatron_actor
     import miles.backends.megatron_utils.model as megatron_model
+    from miles.backends.training_utils import loss
     from miles.backends.training_utils.loss_hub import tinker_losses
 
-    for module in (tinker_losses, megatron_model):
+    for module in (
+        loss,
+        tinker_losses,
+        megatron_actor,
+        megatron_model,
+        fsdp_actor,
+    ):
         if getattr(module, "get_log_probs_and_entropy", None) is original:
             module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
