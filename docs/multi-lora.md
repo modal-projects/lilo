@@ -1,26 +1,12 @@
 # Working with Multi-LoRA
 
-The Miles backend keeps several independent LoRA adapters on one shared base
-model and trainer. Each Tinker training client owns its adapter, gradients, and
-optimizer state. Clients share GPU execution time and a rollout pool; creating
-another client does not reserve a private trainer.
-
-## Read this before starting a run
-
-- **Submit work from clients concurrently.** Waiting for one client's whole
-  update before submitting the next client's batch prevents useful batching.
-- **Keep each client's update order explicit.** Submit all gradient-accumulation
-  batches before its `optim_step()`. Other clients can advance independently.
-- **Bound outstanding work.** Large batches and long queues increase latency
-  for clients sharing the trainer. There is no per-client latency guarantee.
-- **Checkpoint each adapter.** A shared trainer failure loses all resident
-  adapters' unsaved model and optimizer state. Sampler publication is not a
-  recovery checkpoint.
+The Miles backend runs several LoRA adapters on a shared base model. Each Tinker
+training client has its own adapter, gradients, and optimizer state. Clients
+share trainer GPUs and a rollout pool.
 
 ## Create clients
 
-Use the ordinary Tinker LoRA constructor against a deployment with the Miles
-LoRA definition enabled:
+Connect to a deployment with a Miles LoRA definition enabled:
 
 ```python
 import tinker
@@ -34,40 +20,40 @@ clients = [
 ]
 ```
 
-The bundled `qwen3_5_9b_base_miles_lora_16k` definition has six adapter slots
-per four-H100 trainer, TP=4, and a 16,384-token context. Clients using the same
-definition can share an engine while it has capacity. Placement is automatic;
-the SDK does not guarantee that particular clients are colocated. Additional
-clients depend on available trainer capacity and deployment limits.
+The bundled `qwen3_5_9b_base_miles_lora_16k` definition provides six adapter slots
+on four H100s, with tensor parallelism of 4 and a 16,384-token context. Placement
+fills available trainer capacity automatically. Clients using the same
+definition may share an engine; their placement depends on available slots and
+deployment limits.
 
-Ranks can differ across clients, up to the deployment's maximum of 32.
-LoRA alpha and target modules are deployment-wide. For this definition,
-`train_attn`, `train_mlp`, and `train_unembed` must all be true (the SDK defaults).
-Per-client LoRA initialization `seed` is unsupported; leave it unset. Keep
-clients alive across updates rather than recreating them each step.
+Clients can use different ranks, up to 32. LoRA alpha and target modules are set
+by the deployment. This definition requires `train_attn`, `train_mlp`, and
+`train_unembed` to be true, which are the SDK defaults. Leave the per-client
+initialization `seed` unset. Reuse clients across updates to keep their adapter
+and optimizer state loaded.
 
-## How training is scheduled
+## Submit training work
 
-Each engine has one GPU command lane. It preserves operation order within each
-client, but there is no barrier requiring every client to reach the same step.
+Submit work from clients concurrently so the engine can batch their requests.
+Keep one ordered submission loop per client. Each client's operations execute
+in submission order, and clients can advance at different rates.
 
-At each dispatch, the engine checks the next queued operation for each client.
-If it selects `forward_backward`, it combines ready requests with the **same
-`loss_fn` and `loss_fn_config`**, including consecutive compatible requests from
-one client. Different ranks, batch sizes, and sequence lengths can participate.
-It does not wait for missing clients to fill a batch. Different losses or loss
-configurations execute separately. Optimizer steps, forward-only calls, and
-snapshot captures are not combined by this scheduling path.
+At each dispatch, the engine checks the next queued operation for every client.
+A `forward_backward` request can run with other ready requests that use the same
+`loss_fn` and `loss_fn_config`. This includes consecutive compatible requests
+from one client. Ranks, batch sizes, and sequence lengths can differ. The engine
+starts with the work already queued. Other losses, optimizer steps, forward-only
+calls, and adapter captures run as separate operations on the shared GPU lane.
 
-Miles splits the combined work into microbatches using the deployment's token
-budget (16,384 tokens per GPU in this definition). That is a packing budget,
-not a limit on total tokens in a submitted batch. A large submission can occupy
-multiple microbatches; it is not preempted to run a later client's request.
-Client ordering is not strict round-robin, so avoid keeping an unbounded backlog
-on one client.
+Miles packs the combined batch into microbatches using the deployment's token
+budget: 16,384 tokens per GPU for this definition. Larger submissions span
+multiple microbatches and run to completion before the next dispatch. Keep
+outstanding work bounded, since large submissions and long queues delay other
+clients. Scheduling order depends on the queued operations, so clients can
+experience different wait times.
 
-Submit each client's forward/backward and optimizer operations without waiting
-for the forward result first, then check both futures:
+Submit each client's forward/backward and optimizer calls, then check both
+futures:
 
 ```python
 import asyncio
@@ -84,80 +70,79 @@ async def update(client, batch):
     await optimizer.result_async()
     return result
 
-# Each batch contains data for its corresponding adapter only.
+# Each batch contains data for its corresponding adapter.
 results = await asyncio.gather(*(
     update(client, batch)
     for client, batch in zip(clients, batches, strict=True)
 ))
 ```
 
-This example waits for all clients for convenience; an async RL controller can
-start each client's next rollout when that client's publication completes.
-Keep one ordered submission loop per client. For gradient accumulation, submit
-several `forward_backward` calls before the single `optim_step`; inserting an
-optimizer step changes the update, even if requests happen to be batched together.
+For gradient accumulation, submit all of a client's `forward_backward` calls
+before its `optim_step`. The example above waits for all clients to finish;
+an async RL controller can publish and start the next rollout for each client
+as soon as its update finishes.
 
-## Batch requirements
+### Batch requirements
 
-- Each `Datum` belongs to the training client receiving it. Do not concatenate
-  different adapters' data into one client's batch; the scheduler combines
-  clients' separate requests.
-- Inputs must be text tokens. `target_tokens` must have the same length as
-  `model_input` and be shifted by one token. Per-token weights, advantages, and
-  sampling logprobs must align with those targets. Mask prompt positions when
-  training only on completions.
+- Send each adapter's data through its own training client. The engine combines
+  compatible requests across clients.
+- Inputs must be text tokens. `target_tokens` must match the length of
+  `model_input` and be shifted by one token. Align per-token weights, advantages,
+  and sampling logprobs with those targets. Mask prompt positions when training
+  on completions.
 - Supported losses are `cross_entropy`, `importance_sampling`, `ppo`, `cispo`,
-  and `dro`. RL losses require caller-supplied advantages and sampling logprobs;
-  the backend does not compute reward groups for you.
-- Keep each prompt plus completion within the context limit. Reducing the
-  number of examples does not make an overlong individual sequence fit.
+  and `dro`. For RL losses, compute advantages in your controller and supply
+  the logprobs from the sampled policy.
+- Each prompt plus completion must fit within the context limit.
 
-## Publication, rollouts, and checkpoints
+## Publish adapters and generate rollouts
 
-`save_weights_and_get_sampling_client()` returns a client that may use that
-publication or a newer one. For an exact policy version, call
-`save_weights_for_sampler(name)` and create a sampling client from its returned
-path. Both use the same shared multi-LoRA rollout pool; an exact version does
-not get its own pool. A replica may still need to load that adapter version on
-first use. The bundled 16K definition retains at most 64 adapter versions per
-replica, shared across clients. Older versions are evicted and reloaded on demand;
-this is a cache limit, not a limit on training steps or saved publications.
+Publish after `optim_step()` and wait for publication to finish before sampling
+from the updated policy.
 
-Publish after `optim_step()` and await publication before requesting rollouts
-from the updated policy. If prefetching rollouts, bound policy lag in your
-controller: the backend does not reject a batch merely because it was generated
-by an older policy. Retain the logprobs returned with those rollouts.
+`save_weights_and_get_sampling_client()` returns a client that serves the
+published version or a newer one. To select an exact version, call
+`save_weights_for_sampler(name)` and create a sampling client from the returned
+path. Sampler publications use PEFT format. Both sampling methods use the
+deployment's shared multi-LoRA rollout pool.
 
-Adapter capture uses the shared GPU command lane. Persistence can overlap later
-training and other adapters' publications, but only one publication per adapter
-can be in flight. Queueing another publication for that adapter blocks its
-later operations until the prior publication persists. Checkpoints share one
-persistence worker. While it is busy, additional checkpoints stay queued and
-other clients' ready training can proceed. A queued checkpoint also holds up
-later commands from its own client. Model creation, loading, and unloading wait
-for outstanding persistence.
+A replica loads adapter versions as needed. The bundled 16K definition caches
+up to 64 versions per replica across all clients, evicting older versions and
+reloading them when requested. The pool keeps eight one-H200 replicas warm and
+allows up to eight LoRAs in an inference batch. All clients share this capacity;
+model cold starts and adapter loading contribute to sampling latency.
 
-Use `save_state()` for adapter and optimizer recovery, then
-`load_state_with_optimizer()` on a new matching LoRA client. Restore requires
-the same base model, LoRA configuration, Miles revision, and trainer topology.
-Published PEFT adapters are inference artifacts and cannot replace these Miles
-training checkpoints. Checkpoints from the earlier Miles revision are not
-compatible with the current distributed checkpoint format; start a fresh run
-when upgrading. Wait for checkpoint completion before relying on a checkpoint.
+When prefetching rollouts, set a maximum policy lag in your controller and retain
+the returned sampling logprobs. The backend accepts batches generated by older
+policies. Results can vary with batch packing, request scheduling, and the
+policy version served, even when sampling seeds match.
 
-Rollout capacity is configured by the deployment, not per LoRA client. The
-bundled definition keeps eight one-H200 replicas warm and allows up to eight
-LoRAs per inference batch. Trainer slots and rollout replicas are separate
-limits. More clients can fill gaps while others generate rollouts, but share
-that fixed capacity. Cold starts and adapter loading still affect latency.
+### Publication and persistence scheduling
 
-The normal path does not promise bitwise equality across different packing or
-request schedules. Matching sampling seeds alone does not provide deterministic
-training or eliminate policy-version differences.
+Adapter capture uses the shared GPU lane. Persistence then runs in the
+background, allowing training and other adapters' publications to proceed.
+Each adapter can have one publication in flight. A second publication waits
+for the first to persist and holds up later operations from that client.
 
-New deployment processes resolve `radixark/miles` `main` once and build that exact
-commit. The SHA is part of the image cache key and is stored in training
-checkpoints; running deployments do not update underneath active jobs. Deployment
-requires Git/network access to resolve the branch. For a reproducible rebuild,
-set `LILO_MILES_COMMIT` to a full commit SHA before deployment. Megatron and
-Megatron-Bridge retain their separately configured revisions.
+Checkpoints share one persistence worker. While it is busy, new checkpoints
+stay queued and other clients' ready training can proceed. A queued checkpoint
+holds up later operations from its own client. Model creation, loading, and
+unloading wait for outstanding persistence.
+
+## Checkpoint and recover
+
+Use `save_state()` regularly to save each client's adapter and optimizer state.
+A shared trainer failure loses unsaved state for every resident client. Wait
+for a checkpoint to complete before relying on it for recovery.
+
+Restore with `load_state_with_optimizer()` on a new matching LoRA client.
+Recovery requires the same base model, LoRA configuration, Miles revision, and
+trainer topology. Upgrading from the earlier checkpoint format requires a
+fresh run.
+
+At deployment, Lilo resolves `radixark/miles` `main` and builds that commit into
+the image. The commit SHA is recorded in checkpoints and remains fixed for the
+running deployment. Deployment requires Git/network access to resolve the
+branch. To rebuild a specific version, set `LILO_MILES_COMMIT` to its full SHA
+before deployment. Megatron and Megatron-Bridge use their separately configured
+revisions.
