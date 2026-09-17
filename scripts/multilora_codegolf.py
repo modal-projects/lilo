@@ -280,8 +280,8 @@ async def controller(url, parent_app_id, run_name, steps, phase):
             results["status"] = "passed"
             await report("capacity.json", results)
         else:
-            # LoRA optimizer checkpoints are small enough to bound recovery loss
-            # to fewer than 20 updates without changing the training algorithm.
+            # Save LoRA state every 20 updates to reduce repeated work after
+            # controller or trainer restarts.
             cfg = dataclasses.replace(config_for("tailrl", steps), checkpoint_every=20)
             config = dataclasses.asdict(cfg)
             await report(

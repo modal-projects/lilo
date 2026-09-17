@@ -1,7 +1,7 @@
 # Codegolf rollout stall diagnosis, 2026-09-17
 
 Experiment: `tailrl-hero-v1`, independent branch `codex/multilora-codegolf`.
-The existing Miles multi-LoRA PR has not been changed.
+The observations below describe the original run; the fixes now also live in PR #15.
 
 ## Findings
 
@@ -63,18 +63,24 @@ restarts. Clients with a step-50 checkpoint restored it; the others restarted at
 zero. These restarts increase the number of old adapters but are separate from
 the persistent inference stall.
 
-## Correction and validation needed
+## Fix and validation
 
-Make finished-output processing the single owner of LoRA reference release;
-remove the duplicate abort-handler release after auditing its callers. Test
-503 queue rejection, 499 cancellation, 500 failure, normal completion, and LRU
-eviction after these outcomes. Add bounded adapter-registration waits so a
-wedged registration cannot hold the sidecar lock for 50 minutes. Existing
-poisoned replica state needs replacement after the fix; restarting alone would
-allow recurrence at the same capacity boundary. A small-capacity regression
-can exercise eviction quickly, without another long RL validation run.
+The PR #15 lifetime fix is carried into this experiment branch. Each logical
+request owns a registry reference shared with its parallel children. Errors before
+dispatch release immediately; errors after dispatch retain state until scheduler
+completion. Acquisition is cancellation-safe and atomic with registry eviction.
+The response consumer no longer releases or removes completed request state.
 
-No live backend patch or restart was performed during this diagnosis.
+The patched image passes 32 SGLang lifetime tests. A one-H200, 64K-context probe
+with a two-version cache passed oversized-input rejection, parallel sampling,
+streaming HTTP disconnection, parallel-group abortion, queue rejection, repeated
+eviction, and implicit reload of an old version. See `scripts/validate_lora_eviction.py`.
+
+Future codegolf launches use 64 retained adapter versions per replica and save
+adapter + optimizer checkpoints every 20 updates. The 3,000-second sidecar HTTP
+timeout and per-replica registration lock are unchanged. A timeout alone would
+not repair a backend load stuck in SGLang; poisoned old replicas need replacement.
+These changes do not modify the already-running deployment.
 
 ## Reproduce plots and inventory
 
