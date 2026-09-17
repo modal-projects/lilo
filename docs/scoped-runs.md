@@ -1,8 +1,7 @@
 # Scoped runs
 
-Use `lilo.run` to create a dedicated trainer and sampling deployment for one
-training job. Connect with the Tinker SDK inside the context. Other processes
-can use the same URL and API key while the context stays open.
+Start an engine and connect with Tinker. Other processes can use the same URL and
+API key while the context is open.
 
 ```python
 import lilo
@@ -21,10 +20,9 @@ with lilo.run(
 ```
 
 `warm=True` waits for the trainer to load before entering the `with` body.
-One training model can be active at a time. Samplers start separately, so a ready
-trainer does not mean the first sample will be fast. `latest` sets the replica
-limits and idle retention time for the latest-policy pool. Its minimum takes
-effect when a model is created. Base and pinned samplers have a zero minimum.
+One training model can be active at a time. Samplers start separately on demand;
+`latest` sets the latest sampler’s replica limits and scaledown window. Its minimum activates
+when a model is created. Base and pinned samplers have a zero minimum.
 
 Use your Modal profile and the `lilo-proxy` secret, or pass
 `proxy_secret=modal.Secret.from_name(...)`. An API key is generated for each run
@@ -83,22 +81,27 @@ Normal exit closes pinned sampler apps before the parent app. Both are ephemeral
 and stop after Modal detects owner disconnect if the owning process dies.
 Saved checkpoints remain; exiting does not save a checkpoint automatically.
 
-Pinned versions get separate sampler apps, created when requested. If an app
-is missing, sampling retries while the owner starts it. The owner checks for
-requests once per second and starts at most two apps concurrently. There is no
-fixed limit on the number of pinned versions, so requesting many versions can
-allocate many separate apps.
+Pinned sampling refreshes `(model_id, version)` demand in the existing ownership
+Dict and resolves its route on every sampling retry. Missing routes wait with
+backoff while the owner polls demand once per second and opens missing apps.
+No Lilo installation or Modal credentials are required in external Tinker clients.
+The owner holds app contexts in memory and limits concurrent app creation to two;
+there is no version-count cap or persistent provisioning-state machine.
 
-After ten minutes without demand, an idle pinned app is stopped. Active sampling
-requests prevent this cleanup. The same client handle will recreate the app on
-its next request, which can incur another cold start. External Tinker clients
-need only the API URL and key; they do not need Lilo or Modal credentials.
+Demand idle for ten minutes is removed together with its route, and the owner
+closes the corresponding app. Active sampling leases prevent idle eviction;
+abandoned leases expire. Stale demand also expires if an app never started.
+A sampling retry recreates demand lost during cleanup; old-app cleanup cannot
+remove a replacement route or fresh demand. Existing pinned handles therefore
+recreate an idle-evicted app on their next request. The scan grows with recent
+requested versions, not all historically published versions.
 
-A CPU test of the ephemeral pinned apps passed startup retries, idle eviction,
-recreation, and normal exit. Killing the owner stopped its child app in about
-three minutes, with zero containers remaining. The test used substitute HTTP
-servers, so it checked ownership and routing rather than GPU inference.
-Its local report, `scoped-pinned-ephemeral-result.json`, is not included here.
+[Ephemeral pinned lifecycle validation](scoped-pinned-ephemeral-result.json) used
+CPU HTTP substitutes with the production owner, app factory, and sampling retry
+loop: missing-route/startup retries, idle eviction and recreation, and normal exit
+passed. Hard-cancelling the owner stopped its child with a minimum container in
+about three minutes, with zero containers remaining. This validates ownership and
+routing; it is not a new GPU inference validation.
 
 ## Smoke test
 
@@ -110,33 +113,31 @@ the context. Results are written to `/tmp/lilo-scoped-smoke.json`.
 cancels the trainer invocation, restores through a new full training client, and
 checks replacement latest sampling, old-handle rejection, and pinned continuity.
 
-Earlier smoke and recovery tests used deployed sampler pools. They covered
-training, base/latest/pinned sampling, checkpoint restore, old-handle rejection,
-and recreation of an idle pinned pool. Both stopped all test apps with zero
-containers remaining. Their local reports, `scoped-smoke-result.json` and
-`scoped-recovery-result.json`, are not included here. For checked-in findings
-and reproduction commands, see [E2E results](scoped-e2e-results.md) and
-[E2E testing](scoped-e2e-testing.md).
+Earlier deployed-pool validation: [verified run results](scoped-smoke-result.json): training, base/latest/pinned
+sampling, and pinned-app shutdown before the parent, with zero remaining containers.
+
+Earlier deployed-pool validation: [verified recovery results](scoped-recovery-result.json): trainer cancellation,
+checkpoint restoration, replacement latest sampling, old-handle rejection, and
+pinned-app reclamation followed by recreation through the same handle. All test
+apps stopped with zero remaining containers.
 
 ## OpenTelemetry
 
-Pass a Modal secret containing OTLP settings to `lilo.run(telemetry_secret=...)`
-to export traces from the API, trainer, and sampling workers. Lilo also reports
-the trainer's current operation every five seconds. OTLP is the protocol used to
-send these measurements to Datadog or another OpenTelemetry-compatible service.
-
-Keep this secret limited to telemetry settings; use separate secrets for API and
-proxy credentials. The codegolf example copies only `OTEL_*` keys from its
-controller secret. Export failures do not fail training.
+Pass an OTLP configuration secret to `lilo.run(telemetry_secret=...)` to enable
+traces on the scoped API, trainer and sampling worker, and five-second trainer
+operation gauges. Use an OTel-only secret; keep API/proxy credentials separate.
+The codegolf example forwards only `OTEL_*` keys from its existing controller
+secret. Exporting is best effort and does not require a telemetry volume or a
+Datadog-specific dependency.
 
 Set `user_metadata={"run_id": "my-run", "attempt_id": "replacement-1"}` when
-creating the full training client. Lilo attaches these labels to trainer and
-sampling traces, including retries. Keep the run ID and choose a new attempt ID
-when replacing a trainer. Labels group telemetry; they do not control access.
-Prompts, generated code, and other user metadata are excluded.
-
-Already exported metrics remain visible after a checkpoint rollback. Use the
-application's saved checkpoint records to determine which steps were retained.
+creating the full training client. Lilo validates these two labels, snapshots them
+through models, artifacts and sampling sessions, and propagates `lilo.run_id` / `lilo.run_attempt_id` to trainer
+operations and sampling retries. Use the same run ID and a fresh attempt ID after
+replacement. These are correlation labels, not authorization boundaries. Prompts,
+generated code and arbitrary metadata are excluded. Metrics exported before a
+checkpoint rollback remain historical observations; the application checkpoint
+ledger determines committed progress.
 
 The [observability guide](observability.md) defines the trace boundaries and metric
 labels. Physical trainer-state metrics have no model experiment labels. When one

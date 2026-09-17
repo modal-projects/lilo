@@ -53,9 +53,9 @@ checkpoint listing/deletion, old-client rejection, and final app cleanup.
 
 ### Live result — 2026-09-16
 
-**Recovery and continued training succeeded, but one numerical check failed.**
-Of 21 checks, 20 passed. The script exited nonzero because the log-probability
-comparison exceeded its tolerance.
+**Both requested recovery paths succeeded.** Of 21 live checks, 20 passed and
+one numerical diagnostic exceeded its tolerance. The script deliberately exits
+nonzero when any check fails; this is not an all-green numerical validation.
 
 The test verified:
 
@@ -76,8 +76,9 @@ The test verified:
 The diagnostic compared forward log probabilities before failure with those
 immediately after restoration. Maximum absolute difference was `0.0047957003`
 over 13 tokens, exceeding the existing `0.003` tolerance. Its cause is unresolved;
-no tolerance was loosened to make the run pass. The test confirms that training resumes after recovery. It does not establish
-numerical equivalence across trainer processes. Transient HTTP 500 responses during future retrieval
+no tolerance was loosened to make the run pass. This test establishes functional
+recovery and continuation, not bitwise or tightly bounded numerical equivalence
+across trainer processes. Transient HTTP 500 responses during future retrieval
 were retried by the SDK, and the scenario reached completion.
 
 The [Modal run](https://modal.com/apps/modal-labs/connor-dev-2/ap-gIKuOfNPbED4miFTNdGDnG)
@@ -89,10 +90,11 @@ used only a new test app. Reports under `scripts/results/scoped-e2e/`:
 - `restart-fix-pytest.log`: full CPU suite result.
 - `restart-fix-harness.py` and `restart-fix-runtime.patch`: reproduction snapshots.
 
-## Issues still open at the time of this test
+## Remaining landing considerations
 
-The earlier run also found that an incomplete model download was accepted as a
-valid cache when `config.json` existed. It found a misleading SDK connection
-error when a training slot was already occupied. Neither issue was addressed by
-these recovery fixes. The numerical difference also needs a repeatability test
-before it can be attributed to optimizer restoration.
+These changes address the two requested recovery defects. The earlier E2E run
+also reproduced incomplete model downloads being treated as valid caches because
+`config.json` exists; that asset-cache recovery issue remains worth fixing before
+landing. The SDK's misleading connection error for an occupied slot remains an
+error-reporting issue. The numerical continuation discrepancy requires a
+repeatability control before attributing it to optimizer restoration.

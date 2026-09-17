@@ -1,12 +1,13 @@
 # Working with Full Fine-Tunes
 
-Full fine-tuning (FFT) updates all model parameters on a dedicated trainer in
-your Modal workspace. Use a [scoped run](scoped-runs.md) for one training job or
-a shared deployment for multiple jobs behind one API. Both use the Tinker SDK.
-
-You pay for allocated GPUs and time. The trainer's GPU layout, number of sampling
-replicas, and cold starts determine cost and throughput, even when the training
-code stays the same.
+Lilo's bundled full fine-tuning stack runs as a shared deployment that
+orchestrates single-tenant training containers in your Modal workspace. It
+exposes a Tinker-compatible API, but usage is not infrastructure-agnostic like
+the hosted Tinker service. Because pricing is compute-based rather than
+token-based, trainer topology, rollout capacity, and cold starts directly
+determine performance and cost. The Tinker-level abstractions can still be used
+for training experiments, but good performance requires matching deployment
+capacity to the workload.
 
 ## Read this before starting a run
 
@@ -15,15 +16,14 @@ code stays the same.
 - **Use the reusable latest-version pool for iterative RL.** Creating sampling
   clients from named publications starts exact-version pools that can cold
   start separately.
-- **Size the sampling pool for your workload.** `min_containers` keeps replicas
-  warm between batches; `max_containers` limits how far the pool can scale.
-  Too few replicas leave the trainer waiting for rollouts.
+- **Tune rollout capacity for target throughput.** Use `min_containers` to keep
+  replicas warm between bursts and `max_containers` to control peak
+  parallelism, keeping the trainer supplied without excessive queueing.
 - **Higher learning rates can increase sampler publication time.** Our FFT
   weight syncs use sparse deltas, and in our Qwen
   FFT RL runs, `1e-5` and above produced larger delta payloads, while `1e-6`
-  kept the deltas smaller in the recorded runs. The FFT reasoning runs in the
-  [validation guide](validation.md) use `1e-6`; this is a tested setting, not a
-  learning-rate rule for every workload.
+  converged without unwieldy deltas. All our validation runs use a learning
+  rate of `1e-6` across model sizes and context lengths.
 
 ## Concrete limitations
 
@@ -107,20 +107,21 @@ Both sampler publication workflows are separate from `save_state()`, which
 checkpoints parameters and optimizer state. Publishing weights makes them
 available to inference but does not save full model or optimizer state.
 
-### Shared deployment limits
+### Shared Deployment Usage Limits
 
-Each FFT training model needs its own engine. The deployment can limit the number
-of engines for each model definition. Multiple clients using the same API do not
-share one FFT model's GPU or optimizer state.
+For concurrent FFT training jobs, each new training run spins up its own
+training engine due to the single-tenancy of full-parameter training. The
+deployment lets you limit the number of training engines that can be active
+per model.
 
 ## Performance and behavior considerations
 
 ### Configure rollout capacity for the workload
 
 Elastic inference autoscales based on time-averaged incoming rollout requests.
-Bursty synchronous RL can leave the pool idle between batches, then wait for it
-to scale up again. Keep replicas warm when that delay is significant. In a
-shared deployment, set their capacity when creating the client:
+This works for fully async RL in steady state, but not for bursty synchronous
+RL patterns. Synchronous RL often benefits from keeping rollout replicas warm
+between batches:
 
 ```python
 training = create_full_training_client(
@@ -146,10 +147,10 @@ synchronous batches have longer gaps and would otherwise repeatedly cold
 start; decrease it when traffic is continuous or replicas should be released
 more quickly.
 
-For scoped runs, pass `latest=lilo.Pool(...)` to `lilo.run` instead; scoped
-clients reject the `rollout` argument. In shared deployments, `rollout` applies
-to full-parameter clients and must be set at creation. `user_metadata` does not
-configure trainer or sampler resources.
+The `rollout` configuration applies only to full-parameter clients created
+through `create_full_training_client()` and must be
+provided during client creation. `user_metadata` does not configure trainer or
+sampler topology.
 
 ### Expect cold starts
 
@@ -165,10 +166,12 @@ deployment and jobs arrive continuously.
 
 ### Bound asynchronous rollout work
 
-Keep enough rollouts in flight to feed the trainer, but bound the queue. Queued
-samples can become too stale for the next update, and cancelling a local worker
-does not guarantee that its remote Modal call stops. Discarded rollouts may
-therefore continue using inference GPUs.
+Rollout queues should be large enough to keep the trainer saturated even with
+long generation times. Async RL can benefit from overprovisioning rollout
+requests and discarding extras, but Lilo does not offer sampling-side abort
+semantics. Cancelling local workers therefore does not guarantee that their
+Modal calls were cancelled, which can leave inference compute occupied by
+discarded rollouts.
 
 For a complete Cookbook-backed LongRLVR workload, see
 [`scripts/e2e_longrlvr_qwen3_5_35b_a3b_full.py`](../scripts/e2e_longrlvr_qwen3_5_35b_a3b_full.py).
@@ -178,8 +181,9 @@ For a complete Cookbook-backed LongRLVR workload, see
 FFT publications capture incremental sparse weight deltas on the trainer's
 serialized GPU lane and persist them separately. Larger parameter updates,
 including those from higher learning rates, can change more bytes and increase
-publication and sampler update time. Measure these times for your workload;
-`1e-6` is the setting used in the recorded FFT reasoning runs.
+publication and sampler update time. The validated `1e-6` learning rate is a
+starting point; the scaling of sparse delta payload sizes with different
+training dynamics requires further study.
 
 ### Persist checkpoints without blocking every training step
 
@@ -189,14 +193,16 @@ the persistence writer processes one checkpoint at a time. The engine
 serializes captures, so submitting another checkpoint before the prior one
 persists can block later GPU operations.
 
-The pinned Tinker Cookbook loop uses `save_checkpoint_async(kind="both")`, which
-waits for both the state checkpoint and sampler publication before returning a
-sampling client. A slow checkpoint write can therefore delay the next rollouts.
+The following example waits on async checkpointing and sampling clients
+separately. The pinned Tinker Cookbook RL loop handles periodic checkpoints
+with `save_checkpoint_async(kind="both")`. It submits the state checkpoint and
+sampler publication together, but waits for both before returning the new
+sampling client. A slow full-state write can therefore delay rollout of the
+updated policy even though Lilo persists state checkpoints and sampler
+publications on separate lanes.
 
-You can overlap that write with later work: keep the checkpoint future pending
-and wait only for the sampler publication needed by the next rollouts. In this
-sketch, `deadline` is the application's timeout wrapper and `start_rollouts`
-submits work using the new sampling client:
+To use Lilo's split persistence behavior, keep the state-checkpoint future
+pending while waiting only for the sampler client required by new rollout work:
 
 ```python
 
