@@ -10,8 +10,7 @@ published weights.
    and request routing.
 2. A **training engine** holds model and optimizer state. Its server orders API
    operations and dispatches them to the distributed backend's GPU workers.
-3. **Sampling replicas** load published weights from a shared Modal Volume,
-   called the Stitch bulletin, and serve generation requests independently.
+3. **Sampling replicas** load published weights from a shared Modal Volume (stitch bulletin) and serve generation requests independently.
 
 The control plane starts trainers as models are created. Sampling replicas scale
 separately with incoming requests through the Flash proxy gateway.
@@ -20,60 +19,41 @@ separately with incoming requests through the Flash proxy gateway.
 
 The control plane is a stateless Modal web server that scales with API traffic.
 It creates sessions and models, assigns models to trainers, routes training and
-sampling requests, and records results for Tinker futures.
-
-The control plane stores sessions, models, engine assignments, and sampling
-state in Modal Dicts so every replica shares the same durable state.
+sampling requests, and records results for Tinker futures. A shared Modal Dict durably stores sessions, models, engine assignments, and sampling state . 
 
 ## Training engines
 
-Training engines receive operations for individual models: creation, forward
-and backward passes, optimizer steps, checkpoints, sampler publication, and
-unloading. The control plane handles client sessions.
+Training engines receive model creation/unloading, forward_backward, optim_step, checkpointing, and sampler publication operations from the control plane. Each accepted operation is assigned an ordered model sequence ID and an associated future, and commands are scheduled into the backend depending on their necessary resource (see next section).  
 
-Each accepted operation is assigned an ordered model sequence ID and a future.
-The engine queues later requests while the current command runs, then selects
-the next ready command. Compatible
-`forward_backward` operations can be grouped and their variable-length
-sequences packed under the backend's token budget.
-
-The engine exposes the command protocol in
-[`engine/api.py`](../src/lilo/engine/api.py). Its scheduler and future handling
-live in [`engine/server.py`](../src/lilo/engine/server.py).
+The engine command protocol is in
+[`engine/api.py`](../src/lilo/engine/api.py), and its scheduler/future handling
+are in [`engine/server.py`](../src/lilo/engine/server.py).
 
 ### Execution lanes
 
-The engine runs one GPU operation at a time, preserving command order and
-preventing concurrent changes to model state. Checkpoint writing runs separately
-so it can overlap later training.
-
-Disk- and network-heavy persistence runs outside the GPU lane. Full checkpoints
-and sampler publication use separate persistence lanes. Each operation has two
-phases:
+The engine runs one GPU operation (fb, optim_step) at a time, preserving command order and
+preventing concurrent changes to model state. Checkpoint writing ("persistence") runs asynchronously
+such that it overlaps later training operations. Because of this, we split a full checkpoint write into GPU dependent and independent components: 
 
 1. `capture_checkpoint` copies model state into immutable CPU buffers on the GPU
    lane.
 2. `persist_checkpoint` writes those buffers to storage outside the GPU lane.
 
-Persistence can therefore overlap a later forward/backward or optimizer command
+The persistence stage can therefore overlap a later forward/backward or optimizer command
 without reading partially updated model state.
 
 ## Weight publication
 
-Trainers publish sampler weights through shared Modal Volumes. They do not need
-an RDMA connection to sampling replicas. The publication format depends on which
-parameters are trained:
+With the stitch protocol, trainer publish sampler weights through shared Modal Volumes (bulletin) and thus don't need RDMA connection to sampling replicas. The publication format depends on the parameterization: 
 
 - **LoRA:** each publication contains the full adapter weights. The adapter is
   written to the shared Stitch bulletin Volume and can be loaded independently
   by a sampler replica.
-- **Full fine-tuning (FFT):** publications after the base version contain sparse
-  weight deltas. Replicas discover versions through Stitch and walk the parent
+- **Full fine-tuning (FFT):** publications after the base version are done via sparse deltas. Replicas discover versions through Stitch and walk the parent
   chain of deltas, applying updates in place until they reach the requested
   version.
 
-Publications are immutable. A version becomes visible to samplers only after
-its persistence phase completes.
+Note that a version is only visible to samplers after the *persist* stage is done. 
 
 ## Sampling
 
@@ -88,14 +68,12 @@ The sampling topology differs by parameterization:
   model. Adapters are loaded lazily from the bulletin Volume and retained in an
   LRU cache, allowing many adapters to share one sampling fleet. LoRA training
   is available today, but the Modal sample dispatcher is currently connected only
-  to FFT definitions; the shared LoRA sampler still needs to be connected.
+  to FFT definitions; the shared LoRA sampler still needs to be connected (to be added soon!). 
 - **FFT:** each trained model has its own autoscaling Modal server. Stitch
   tracks exact and latest weight versions, while replicas update their local
   weights from the shared delta chain.
 
-Training capacity follows the number of active models; sampling capacity follows
-rollout traffic. When possible, samples from the same group (for example, a GRPO
-group) go to one replica to reuse the prompt's KV cache.
+Training capacity scales with the number of active models (one fixed GPU world size for each active model), whereas sampling capacity is autoscaled depending on total rollout traffic. When possible, samples from the same GRPO group or samples sharing the same prefix (ie. multi-turn) are sticky-routed to the same replica to maximize KV cache reuse. 
 
 ## Relevant implementation
 
