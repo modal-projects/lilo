@@ -30,12 +30,13 @@ def test_miles_definition_uses_one_lilo_driver_for_all_ray_workers() -> None:
     assert keywords["max_models"].id == "MAX_LORA_SLOTS"
 
 
-def test_long_context_miles_definition_supports_six_clients_for_thirty_steps():
+def test_long_context_miles_definition_bounds_retained_adapter_versions():
     from lilo.providers.modal.definitions import qwen3_5_9b_base_miles_lora_16k as long
 
     assert long.MAX_CONTEXT_LENGTH >= 8192 + 2048
     assert long.MAX_LORA_SLOTS >= 6
-    assert long.ROLLOUT_MAX_LOADED_LORAS >= 6 * (30 + 3)
+    assert long.ROLLOUT_MAX_LOADED_LORAS == 64
+    assert long.ROLLOUT_MAX_LOADED_LORAS >= long.ROLLOUT_MAX_LORAS_PER_BATCH
     assert long.ROLLOUT_MAX_CONTAINERS == 8
     assert long.CATALOG_VISIBLE
     assert not definition.CATALOG_VISIBLE

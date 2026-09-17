@@ -119,7 +119,9 @@ publication or a newer one. For an exact policy version, call
 `save_weights_for_sampler(name)` and create a sampling client from its returned
 path. Both use the same shared multi-LoRA rollout pool; an exact version does
 not get its own pool. A replica may still need to load that adapter version on
-first use.
+first use. The bundled 16K definition retains at most 64 adapter versions per
+replica, shared across clients. Older versions are evicted and reloaded on demand;
+this is a cache limit, not a limit on training steps or saved publications.
 
 Publish after `optim_step()` and await publication before requesting rollouts
 from the updated policy. If prefetching rollouts, bound policy lag in your
