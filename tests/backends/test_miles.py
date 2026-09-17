@@ -80,6 +80,13 @@ class FakeMilesRuntime:
         (destination / "adapter_model.safetensors").write_bytes(b"adapter")
         (destination / "adapter_config.json").write_text("{}", encoding="utf-8")
 
+    def torch_profile_start(self):
+        self.calls.append(("torch_profile_start",))
+
+    def torch_profile_stop(self, output_dir):
+        self.calls.append(("torch_profile_stop", output_dir))
+        return [{"trace": f"{output_dir}/rank0.trace.json.gz"}]
+
     def close(self):
         self.closed = True
 

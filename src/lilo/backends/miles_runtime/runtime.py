@@ -119,6 +119,14 @@ class MilesRuntime:
         self._run(self._bridge.export_slot(slot, rank, alpha, path))
         _materialize_capture(path)
 
+    def torch_profile_start(self) -> None:
+        self._run(self._trainer._execute_slots("torch_profile_start"))
+
+    def torch_profile_stop(self, output_dir: str) -> list[dict | None]:
+        return self._run(
+            self._trainer._execute_slots("torch_profile_stop", output_dir=output_dir)
+        )
+
     def close(self) -> None:
         if self._closed:
             return

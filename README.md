@@ -195,6 +195,55 @@ uv run modal app list
 To tear down the deployment, stop its `lilo-fft-...` sampler apps, then `lilo`,
 using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler apps.
 
+## Profiling a training step
+
+The Miles LoRA trainer path supports an opt-in `torch.profiler` capture plus
+always-on per-phase wall-clock timing.
+
+Set these environment variables in the deploying shell before `modal deploy`;
+`trainer_deployment_env()` forwards them onto the trainer container:
+
+- `LILO_TORCH_PROFILE_STEP`: 0-based optimizer step index to trace. When the
+  first `forward_backward` of that step arrives, each rank-local Ray actor
+  starts a CPU+CUDA profiler and the backend process starts a CPU-only
+  controller trace. The capture stops just before the first forward of the
+  following step, so it includes the post-step sampler save/publish.
+- `LILO_TORCH_PROFILE_DIR`: output directory. Defaults to
+  `<checkpoint volume mount>/torch-profile/<LILO_DEFINITION_ID>`. Each rank
+  writes `rank{N}.trace.json.gz` (Chrome trace, loadable in
+  `chrome://tracing` or Perfetto) and `rank{N}.key_averages.txt`; the backend
+  writes `controller.trace.json.gz` / `controller.key_averages.txt`.
+
+Deploying a separate app for a profiling run:
+
+```bash
+LILO_APP_NAME=lilo-profile LILO_TORCH_PROFILE_STEP=2 \
+  uv run modal deploy -m lilo.providers.modal.app
+```
+
+Always-on timing: every backend op prints one `lilo_step_timing` JSON line to
+the trainer log per phase, and `optim_step` responses carry `timing/*` metrics
+(`timing/forward_backward_s`, `timing/optim_step_s`, `timing/trainer_step_s`,
+`timing/idle_wait_s`, `timing/save_sampler_weights_s`,
+`timing/publish_weights_s`, per-phase `_calls` counts, and
+`timing/optimizer_step`). These ride the existing `optim_step` response metrics
+that the Tinker client/cookbook merge into per-step logged metrics, rather than
+the trainer logging to W&B directly. Note that sampler save/publish for step k
+runs after `optim_step` k returns, so `timing/save_sampler_weights_s` and
+`timing/publish_weights_s` reported at step k+1 refer to the checkpoint taken
+after step k.
+
+To copy the traces off the checkpoint volume and attach them to the run in
+W&B:
+
+```bash
+uv run scripts/upload_torch_profile.py \
+  --dir <trace dir> --entity modal-labs --project miles-lora-longcontext \
+  --run-id <wandb run id> --name torch-profile
+```
+
+`WANDB_API_KEY` is read from the environment.
+
 ## Next steps
 
 Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) for full training,
