@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from lilo.errors import BackendFailed
 from lilo.telemetry import backend as telemetry
 from lilo.telemetry.otlp import provider
 
@@ -62,6 +63,10 @@ def create_backend_app(executor: Executor) -> FastAPI:
 
         try:
             return respond({"result": await action})
+        except BackendFailed as exc:
+            response = respond({"error": str(exc)}, status=503)
+            response.headers["x-lilo-backend-failed"] = "1"
+            return response
         except Exception as exc:  # noqa: BLE001 - executor errors cross the HTTP boundary
             return respond({"error": str(exc)}, status=500)
 
@@ -268,6 +273,8 @@ class HttpBackendClient:
                     telemetry.received.set(evidence)
             except (ValueError, AttributeError):
                 pass
+        if response.headers.get("x-lilo-backend-failed") == "1":
+            self._fence_transport_failure()
         if not response.is_success:
             try:
                 message = response.json()["error"]

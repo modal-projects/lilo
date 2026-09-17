@@ -84,17 +84,23 @@ async def sample_task(
         headers["x-api-key"] = api_key
 
     sequence_stats = [{} for _ in range(num_samples)]
-    trace_attrs = {"request_id": str(task["request_id"]),
-                   "sampling_session_id": task.get("sampling_session_id")}
+    trace_attrs = {
+        "request_id": str(task["request_id"]),
+        "sampling_session_id": task.get("sampling_session_id"),
+    }
     emit = event_sink(task, on_event)
 
     if client is not None and transport is not None:
         raise ValueError("pass either client or transport")
-    client_context = nullcontext(client) if client is not None else httpx.AsyncClient(
-        timeout=timeout,
-        trust_env=False,
-        transport=transport or keepalive_transport(),
-        headers=headers,
+    client_context = (
+        nullcontext(client)
+        if client is not None
+        else httpx.AsyncClient(
+            timeout=timeout,
+            trust_env=False,
+            transport=transport or keepalive_transport(),
+            headers=headers,
+        )
     )
     async with client_context as active_client:
         outputs = await asyncio.gather(
@@ -202,6 +208,7 @@ async def _sample_one(
     deadline = started_at + retry_timeout
     delay = RETRY_INITIAL_DELAY_SECONDS
     reroute_attempt = 0
+    transport_retries = 0
     rejected: set[str] = set()
     waiting_logged = False
     physical_attempt = 0
@@ -246,9 +253,17 @@ async def _sample_one(
                 exact=None if latest else int(version),
             )
         physical_attempt += 1
-        observation = SampleAttempt(on_event, {**(trace_attrs or {}), "sequence_index": index,
-                                   "attempt_number": physical_attempt, "routed_dp_rank": routed_dp_rank,
-                                   "upstream": gateway_url, "prompt_tokens": len(prompt)})
+        observation = SampleAttempt(
+            on_event,
+            {
+                **(trace_attrs or {}),
+                "sequence_index": index,
+                "attempt_number": physical_attempt,
+                "routed_dp_rank": routed_dp_rank,
+                "upstream": gateway_url,
+                "prompt_tokens": len(prompt),
+            },
+        )
         body["rid"] = observation.id
         attempt_result = observation.attrs
         try:
@@ -266,28 +281,33 @@ async def _sample_one(
             if not isinstance(gateway, str):
                 rejected.add(gateway_url)
             reroute_attempt += 1
-            if index == 0:
-                print(
-                    "execute_sample reroute "
-                    f"request={request_id} attempt={reroute_attempt} "
-                    f"upstream={gateway_url} reason={reason}",
-                    flush=True,
-                )
+            transport_retries += 1
+            print(
+                "execute_sample reroute "
+                f"request={request_id} sample={index} attempt={reroute_attempt} "
+                f"elapsed_seconds={loop.time() - started_at:.3f} "
+                f"upstream={gateway_url} reason={reason}",
+                flush=True,
+            )
         else:
             attempt_result["http_status"] = response.status_code
-            retryable = (response.status_code == 409 or response.status_code >= 500
-                         or (response.status_code == 404 and not isinstance(gateway, str)))
+            retryable = (
+                response.status_code == 409
+                or response.status_code >= 500
+                or (response.status_code == 404 and not isinstance(gateway, str))
+            )
             if not retryable:
                 if response.is_error:
                     raise RuntimeError(
-                        f"rollout generate returned {response.status_code}: "
-                        f"{response.text[:500]}"
+                        f"rollout generate returned {response.status_code}: {response.text[:500]}"
                     )
                 result = response.json()
                 if not isinstance(result, dict):
                     raise ValueError("SGLang returned a non-object response")
-                attempt_result.update(generated_tokens=len(_sequence(result)["tokens"]),
-                                      **timing_metadata(result.get("meta_info") or {}))
+                attempt_result.update(
+                    generated_tokens=len(_sequence(result)["tokens"]),
+                    **timing_metadata(result.get("meta_info") or {}),
+                )
                 version_error = (
                     _response_version_error(result, int(version), minimum=latest)
                     if model_id is not None and version is not None
@@ -299,10 +319,11 @@ async def _sample_one(
                         rejected.add(gateway_url)
                     reroute_attempt += 1
                 else:
-                    if index == 0 and reroute_attempt:
+                    if reroute_attempt and (index == 0 or transport_retries):
                         print(
                             "execute_sample reroute_complete "
-                            f"request={request_id} attempts={reroute_attempt} "
+                            f"request={request_id} sample={index} attempts={reroute_attempt} "
+                            f"transport_retries={transport_retries} elapsed_seconds={loop.time() - started_at:.3f} "
                             f"upstream={gateway_url}",
                             flush=True,
                         )
@@ -389,7 +410,9 @@ def _sampling_params(
         if params.get(key) is not None
     }
     stop = params.get("stop")
-    if (
+    if stop == []:
+        output["ignore_eos"] = True
+    elif (
         isinstance(stop, list)
         and stop
         and all(
@@ -424,10 +447,7 @@ def _response_version_error(
         if not minimum and start == end == expected:
             return None
     relation = "at least" if minimum else "exactly"
-    return (
-        f"rollout generated weight versions {start!r}..{end!r}, "
-        f"expected {relation} {expected}"
-    )
+    return f"rollout generated weight versions {start!r}..{end!r}, expected {relation} {expected}"
 
 
 def _sequence(output: dict[str, Any]) -> dict[str, Any]:
@@ -438,6 +458,8 @@ def _sequence(output: dict[str, Any]) -> dict[str, Any]:
     finish = meta.get("finish_reason")
     if isinstance(finish, dict):
         finish = finish.get("type")
+    if finish == "abort":
+        raise RuntimeError("SGLang aborted generation; sample is incomplete")
     sequence: dict[str, Any] = {
         "stop_reason": "length" if finish == "length" else "stop",
         "tokens": tokens,
@@ -462,7 +484,17 @@ def _logprob(item: Any) -> float:
 def _logprobs(items: Any) -> list[float | None]:
     if not items:
         return []
-    return [None if item is None else _logprob(item) for item in items]
+    values = []
+    for item in items:
+        value = (
+            None
+            if item is None
+            else item["logprob"]
+            if isinstance(item, dict)
+            else item[0]
+        )
+        values.append(None if value is None else float(value))
+    return values
 
 
 def _topk_logprobs(items: Any) -> list[list[tuple[int, float]] | None]:

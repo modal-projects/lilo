@@ -34,3 +34,7 @@ class ModelLost(TinkerModalError):
     def __init__(self, model_id: str) -> None:
         self.model_id = model_id
         super().__init__(f"engine owning model {model_id} terminated")
+
+
+class BackendFailed(RuntimeError):
+    """Backend state is unusable; terminate the trainer and recover from a checkpoint."""

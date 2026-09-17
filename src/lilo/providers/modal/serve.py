@@ -12,8 +12,8 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 import httpx
-import modal
 
+import modal
 from lilo.engine import Engine
 from lilo.engine.backend_http import HttpBackendClient
 from lilo.engine.http import create_engine_app
@@ -66,7 +66,9 @@ async def serve_engine(
         from lilo.telemetry.trainer import TrainerTelemetry
 
         trainer_telemetry = TrainerTelemetry(
-            instance_id, definition_id, record.boot_id,
+            instance_id,
+            definition_id,
+            record.boot_id,
             scoped=bool(os.environ.get("LILO_SCOPED_REGISTRY")),
         )
         engine.observer = trainer_telemetry
@@ -110,10 +112,15 @@ def run_engine_with_backend(
     backend_env: dict[str, str] | None = None,
     nproc: int = 1,
     max_models: int = 8,
+    sampler_persistence_concurrency: int = 1,
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
     notify_reconciler: bool = True,
 ) -> None:
+    if sampler_persistence_concurrency > 1 and nproc != 1:
+        raise ValueError(
+            "parallel sampler persistence requires a single-process executor"
+        )
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -168,7 +175,11 @@ def run_engine_with_backend(
                         )
                     try:
                         if (await executor.http.get("/healthz")).is_success:
-                            return Engine(executor, max_models=max_models)
+                            return Engine(
+                                executor,
+                                max_models=max_models,
+                                sampler_persistence_concurrency=sampler_persistence_concurrency,
+                            )
                     except httpx.TransportError:
                         pass
                     await asyncio.sleep(2)

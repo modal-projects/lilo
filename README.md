@@ -199,7 +199,9 @@ using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler ap
 
 ## Next steps
 
-Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) before running a job.
+Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) for full training,
+or [Working with Multi-LoRA](docs/multi-lora.md) for shared Miles adapters, batch
+submission, scheduling, and sampling.
 See [Validation](docs/validation.md) for end-to-end Lilo and Miles training runs,
 and the [raw Tinker RL example](scripts/rl_example.py) for sampling and a toy
 policy update. Copy examples you want to run into your project; repository
