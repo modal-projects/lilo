@@ -36,7 +36,11 @@ def _pad_local_shard(
     qkv_format: str,
     max_seq_len,
 ):
-    """Place this CP rank's zigzag logprob shard into a full-length response."""
+    """Place this CP rank's zigzag logprob shard into a full-length response.
+
+    Replicates the placement logic of miles'
+    ``all_gather_with_cp`` without its differentiable ``dist.nn.all_reduce``.
+    """
     import torch
     from miles.backends.training_utils.cp_utils import (
         get_logits_and_tokens_offset_with_cp,
@@ -140,19 +144,12 @@ def _gather_tinker_logprobs_across_cp() -> None:
     get_log_probs_and_entropy.__lilo_gathers_cp__ = True
     logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-    import miles.backends.fsdp_utils.actor as fsdp_actor
-    import miles.backends.megatron_utils.actor as megatron_actor
+    # Callers on the multi-LoRA path that bound the name at import time must
+    # be re-pointed. Miles' non-Tinker losses handle CP natively.
     import miles.backends.megatron_utils.model as megatron_model
-    from miles.backends.training_utils import loss
     from miles.backends.training_utils.loss_hub import tinker_losses
 
-    for module in (
-        loss,
-        tinker_losses,
-        megatron_actor,
-        megatron_model,
-        fsdp_actor,
-    ):
+    for module in (tinker_losses, megatron_model):
         if getattr(module, "get_log_probs_and_entropy", None) is original:
             module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
