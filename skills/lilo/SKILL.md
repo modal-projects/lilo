@@ -5,9 +5,7 @@ description: Set up and run Tinker-compatible training and sampling with Lilo on
 
 # Working with Lilo
 
-Lilo runs training and sampling on Modal through the Tinker SDK. Use the user's
-chosen model and training algorithm. The guidance below covers resource ownership,
-weight versions, and recovery; it does not prescribe an RL algorithm.
+Lilo runs training and sampling on Modal through the Tinker SDK. Below details lilo-specific infra considerations that go beyond the Tinker SDK. 
 
 ## Connect or deploy
 
@@ -34,7 +32,7 @@ See the [README](../../README.md) for authentication and shared deployment comma
 
 ## Start a full fine-tuning run
 
-Prefer `lilo.run` for a new, dedicated full fine-tuning (FFT) run:
+Use the scoped `lilo.run` for a new, dedicated full fine-tuning (FFT) run:
 
 ```python
 import lilo
@@ -50,16 +48,11 @@ with lilo.run(engine=engine) as (url, api_key):
 
 A scope allows one active training model. Creating another client does not attach
 it to the existing model. Other processes can connect while the scope's owner is
-alive. For multiple training jobs behind one API, use a shared deployment; each
-FFT model still gets a dedicated trainer.
+alive. For multiple training jobs behind one API, use a shared deployment (ie. multi-lora) -- each FFT model still gets its own dedicated trainer. 
 
-The process holding `lilo.run` owns its trainer and sampler apps. Normal exit
-stops them. If the owner dies, Modal stops them after detecting the disconnect;
-cleanup is not immediate. Exiting does not save a checkpoint. Completed
-checkpoints remain in the Modal Volume. Retrying the controller creates a new
-scope, so the application must restore its checkpoint.
+The process holding `lilo.run` owns its trainer and sampler apps within the scope. If the owner dies, Modal stops them after detecting the disconnect. Exiting does not automatically save a checkpoint, and retrying the controller creates a new scope, so the application must restore an explicitly saved past checkpoint upon retry. 
 
-See [scoped runs](../../docs/scoped-runs.md) for setup and recovery.
+See [scoped runs](../../docs/scoped-runs.md) for more details on setup and recovery.
 
 ## Configure the engine and sampler capacity
 
@@ -96,25 +89,22 @@ publish the weights that the next rollouts need:
 latest = training.save_weights_and_get_sampling_client()
 ```
 
-This reuses the latest-policy pool. The handle requires weights at least as new
-as this publication; later requests may use newer weights.
+This reuses the latest-policy pool (ie. monotonically increasing weight version). Thus, this handle gives a "min-version" guarantee, that given a sample request with a particular weight version, it will be served with *at least* that version. 
 
-For evaluation that needs a fixed version:
+For evaluation/any requests that needs a fixed version, instead used the *named* sampler path: 
 
 ```python
 publication = training.save_weights_for_sampler(publication_name).result()
 pinned = training.create_sampling_client(publication.path)
 ```
 
-Each pinned version can need its own inference allocation and cold start. Prefer
-the latest pool when the algorithm allows newer weights. FFT publications store
-incremental weight deltas; larger deltas take longer to write and apply. Neither
-publication API saves optimizer state or replaces a training checkpoint.
+Because each pinned version can need its own inference allocation and cold start, the latest pool should be used for standard RL rollout sampling when the algorithm allows newer weight versions. FFT publications store incremental weight deltas, so larger deltas take longer to write and apply (can be roughly thought as linear scaling in the difference in weight versions). Neither publication API saves optimizer state or replaces training checkpoints, adhering with the Tinker semantics. 
+
 
 ## Allow for cold starts
 
-Trainer and sampler startup happen separately. A sampling handle can exist before
-its replicas are ready.
+Trainer and sampler startup occur separately in our decoupled design. A sampling handle can exist before
+its replicas are ready, and requests will receive HTTP 408 until the inference replicas are ready (sglang engine on each one has spun up and is ready to receive requests). 
 
 | Operation | Startup work to expect |
 | --- | --- |
@@ -128,46 +118,23 @@ and a new pinned version may start a separate pool even if the latest pool is wa
 
 ## Checkpoint and recover
 
-`save_state(name)` saves model and optimizer state.
-`load_state_with_optimizer(path)` restores both. Record the returned checkpoint
-path and its captured step only after the save succeeds. Also persist the data
-iterator position and other application state needed to resume; a model
-checkpoint does not save the controller's Python memory.
+`save_state(name)` saves both model parameters and optimizer state, from which these can be loaded by 
+`load_state_with_optimizer(path)` to resume the training run perfectly.
 
-Choose a checkpoint interval from measured save time and the amount of work the
-user can afford to repeat. Full FFT checkpoints can take minutes. A reproducible
-base model usually does not need a step-zero save.
-
-Capture is ordered with training; writing the captured state can overlap later
-GPU work. Keep at most one checkpoint save pending. Awaiting every write before
-submitting more work can leave the trainer idle; queuing saves faster than storage
-can finish them can block later operations. Wait for the last save before exit.
-A checkpoint captured at step 20 restores step 20 even if its write finishes at
-step 22. Until that write succeeds, use the previous completed checkpoint.
-
-After trainer loss, create a replacement, restore a completed checkpoint, and
-publish weights again. In a surviving scope, old latest-policy handles return
-HTTP 410 after reassignment; obtain a new handle from the replacement trainer.
-A controller retry alone does not restore state.
+After trainer loss, a replacement trainign client can be created from a prior checkpoint. Within the same scope, old sampling_client/training_client handles will return HTTP 410 after this reassignment. 
 
 An optimizer timeout can mean the update succeeded but its response was lost.
 Do not blindly repeat it. A sampling failure alone does not mean the trainer was
 lost. See [FFT recovery and checkpointing](../../docs/full-fine-tunes.md) for the
-supported recovery paths and an example of overlapping saves with training.
+supported recovery paths and an example of overlapping saves with training/using the asynchronous capture capabilities to maximize trainer utilization and not block future GPU work unnecesarily on disk writes.
 
 ## Diagnose cost and throughput
 
-Costs depend on allocated GPUs and time. Training and inference have separate
+Costs depend on both allocated GPUs and time. Training and inference have separate
 allocations, and a small batch still uses the engine's configured GPU layout.
 A trainer waiting for rollouts or the controller can remain allocated and billed.
 
-Check where time goes before adding GPUs: startup, generation, trainer execution,
-weight publication, checkpoint writes, or waiting between operations. More
-inference replicas may reduce trainer waiting but increase total cost. Keeping
-replicas warm trades idle cost for fewer cold starts. Overlap rollouts and
-training only if the user's algorithm permits the resulting policy lag.
-
 Use Modal container logs and GPU metrics, plus Lilo's optional traces and trainer
-operation metric. Operation time is not GPU utilization. The
+operation metric to diagnose response latency/timing. The
 [observability guide](../../docs/observability.md) explains OTLP configuration,
 experiment labels, and what each measurement includes.
