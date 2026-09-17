@@ -100,11 +100,9 @@ class MilesRuntime:
         if include_optimizer:
             self._run(self._bridge.save_slot(slot, path))
         else:
-            results = self._run(
+            self._run(
                 self._trainer._execute_slots("save_slot_weights", slot=slot, path=path)
             )
-            for result in results:
-                _check_result(result)
         _materialize_capture(path)
 
     def export_slot_peft(
@@ -247,6 +245,9 @@ def _temporary_argv(arguments: list[str]):
 
 
 def _check_result(result) -> None:
+    if isinstance(result, (list, tuple)):
+        for item in result:
+            _check_result(item)
     if isinstance(result, dict) and "error" in result:
         raise RuntimeError(f"Miles operation failed: {result['error']}")
 

@@ -67,3 +67,29 @@ def test_upstream_error_result_invalidates_runtime():
         runtime._run(error())
     with pytest.raises(BackendFailed, match="unavailable"):
         runtime._run(error())
+
+
+@pytest.mark.parametrize("failed_rank", [0, 1])
+def test_weights_only_worker_error_invalidates_runtime_before_capture(
+    tmp_path, failed_rank
+):
+    runtime = MilesRuntime.__new__(MilesRuntime)
+    runtime._closed = False
+    runtime._failure = None
+    runtime._call = asyncio.run
+    calls = []
+
+    async def execute(method, **kwargs):
+        calls.append(method)
+        results = [None, None]
+        results[failed_rank] = {"error": "save worker lost"}
+        return results
+
+    runtime._trainer = SimpleNamespace(_execute_slots=execute)
+    capture = str(tmp_path / "capture")
+    with pytest.raises(BackendFailed, match="save worker lost"):
+        runtime.save_slot(0, capture, include_optimizer=False)
+    with pytest.raises(BackendFailed, match="unavailable"):
+        runtime.save_slot(0, capture, include_optimizer=False)
+    assert calls == ["save_slot_weights"]
+    assert not (tmp_path / "capture").exists()
