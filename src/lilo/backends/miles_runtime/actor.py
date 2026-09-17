@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
 
@@ -27,6 +29,84 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             return super().init(args, role, **kwargs)
         finally:
             AutoBridge.to_megatron_provider = original
+
+    def forward_backward(self, unit_id, rollout_data_ref):
+        import torch
+
+        with torch.profiler.record_function("lilo/forward_backward"):
+            result = super().forward_backward(unit_id, rollout_data_ref)
+        self._log_peak_memory("forward_backward")
+        return result
+
+    def optim_step(self, adam_params_by_slot):
+        import torch
+
+        with torch.profiler.record_function("lilo/optim_step"):
+            result = super().optim_step(adam_params_by_slot)
+        self._log_peak_memory("optim_step")
+        return result
+
+    def forward_only_logprobs(self, unit_id, rollout_data_ref):
+        import torch
+
+        with torch.profiler.record_function("lilo/forward_only_logprobs"):
+            result = super().forward_only_logprobs(unit_id, rollout_data_ref)
+        self._log_peak_memory("forward_only_logprobs")
+        return result
+
+    @staticmethod
+    def _log_peak_memory(operation: str) -> None:
+        import torch
+
+        gib = 1024**3
+        logging.getLogger(__name__).info(
+            "lilo_memory op=%s allocated_gb=%.2f max_allocated_gb=%.2f "
+            "reserved_gb=%.2f max_reserved_gb=%.2f",
+            operation,
+            torch.cuda.memory_allocated() / gib,
+            torch.cuda.max_memory_allocated() / gib,
+            torch.cuda.memory_reserved() / gib,
+            torch.cuda.max_memory_reserved() / gib,
+        )
+
+    def torch_profile_start(self) -> None:
+        from .profiling import RankProfiler
+
+        self._lilo_profiler = RankProfiler()
+        self._lilo_profiler.start()
+
+    def torch_profile_stop(self, output_dir: str) -> dict | None:
+        profiler = getattr(self, "_lilo_profiler", None)
+        if profiler is None:
+            return None
+        import torch.distributed as dist
+
+        self._lilo_profiler = None
+        return profiler.stop(output_dir, f"rank{dist.get_rank()}")
+
+    def export_slot_peft(
+        self,
+        *,
+        slot: int,
+        path: str,
+        rank: int,
+        alpha: float,
+        base_model: str,
+        target_modules: tuple[str, ...],
+        lora_dropout: float,
+    ) -> None:
+        import torch
+
+        with torch.profiler.record_function("lilo/export_slot_peft"):
+            return super().export_slot_peft(
+                slot=slot,
+                path=path,
+                rank=rank,
+                alpha=alpha,
+                base_model=base_model,
+                target_modules=target_modules,
+                lora_dropout=lora_dropout,
+            )
 
     def save_slot_weights(self, slot: int, path: str) -> None:
         from megatron.core import dist_checkpointing
