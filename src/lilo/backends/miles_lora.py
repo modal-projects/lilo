@@ -129,6 +129,15 @@ class MilesCommandBackend(Backend):
     ) -> tuple[ForwardBackwardOutput, ...]:
         if not batch.items:
             return ()
+        data_parallel_size = self.config.data_parallel_size
+        if data_parallel_size > 1:
+            for item in batch.items:
+                if len(item.data) % data_parallel_size != 0:
+                    raise ValueError(
+                        f"forward_backward batch of {len(item.data)} datums must "
+                        f"be a multiple of data_parallel_size={data_parallel_size} "
+                        "(Miles DP sharding cannot split ragged batches)"
+                    )
         self._require_jobs(tuple(item.model_id for item in batch.items))
         prepared = prepare_batch(batch, self.job_to_slot)
         raw_outputs = self.runtime.forward_backward(

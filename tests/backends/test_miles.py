@@ -221,6 +221,43 @@ def test_backend_routes_batches_and_preserves_per_model_state(tmp_path) -> None:
     assert 0 in backend.free_slots
 
 
+def test_backend_rejects_dp_ragged_batches(tmp_path) -> None:
+    runtime = FakeMilesRuntime()
+    backend = MilesCommandBackend(
+        _config(actor_num_gpus_per_node=4, tensor_model_parallel_size=2),
+        checkpoint_dir=tmp_path / "checkpoints",
+        capture_dir=tmp_path / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=runtime,
+    )
+    backend.accept_model("model-a", _spec())
+
+    with pytest.raises(ValueError, match="must be a multiple of data_parallel_size=2"):
+        backend.forward_backward(
+            ForwardBatch(
+                items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
+                loss_fn="cross_entropy",
+            )
+        )
+
+    outputs = backend.forward_backward(
+        ForwardBatch(
+            items=(
+                ForwardItem(
+                    "model-a",
+                    (
+                        _datum([1, 2], 3),
+                        _datum([4, 5], 6),
+                    ),
+                ),
+            ),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(outputs) == 1
+    assert runtime.calls[-1][0] == "forward_backward"
+
+
 def test_checkpoint_capture_persist_and_restore(tmp_path, monkeypatch) -> None:
     runtime = FakeMilesRuntime()
     backend = _backend(tmp_path, runtime)
