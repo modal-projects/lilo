@@ -125,7 +125,7 @@ def make_client_factory(report, parent_app_id, release):
     memory=16384,
     retries=0,
 )
-async def controller(url, parent_app_id, run_name, steps, phase):
+async def controller(url, parent_app_id, run_name, steps, phase, learning_rate):
     import tinker
     from tinker import types
     from codegolf.train import train, release
@@ -212,7 +212,9 @@ async def controller(url, parent_app_id, run_name, steps, phase):
             async def update(c):
                 started = time.monotonic()
                 fb = await c.forward_backward_async([item], "cross_entropy")
-                opt = await c.optim_step_async(types.AdamParams(learning_rate=1e-6))
+                opt = await c.optim_step_async(
+                    types.AdamParams(learning_rate=learning_rate)
+                )
                 output, optimizer = await asyncio.gather(
                     fb.result_async(), opt.result_async()
                 )
@@ -282,7 +284,11 @@ async def controller(url, parent_app_id, run_name, steps, phase):
         else:
             # Save LoRA state every 20 updates to reduce repeated work after
             # controller or trainer restarts.
-            cfg = dataclasses.replace(config_for("tailrl", steps), checkpoint_every=20)
+            cfg = dataclasses.replace(
+                config_for("tailrl", steps),
+                checkpoint_every=20,
+                learning_rate=learning_rate,
+            )
             config = dataclasses.asdict(cfg)
             await report(
                 "manifest.json",
@@ -371,6 +377,7 @@ def supervise(args):
         "run": args.run,
         "phase": args.phase,
         "steps": args.steps,
+        "learning_rate": args.learning_rate,
         "miles_revision": MILES_COMMIT,
         "pool": spec.as_dict(),
     }
@@ -389,7 +396,12 @@ def supervise(args):
             )
             save()
             call = controller.spawn(
-                state["base_url"], app.app_id, args.run, args.steps, args.phase
+                state["base_url"],
+                app.app_id,
+                args.run,
+                args.steps,
+                args.phase,
+                args.learning_rate,
             )
             state["call_id"] = call.object_id
             save()
@@ -421,7 +433,10 @@ def main():
         "--phase", choices=["capacity", "smoke", "hero"], default="smoke"
     )
     parser.add_argument("--steps", type=int, default=3)
+    parser.add_argument("--learning-rate", type=float, default=1e-5)
     args = parser.parse_args()
+    if not math.isfinite(args.learning_rate) or args.learning_rate <= 0:
+        parser.error("Learning rate must be positive and finite")
     import re
 
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", args.run):
@@ -445,6 +460,8 @@ def main():
                     args.phase,
                     "--steps",
                     str(args.steps),
+                    "--learning-rate",
+                    str(args.learning_rate),
                 ],
                 stdout=log,
                 stderr=subprocess.STDOUT,

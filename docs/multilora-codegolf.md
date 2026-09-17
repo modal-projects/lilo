@@ -8,13 +8,15 @@ The launcher creates a separate Modal app, results volume, and rollout pool.
 The runner reuses `examples/codeforces-codegolf/codegolf/train.py`, including
 TailRL advantages, reward, prompt formatting, sandbox judging, evaluation,
 checkpointing, and bounded asynchronous rollout buffers. Each client uses the
-reference `tailrl` configuration: Qwen/Qwen3.5-9B (not Qwen3.5-9B-Base), 4 prompts
-× 8 completions per update, 16,384 generated tokens, temperature 1, Adam 1e-6,
+reference `tailrl` configuration with LoRA-specific overrides: Qwen/Qwen3.5-9B (not Qwen3.5-9B-Base), 4 prompts
+× 8 completions per update, 16,384 generated tokens, temperature 1, Adam 1e-5,
 PPO clipping [0.8, 1.2], seed 42, checkpoint every 20 updates, and evaluation of
 16 problems with 8 samples each every 20 updates. All four clients share the
 same dataset/split; each has independent sampling, adapter, and optimizer state.
-Checkpoint cadence is the deliberate exception to the FFT reference, which saves
-every 50 updates. The shorter LoRA interval limits recovery loss.
+The FFT reference uses Adam 1e-6 and checkpoints every 50 updates. The LoRA
+runner defaults to 1e-5 (override with `--learning-rate`) and checkpoints every
+20 updates to limit recovery loss. Historical `tailrl-hero-v1` and
+`tailrl-hero-v2` used 1e-6; `tailrl-hero-v3-lr1e5` starts fresh at 1e-5.
 
 The trainer uses 8 H200s with TP8/CP1/DP1, four rank-32 adapters with alpha 32,
 full activation recomputation, and a 65,536-token context/packing budget. This
@@ -58,8 +60,8 @@ export LILO_MILES_COMMIT=ef3807c0ef659d7c6d8494c4933bd7ee0332700f
 # While smoke-v1 is running, check all four adapters at the inference boundary:
 .venv/bin/python scripts/multilora_codegolf_context_probe.py --run smoke-v1
 # Only after all four clients complete the short real RL run:
-.venv/bin/python scripts/multilora_codegolf.py launch --run tailrl-hero-v1 --phase hero --steps 500
-.venv/bin/python scripts/multilora_codegolf.py status --run tailrl-hero-v1
+.venv/bin/python scripts/multilora_codegolf.py launch --run tailrl-hero-v3-lr1e5 --phase hero --steps 500 --learning-rate 1e-5
+.venv/bin/python scripts/multilora_codegolf.py status --run tailrl-hero-v3-lr1e5
 ```
 
 Launch detaches a local supervisor and starts a remote Modal controller. The
