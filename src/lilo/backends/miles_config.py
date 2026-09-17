@@ -27,6 +27,7 @@ class MilesBackendConfig:
     hf_checkpoint: str
     model_type: str
     actor_num_gpus_per_node: int
+    actor_num_nodes: int = 1
     tensor_model_parallel_size: int = 1
     context_parallel_size: int = 1
     expert_model_parallel_size: int = 1
@@ -47,7 +48,7 @@ class MilesBackendConfig:
 
     @property
     def world_size(self) -> int:
-        return self.actor_num_gpus_per_node
+        return self.actor_num_nodes * self.actor_num_gpus_per_node
 
     @property
     def data_parallel_size(self) -> int:
@@ -68,6 +69,7 @@ class MilesBackendConfig:
     def validate(self) -> None:
         positive = {
             "actor_num_gpus_per_node": self.actor_num_gpus_per_node,
+            "actor_num_nodes": self.actor_num_nodes,
             "tensor_model_parallel_size": self.tensor_model_parallel_size,
             "context_parallel_size": self.context_parallel_size,
             "expert_model_parallel_size": self.expert_model_parallel_size,
@@ -98,8 +100,16 @@ class MilesBackendConfig:
             != 0
         ):
             raise ValueError(
-                "actor_num_gpus_per_node must be a multiple of "
+                "actor_num_nodes * actor_num_gpus_per_node must be a multiple of "
                 "tensor_model_parallel_size * context_parallel_size"
+            )
+        if (
+            self.actor_num_nodes > 1
+            and self.tensor_model_parallel_size > self.actor_num_gpus_per_node
+        ):
+            raise ValueError(
+                "tensor_model_parallel_size must not span nodes; keep it at or "
+                "below actor_num_gpus_per_node"
             )
 
     def miles_arguments(self) -> list[str]:
@@ -120,7 +130,7 @@ class MilesBackendConfig:
             "--rollout-num-gpus",
             "0",
             "--actor-num-nodes",
-            "1",
+            str(self.actor_num_nodes),
             "--actor-num-gpus-per-node",
             str(self.actor_num_gpus_per_node),
             "--multi-lora-n-adapters",
