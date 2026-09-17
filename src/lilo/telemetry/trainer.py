@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from opentelemetry.context import Context, get_value, set_value
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+from opentelemetry.metrics import Observation
 from opentelemetry.propagate import extract, inject
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.trace import (
     Link,
     NonRecordingSpan,
@@ -24,10 +29,11 @@ from opentelemetry.trace import (
     set_span_in_context,
 )
 
-from lilo.telemetry.otlp import _attributes, provider
+from lilo.telemetry.otlp import _attributes, flush, provider
 
 from . import backend
 from .metadata import common_tags, experiment_tags
+from .serving_metrics import ServingMetrics
 
 incoming = ContextVar("lilo_command_context", default=None)
 accepted_root = ContextVar("lilo_accepted_root", default=None)
@@ -106,7 +112,10 @@ class CommandMiddleware:
         if p is None:
             return await self.app(scope, receive, send)
         now = time.time()
-        carrier = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope.get("headers", [])}
+        carrier = {
+            k.decode("latin-1"): v.decode("latin-1")
+            for k, v in scope.get("headers", [])
+        }
         if self.receiver:
             try:
                 started = float(carrier.get("x-lilo-command-start", now))
@@ -190,6 +199,7 @@ class CommandMiddleware:
 class CommandTrace:
     span: Span
     attributes: dict[str, Any]
+    queued_at: float
 
 
 class TrainerTelemetry:
@@ -209,6 +219,10 @@ class TrainerTelemetry:
         self.lock = threading.Lock()
         self.activity = {"execution": "idle", "checkpoint": "idle", "sampler": "idle"}
         self.closed = False
+        self.queue = None
+        self.gpu_metrics = ServingMetrics("trainer")
+        self.gpu_metrics.start()
+        self.batch_histograms = {}
         self.meter_provider = None
         if metric_reader is not None or (
             os.getenv("OTEL_SDK_DISABLED", "").lower() != "true"
@@ -218,15 +232,6 @@ class TrainerTelemetry:
             )
         ):
             try:
-                from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-                    OTLPMetricExporter,
-                )
-                from opentelemetry.sdk.metrics import MeterProvider
-                from opentelemetry.sdk.metrics.export import (
-                    PeriodicExportingMetricReader,
-                )
-                from opentelemetry.sdk.resources import Resource
-
                 protocol = os.getenv(
                     "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL",
                     os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf"),
@@ -257,12 +262,77 @@ class TrainerTelemetry:
                     description="Sampled trainer operation activity, one-hot per lane",
                     unit="1",
                 )
+                meter = self.meter_provider.get_meter("lilo.trainer")
+                self.batch_histograms = {
+                    name: meter.create_histogram("lilo.trainer.batch." + name, unit="1")
+                    for name in ("input_tokens", "example_count", "adapter_count")
+                }
+                for field in (
+                    "depth",
+                    "eligible",
+                    "inflight",
+                    "oldest_age",
+                    "last_progress_age",
+                    "lifecycle_depth",
+                    "blocked",
+                ):
+                    meter.create_observable_gauge(
+                        "lilo.trainer.queue." + field,
+                        callbacks=[functools.partial(self.observe_queue, field)],
+                        unit="s" if field.endswith("age") else "1",
+                    )
             except Exception:  # noqa: BLE001 - optional telemetry
                 log.warning("Trainer state metric initialization failed")
 
-    def observe(self, options):
-        from opentelemetry.metrics import Observation
+    @best_effort
+    def queue_state(self, snapshot):
+        with self.lock:
+            self.queue = snapshot
 
+    def observe_queue(self, field, options):
+        with self.lock:
+            if self.closed or self.queue is None:
+                return []
+            snapshot = self.queue
+        attrs = {**self.attrs, **self.metric_tags}
+        if field == "blocked":
+            return [
+                Observation(
+                    snapshot["blocked"].get(reason, 0),
+                    {**attrs, "lilo.wait_reason": reason},
+                )
+                for reason in (
+                    "sequence",
+                    "model_not_ready",
+                    "lifecycle",
+                    "persistence_capacity",
+                    "adapter_publication",
+                )
+            ]
+        if field.endswith("age"):
+            timestamp = snapshot[
+                "oldest_at" if field == "oldest_age" else "progress_at"
+            ]
+            value = max(0, time.monotonic() - timestamp) if timestamp is not None else 0
+        else:
+            value = snapshot[field]
+        return [Observation(value, attrs)]
+
+    @best_effort
+    def dequeue(self, operation):
+        entry = self.commands.get(operation.request_id)
+        if entry is not None:
+            self._span(
+                "queue",
+                "execution",
+                entry.queued_at,
+                time.time(),
+                [entry],
+                entry.attributes,
+                prefix="lilo.command.",
+            )
+
+    def observe(self, options):
         with self.lock:
             if self.closed:
                 return []
@@ -329,7 +399,9 @@ class TrainerTelemetry:
             start_time=int(started * 1e9),
             attributes=attributes,
         )
-        self.commands[operation.request_id] = CommandTrace(span, attributes)
+        self.commands[operation.request_id] = CommandTrace(
+            span, attributes, time.time()
+        )
         canonical = set_span_in_context(NonRecordingSpan(span.get_span_context()))
         canonical = set_value(
             "lilo.command.tags",
@@ -445,6 +517,14 @@ class TrainerTelemetry:
             "lilo.command_count": attrs.get("n", len(seq_ids)),
         }
         counts = backend.numeric_attributes(evidence.get("attributes"))
+        if name in {"forward", "forward_backward"}:
+            for field, histogram in self.batch_histograms.items():
+                value = counts.get("lilo." + field)
+                if value is not None:
+                    histogram.record(
+                        value,
+                        {**self.attrs, **self.metric_tags, "lilo.operation": name},
+                    )
         model_counts = evidence.get("models", {})
         if not isinstance(model_counts, dict):
             model_counts = {}
@@ -555,8 +635,7 @@ class TrainerTelemetry:
         self.commands.clear()
         self.identities.clear()
         self.model_tags.clear()
+        self.gpu_metrics.close()
         if self.meter_provider:
             self.meter_provider.shutdown(timeout_millis=5000)
-        from lilo.telemetry.otlp import flush
-
         flush()

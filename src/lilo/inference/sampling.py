@@ -9,10 +9,13 @@ from contextlib import nullcontext
 from typing import Any
 
 import httpx
+from opentelemetry.propagate import inject
+from opentelemetry.trace import StatusCode
 from stitch.publish import constrain_request
 
-from lilo.telemetry.sample_stats import SampleAttempt, event_sink, timing_metadata
 from lilo.telemetry.http_trace import HTTPTrace
+from lilo.telemetry.performance import stages
+from lilo.telemetry.sample_stats import SampleAttempt, event_sink, timing_metadata
 
 RETRY_INITIAL_DELAY_SECONDS = 1.0
 RETRY_MAX_DELAY_SECONDS = 5.0
@@ -214,9 +217,10 @@ async def _sample_one(
     physical_attempt = 0
     while True:
         cause: httpx.TransportError | None = None
-        resolved = (
-            (gateway.rstrip("/"),) if isinstance(gateway, str) else await gateway()
-        )
+        with stages("sampling").track("route_readiness"):
+            resolved = (
+                (gateway.rstrip("/"),) if isinstance(gateway, str) else await gateway()
+            )
         gateways = tuple(item for item in resolved if item not in rejected)
         if not gateways:
             reason = "no compatible rollout replicas"
@@ -267,13 +271,23 @@ async def _sample_one(
         body["rid"] = observation.id
         attempt_result = observation.attrs
         try:
-            response = await client.post(
-                f"{gateway_url}/generate",
-                json=body,
-                headers=headers,
-                timeout=request_timeout,
-                extensions={"trace": HTTPTrace(attempt_result).record},
-            )
+            with stages("sampling").track(
+                "inference_http", attributes={"lilo.attempt_id": observation.id}
+            ) as span:
+                inject(headers)
+                response = await client.post(
+                    f"{gateway_url}/generate",
+                    json=body,
+                    headers=headers,
+                    timeout=request_timeout,
+                    extensions={"trace": HTTPTrace(attempt_result).record},
+                )
+                if span is not None:
+                    span.set_attribute(
+                        "http.response.status_code", response.status_code
+                    )
+                    if response.is_error:
+                        span.set_status(StatusCode.ERROR)
         except httpx.TransportError as exc:
             attempt_result["error_type"] = type(exc).__name__
             cause = exc
@@ -363,7 +377,8 @@ async def _sample_one(
 async def _backoff(stats: dict[str, Any] | None, seconds: float) -> None:
     if stats is not None:
         stats["wait_s"] = stats.get("wait_s", 0.0) + seconds
-    await asyncio.sleep(seconds)
+    with stages("sampling").track("retry_backoff"):
+        await asyncio.sleep(seconds)
 
 
 def _cache_affinity_id(task: dict[str, Any]) -> str | None:

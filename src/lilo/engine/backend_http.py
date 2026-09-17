@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
+import importlib
 import logging
+import os
+import sys
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -12,6 +17,7 @@ from pydantic import BaseModel, ConfigDict
 from lilo.errors import BackendFailed
 from lilo.telemetry import backend as telemetry
 from lilo.telemetry.otlp import provider
+from lilo.telemetry.performance import metrics_enabled, stages
 
 from .api import Command, Executor, OperationKind
 from .operations import (
@@ -248,13 +254,16 @@ class HttpBackendClient:
         if self._transport_failed:
             raise RuntimeError("backend transport failed; checkpoint recovery required")
         telemetry.received.set(None)
-        enabled = provider() is not None
+        enabled = provider() is not None or metrics_enabled()
         try:
-            response = await self.http.post(
-                path,
-                json=body,
-                headers={"x-lilo-telemetry": "1"} if enabled else {},
-            )
+            with stages("trainer").track(
+                "backend_http", attributes={"lilo.operation": path.lstrip("/")}
+            ):
+                response = await self.http.post(
+                    path,
+                    json=body,
+                    headers={"x-lilo-telemetry": "1"} if enabled else {},
+                )
         except httpx.ReadTimeout as exc:
             self._fence_transport_failure(read_timeout=True)
             raise TimeoutError(
@@ -301,19 +310,12 @@ class HttpBackendClient:
 
 
 def main() -> None:
-    import asyncio
-    import importlib
-    import os
-    import sys
-
     reference, port = sys.argv[1], int(sys.argv[2])
     module_name, _, attr = reference.partition(":")
     executor = getattr(importlib.import_module(module_name), attr)()
     if int(os.environ.get("RANK", "0")) > 0:
         executor.run_follower_loop()
         return
-    import uvicorn
-
     app = create_backend_app(executor)
     try:
         uvicorn.run(app, host="127.0.0.1", port=port)

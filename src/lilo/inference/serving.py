@@ -11,6 +11,8 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 
+from lilo.telemetry.performance import metrics_enabled
+
 
 def start_sglang(
     model_path: str,
@@ -85,6 +87,8 @@ def start_sglang(
         "--tp-size",
         str(world_size),
     ]
+    if metrics_enabled():
+        command.append("--enable-metrics")
     if attention_data_parallel_size > 1:
         command.extend(["--dp-size", str(attention_data_parallel_size)])
         command.append("--enable-dp-attention")

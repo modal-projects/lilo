@@ -6,18 +6,21 @@ import os
 import time
 from dataclasses import asdict
 
+import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
-import modal
+from lilo.inference import sampling
 from lilo.providers.contracts import (
     Parameterization,
     SamplingTask,
 )
+from lilo.telemetry import otlp
+from lilo.telemetry.performance import stages
 
 from .checkpoint_storage import (
     CHECKPOINT_ROOT,
-    ModalCheckpointStorage,
     CHECKPOINT_VOLUME_NAME,
+    ModalCheckpointStorage,
     checkpoint_volume,
 )
 from .definitions import (
@@ -50,8 +53,14 @@ from .kv import (
 )
 from .lora_pool import (
     LoraPoolSpec,
+)
+from .lora_pool import (
     deploy_pool as deploy_lora_pool,
+)
+from .lora_pool import (
     pool_gateway as lora_pool_gateway,
+)
+from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
@@ -161,6 +170,7 @@ async def ensure_lora_pool(spec: dict) -> str:
     return gateway
 
 
+@stages("sampling").wrap("pool_readiness")
 async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
     """Refresh warm pools locally; serialize only missing-pool deployment."""
     key = spec.app_name
@@ -168,7 +178,9 @@ async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
     if cached is not None and cached[0] > time.monotonic():
         return cached[1]
     lock = _lora_pool_checks.setdefault(key, asyncio.Lock())
-    async with lock:
+    with stages("sampling").track("pool_lock_wait"):
+        await lock.acquire()
+    try:
         cached = _lora_pool_gateways.get(key)
         if cached is not None and cached[0] > time.monotonic():
             return cached[1]
@@ -188,6 +200,8 @@ async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
             gateway,
         )
         return gateway
+    finally:
+        lock.release()
 
 
 @app.function(
@@ -199,16 +213,12 @@ async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
 )
 @modal.concurrent(max_inputs=128)
 async def execute_sample(task: dict) -> dict:
-    from lilo.telemetry.otlp import sample_trace
-
     stats: dict = {}
-    with sample_trace(task, stats):
+    with otlp.sample_trace(task, stats):
         return await _execute_sample(task, stats)
 
 
 async def _execute_sample(task: dict, stats: dict) -> dict:
-    from lilo.inference.sampling import sample_task
-
     definition_id = str(task["engine_definition_id"])
     parameterization = parameterization_for(definition_id)
     if parameterization not in {"full", "lora"}:
@@ -228,7 +238,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
             # is stable across redeployment of the same definition/revision.
             await _ready_lora_pool(spec)
 
-        return await sample_task(
+        return await sampling.sample_task(
             task,
             gateway,
             data_parallel_size=rollout_data_parallel_size,
@@ -248,7 +258,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
         )
     )
     await _touch_fft_pool(spec)
-    return await sample_task(
+    return await sampling.sample_task(
         task,
         await pool_gateway(spec),
         data_parallel_size=rollout_data_parallel_size,
@@ -374,7 +384,9 @@ def _plane():
     engines = ModalEnginePlatform(kv, _spawn_engine)
 
     async def spawn_sampling(task: SamplingTask) -> str:
-        call = await execute_sample.spawn.aio(asdict(task))
+        call = await execute_sample.spawn.aio(
+            {**asdict(task), "submitted_at": time.time()}
+        )
         return call.object_id
 
     async def prepare_model(model) -> None:

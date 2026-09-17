@@ -118,7 +118,12 @@ def test_missing_evidence_and_failure_do_not_become_zero_or_leak_errors(spans):
     with pytest.raises(RuntimeError):
         asyncio.run(run())
     for s in spans.get_finished_spans():
-        assert s.status.status_code == StatusCode.ERROR
+        if s.name in {
+            "lilo.sample",
+            "lilo.sample.attempt",
+            "lilo.sampling.inference_http",
+        }:
+            assert s.status.status_code == StatusCode.ERROR
         assert "sglang.cached_tokens" not in s.attributes
         assert "sglang.prefill_s" not in s.attributes
         assert not s.events  # no automatic exception/stack/payload capture
@@ -152,7 +157,11 @@ def test_retry_is_a_separate_attempt_in_same_trace(spans, monkeypatch):
             )
 
     asyncio.run(run())
-    rows = spans.get_finished_spans()
+    rows = [
+        s
+        for s in spans.get_finished_spans()
+        if s.name in {"lilo.sample", "lilo.sample.attempt"}
+    ]
     assert [s.status.status_code for s in rows] == [
         StatusCode.ERROR,
         StatusCode.OK,

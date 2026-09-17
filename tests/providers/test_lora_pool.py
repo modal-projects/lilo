@@ -19,7 +19,9 @@ def test_stop_already_stopped_lora_pool_succeeds_but_real_failure_propagates(
     monkeypatch,
 ):
     import subprocess
+
     import pytest
+
     from lilo.providers.modal import lora_pool
 
     monkeypatch.setattr(lora_pool.shutil, "which", lambda _: "/bin/modal")
@@ -47,7 +49,12 @@ def test_pool_revision_tracks_inherited_settings_and_bulletin(monkeypatch):
     monkeypatch.setattr(Path, "read_bytes", read)
     name = "qwen3_5_9b_base_miles_lora_16k_single"
     original_pool = LoraPoolSpec(name).app_name
-    for changed in ("qwen3_5_9b_base_miles_lora_16k.py", "bulletin.py"):
+    for changed in (
+        "qwen3_5_9b_base_miles_lora_16k.py",
+        "bulletin.py",
+        "serving_metrics.py",
+        "performance.py",
+    ):
         assert LoraPoolSpec(name).app_name != original_pool
     changed = "qwen3_5_4b_full_64k.py"
     assert LoraPoolSpec(name).app_name == original_pool

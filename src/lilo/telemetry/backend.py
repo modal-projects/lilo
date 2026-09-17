@@ -17,6 +17,7 @@ from pathlib import Path
 PHASES = frozenset(
     {
         "prepare",
+        "miles_rpc",
         "forward_backward",
         "forward",
         "collect",
@@ -29,6 +30,9 @@ PHASES = frozenset(
 COUNTS = frozenset(
     {
         "lilo.loss_tokens",
+        "lilo.adapter_count",
+        "lilo.input_tokens",
+        "lilo.example_count",
         "lilo.padded_tokens",
         "lilo.packed_microbatch_count",
         "lilo.checkpoint_bytes",

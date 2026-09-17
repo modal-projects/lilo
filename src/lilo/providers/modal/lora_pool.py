@@ -109,6 +109,10 @@ def _implementation_revision(definition_id: str) -> str:
         here.parents[2] / "inference" / "bulletin.py",
         here.parents[2] / "inference" / "lora_sidecar.py",
         here.parents[2] / "inference" / "serving.py",
+        here.parents[2] / "telemetry" / "performance.py",
+        here.parents[2] / "telemetry" / "serving_metrics.py",
+        here.parents[2] / "telemetry" / "otlp.py",
+        here.parents[2] / "telemetry" / "metadata.py",
     )
     digest = hashlib.sha256()
     for path in files:

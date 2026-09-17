@@ -70,6 +70,7 @@ class Operation:
     seq_id: int
     kind: OperationKind
     payload: OperationPayload
+    queued_at: float = field(default_factory=time.monotonic, compare=False)
 
 
 @dataclass(frozen=True)
@@ -138,6 +139,8 @@ class Engine:
         self._sampler_persistence: asyncio.Queue[_PersistJob] = asyncio.Queue()
         self._tasks: tuple[asyncio.Task[None], ...] = ()
         self._closing = False
+        self._inflight: set[str] = set()
+        self._last_progress = time.monotonic()
 
     async def accept_model(self, model_id: str, spec: object) -> bool:
         async with self._lock:
@@ -363,6 +366,57 @@ class Engine:
                 for _ in range(self.sampler_persistence_concurrency)
             ),
         )
+        if getattr(self.observer, "queue_state", None) is not None:
+            self._tasks += (asyncio.create_task(self._queue_metrics_loop()),)
+
+    async def _queue_metrics_loop(self) -> None:
+        while True:
+            # Snapshot on the engine event loop, never from an exporter thread.
+            async with self._lock:
+                self.observer.queue_state(self.queue_snapshot())
+            await asyncio.sleep(1)
+
+    def queue_snapshot(self) -> dict:
+        queued = [
+            op for model in self._models.values() for op in model.buffered.values()
+        ]
+        blocked = {}
+        eligible = 0
+        for model in self._models.values():
+            for op in model.buffered.values():
+                reason = self._wait_reason(model, op)
+                if reason is None:
+                    eligible += 1
+                else:
+                    blocked[reason] = blocked.get(reason, 0) + 1
+        return {
+            "depth": len(queued),
+            "eligible": eligible,
+            "inflight": len(self._inflight),
+            "oldest_at": min((op.queued_at for op in queued), default=None),
+            "progress_at": self._last_progress,
+            "blocked": blocked,
+            "lifecycle_depth": len(self._lifecycle),
+        }
+
+    def _wait_reason(self, model: _ModelState, op: Operation) -> str | None:
+        if not model.ready.is_set() or model.unload is not None:
+            return "model_not_ready"
+        if op.seq_id != model.next_seq:
+            return "sequence"
+        if self._lifecycle:
+            return "lifecycle"
+        if op.kind in self._serial_persistence_inflight:
+            return "persistence_capacity"
+        if (
+            op.kind == OperationKind.SAVE_WEIGHTS_FOR_SAMPLER
+            and self.sampler_persistence_concurrency > 1
+        ):
+            if op.model_id in self._sampler_inflight:
+                return "adapter_publication"
+            if len(self._sampler_inflight) >= self.sampler_persistence_concurrency:
+                return "persistence_capacity"
+        return None
 
     def _observe_state(self, models: tuple[str, ...] | list[str], state: str) -> None:
         if self.observer is not None:
@@ -631,6 +685,8 @@ class Engine:
         )
 
     def _finish(self, operation: Operation, state: FutureState) -> None:
+        self._inflight.discard(operation.request_id)
+        self._last_progress = time.monotonic()
         if self.observer is not None:
             self.observer.finish(operation, state)
         model = self._models.get(operation.model_id)
@@ -657,24 +713,8 @@ class Engine:
             return (lifecycle,)
         ready = []
         for model in self._models.values():
-            if not model.ready.is_set() or model.unload is not None:
-                continue
             operation = model.buffered.get(model.next_seq)
-            if operation is not None:
-                if operation.kind in self._serial_persistence_inflight:
-                    continue
-                if (
-                    operation.kind == OperationKind.SAVE_WEIGHTS_FOR_SAMPLER
-                    and self.sampler_persistence_concurrency > 1
-                    and (
-                        operation.model_id in self._sampler_inflight
-                        or len(self._sampler_inflight)
-                        >= self.sampler_persistence_concurrency
-                    )
-                ):
-                    # Serialize versions of one adapter while letting other
-                    # adapters train or publish using independent snapshots.
-                    continue
+            if operation is not None and self._wait_reason(model, operation) is None:
                 ready.append(operation)
         if not ready:
             return None
@@ -704,6 +744,7 @@ class Engine:
         self,
         operations: tuple[Operation | _AcceptOperation | _UnloadOperation, ...],
     ) -> None:
+        self._last_progress = time.monotonic()
         first = operations[0]
         if isinstance(first, _AcceptOperation | _UnloadOperation):
             queued = self._lifecycle.popleft()
@@ -718,6 +759,10 @@ class Engine:
             if queued is not operation:
                 raise RuntimeError("model operation changed before execution")
             model.next_seq += 1
+            self._inflight.add(operation.request_id)
+            dequeue = getattr(self.observer, "dequeue", None)
+            if dequeue is not None:
+                dequeue(operation)
 
     @staticmethod
     def _forward_backward_batch_key(operation: Operation) -> str:

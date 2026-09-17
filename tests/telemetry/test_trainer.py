@@ -601,3 +601,69 @@ def test_parallel_publication_state_stays_active_until_last_worker(setup, first_
     ]
     assert len(spans) == 2
     assert {span.attributes["lilo.model_id"] for span in spans} == {"a", "b"}
+
+
+def test_live_queue_distinguishes_sequence_and_persistence_waits(setup):
+    telemetry, exporter, reader = setup
+
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+
+        class Executor(EchoExecutor):
+            async def persist_snapshot(self, *args):
+                started.set()
+                await release.wait()
+                return {"publish_version": 1}
+
+        server = Engine(Executor(), observer=telemetry)
+        for model in ("a", "b", "c"):
+            await server.accept_model(model, {})
+        first = await server.save_weights_for_sampler(
+            {"model_id": "a", "seq_id": 1, "publish_version": 1}
+        )
+        await asyncio.wait_for(started.wait(), 1)
+        second = await server.save_weights_for_sampler(
+            {"model_id": "b", "seq_id": 1, "publish_version": 1}
+        )
+        third = await server.optim_step(
+            {"model_id": "c", "seq_id": 2, "adam_params": {}}
+        )
+        ready = await server.optim_step(
+            {"model_id": "c", "seq_id": 1, "adam_params": {}}
+        )
+        # Submission does not yield to the dispatcher: both heads are visible here.
+        snapshot = server.queue_snapshot()
+        assert snapshot["depth"] == 3
+        assert snapshot["eligible"] == 1
+        assert snapshot["inflight"] == 1
+        assert snapshot["blocked"] == {"persistence_capacity": 1, "sequence": 1}
+        assert (
+            await server.retrieve_future(ready, timeout=1)
+        ).status.value == "complete"
+        assert (
+            await server.retrieve_future(third, timeout=1)
+        ).status.value == "complete"
+        # Let the independent monitor update while persistence remains blocked.
+        await asyncio.sleep(1.05)
+        points = {
+            m.name: m.data.data_points
+            for r in reader.get_metrics_data().resource_metrics
+            for scope in r.scope_metrics
+            for m in scope.metrics
+        }
+        assert points["lilo.trainer.queue.depth"][0].value == 1
+        assert points["lilo.trainer.queue.eligible"][0].value == 0
+        assert points["lilo.trainer.queue.oldest_age"][0].value >= 1
+        assert points["lilo.trainer.queue.inflight"][0].value == 1
+        release.set()
+        await server.retrieve_future(first, timeout=1)
+        await server.retrieve_future(second, timeout=1)
+        assert server.queue_snapshot()["inflight"] == 0
+        await server.close()
+
+    asyncio.run(run())
+    queues = [
+        s for s in exporter.get_finished_spans() if s.name == "lilo.command.queue"
+    ]
+    assert len(queues) == 4
+    assert any(s.end_time - s.start_time >= 1_000_000_000 for s in queues)

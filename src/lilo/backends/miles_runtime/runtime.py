@@ -14,6 +14,7 @@ from typing import Any
 
 from lilo.backends.miles_config import MilesBackendConfig
 from lilo.errors import BackendFailed
+from lilo.telemetry.performance import stages
 
 
 class MilesRuntime:
@@ -80,14 +81,15 @@ class MilesRuntime:
         method = (
             self._bridge.forward_only if forward_only else self._bridge.forward_backward
         )
-        return self._run(
-            method(
-                unit_id,
-                list(slot_rows),
-                loss_fn,
-                loss_fn_config,
+        with stages("miles").track("dispatch", attributes={"lilo.batch_id": unit_id}):
+            return self._run(
+                method(
+                    unit_id,
+                    list(slot_rows),
+                    loss_fn,
+                    loss_fn_config,
+                )
             )
-        )
 
     def optim_step(
         self, adam_params_by_slot: dict[int, dict[str, float]]
