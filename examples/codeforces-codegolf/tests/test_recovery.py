@@ -329,7 +329,8 @@ def test_training_batches_commits_and_preserves_checkpoint_receipt(
         checkpoint_every=3,
         eval_every=3,
     )
-    asyncio.run(module.train(root, data, None, cfg, commit, create_training=create))
+    monkeypatch.setattr(module, "create_full_training_client_async", create)
+    asyncio.run(module.train(root, data, None, cfg, commit))
     for step in range(1, 4):
         records = {
             str(p.relative_to(root))
