@@ -192,7 +192,7 @@ async def _train(
             tokenizer = await asyncio.to_thread(training.get_tokenizer)
             sampling = await training.save_weights_and_get_sampling_client_async()
 
-            async def group(problem, n, tag, sampler=None):
+            async def group(problem, n, sampler=None):
                 sampler = sampler or sampling  # noqa: B023
                 # All groups finish before the enclosing loop changes these clients.
                 prompt = tokenizer.apply_chat_template(  # noqa: B023
@@ -257,20 +257,23 @@ async def _train(
                     row.update(result)
                     row["reward"] = row_score(row, dataclasses.asdict(cfg))
                 record = {"problem_id": problem["id"], "prompt": prompt, "rows": rows}
-                if tag is not None:
-                    await store.write(
-                        f"rollouts/{tag}/{hashlib.sha256(problem['id'].encode()).hexdigest()[:16]}.json",
-                        record,
-                    )
                 return record
 
             async def evaluate(at):
                 records = await gather_work(
-                    *(group(p, cfg.eval_samples, f"eval-{at:04d}") for p in evaluation)
+                    *(group(p, cfg.eval_samples) for p in evaluation)
                 )
-                await store.write(
-                    f"eval/{at:04d}.json",
-                    {**summarize(records, at), **sampling_metrics(records)},
+                await store.write_many(
+                    {
+                        **{
+                            f"rollouts/eval-{at:04d}/{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json": record
+                            for record in records
+                        },
+                        f"eval/{at:04d}.json": {
+                            **summarize(records, at),
+                            **sampling_metrics(records),
+                        },
+                    }
                 )
 
             if step >= cfg.steps:
@@ -293,7 +296,7 @@ async def _train(
                         training_problems, cfg.prompts_per_step
                     )
                     records = await gather_work(
-                        *(group(p, cfg.group_size, None, sampler) for p in selected)
+                        *(group(p, cfg.group_size, sampler) for p in selected)
                     )
                     for record in records:
                         record.update(
@@ -326,21 +329,22 @@ async def _train(
                 if buffer is not None:
                     batch = await buffer.get(step)
                     records = batch.records
-                    for record in records:
-                        await store.write(
-                            f"rollouts/step-{next_step:04d}/{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json",
-                            record,
-                        )
                 else:
                     selected = random.Random(cfg.seed + next_step).sample(
                         training_problems, cfg.prompts_per_step
                     )
                     records = await gather_work(
-                        *(
-                            group(p, cfg.group_size, f"step-{next_step:04d}")
-                            for p in selected
-                        )
+                        *(group(p, cfg.group_size) for p in selected)
                     )
+                rollout_queue_wait_seconds = time.monotonic() - wait_started
+                persist_started = time.monotonic()
+                await store.write_many(
+                    {
+                        f"rollouts/step-{next_step:04d}/{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json": record
+                        for record in records
+                    }
+                )
+                rollout_persist_seconds = time.monotonic() - persist_started
                 rollout_wait_seconds = time.monotonic() - wait_started
                 items = []
                 total_tokens = sum(len(r["tokens"]) for g in records for r in g["rows"])
@@ -434,12 +438,13 @@ async def _train(
                         "sampling_ticket": batch.ticket,
                         "rollout_batch_seconds": batch.seconds,
                         "rollout_wait_seconds": rollout_wait_seconds,
+                        "rollout_queue_wait_seconds": rollout_queue_wait_seconds,
+                        "rollout_persist_seconds": rollout_persist_seconds,
                         "update_seconds": update_seconds,
                         "ready_batches": buffer.queue.qsize(),
                         "inflight_batches": buffer.inflight,
                         "discarded_stale_batches": buffer.discarded,
                     }
-                await store.write(f"metrics/{step:04d}.json", metric)
                 log.info("STEP %s", json.dumps(metric))
                 if step % cfg.checkpoint_every == 0 or step == cfg.steps:
                     saved = await (
@@ -448,8 +453,19 @@ async def _train(
                         )
                     ).result_async()
                     state = {"step": step, "path": saved.path}
-                    await store.write("checkpoint.json", state)
-                    await store.event("checkpoint_saved", **state)
+                    # Persist the curve and recovery receipt together before
+                    # publication, which can fail after a successful checkpoint.
+                    await store.write_many(
+                        {
+                            f"metrics/{step:04d}.json": metric,
+                            "checkpoint.json": state,
+                            f"events/{time.time_ns()}-{uuid.uuid4().hex[:6]}.json": {
+                                "kind": "checkpoint_saved",
+                                "time": time.time(),
+                                **state,
+                            },
+                        }
+                    )
                 publish_started = time.monotonic()
                 sampling = await training.save_weights_and_get_sampling_client_async()
                 if buffer is not None:
@@ -457,7 +473,7 @@ async def _train(
                     metric["pipeline"]["publish_seconds"] = (
                         time.monotonic() - publish_started
                     )
-                    await store.write(f"metrics/{step:04d}.json", metric)
+                await store.write(f"metrics/{step:04d}.json", metric)
                 if step % cfg.eval_every == 0 or step == cfg.steps:
                     await evaluate(step)
             if step >= cfg.steps:
