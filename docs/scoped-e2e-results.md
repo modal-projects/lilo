@@ -7,7 +7,7 @@ PR head: `95e4c5542c96c13ad18e1fa1ac9301f1a7e04e88`.
 Environment: `modal-labs/connor-dev-2`; test apps use the `lilo-e2e-` prefix.
 Client: Python 3.12.13, Modal 1.5.5, Tinker 0.24.1.
 
-These tests target lifecycle and recovery behavior, supplementing existing long
+These tests check startup, cleanup, and recovery alongside the existing long
 training runs. The GPU scenario uses Qwen3.5-4B on four trainer H100s and individual
 H100 sampler replicas, with short cross-entropy training steps.
 
@@ -26,9 +26,10 @@ The interrupted-download failure was reproduced in a separate setup run.
 | Owner SIGKILL cleanup | 3 / 3 | 190.7 s |
 | GPU lifecycle and recovery | 22 / 27 | 2795.2 s |
 
-The normal training/sampling flow works. Container-restart recovery, checkpoint
-API wiring, asset-cache recovery, and SDK error propagation need fixes. The
-numerical continuation discrepancy needs a controlled repeatability test.
+At this revision, normal training and sampling worked. Recovery after container
+restart, checkpoint API wiring, incomplete asset downloads, and SDK error
+messages needed fixes. The numerical difference after restore needed a
+controlled repeatability test.
 
 ## Completed CPU lifecycle checks
 
@@ -183,9 +184,8 @@ Local evidence under `scripts/results/scoped-e2e/` includes:
 - `checkpoint-metadata.json` and `checkpoint-files.json`: checkpoint evidence.
 - `harness-run.py` and `harness-sha256.txt`: exact main-run harness snapshot.
 
-After the live run, the reusable harness was hardened with synchronized report
-writes, an explicit HTTP 410 assertion for the lost trainer, and tracking of the
-final recreated pinned app. Those small changes were checked locally; the full
+After the live run, the harness was updated to synchronize report writes,
+assert HTTP 410 for the lost trainer, and track the final recreated pinned app. Those small changes were checked locally; the full
 GPU run was not repeated. Runtime source files were not modified.
 
 ## Reproduction

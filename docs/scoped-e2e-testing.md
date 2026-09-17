@@ -1,7 +1,7 @@
 # Scoped-run E2E tests
 
 `scripts/scoped_e2e.py` exercises real Modal provisioning and HTTP clients. Run it
-from the PR checkout with Python 3.12 and the project's dependencies installed.
+from the repository checkout with Python 3.12 and the project's dependencies installed.
 Set `MODAL_ENVIRONMENT` explicitly. The environment must contain the `lilo-proxy`
 secret. Each run uses an automatically generated `lilo-e2e-*` app name.
 
@@ -52,10 +52,10 @@ metrics so a tolerance failure can be investigated.
 
 ## Results and cleanup
 
-JSON reports are written atomically after each event. Checks distinguish
-functional failures from fatal scenario errors. The test continues independent
-checks after an expected capability failure; a report with any failed check has
-`passed: false` and normally exits nonzero. No API keys are written to reports.
+The test writes a JSON report after each event. A failed check is recorded
+separately from an error that prevents the scenario from continuing. Independent
+checks still run after an expected failure. Any failed check sets `passed: false`
+and normally causes a nonzero exit. Reports do not contain API keys.
 
 The GPU restart targets a trainer FunctionCall within the test app; it verifies
 the target container belongs to that app before sending ContainerStop. It does

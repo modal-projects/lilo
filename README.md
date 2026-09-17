@@ -1,9 +1,8 @@
 # Lilo
 
-Lilo is a Tinker SDK-compatible training and sampling infrastructure built on
-Modal. Individual engine containers run `forward_backward` and `optim_step`
-jobs and publish weights to autoscaling sampling infrastructure based on
-[Stitch](https://github.com/modal-projects/stitch).
+Lilo runs model training and sampling on Modal through the Tinker SDK. Trainers
+run `forward_backward` and `optim_step`, then publish updated weights to sampling
+replicas managed by [Stitch](https://github.com/modal-projects/stitch).
 
 ## Scoped training runs
 
@@ -22,9 +21,10 @@ with lilo.run(engine=engine) as (url, api_key):
     # Train and sample through the Tinker SDK here.
 ```
 
-The scope creates its own API URL/key and owns the trainer and sampling apps.
-Exiting releases the compute; saved checkpoints remain. One full-training model
-is active per scope. Other processes may connect while its owner remains alive.
+`lilo.run` creates an API endpoint, API key, trainer, and sampling apps. Leaving
+the context stops those resources but keeps completed checkpoints. It does not
+save a checkpoint automatically. Each scope allows one active training model;
+other processes can connect while the process holding the context stays alive.
 This path does not require deploying the shared API or creating a `lilo-api`
 secret. See [scoped runs](docs/scoped-runs.md) for recovery and custom engines,
 and the [Codeforces example](examples/codeforces-codegolf/README.md) for a complete
@@ -119,8 +119,8 @@ uv run modal deploy -m lilo.providers.modal.app
 
 This deploys the control plane and bundled model definitions from the installed
 package. A successful deployment prints a URL for the `server` web function.
-Keep that URL for step 4. Redeploy when you intentionally update Lilo; deployment
-is not required for every training run.
+Keep that URL for step 4. Redeploy after updating Lilo. You can reuse the same
+deployment for multiple training runs.
 
 Training and sampling allocate GPUs on demand. The bundled `Qwen/Qwen3.5-4B`
 definition used below has a four-H100 trainer and one H100 per sampling replica;
@@ -220,5 +220,6 @@ destination, experiment labels, and the complete span/metric inventory.
 
 [Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
 with GRPO or TailRL advantages for correctness and short solutions. It includes
-an isolated judge, checkpoint recovery, estimator/reward forks, held-out Pass@k
-and Best-of-k evaluation, plotting tools and learning curves.
+a sandboxed judge, checkpoint recovery, and commands to continue a checkpoint
+with a different reward or advantage estimator. It also includes held-out
+Pass@k and Best-of-k evaluation, plotting tools, and recorded learning curves.
