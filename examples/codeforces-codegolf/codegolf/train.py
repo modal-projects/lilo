@@ -188,7 +188,9 @@ async def _train(root, data, app, cfg, commit, telemetry):
                         ),
                     )
 
+                sampling_started = time.monotonic()
                 response = await retry_read(sample, store, "sampling_retry")
+                sampling_seconds = time.monotonic() - sampling_started
                 if len(response.sequences) != n:
                     raise RuntimeError(
                         f"Expected {n} samples, got {len(response.sequences)}"
@@ -214,13 +216,20 @@ async def _train(root, data, app, cfg, commit, telemetry):
                             "truncated": sequence.stop_reason == "length",
                         }
                     )
+                judge_started = time.monotonic()
                 judgments = await gather_work(
                     *(verify(r["code"], problem) for r in rows)
                 )
                 for row, result in zip(rows, judgments, strict=True):
                     row.update(result)
                     row["reward"] = row_score(row, dataclasses.asdict(cfg))
-                record = {"problem_id": problem["id"], "prompt": prompt, "rows": rows}
+                record = {
+                    "problem_id": problem["id"],
+                    "prompt": prompt,
+                    "rows": rows,
+                    "sampling_seconds": sampling_seconds,
+                    "judge_seconds": time.monotonic() - judge_started,
+                }
                 return record
 
             async def evaluate(at):
