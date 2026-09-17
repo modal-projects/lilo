@@ -5,6 +5,7 @@ import dataclasses
 import hashlib
 import json
 import logging
+import math
 import os
 import random
 import statistics
@@ -65,21 +66,56 @@ async def release(training):
         training.holder.close()
 
 
-async def train(root: Path, data: Path, app: modal.App, cfg: Config, commit=None):
+async def train(
+    root: Path,
+    data: Path,
+    app: modal.App,
+    cfg: Config,
+    commit=None,
+    *,
+    create_training=None,
+    make_datum=datum,
+    recovery_limit=30,
+    judge_semaphore=None,
+):
     telemetry = RunTelemetry(root.name)
     try:
-        return await _train(root, data, app, cfg, commit, telemetry)
+        return await _train(
+            root,
+            data,
+            app,
+            cfg,
+            commit,
+            telemetry,
+            create_training,
+            make_datum,
+            recovery_limit,
+            judge_semaphore,
+        )
     finally:
         await asyncio.to_thread(telemetry.close)
 
 
-async def _train(root, data, app, cfg, commit, telemetry):
+async def _train(
+    root,
+    data,
+    app,
+    cfg,
+    commit,
+    telemetry,
+    create_training=None,
+    make_datum=datum,
+    recovery_limit=30,
+    judge_semaphore=None,
+):
     store = Store(root, commit, observer=telemetry.observe)
     digest = hashlib.sha256(data.read_bytes()).hexdigest()
     spec = {"config": dataclasses.asdict(cfg), "dataset_sha256": digest}
     await store.prepare(spec)
     all_problems = json.loads(data.read_text())["problems"]
-    semaphore = asyncio.Semaphore(getattr(cfg, "judge_concurrency", 16))
+    semaphore = judge_semaphore or asyncio.Semaphore(
+        getattr(cfg, "judge_concurrency", 16)
+    )
 
     async def verify(code, problem):
         async with semaphore:
@@ -113,7 +149,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
         },
     )
     training = None
-    for recovery in range(30):
+    for recovery in range(recovery_limit):
         buffer = None
         state = await store.resume()
         step = state["step"]
@@ -134,7 +170,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 "time": time.time(),
             }
             await store.write(f"attempts/{telemetry.attempt_id}.json", attempt)
-            training = await create_full_training_client_async(
+            training = await (create_training or create_full_training_client_async)(
                 service,
                 cfg.model,
                 user_metadata={"run_id": root.name, "attempt_id": telemetry.attempt_id},
@@ -317,7 +353,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     )
                     for r, a in zip(g["rows"], adv, strict=True):
                         items.append(
-                            datum(
+                            make_datum(
                                 g["prompt"],
                                 r["tokens"],
                                 r["logprobs"],
@@ -341,10 +377,50 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 )
                 fb_result = await fb.result_async()
                 optim_result = await optim.result_async()
+                if len(fb_result.loss_fn_outputs) != len(items):
+                    raise RuntimeError("Trainer returned an incomplete batch")
+                differences = []
+                for item, output in zip(items, fb_result.loss_fn_outputs, strict=True):
+                    actual = list(output["logprobs"].data)
+                    if len(actual) != len(item.model_input.to_ints()) or not all(
+                        math.isfinite(x) for x in actual
+                    ):
+                        raise RuntimeError("Invalid trainer token logprobs")
+                for record, outputs in zip(
+                    records,
+                    (
+                        fb_result.loss_fn_outputs[i : i + cfg.group_size]
+                        for i in range(0, len(items), cfg.group_size)
+                    ),
+                    strict=True,
+                ):
+                    for row, output in zip(record["rows"], outputs, strict=True):
+                        differences.extend(
+                            a - b
+                            for a, b in zip(
+                                output["logprobs"].data[-len(row["tokens"]) :],
+                                row["logprobs"],
+                                strict=True,
+                            )
+                        )
+                if not all(
+                    math.isfinite(v)
+                    for m in (fb_result.metrics, optim_result.metrics)
+                    for v in m.values()
+                    if isinstance(v, (float, int))
+                ):
+                    raise RuntimeError("Nonfinite training metrics")
                 update_seconds = time.monotonic() - update_started
                 step = next_step
                 metric = summarize(records, step)
                 metric.update(
+                    behavior_logprob_diff={
+                        "tokens": len(differences),
+                        "mean_abs": math.fsum(abs(x) for x in differences)
+                        / len(differences),
+                        "max_abs": max(abs(x) for x in differences),
+                        "mean_signed": math.fsum(differences) / len(differences),
+                    },
                     advantage_estimator=cfg.advantage_estimator,
                     seconds=time.time() - started,
                     training=fb_result.metrics,

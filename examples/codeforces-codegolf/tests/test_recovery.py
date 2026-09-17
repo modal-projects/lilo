@@ -94,7 +94,22 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
                 assert inputs["weights"].data[0] == 0
                 total_weights.append(sum(inputs["weights"].data))
             assert total_weights == pytest.approx([total_weights[0]] * len(items))
-            return Future(SimpleNamespace(metrics={}))
+            return Future(
+                SimpleNamespace(
+                    metrics={},
+                    loss_fn_outputs=[
+                        {
+                            "logprobs": SimpleNamespace(
+                                data=[
+                                    x + 0.05
+                                    for x in item.loss_fn_inputs["logprobs"].data
+                                ]
+                            )
+                        }
+                        for item in items
+                    ],
+                )
+            )
 
         async def optim_step_async(self, params):
             self.step += 1
@@ -199,6 +214,9 @@ def test_checkpoint_recovery(tmp_path, monkeypatch, failure, async_mode, estimat
         if estimator == "tailrl":
             assert metric["pass_at_k"]["2"] == pytest.approx(5 / 6)
     assert store.read("metrics/0003.json")["advantage_estimator"] == estimator
+    assert store.read("metrics/0003.json")["behavior_logprob_diff"][
+        "mean_abs"
+    ] == pytest.approx(0.05)
     # Extending a completed run must restore its optimizer, then take new steps.
     result = asyncio.run(
         module.train(tmp_path / "run", data, None, dataclasses.replace(cfg, steps=5))

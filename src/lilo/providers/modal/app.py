@@ -23,6 +23,7 @@ from .checkpoint_storage import (
 from .definitions import (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_miles_lora_64k,
     qwen3_5_9b_base_miles_lora_16k,
     qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_9b_full_64k,
@@ -73,6 +74,7 @@ DEFINITIONS = (
     qwen3_5_4b_full_64k,
     qwen3_5_9b_full_64k,
     qwen3_5_9b_base_miles_lora_2k,
+    qwen3_5_9b_miles_lora_64k,
     qwen3_5_9b_base_miles_lora_16k,
     qwen3_5_9b_base_miles_lora_16k_single,
     qwen3_5_35b_a3b_full_64k,
