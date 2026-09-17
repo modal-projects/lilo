@@ -40,11 +40,17 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         with torch.profiler.record_function("lilo/optim_step"):
             return super().optim_step(adam_params_by_slot)
 
-    def forward_only_logprobs(self, unit_id, rollout_data_ref):
+    def forward_only(self, unit_id, rollout_data_ref):
         import torch
 
-        with torch.profiler.record_function("lilo/forward_only_logprobs"):
-            return super().forward_only_logprobs(unit_id, rollout_data_ref)
+        with torch.profiler.record_function("lilo/forward_only"):
+            return super().forward_only(unit_id, rollout_data_ref)
+
+    def export_slot(self, slot, rank, alpha, path, metadata=None):
+        import torch
+
+        with torch.profiler.record_function("lilo/export_slot"):
+            return super().export_slot(slot, rank, alpha, path, metadata=metadata)
 
     def torch_profile_start(self) -> None:
         from .profiling import RankProfiler
@@ -53,37 +59,13 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         self._lilo_profiler.start()
 
     def torch_profile_stop(self, output_dir: str) -> dict | None:
-        profiler = getattr(self, "_lilo_profiler", None)
+        profiler = self._lilo_profiler
         if profiler is None:
             return None
         import torch.distributed as dist
 
         self._lilo_profiler = None
         return profiler.stop(output_dir, f"rank{dist.get_rank()}")
-
-    def export_slot_peft(
-        self,
-        *,
-        slot: int,
-        path: str,
-        rank: int,
-        alpha: float,
-        base_model: str,
-        target_modules: tuple[str, ...],
-        lora_dropout: float,
-    ) -> None:
-        import torch
-
-        with torch.profiler.record_function("lilo/export_slot_peft"):
-            return super().export_slot_peft(
-                slot=slot,
-                path=path,
-                rank=rank,
-                alpha=alpha,
-                base_model=base_model,
-                target_modules=target_modules,
-                lora_dropout=lora_dropout,
-            )
 
     def save_slot_weights(self, slot: int, path: str) -> None:
         from megatron.core import dist_checkpointing
