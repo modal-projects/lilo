@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
 
@@ -211,14 +209,13 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         import torch
 
         gib = 1024**3
-        logging.getLogger(__name__).info(
-            "lilo_memory op=%s allocated_gb=%.2f max_allocated_gb=%.2f "
-            "reserved_gb=%.2f max_reserved_gb=%.2f",
-            operation,
-            torch.cuda.memory_allocated() / gib,
-            torch.cuda.max_memory_allocated() / gib,
-            torch.cuda.memory_reserved() / gib,
-            torch.cuda.max_memory_reserved() / gib,
+        print(
+            f"lilo_memory op={operation} "
+            f"allocated_gb={torch.cuda.memory_allocated() / gib:.2f} "
+            f"max_allocated_gb={torch.cuda.max_memory_allocated() / gib:.2f} "
+            f"reserved_gb={torch.cuda.memory_reserved() / gib:.2f} "
+            f"max_reserved_gb={torch.cuda.max_memory_reserved() / gib:.2f}",
+            flush=True,
         )
 
     def torch_profile_start(self) -> None:
