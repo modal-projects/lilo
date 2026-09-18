@@ -28,6 +28,13 @@ def test_definitions_exclude_stale_128k_definition() -> None:
     }
 
 
+def test_trainer_autoscaling_supports_full_and_lora_definitions() -> None:
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    assert modal_app.trainer_autoscaling(FULL_DEFINITION)
+    assert modal_app.trainer_autoscaling(LORA_DEFINITION)
+    assert not modal_app.trainer_autoscaling("missing-definition")
+
+
 def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
     registry = InMemoryKeyValueStore()

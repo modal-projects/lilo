@@ -14,6 +14,7 @@ from pathlib import PurePosixPath
 from lilo.encoding import fingerprint
 from lilo.engine.api import EngineApi, FutureStatus
 from lilo.errors import (
+    EngineSaturated,
     ModelLost,
     RecordNotFound,
     RecordUnavailable,
@@ -1145,6 +1146,12 @@ class ControlPlane:
                 FutureResolutionStatus.LOST,
                 error="model lost before producing a result",
             )
+        except EngineSaturated as exc:
+            return FutureResolution(
+                request_id,
+                FutureResolutionStatus.FAILED,
+                error=str(exc),
+            )
         except ValueError as exc:
             return FutureResolution(
                 request_id,
@@ -1224,6 +1231,7 @@ class ControlPlane:
             )
             return None
         accepted_instance = None
+        all_instances_full = bool(instances)
         for instance in instances:
             try:
                 accepted = await self.engines.client(instance.instance_id).accept_model(
@@ -1237,10 +1245,12 @@ class ControlPlane:
                     model.model_id,
                     instance.instance_id,
                 )
+                all_instances_full = False
                 continue
             if accepted:
                 accepted_instance = instance
                 break
+        has_capacity = None
         if accepted_instance is None and self.reconcile_trainers is not None:
             has_capacity = await self.reconcile_trainers(definition_id)
             if self.trainer_autoscaling(definition_id) and has_capacity:
@@ -1264,11 +1274,18 @@ class ControlPlane:
                         "place %s after reclaim",
                         model.model_id,
                     )
+                    all_instances_full = False
                     continue
                 if accepted:
                     accepted_instance = instance
                     break
         if accepted_instance is None:
+            if (
+                self.trainer_autoscaling(definition_id)
+                and has_capacity is False
+                and all_instances_full
+            ):
+                raise EngineSaturated("trainer capacity exhausted")
             return None
         record = PlacementRecord(
             model_id=model.model_id,
