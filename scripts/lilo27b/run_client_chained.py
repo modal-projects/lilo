@@ -31,7 +31,7 @@ image = (
     )
 )
 
-APP_NAME = "lilo27b-client-chained"
+APP_NAME = os.environ.get("LILO_CLIENT_APP_NAME", "lilo27b-client-chained")
 app = modal.App(APP_NAME, image=image)
 runs_volume = modal.Volume.from_name("lilo-27b-runs", create_if_missing=True)
 
@@ -43,6 +43,7 @@ MAX_GENERATIONS = 8
         modal.Secret.from_name("lilo-api"),
         modal.Secret.from_name("wandb-secret"),
         modal.Secret.from_name("huggingface-secret"),
+        modal.Secret.from_dict({"LILO_CLIENT_APP_NAME": APP_NAME}),
     ],
     volumes={"/runs": runs_volume},
     timeout=24 * 60 * 60,
@@ -56,6 +57,7 @@ def run(
     max_steps_off_policy: int = 1,
     std_normalize_advantages: bool = False,
     per_token_loss_scale: bool = False,
+    sample_mean_advantages: bool = False,
     base_url: str = "https://modal-labs-micah-dev--lilo-27b-server.us-west.modal.run",
     base_model: str = "Qwen/Qwen3.8-27B",
     context_length: int | None = None,
@@ -118,6 +120,7 @@ def run(
         ),
         *(["--std-normalize-advantages"] if std_normalize_advantages else []),
         *(["--per-token-loss-scale"] if per_token_loss_scale else []),
+        *(["--sample-mean-advantages"] if sample_mean_advantages else []),
         *(["--pad-to-tokens", str(pad_to_tokens)] if pad_to_tokens else []),
     ]
 
@@ -199,6 +202,7 @@ def run(
         max_steps_off_policy=max_steps_off_policy,
         std_normalize_advantages=std_normalize_advantages,
         per_token_loss_scale=per_token_loss_scale,
+        sample_mean_advantages=sample_mean_advantages,
         base_url=base_url,
         base_model=base_model,
         context_length=context_length,

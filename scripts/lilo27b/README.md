@@ -48,6 +48,23 @@ $PY scripts/lilo27b/spawn_chained_128k.py   # 8-GPU trainer, 120k-token prompts
 $PY scripts/lilo27b/spawn_chained_256k.py   # 24-GPU (3 x 8) trainer, TP8xCP3
 ```
 
+## 4. Sample-mean arm on the isolated `lilo-27b-b` app
+
+`--sample-mean-advantages` scales each trajectory's advantage by
+`1/(n_trajectories * len_i)` so every sample contributes equally to the
+(sum-reduced) server loss; `--per-token-loss-scale` scales by `1/total_tokens`
+(token-mean). `--per-token-loss-scale` alone unset is a raw sum, not
+sample-mean. The run logs `cmp/sample_mean_advantages` next to the other
+`cmp/*` series.
+
+```bash
+LILO_APP_NAME=lilo-27b-b $PY -m modal deploy src/lilo/providers/modal/app.py
+LILO_CLIENT_APP_NAME=lilo27b-client-chained-b $PY -m modal deploy scripts/lilo27b/run_client_chained.py
+LILO_CLIENT_APP_NAME=lilo27b-client-chained-b \
+LILO_BASE_URL=https://modal-labs-micah-dev--lilo-27b-b-server.us-west.modal.run \
+  $PY scripts/lilo27b/spawn_chained_128k_samplemean.py
+```
+
 Per-run artifacts land on the `lilo-27b-runs` Volume under `/<run_name>/`:
 `metrics.jsonl` (per-step), `iteration_NNNNNN/train_rollout_summaries.jsonl`
 (per-sample reward / response length), `checkpoints.jsonl`, `config.json`,
