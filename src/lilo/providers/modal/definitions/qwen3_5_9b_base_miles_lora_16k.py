@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import modal
 
@@ -114,8 +115,9 @@ def run_trainer(
     from lilo.providers.modal.kv import shared_kv
     from lilo.providers.modal.serve import run_engine_with_backend
 
-    snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
-    assets.commit()
+    if not os.path.exists(HF_CHECKPOINT):
+        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
+        assets.commit()
     backend_config = {
         "miles": {
             "hf_checkpoint": HF_CHECKPOINT,

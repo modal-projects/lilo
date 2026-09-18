@@ -37,11 +37,7 @@ def test_definitions_exclude_stale_128k_definition() -> None:
 def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
     registry = InMemoryKeyValueStore()
-    prepared = []
     deployed = []
-
-    async def prepare(definition_id: str) -> None:
-        prepared.append(definition_id)
 
     async def ensure(spec: dict) -> str:
         deployed.append(spec)
@@ -51,11 +47,6 @@ def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
     monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
     monkeypatch.setattr(modal_app, "fft_pool_kv", lambda: registry)
     monkeypatch.setattr(modal_app, "ModalSessionKeyValueStores", SimpleNamespace)
-    monkeypatch.setattr(
-        modal_app,
-        "prepare_model_assets",
-        SimpleNamespace(remote=SimpleNamespace(aio=prepare)),
-    )
     monkeypatch.setattr(
         modal_app,
         "ensure_fft_pool",
@@ -75,7 +66,6 @@ def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
 
     asyncio.run(run())
     base = FFTPoolSpec.base(FULL_DEFINITION)
-    assert prepared == [FULL_DEFINITION]
     assert deployed == [base.as_dict()]
     assert base.version == 0 and not base.latest
     touch = asyncio.run(registry.get(f"fft_pool_touch:{base.app_name}"))
@@ -84,11 +74,7 @@ def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
 
 def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
-    prepared = []
     spawned = []
-
-    async def prepare(definition_id: str) -> None:
-        prepared.append(definition_id)
 
     async def spawn(spec: dict) -> None:
         spawned.append(spec)
@@ -96,11 +82,6 @@ def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> 
     monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
     monkeypatch.setattr(modal_app, "fft_pool_kv", InMemoryKeyValueStore)
     monkeypatch.setattr(modal_app, "ModalSessionKeyValueStores", SimpleNamespace)
-    monkeypatch.setattr(
-        modal_app,
-        "prepare_model_assets",
-        SimpleNamespace(remote=SimpleNamespace(aio=prepare)),
-    )
     monkeypatch.setattr(
         modal_app,
         "ensure_fft_pool",
@@ -124,7 +105,6 @@ def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> 
         await plane.prepare_model(model(FULL_DEFINITION, {}))
 
     asyncio.run(run())
-    assert prepared == [FULL_DEFINITION, FULL_DEFINITION]
     assert spawned == [
         FFTPoolSpec(
             FULL_DEFINITION,
@@ -135,29 +115,6 @@ def test_prepare_model_spawns_sized_latest_pool_for_full_models(monkeypatch) -> 
             max_containers=8,
         ).as_dict(),
         FFTPoolSpec(FULL_DEFINITION, "session:train:0", True, 0).as_dict(),
-    ]
-
-
-def test_prepare_model_assets_validates_snapshot_before_commit(monkeypatch) -> None:
-    modal_app = importlib.import_module("lilo.providers.modal.app")
-    events = []
-
-    def download(*, repo_id: str, local_dir: str) -> None:
-        events.append(("download", repo_id, local_dir))
-
-    monkeypatch.setattr("huggingface_hub.snapshot_download", download)
-    monkeypatch.setattr(
-        modal_app,
-        "model_assets",
-        SimpleNamespace(commit=lambda: events.append(("commit",))),
-    )
-
-    modal_app.prepare_model_assets.local(FULL_DEFINITION)
-
-    definition = modal_app.module_for(FULL_DEFINITION)
-    assert events == [
-        ("download", definition.MODEL_NAME, definition.HF_CHECKPOINT),
-        ("commit",),
     ]
 
 

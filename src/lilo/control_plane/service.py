@@ -244,9 +244,6 @@ class ControlPlane:
             spec=spec,
             created_at=stored.created_at,
         )
-        existing_model = await self.kv.get(model_key(model.model_id))
-        if existing_model is None and self.prepare_model is not None:
-            await self.prepare_model(model)
         model_insert = await self.kv.put_if_absent(
             model_key(model.model_id),
             model.model_dump(mode="json"),
@@ -263,6 +260,8 @@ class ControlPlane:
             )
             if self.reconcile_trainers is not None:
                 await self.reconcile_trainers(definition_id)
+            if self.prepare_model is not None:
+                await self.prepare_model(model)
         return ModelCreation(
             model,
             request_id_for(model.model_id, 0),

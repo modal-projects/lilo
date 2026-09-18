@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import modal
 
@@ -88,8 +89,9 @@ def qwen3_5_9b_full_64k(instance_id: str) -> None:
     from lilo.providers.modal.kv import shared_kv
     from lilo.providers.modal.serve import run_engine_with_backend
 
-    snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
-    assets.commit()
+    if not os.path.exists(HF_CHECKPOINT):
+        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
+        assets.commit()
     backend_config = {
         "megatron": {
             "hf_checkpoint": HF_CHECKPOINT,
