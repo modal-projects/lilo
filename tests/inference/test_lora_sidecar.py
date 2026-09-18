@@ -737,9 +737,12 @@ def test_background_discovery_advances_reused_minimum_sessions(tmp_path):
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize("stream", [False, True])
-def test_transient_queue_rejection_retries_locally_with_fresh_id(tmp_path, stream):
+@pytest.mark.parametrize("response_format", ["fastapi", "sglang", "stream"])
+def test_transient_queue_rejection_retries_locally_with_fresh_id(
+    tmp_path, response_format
+):
     rids = []
+    stream = response_format == "stream"
 
     def upstream(request):
         rids.append(json.loads(request.content)["rid"])
@@ -760,6 +763,17 @@ def test_transient_queue_rejection_retries_locally_with_fresh_id(tmp_path, strea
                     text="data: " + json.dumps(body) + "\n\ndata: [DONE]\n\n",
                     headers={"content-type": "text/event-stream"},
                 )
+            if response_format == "sglang":
+                return httpx.Response(
+                    503,
+                    json={
+                        "object": "error",
+                        "message": "The request queue is full.",
+                        "type": "503",
+                        "param": None,
+                        "code": 503,
+                    },
+                )
             return httpx.Response(503, json={"detail": "The request queue is full."})
         return httpx.Response(200, json={"meta_info": {"completion_tokens": 64}})
 
@@ -778,12 +792,25 @@ def test_transient_queue_rejection_retries_locally_with_fresh_id(tmp_path, strea
     assert rids == ["original", "original:admit-1"]
 
 
-def test_sustained_queue_rejection_is_returned_for_rerouting(tmp_path):
+@pytest.mark.parametrize(
+    "rejection",
+    [
+        {"detail": "The request queue is full."},
+        {
+            "object": "error",
+            "message": "The request queue is full.",
+            "type": "503",
+            "param": None,
+            "code": 503,
+        },
+    ],
+)
+def test_sustained_queue_rejection_is_returned_for_rerouting(tmp_path, rejection):
     calls = []
 
     def upstream(request):
         calls.append(True)
-        return httpx.Response(503, json={"detail": "The request queue is full."})
+        return httpx.Response(503, json=rejection)
 
     app = create_app(
         SnapshotBulletin(tmp_path),
@@ -805,6 +832,21 @@ def test_non_admission_failure_and_partial_output_are_never_retried(tmp_path):
     assert not _queue_rejected(
         httpx.Response(200, json={"meta_info": {"completion_tokens": 64}})
     )
+    rejection = {
+        "object": "error",
+        "message": "The request queue is full.",
+        "type": "503",
+        "param": None,
+        "code": 503,
+    }
+    for changes in [
+        {"message": "engine restarting"},
+        {"code": 500},
+        {"text": "partial output"},
+        {"meta_info": {"completion_tokens": 1}},
+        {"meta_info": None},
+    ]:
+        assert not _queue_rejected(httpx.Response(503, json={**rejection, **changes}))
     body = {
         "meta_info": {
             "completion_tokens": 1,
@@ -834,12 +876,25 @@ def test_non_admission_failure_and_partial_output_are_never_retried(tmp_path):
         {"input_ids": [1], "rid": ["first", "second"]},
     ],
 )
-def test_batch_level_queue_errors_are_not_replayed(tmp_path, payload):
+@pytest.mark.parametrize(
+    "rejection",
+    [
+        {"detail": "The request queue is full."},
+        {
+            "object": "error",
+            "message": "The request queue is full.",
+            "type": "503",
+            "param": None,
+            "code": 503,
+        },
+    ],
+)
+def test_batch_level_queue_errors_are_not_replayed(tmp_path, payload, rejection):
     calls = []
 
     def upstream(request):
         calls.append(True)
-        return httpx.Response(503, json={"detail": "The request queue is full."})
+        return httpx.Response(503, json=rejection)
 
     app = create_app(
         SnapshotBulletin(tmp_path),

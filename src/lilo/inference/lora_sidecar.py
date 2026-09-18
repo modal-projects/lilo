@@ -341,9 +341,18 @@ def _queue_rejected(response: httpx.Response) -> bool:
             body = response.json()
         except ValueError:
             return False
-        return (
-            isinstance(body, dict)
-            and body.get("detail") == "The request queue is full."
+        if not isinstance(body, dict) or body.get("text"):
+            return False
+        meta = body.get("meta_info", {})
+        if not isinstance(meta, dict) or meta.get("completion_tokens", 0) != 0:
+            return False
+        # SGLang's HTTPException handler wraps the scheduler's admission
+        # rejection in ErrorResponse; older handlers exposed FastAPI's detail.
+        return body.get("detail") == "The request queue is full." or (
+            body.get("object") == "error"
+            and body.get("message") == "The request queue is full."
+            and body.get("type") == "503"
+            and body.get("code") == 503
         )
     if response.status_code == 200 and response.headers.get(
         "content-type", ""

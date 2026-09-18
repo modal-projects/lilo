@@ -233,6 +233,16 @@ Source and wheel builds also passed. Regression coverage includes cancellation,
 cross-model preparation, minimum-version watermarks, background advancement,
 refresh/read exclusion, implicit reloads, reference lifetime, and admission retries.
 
+A subsequent four-client DAPO training diagnostic exposed another non-streaming
+queue-rejection envelope: the pinned SGLang HTTP exception handler emits
+`ErrorResponse` (`object`, `message`, `type`, `code`), rather than FastAPI's
+`detail`. The local retry predicate now recognizes both forms. The sidecar suite
+passes 34 tests, including the observed envelope, bounded retries, and rejection
+of partial-output and batch-level replay. The DAPO diagnostic ran before this
+follow-up fix; its retry counts do not measure the fix's performance. The paired
+TTFT measurements above use streaming and remain measurements of their recorded
+benchmark revision.
+
 Run the benchmarks from the repository root with `PYTHONPATH=src modal run
 --env <environment> <script>`. GPU benchmarks need a pre-existing Qwen3.5-9B
 asset volume and immutable compatible adapters. Their results are written to
