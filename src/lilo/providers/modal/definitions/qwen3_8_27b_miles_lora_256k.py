@@ -47,6 +47,11 @@ TRAINER_MODELS_PER_INSTANCE = MAX_LORA_SLOTS
 # all-to-all runs behind a straggler's recompute, so a rank can sit in one
 # collective far longer than ten minutes without anything being wrong.
 DISTRIBUTED_TIMEOUT_MINUTES = 120
+# Coalescing a whole rollout's datums into one Miles call turns a step into a
+# single multi-thousand-collective forward_backward across three nodes, where
+# one desynchronized rank wedges every process group. One datum per call keeps
+# the collective chains short; gradients still accumulate until optim_step.
+MAX_FORWARD_BACKWARD_BATCH = 1
 
 ROLLOUT_GPU_TYPE = "H200"
 ROLLOUT_GPUS = 4
@@ -217,6 +222,7 @@ def run_trainer(
         nproc=1,
         max_models=max_models,
         sampler_persistence_concurrency=8,
+        max_forward_backward_batch=MAX_FORWARD_BACKWARD_BATCH,
     )
 
 
