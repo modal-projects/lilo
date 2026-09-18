@@ -47,6 +47,7 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
 
     async def serving(kv, make_server, **kwargs):
         engine = await make_server()
+        assert engine.max_batch_tokens == 128
         try:
             await engine.accept_model("model-a", {"base_model": "test/model"})
             request_id = await engine.forward_backward(
@@ -83,6 +84,7 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
             definition_id="test",
             revision="test",
             instance_id="test",
+            max_batch_tokens=128,
         )
     assert observed[0].status == FutureStatus.FAILED
     assert signals and all(sig == signal.SIGKILL for sig in signals)

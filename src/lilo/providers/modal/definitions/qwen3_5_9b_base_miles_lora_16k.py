@@ -32,6 +32,8 @@ TARGET_MODULES = (
     "output_layer",
 )
 TRAINER_MODELS_PER_INSTANCE = MAX_LORA_SLOTS
+# Bound coalescing to eight microbatch token budgets; oversized requests run alone.
+TRAINER_MAX_BATCH_TOKENS = 8 * MAX_CONTEXT_LENGTH
 
 ROLLOUT_GPU_TYPE = "H200"
 ROLLOUT_GPUS = 1
@@ -162,6 +164,7 @@ def run_trainer(
         },
         nproc=1,
         max_models=max_models,
+        max_batch_tokens=TRAINER_MAX_BATCH_TOKENS,
         sampler_persistence_concurrency=8,
     )
 

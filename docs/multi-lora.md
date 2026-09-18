@@ -34,12 +34,29 @@ With our Multi-lora backend, clients can use different ranks, up to 32. The LoRA
 ## Submit training work
 
 
-The engine will try and batch multiple clients' requests when possible, and so the intended use of multi-tenancy to maximize trainer utilization is to maintain a steady stream of incoming forward_backward data. The engine's current scheduling logic will interleave client batches when large enough, and multi-lora batch when multiple can fit within a single forward pass. The batching is done wrt "compatibility": in particular, fb requests which share the same `loss_fn` and `loss_fn_config`. This includes consecutive compatible requests
-from one client (see deterministic training section for ensuring gradient accumulation order). 
+At each dispatch, the engine rotates between clients to select the next eligible
+operation. If it is a `forward_backward` request, the engine adds ready requests
+with the same `loss_fn` and `loss_fn_config`, taking at most one request per client
+and staying within `TRAINER_MAX_BATCH_TOKENS`. Small requests can share an execution;
+large requests leave less room for batching. Ranks and sequence lengths can differ.
+The engine uses work already queued, without waiting to fill a batch.
 
-Miles then packs the combined batch into microbatches using the deployment's token
-budget. Scheduling order depends on the queued operations, so clients can
-experience different wait times (WIP to figure out a better fair scheduler across clients). 
+This definition sets the combined-execution budget to 131,072 input tokens, or
+eight of Miles's 16,384-token microbatch budgets. This is a starting configuration,
+not a measured optimum. Miles packs each selected execution into microbatches.
+Every selected request's future resolves when that execution finishes; clients do
+not wait for all other queued requests. Smaller execution budgets reduce completion
+coupling but can lose batching efficiency and add dispatch overhead.
+
+Requests remain intact: a request exceeding the execution budget runs alone and
+can still delay other clients. Round-robin selection provides turns, not equal GPU
+time. Other losses, optimizer steps, forward-only calls, and adapter captures run
+as separate operations on the shared GPU lane. Each client's sequence order is
+preserved.
+
+Submit each client's forward/backward and optimizer calls, then check both
+futures:
+
 
 ```python
 import asyncio

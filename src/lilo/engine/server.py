@@ -117,6 +117,7 @@ class Engine:
         max_buffered: int = 256,
         max_results: int = 1024,
         result_retention_s: float = 900.0,
+        max_batch_tokens: int | None = None,
         observer: Observer | None = None,
         sampler_persistence_concurrency: int = 1,
     ) -> None:
@@ -124,6 +125,10 @@ class Engine:
             raise ValueError("sampler_persistence_concurrency must be positive")
         if result_retention_s < 0:
             raise ValueError("result_retention_s must not be negative")
+        if max_batch_tokens is not None and max_batch_tokens < 1:
+            raise ValueError("max_batch_tokens must be positive")
+        self.max_batch_tokens = max_batch_tokens
+        self._last_scheduled: str | None = None
         self.executor = executor
         self.observer = observer
         self._persistence_active: dict[str, int] = {}
@@ -730,7 +735,12 @@ class Engine:
         if lifecycle is not None:
             return (lifecycle,)
         ready = []
-        for model in self._models.values():
+        model_ids = list(self._models)
+        if self._last_scheduled in self._models:
+            start = model_ids.index(self._last_scheduled) + 1
+            model_ids = model_ids[start:] + model_ids[:start]
+        for model_id in model_ids:
+            model = self._models[model_id]
             if not model.ready.is_set() or model.unload is not None:
                 continue
             operation = model.buffered.get(model.next_seq)
@@ -756,22 +766,21 @@ class Engine:
         selected = [ready[0]]
         if ready[0].kind == OperationKind.FORWARD_BACKWARD:
             key = self._forward_backward_batch_key(ready[0])
-            selected.extend(
-                operation
-                for operation in ready[1:]
-                if operation.kind == OperationKind.FORWARD_BACKWARD
-                and self._forward_backward_batch_key(operation) == key
-            )
-            for operation in tuple(selected):
-                buffered = self._models[operation.model_id].buffered
-                seq_id = operation.seq_id + 1
-                while (
-                    (queued := buffered.get(seq_id)) is not None
-                    and queued.kind == OperationKind.FORWARD_BACKWARD
-                    and self._forward_backward_batch_key(queued) == key
+            budget = self.max_batch_tokens
+            tokens = self._forward_backward_tokens(ready[0]) if budget is not None else 0
+            # Keep requests atomic: an oversized anchor runs alone. Take at most
+            # one request per client so a queued backlog cannot monopolize a turn.
+            for operation in ready[1:]:
+                if (
+                    operation.kind != OperationKind.FORWARD_BACKWARD
+                    or self._forward_backward_batch_key(operation) != key
                 ):
-                    selected.append(queued)
-                    seq_id += 1
+                    continue
+                additional = self._forward_backward_tokens(operation) if budget is not None else 0
+                if budget is not None and tokens + additional > budget:
+                    continue
+                selected.append(operation)
+                tokens += additional
         return tuple(selected)
 
     def _consume_ready(
@@ -784,6 +793,9 @@ class Engine:
             if queued is not first:
                 raise RuntimeError("lifecycle operation changed before execution")
             return
+        # Rotate the anchor, rather than the last piggybacked client: compatible
+        # batching must not keep skipping a client with a different operation.
+        self._last_scheduled = first.model_id
         for operation in operations:
             if not isinstance(operation, Operation):
                 raise RuntimeError("operation batch contains lifecycle work")
@@ -792,6 +804,13 @@ class Engine:
             if queued is not operation:
                 raise RuntimeError("model operation changed before execution")
             model.next_seq += 1
+
+    @staticmethod
+    def _forward_backward_tokens(operation: Operation) -> int:
+        payload = operation.payload
+        if not isinstance(payload, ForwardBackwardInput):
+            raise ValueError("forward_backward requires a forward payload")
+        return sum(datum.model_input.length for datum in payload.data)
 
     @staticmethod
     def _forward_backward_batch_key(operation: Operation) -> str:
