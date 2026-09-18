@@ -330,6 +330,10 @@ def parameterization_for(definition_id: str) -> Parameterization | None:
         return None
 
 
+def trainer_autoscaling(definition_id: str) -> bool:
+    return parameterization_for(definition_id) is not None
+
+
 @app.function(
     image=image,
     env=TRAINER_DEPLOYMENT_ENV,
@@ -366,7 +370,7 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
                     int(maximum_instances) if maximum_instances is not None else None
                 ),
                 models_per_instance=module.TRAINER_MODELS_PER_INSTANCE,
-                scale_up=parameterization == "full",
+                scale_up=trainer_autoscaling(definition_id),
             )
         except Exception:
             logging.getLogger(__name__).exception(
@@ -462,15 +466,18 @@ def _plane():
 
     async def kick_trainers(definition_id: str) -> bool:
         await kick_trainer_reconciler(definition_id)
-        if parameterization_for(definition_id) != "full":
+        if not trainer_autoscaling(definition_id):
             return False
         maximum = TRAINER_MAX_CONTAINERS
         if maximum is None:
             return True
-        instances = await engines.list_instances()
-        return sum(
-            instance.definition_id == definition_id and not instance.terminal
-            for instance in instances
+        instances = [
+            instance
+            for instance in await engines.list_instances()
+            if instance.definition_id == definition_id and not instance.terminal
+        ]
+        return any(instance.state == "starting" for instance in instances) or len(
+            instances
         ) < int(maximum)
 
     return ControlPlane(
@@ -486,9 +493,7 @@ def _plane():
         delete_checkpoint=_delete_checkpoint,
         checkpoint_root=CHECKPOINT_ROOT,
         reconcile_trainers=kick_trainers,
-        trainer_autoscaling=lambda definition_id: (
-            parameterization_for(definition_id) == "full"
-        ),
+        trainer_autoscaling=trainer_autoscaling,
     )
 
 

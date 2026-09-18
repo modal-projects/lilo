@@ -472,3 +472,84 @@ def test_prepare_model_failure_leaves_no_runnable_model() -> None:
         assert not creation.created
 
     asyncio.run(run())
+
+
+def test_model_creation_reports_saturation_at_trainer_cap() -> None:
+    async def no_capacity(definition_id: str) -> bool:
+        return False
+
+    async def run() -> None:
+        kv = InMemoryKeyValueStore()
+        engines = LocalEnginePlatform(DEFINITION, EchoExecutor, max_models=1)
+        await engines.spawn_instance(DEFINITION)
+        plane = ControlPlane(
+            kv,
+            engines,
+            reconcile_trainers=no_capacity,
+            trainer_autoscaling=lambda _: True,
+            session_idle_timeout=300,
+        )
+        session = await plane.create_session()
+        first = await plane.create_model(
+            session_id=session.session_id,
+            model_seq_id=0,
+            definition_id=DEFINITION,
+            spec={"rank": 32},
+        )
+        assert (
+            await plane.retrieve(first.request_id)
+        ).status == FutureResolutionStatus.COMPLETE
+
+        overflow = await plane.create_model(
+            session_id=session.session_id,
+            model_seq_id=1,
+            definition_id=DEFINITION,
+            spec={"rank": 32},
+        )
+        resolution = await plane.retrieve(overflow.request_id)
+        assert resolution.status == FutureResolutionStatus.FAILED
+        assert resolution.error == "engine refused work: trainer capacity exhausted"
+        assert resolution.category == "server"
+
+    asyncio.run(run())
+
+
+def test_model_creation_reuses_released_slot_at_trainer_cap() -> None:
+    async def no_capacity(definition_id: str) -> bool:
+        return False
+
+    async def run() -> None:
+        kv = InMemoryKeyValueStore()
+        engines = LocalEnginePlatform(DEFINITION, EchoExecutor, max_models=2)
+        instance = await engines.spawn_instance(DEFINITION)
+        plane = ControlPlane(
+            kv,
+            engines,
+            reconcile_trainers=no_capacity,
+            trainer_autoscaling=lambda _: True,
+        )
+        session = await plane.create_session()
+        creations = [
+            await plane.create_model(
+                session_id=session.session_id,
+                model_seq_id=index,
+                definition_id=DEFINITION,
+                spec={"rank": 32},
+            )
+            for index in range(3)
+        ]
+        for creation in creations[:2]:
+            assert (
+                await plane.retrieve(creation.request_id)
+            ).status == FutureResolutionStatus.COMPLETE
+
+        await plane.unload_model(creations[0].model.model_id)
+        replacement = await plane.retrieve(creations[2].request_id)
+
+        assert replacement.status == FutureResolutionStatus.COMPLETE
+        assert await engines.client(instance.instance_id).model_ids() == (
+            creations[1].model.model_id,
+            creations[2].model.model_id,
+        )
+
+    asyncio.run(run())
