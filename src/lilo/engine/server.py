@@ -99,6 +99,7 @@ class _ModelState:
     fingerprints: dict[int, str] = field(default_factory=dict)
     done: deque[int] = field(default_factory=deque)
     retrieved: set[int] = field(default_factory=set)
+    completed_at: dict[int, float] = field(default_factory=dict)
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     registration: asyncio.Future[bool] | None = None
     unload: asyncio.Future[None] | None = None
@@ -113,18 +114,22 @@ class Engine:
         *,
         max_models: int = 8,
         max_buffered: int = 256,
-        max_results: int = 128,
+        max_results: int = 1024,
+        result_retention_s: float = 900.0,
         observer: Observer | None = None,
         sampler_persistence_concurrency: int = 1,
     ) -> None:
         if sampler_persistence_concurrency < 1:
             raise ValueError("sampler_persistence_concurrency must be positive")
+        if result_retention_s < 0:
+            raise ValueError("result_retention_s must not be negative")
         self.executor = executor
         self.observer = observer
         self._persistence_active: dict[str, int] = {}
         self.max_models = max_models
         self.max_buffered = max_buffered
         self.max_results = max_results
+        self.result_retention_s = result_retention_s
         self.sampler_persistence_concurrency = sampler_persistence_concurrency
         self._sampler_inflight: set[str] = set()
         self._serial_persistence_inflight: set[OperationKind] = set()
@@ -655,16 +660,22 @@ class Engine:
         if model is not None and model.unload is None:
             self._futures[operation.request_id] = state
             model.done.append(operation.seq_id)
+            model.completed_at[operation.seq_id] = time.monotonic()
             self._evict_retrieved(operation.model_id, model)
         self._completed.notify_all()
 
     def _evict_retrieved(self, model_id: str, model: _ModelState) -> None:
+        now = time.monotonic()
         while len(model.done) > self.max_results:
             oldest = model.done[0]
             if oldest not in model.retrieved:
                 break
+            completed = model.completed_at.get(oldest)
+            if completed is not None and now - completed < self.result_retention_s:
+                break
             model.done.popleft()
             model.retrieved.discard(oldest)
+            model.completed_at.pop(oldest, None)
             self._futures.pop(f"{model_id}:{oldest}", None)
             model.fingerprints.pop(oldest, None)
 
