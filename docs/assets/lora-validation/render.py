@@ -147,7 +147,7 @@ def async_math():
     finish(
         fig,
         axes,
-        "Qwen3.5-9B-Base · six asynchronous LoRA clients",
+        "Lilo with the Miles backend · Qwen3.5-9B-Base · six asynchronous clients",
         "Shared 4×H100 trainer · 30 updates each · bold: trailing 5-update mean; faint: raw",
         "qwen3-5-9b-async-math.png",
     )
@@ -234,7 +234,104 @@ def codegolf():
     )
 
 
+def cost_estimate():
+    data = load("dapo-cost-estimate.json")
+    rows = {row["key"]: row for row in data["costs"]}
+    fig, axes = plt.subplots(
+        1, 3, figsize=(14, 6), gridspec_kw={"width_ratios": [1.6, 1, 1]}
+    )
+    panels = (
+        (["training", "sampling", "total"], "Workload cost", "USD"),
+        (["per_client"], "Average per client", "USD / client"),
+        (
+            ["per_million_generated"],
+            "Per million generated tokens",
+            "USD / million generated tokens",
+        ),
+    )
+    for ax, (keys, title, unit) in zip(axes, panels):
+        positions = np.arange(len(keys))
+        for offset, field, label, color, hatch in (
+            (-0.18, "lilo", "Lilo · averaged GPU cost", COLORS[0], None),
+            (
+                0.18,
+                "tinker_estimate",
+                "Tinker · token-price estimate",
+                COLORS[1],
+                "///",
+            ),
+        ):
+            values = [rows[key][field] for key in keys]
+            bars = ax.barh(
+                positions + offset,
+                values,
+                height=0.30,
+                color=color,
+                label=label,
+                hatch=hatch,
+                edgecolor="white",
+                linewidth=0.5,
+            )
+            ax.bar_label(
+                bars, labels=[f"${v:.2f}" for v in values], padding=6, fontsize=12
+            )
+        ax.set_yticks(
+            positions, [rows[k]["label"] if len(keys) > 1 else "" for k in keys]
+        )
+        ax.invert_yaxis()
+        ax.set_xlim(0, max(rows[k]["tinker_estimate"] for k in keys) * 1.32)
+        ax.set_xlabel(unit)
+        ax.set_title(
+            title
+            + ("\nIncludes training" if keys == ["per_million_generated"] else ""),
+            fontsize=12,
+            pad=14,
+        )
+        ax.grid(axis="x", alpha=0.16)
+        ax.set_axisbelow(True)
+        ax.spines["left"].set_visible(False)
+        ax.tick_params(axis="y", length=0)
+        if len(keys) == 1:
+            ax.set_ylim(0.7, -0.7)
+    fig.suptitle(
+        "Optimistic cost estimate · Qwen3.5-9B on DAPO Math\n"
+        "12 clients share one 4×H100 trainer + 2–6 H200 inference GPUs",
+        fontsize=16,
+        y=0.97,
+    )
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.84),
+        ncol=2,
+        frameon=False,
+    )
+    fig.subplots_adjust(left=0.085, right=0.97, top=0.65, bottom=0.28, wspace=0.32)
+    fig.text(
+        0.5,
+        0.09,
+        "Equal client workloads · saturated async trainer · concurrent persistence + adapter-aware inference routing\n"
+        "Tinker cache assumption: 1 uncached + 7 cached prompt copies per 8-sample group. Matched Tinker run still pending.",
+        ha="center",
+        fontsize=10,
+    )
+    fig.text(
+        0.5,
+        0.025,
+        "Supplied rounded estimates; Lilo components sum to $9.09 versus the supplied $9.08 total.",
+        ha="center",
+        fontsize=9,
+        color="#667085",
+        parse_math=False,
+    )
+    fig.savefig(ROOT / "qwen3-5-9b-dapo-cost-estimate.png", dpi=170)
+    plt.close(fig)
+
+
 if __name__ == "__main__":
     parity()
     async_math()
     codegolf()
+    cost_estimate()
