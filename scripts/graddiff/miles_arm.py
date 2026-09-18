@@ -312,11 +312,19 @@ def run() -> str:
     from ray.job_submission import JobSubmissionClient
 
     client = JobSubmissionClient("http://127.0.0.1:8265")
+    # Mirror miles' own ray-job runtime env (external_utils/command_utils.py):
+    # PYTHONUNBUFFERED, CUDA_DEVICE_MAX_CONNECTIONS, NCCL_NVLS_ENABLE, MASTER_ADDR.
     runtime_env = {
         "env_vars": {
+            "PYTHONUNBUFFERED": "1",
+            "CUDA_DEVICE_MAX_CONNECTIONS": "1",
+            "NCCL_NVLS_ENABLE": os.environ.get("NCCL_NVLS_ENABLE", "1"),
+            "no_proxy": "127.0.0.1",
+            "MASTER_ADDR": "127.0.0.1",
             "MILES_GRADDIFF_DUMP_DIR": "/graddiff/miles_dump",
             "LILO_DUMP_DIR": "/graddiff/lilo_dump/lilo",
-            "PYTHONPATH": "/root/graddiff",
+            "PYTHONPATH": "/root/graddiff"
+            + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else ""),
             "WANDB_API_KEY": os.environ.get("WANDB_API_KEY", ""),
             "HF_HOME": HF_MOUNT,
         }
