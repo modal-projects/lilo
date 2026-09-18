@@ -214,8 +214,8 @@ loop that logs reward, response length, and Lilo's training metrics to Weights
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
 
-See [Profiling](docs/profiling.md) for how to enable the opt-in `torch.profiler`
-trace, per-phase step timing, and request-path timing marks in backend operations.
+See [Profiling](docs/profiling.md) for how to enable the `torch.profiler` trace of
+a training step and read it in Perfetto.
 
 See [Observability](docs/observability.md) for OTLP export to Datadog or a custom
 destination, experiment labels, and the complete span/metric inventory.
