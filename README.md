@@ -172,6 +172,11 @@ loop that logs reward, response length, and Lilo's training metrics to Weights
 & Biases from the client side; tinker-cookbook users can instead set
 `wandb_project`/`wandb_name` on the cookbook `Config`.
 
+The [deployment smoke test](scripts/deployment_smoke_longrlvr.py) runs a few
+LongRLVR GRPO steps against a deployed server over the Tinker SDK, which is a
+quick way to check a long-context LoRA definition end to end before handing the
+endpoint to someone else.
+
 See [Design](docs/design.md) for the control-plane, training-engine, and sampling
 architecture.
 
