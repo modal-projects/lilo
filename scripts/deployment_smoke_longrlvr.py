@@ -1,14 +1,19 @@
+# /// script
+# requires-python = ">=3.11,<3.13"
+# dependencies = ["tinker>=0.24,<0.25", "datasets", "wandb"]
+# ///
 """Smoke-test a deployed Lilo server the way a customer would: pure Tinker SDK.
 
 Runs a short LongRLVR GRPO loop against an already-deployed endpoint and
 exercises the whole client path end to end: LoRA client creation, sampling at
-the definition's context length, `forward_backward`, `optim_step`, and a final
-`save_state`. Prompts are padded with distractor documents so the run actually
-reaches the long-context regime the definition was built for.
+the definition's context length, `forward_backward`, `optim_step`, `save_state`,
+and resuming that checkpoint on a fresh client for one more step. Prompts are
+padded with distractor documents so the run actually reaches the long-context
+regime the definition was built for.
 
     export TINKER_BASE_URL=https://<deployment>.modal.run
     export TINKER_API_KEY=...
-    python scripts/deployment_smoke_longrlvr.py \\
+    uv run scripts/deployment_smoke_longrlvr.py \\
         --base-model qwen3_8_27b_miles_lora_64k \\
         --target-prompt-tokens 48000 --steps 2
 
@@ -22,10 +27,13 @@ import os
 import re
 import time
 from collections import Counter
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import tinker
-from tinker import types
+import wandb
+from datasets import load_dataset
+from tinker import TrainingClient, types
 
 DATASET_NAME = "Guanzheng/LongRLVR-Data"
 TIMEOUT = 3 * 60 * 60
@@ -69,8 +77,6 @@ def score(response: str, ground_truth: str, reference_chunks: Sequence[int]) -> 
 
 
 def load_rows(count: int, seed: int) -> list[dict[str, Any]]:
-    from datasets import load_dataset
-
     dataset = load_dataset(DATASET_NAME, split="train", streaming=True).shuffle(
         seed=seed, buffer_size=max(256, 4 * count)
     )
@@ -130,7 +136,115 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wandb-project", default=None)
     parser.add_argument("--wandb-entity", default=None)
     parser.add_argument("--run-name", default=None)
+    parser.add_argument(
+        "--skip-resume",
+        action="store_true",
+        help="Skip the save_state/load_state leg at the end of the run.",
+    )
     return parser.parse_args()
+
+
+def train_step(
+    training: TrainingClient,
+    prompts: Sequence[tuple[list[int], dict[str, Any]]],
+    tokenizer: Any,
+    args: argparse.Namespace,
+    label: str,
+) -> tuple[float, dict[str, Any], dict[str, Any], float]:
+    """Sample a GRPO batch, run forward_backward + optim_step, return metrics."""
+    started = time.time()
+    log(f"{label}: saving weights for the sampler")
+    sampling = training.save_weights_and_get_sampling_client()
+    futures = [
+        sampling.sample(
+            prompt=types.ModelInput.from_ints(tokens),
+            num_samples=args.group_size,
+            sampling_params=types.SamplingParams(
+                max_tokens=args.max_tokens, temperature=1.0, top_p=1.0
+            ),
+        )
+        for tokens, _ in prompts
+    ]
+    batch: list[types.Datum] = []
+    rewards: list[float] = []
+    for (tokens, row), future in zip(prompts, futures):
+        sequences = []
+        group_rewards = []
+        for sequence in future.result(timeout=TIMEOUT).sequences:
+            response = list(sequence.tokens)
+            sequences.append((response, list(sequence.logprobs or ())))
+            group_rewards.append(
+                score(
+                    tokenizer.decode(response),
+                    str(row["ground_truth"]),
+                    row["reference_chunks"],
+                )
+            )
+        mean = sum(group_rewards) / len(group_rewards)
+        variance = sum((r - mean) ** 2 for r in group_rewards) / len(group_rewards)
+        spread = variance**0.5
+        for (response, logprobs), reward in zip(sequences, group_rewards):
+            advantage = (reward - mean) / (spread + 1e-6)
+            prefix = len(tokens) - 1
+            batch.append(
+                types.Datum(
+                    # target_tokens must be model_input shifted by one, so
+                    # the prompt is masked through advantages, not targets.
+                    model_input=types.ModelInput.from_ints(tokens + response[:-1]),
+                    loss_fn_inputs={
+                        "target_tokens": tokens[1:] + response,
+                        "logprobs": [0.0] * prefix + logprobs,
+                        "advantages": [0.0] * prefix + [advantage] * len(response),
+                    },
+                )
+            )
+        rewards.extend(group_rewards)
+
+    log(f"{label}: forward_backward on {len(batch)} sequences")
+    forward_backward = training.forward_backward(batch, "importance_sampling")
+    optim = training.optim_step(types.AdamParams(learning_rate=args.learning_rate))
+    forward_backward_result = forward_backward.result(timeout=TIMEOUT)
+    optim_result = optim.result(timeout=TIMEOUT)
+    elapsed = time.time() - started
+    reward_mean = sum(rewards) / len(rewards)
+    log(f"{label}: reward_mean={reward_mean:.4f} step_time={elapsed:.0f}s")
+    log(f"{label}: forward_backward {forward_backward_result.metrics}")
+    log(f"{label}: optim {optim_result.metrics}")
+    return reward_mean, forward_backward_result.metrics, optim_result.metrics, elapsed
+
+
+def log_wandb(
+    step: int,
+    reward_mean: float,
+    forward_backward_metrics: dict[str, Any],
+    optim_metrics: dict[str, Any],
+    elapsed: float,
+) -> None:
+    wandb.log(
+        {
+            "reward/mean": reward_mean,
+            "time/step_s": elapsed,
+            **{
+                f"fb/{key}": value
+                for key, value in forward_backward_metrics.items()
+                if isinstance(value, (int, float))
+            },
+            **{
+                f"optim/{key}": value
+                for key, value in optim_metrics.items()
+                if isinstance(value, (int, float))
+            },
+        },
+        step=step,
+    )
+
+
+def create_client(service: tinker.ServiceClient, args: argparse.Namespace):
+    # Miles applies LoRA deployment-wide to attention and MLP; the SDK defaults
+    # to train_unembed=True, which the backend rejects.
+    return service.create_lora_training_client(
+        base_model=args.base_model, rank=args.rank, train_unembed=False
+    )
 
 
 def main() -> None:
@@ -138,8 +252,6 @@ def main() -> None:
     run_name = args.run_name or f"lilo-deploy-smoke-{int(time.time())}"
     run = None
     if args.wandb_project:
-        import wandb
-
         run = wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
@@ -155,11 +267,7 @@ def main() -> None:
     )
     log(f"creating LoRA training client rank={args.rank} on {args.base_model}")
     started = time.time()
-    # Miles applies LoRA deployment-wide to attention and MLP; the SDK defaults
-    # to train_unembed=True, which the backend rejects.
-    training = service.create_lora_training_client(
-        base_model=args.base_model, rank=args.rank, train_unembed=False
-    )
+    training = create_client(service, args)
     log(f"training client ready in {time.time() - started:.0f}s")
     tokenizer = training.get_tokenizer()
 
@@ -178,95 +286,31 @@ def main() -> None:
         log(f"prompt {index}: {len(tokens)} tokens")
 
     for step in range(args.steps):
-        step_started = time.time()
-        log(f"step {step}: saving weights for the sampler")
-        sampling = training.save_weights_and_get_sampling_client()
-        futures = [
-            sampling.sample(
-                prompt=types.ModelInput.from_ints(tokens),
-                num_samples=args.group_size,
-                sampling_params=types.SamplingParams(
-                    max_tokens=args.max_tokens, temperature=1.0, top_p=1.0
-                ),
-            )
-            for tokens, _ in prompts
-        ]
-        batch: list[types.Datum] = []
-        rewards: list[float] = []
-        for (tokens, row), future in zip(prompts, futures):
-            sequences = []
-            group_rewards = []
-            for sequence in future.result(timeout=TIMEOUT).sequences:
-                response = list(sequence.tokens)
-                sequences.append((response, list(sequence.logprobs or ())))
-                group_rewards.append(
-                    score(
-                        tokenizer.decode(response),
-                        str(row["ground_truth"]),
-                        row["reference_chunks"],
-                    )
-                )
-            mean = sum(group_rewards) / len(group_rewards)
-            variance = sum((r - mean) ** 2 for r in group_rewards) / len(group_rewards)
-            spread = variance**0.5
-            for (response, logprobs), reward in zip(sequences, group_rewards):
-                advantage = (reward - mean) / (spread + 1e-6)
-                prefix = len(tokens) - 1
-                batch.append(
-                    types.Datum(
-                        # target_tokens must be model_input shifted by one, so
-                        # the prompt is masked through advantages, not targets.
-                        model_input=types.ModelInput.from_ints(tokens + response[:-1]),
-                        loss_fn_inputs={
-                            "target_tokens": tokens[1:] + response,
-                            "logprobs": [0.0] * prefix + logprobs,
-                            "advantages": [0.0] * prefix
-                            + [advantage] * len(response),
-                        },
-                    )
-                )
-            rewards.extend(group_rewards)
-
-        log(f"step {step}: forward_backward on {len(batch)} sequences")
-        forward_backward = training.forward_backward(batch, "importance_sampling")
-        optim = training.optim_step(
-            types.AdamParams(learning_rate=args.learning_rate)
-        )
-        forward_backward_result = forward_backward.result(timeout=TIMEOUT)
-        optim_result = optim.result(timeout=TIMEOUT)
-        elapsed = time.time() - step_started
-        reward_mean = sum(rewards) / len(rewards)
-        log(f"step {step}: reward_mean={reward_mean:.4f} step_time={elapsed:.0f}s")
-        log(f"step {step}: forward_backward {forward_backward_result.metrics}")
-        log(f"step {step}: optim {optim_result.metrics}")
+        results = train_step(training, prompts, tokenizer, args, f"step {step}")
         if run is not None:
-            import wandb
-
-            wandb.log(
-                {
-                    "reward/mean": reward_mean,
-                    "reward/min": min(rewards),
-                    "reward/max": max(rewards),
-                    "time/step_s": elapsed,
-                    **{
-                        f"fb/{key}": value
-                        for key, value in forward_backward_result.metrics.items()
-                        if isinstance(value, (int, float))
-                    },
-                    **{
-                        f"optim/{key}": value
-                        for key, value in optim_result.metrics.items()
-                        if isinstance(value, (int, float))
-                    },
-                },
-                step=step,
-            )
+            log_wandb(step, *results)
 
     log("save_state")
     state = training.save_state(name=run_name).result(timeout=TIMEOUT)
     log(f"checkpoint: {state.path}")
     if run is not None:
         run.summary["checkpoint"] = state.path
+
+    if not args.skip_resume:
+        # A second client resuming the checkpoint is what a customer does after
+        # a preemption, so the smoke test covers it rather than trusting the
+        # save alone.
+        log(f"resuming {state.path} on a fresh training client")
+        started = time.time()
+        resumed = create_client(service, args)
+        resumed.load_state_with_optimizer(state.path).result(timeout=TIMEOUT)
+        log(f"resumed in {time.time() - started:.0f}s")
+        results = train_step(resumed, prompts, tokenizer, args, "resumed step")
+        if run is not None:
+            log_wandb(args.steps, *results)
+            run.summary["resumed"] = True
+
+    if run is not None:
         run.finish()
     log("smoke test passed")
 
