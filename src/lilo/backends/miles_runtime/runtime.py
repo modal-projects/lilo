@@ -191,6 +191,7 @@ class MilesRuntime:
         from miles.utils.logging_utils import configure_logger
 
         _configure_actor_spec(train_specs)
+        _allow_context_parallel_multi_lora()
         architecture = shlex.split(load_model_args(self.config.model_type))
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
             args = parse_args(entry="serve")
@@ -290,6 +291,30 @@ def _configure_actor_spec(train_specs) -> None:
 
     compute._lilo_actor_spec = True
     train_specs._compute_spec_trainer = compute
+
+
+def _allow_context_parallel_multi_lora() -> None:
+    """Miles rejects multi-LoRA with CP>1 because its Tinker losses zip
+    full-length per-datum vectors against CP-sharded log probs. The Lilo actor
+    gathers those log probs back to full response length before the loss runs,
+    so the guard does not apply to this path."""
+    from miles.utils import multi_lora
+
+    original = multi_lora.validate_multi_lora_args
+    if getattr(original, "__lilo_allows_cp__", False):
+        return
+
+    @wraps(original)
+    def validate(args) -> None:
+        context_parallel_size = getattr(args, "context_parallel_size", 1)
+        args.context_parallel_size = 1
+        try:
+            original(args)
+        finally:
+            args.context_parallel_size = context_parallel_size
+
+    validate.__lilo_allows_cp__ = True
+    multi_lora.validate_multi_lora_args = validate
 
 
 def _materialize_capture(path: str) -> None:

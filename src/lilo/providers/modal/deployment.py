@@ -1,6 +1,7 @@
 import os
 
 TRAINER_MAX_CONTAINERS_ENV = "LILO_TRAINER_MAX_CONTAINERS"
+APP_NAME_ENV = "LILO_APP_NAME"
 
 
 def trainer_max_containers() -> int | None:
@@ -20,6 +21,7 @@ def trainer_max_containers() -> int | None:
 
 FORWARDED_DEPLOYMENT_ENVS = (
     TRAINER_MAX_CONTAINERS_ENV,
+    APP_NAME_ENV,
     "LILO_TORCH_PROFILE_STEP",
     "LILO_TORCH_PROFILE_DIR",
     "LILO_TORCH_PROFILE_RANKS",
