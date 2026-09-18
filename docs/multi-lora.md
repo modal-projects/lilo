@@ -340,9 +340,9 @@ and recomputation settings. Gradients for the adapters still pass through the
 frozen base model. Active microbatches need those intermediate tensors even
 though the base weights are frozen. A queued client batch does not need a full
 set of forward activations yet; queued inputs, outputs and prefetched rollouts
-still consume memory wherever the implementation holds them. Increasing client
-count therefore increases adapter state and queued data, while the microbatch
-budget controls how much training work executes together.
+still consume memory wherever the implementation holds them. The slot and rank
+limits determine reserved adapter capacity; the microbatch budget controls how
+much training work executes together.
 
 Increasing rank or slot capacity leaves less room for activations. Increasing
 the microbatch budget uses more activation memory and may improve packing.
@@ -361,9 +361,10 @@ keep room for the longest allowed batches, and retain the setting that improves
 end-to-end TPS within those memory limits. Repeat when rank, target modules,
 slot count, context length or parallelism changes.
 
-Inference has its own memory budget: base weights, resident adapter versions,
-KV cache and temporary buffers. More retained adapters leave less room for
-cached sequences. Prefetch concurrency and adapter retention should keep
+Inference has its own memory budget: base weights, GPU adapter slots, KV cache
+and temporary buffers. Increasing GPU adapter capacity leaves less memory for
+cached sequences. Adapters retained only in CPU RAM use a separate budget.
+Prefetch concurrency and adapter retention should keep
 rollouts arriving fast enough without creating long inference queues or
 repeated cache eviction. Measure that side separately from trainer memory.
 
