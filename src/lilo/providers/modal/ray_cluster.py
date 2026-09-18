@@ -74,7 +74,7 @@ def start_trainer_cluster(nodes: int, *, join_timeout: float = 900.0) -> str | N
 
     _wait_for_head(topology, timeout=join_timeout)
     _start_worker(topology)
-    _idle_until_terminated()
+    _idle_until_head_exits(topology)
     return None
 
 
@@ -168,6 +168,15 @@ def _start_worker(topology: ClusterTopology, *, attempts: int = 30) -> None:
     raise RuntimeError(f"rank {topology.rank} could not join {topology.ray_address}")
 
 
-def _idle_until_terminated(poll_seconds: float = 30.0) -> None:
+def _idle_until_head_exits(
+    topology: ClusterTopology, *, poll_seconds: float = 30.0
+) -> None:
+    """Keep the worker container alive for as long as the head serves Ray."""
     while True:
         time.sleep(poll_seconds)
+        try:
+            with socket.create_connection((topology.head_addr, RAY_PORT), timeout=10):
+                continue
+        except OSError:
+            print(f"[lilo-cluster] rank {topology.rank} lost the head; exiting")
+            return
