@@ -315,13 +315,30 @@ def train_cmd() -> str:
 def run() -> str:
     import os
 
-    commit = subprocess.run(
-        ["git", "-C", "/root/miles", "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout.strip()
+    def _sh(cmd: str) -> str:
+        r = subprocess.run(
+            ["bash", "-c", cmd], capture_output=True, text=True, check=False
+        )
+        return (r.stdout + r.stderr).strip()
+
+    commit = _sh("git -C /root/miles rev-parse HEAD")
     print(f"miles commit in image: {commit}", flush=True)
+    print("mglm before:", _sh("git -C /root/Megatron-LM rev-parse HEAD"), flush=True)
+    print(
+        "pkg versions:",
+        _sh("pip list 2>/dev/null | grep -iE 'megatron|transformer.engine|miles'"),
+        flush=True,
+    )
+    # Match slim-hill's env: megatron-core==0.19.0+73b54618f (packed-GDN support).
+    print(
+        "mglm update:",
+        _sh(
+            "git -C /root/Megatron-LM fetch --depth 50 origin miles-main && "
+            "git -C /root/Megatron-LM checkout -f 73b54618f && "
+            "git -C /root/Megatron-LM rev-parse HEAD"
+        ),
+        flush=True,
+    )
 
     convert_batch()
 
