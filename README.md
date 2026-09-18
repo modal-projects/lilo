@@ -217,6 +217,8 @@ See [Observability](docs/observability.md) for OTLP export to Datadog or a custo
 destination, experiment labels, and the complete span/metric inventory.
 See [LoRA inference latency](docs/lora_inference_latency.md) for adapter
 residency, prefix-cache behavior, and controlled H200 admission benchmarks.
+See [DAPO client scaling](docs/dapo_client_scaling.md) for throughput, step time
+and estimated cost as 1–32 LoRA clients share a fixed H200 allocation.
 
 ## Examples
 

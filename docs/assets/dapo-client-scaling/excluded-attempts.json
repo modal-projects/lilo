@@ -1,0 +1,40 @@
+{
+  "attempts": [
+    {
+      "run": "dapo-scale-v2-c16",
+      "reason": "Discarded after container preemption during measured update 3",
+      "main_app_id": "ap-qbYU1v6A3mzhX8cfdCF007",
+      "inference_app_name": "lilo-lora-8823987df2f03b15",
+      "measurement_started_at": 1789727807.7514536,
+      "drain_checks": [
+        {
+          "time": 1789728129.5039499,
+          "remaining_tasks": []
+        },
+        {
+          "time": 1789728134.8625574,
+          "remaining_tasks": []
+        }
+      ],
+      "drained": true
+    },
+    {
+      "run": "dapo-scale-v3-c16",
+      "reason": "CPU driver preempted and restarted during warmup; full attempt discarded",
+      "main_app_id": "ap-DDSpDvyNNCkW1MngBLRqW5",
+      "inference_app_name": "lilo-lora-c420ed9252ed9b30",
+      "drain_checks": [
+        {
+          "time": 1789729246.7101624,
+          "remaining_tasks": []
+        },
+        {
+          "time": 1789729252.0662158,
+          "remaining_tasks": []
+        }
+      ],
+      "drained": true
+    }
+  ],
+  "cost_note": "Aborted attempts are excluded from measured-window throughput and GPU cost; the chart is not an invoice."
+}

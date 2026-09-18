@@ -1,0 +1,850 @@
+{
+  "prices": {
+    "h200_gpu_second": 0.001261,
+    "training_million": 1.463,
+    "output_million": 1.995,
+    "prompt_million": 0.66,
+    "cached_prompt_million": 0.132
+  },
+  "prices_checked_on": "2026-09-18",
+  "price_sources": [
+    "https://modal.com/pricing",
+    "https://tinker-docs.thinkingmachines.ai/tinker/models/"
+  ],
+  "rows": [
+    {
+      "run": "dapo-scale-v2-c01",
+      "clients": 1,
+      "measured_steps_per_client": 6,
+      "seconds": 302.381076335907,
+      "output_tokens": 426707,
+      "prompt_tokens": 55360,
+      "training_tokens": 481683.0,
+      "output_tps": 1411.1564293989836,
+      "output_tps_per_client": 1411.1564293989836,
+      "training_tps": 1592.9667485703085,
+      "mean_step_seconds": 50.396544893582664,
+      "train_call_seconds": 32.11967673016659,
+      "publication_seconds": 5.763994959833364,
+      "rollout_wait_seconds": 12.512371778833312,
+      "mean_output_length": 1111.2161458333333,
+      "truncated_fraction": 0.12239583333333333,
+      "cost": {
+        "lilo_training_gpu": 3.0504202980766295,
+        "lilo_inference_gpu": 3.0504202980766295,
+        "lilo_total_gpu": 6.100840596153259,
+        "tinker_training": 0.704702229,
+        "tinker_output": 0.8512804650000001,
+        "tinker_prompt": 0.01096128,
+        "tinker_total": 1.5669439740000002,
+        "tinker_total_no_cache": 1.592520294,
+        "lilo_per_client": 6.100840596153259,
+        "tinker_per_client": 1.5669439740000002,
+        "lilo_per_million_output": 14.297493587293527,
+        "tinker_per_million_output": 3.6721778035045127
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 426707,
+          "prompt_tokens": 55360,
+          "training_tokens": 481683.0,
+          "output_tps": 1411.1564293989836,
+          "output_tps_common_window": 1411.1564293989836,
+          "mean_step_seconds": 50.396544893582664,
+          "elapsed_seconds": 302.381076335907
+        }
+      ]
+    },
+    {
+      "run": "dapo-scale-v2-c02",
+      "clients": 2,
+      "measured_steps_per_client": 6,
+      "seconds": 421.2719678878784,
+      "output_tokens": 833103,
+      "prompt_tokens": 110664,
+      "training_tokens": 942999.0,
+      "output_tps": 1977.5894517190625,
+      "output_tps_per_client": 988.7947258595312,
+      "training_tps": 2238.456559851092,
+      "mean_step_seconds": 68.59128922224045,
+      "train_call_seconds": 45.11971928641666,
+      "publication_seconds": 13.67255717533331,
+      "rollout_wait_seconds": 9.79847625508332,
+      "mean_output_length": 1084.76953125,
+      "truncated_fraction": 0.1015625,
+      "cost": {
+        "lilo_training_gpu": 4.249791612052918,
+        "lilo_inference_gpu": 4.249791612052918,
+        "lilo_total_gpu": 8.499583224105836,
+        "tinker_training": 1.379607537,
+        "tinker_output": 1.6620404850000001,
+        "tinker_prompt": 0.021911472,
+        "tinker_total": 3.0635594940000006,
+        "tinker_total_no_cache": 3.114686262,
+        "lilo_per_client": 4.249791612052918,
+        "tinker_per_client": 1.5317797470000003,
+        "lilo_per_million_output": 10.20231979011699,
+        "tinker_per_million_output": 3.677287795146579
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 414687,
+          "prompt_tokens": 55360,
+          "training_tokens": 469663.0,
+          "output_tps": 1032.0015547420169,
+          "output_tps_common_window": 984.3688439064832,
+          "mean_step_seconds": 66.97090061505635,
+          "elapsed_seconds": 401.8278830051422
+        },
+        {
+          "client": 1,
+          "output_tokens": 418416,
+          "prompt_tokens": 55304,
+          "training_tokens": 473336.0,
+          "output_tps": 993.2206078125794,
+          "output_tps_common_window": 993.2206078125794,
+          "mean_step_seconds": 70.21167782942454,
+          "elapsed_seconds": 421.2719678878784
+        }
+      ]
+    },
+    {
+      "run": "dapo-scale-v2-c04",
+      "clients": 4,
+      "measured_steps_per_client": 6,
+      "seconds": 464.37731432914734,
+      "output_tokens": 1763513,
+      "prompt_tokens": 221416,
+      "training_tokens": 1983393.0,
+      "output_tps": 3797.5864573566023,
+      "output_tps_per_client": 949.3966143391506,
+      "training_tps": 4271.08073284171,
+      "mean_step_seconds": 77.31883285442989,
+      "train_call_seconds": 56.713720573375,
+      "publication_seconds": 10.51385580616666,
+      "rollout_wait_seconds": 10.089104858708316,
+      "mean_output_length": 1148.1204427083333,
+      "truncated_fraction": 0.12044270833333333,
+      "cost": {
+        "lilo_training_gpu": 4.684638346952438,
+        "lilo_inference_gpu": 4.684638346952438,
+        "lilo_total_gpu": 9.369276693904876,
+        "tinker_training": 2.901703959,
+        "tinker_output": 3.5182084350000005,
+        "tinker_prompt": 0.043840368000000005,
+        "tinker_total": 6.463752762,
+        "tinker_total_no_cache": 6.566046954000001,
+        "lilo_per_client": 2.342319173476219,
+        "tinker_per_client": 1.6159381905,
+        "lilo_per_million_output": 5.312848101434397,
+        "tinker_per_million_output": 3.6652708327072157
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 430865,
+          "prompt_tokens": 55360,
+          "training_tokens": 485841.0,
+          "output_tps": 929.007626705435,
+          "output_tps_common_window": 927.8338685050535,
+          "mean_step_seconds": 77.29783705870311,
+          "elapsed_seconds": 463.79059505462646
+        },
+        {
+          "client": 1,
+          "output_tokens": 446874,
+          "prompt_tokens": 55304,
+          "training_tokens": 501794.0,
+          "output_tps": 962.3079900997466,
+          "output_tps_common_window": 962.3079900997466,
+          "mean_step_seconds": 77.39579629898071,
+          "elapsed_seconds": 464.37731432914734
+        },
+        {
+          "client": 2,
+          "output_tokens": 443844,
+          "prompt_tokens": 52088,
+          "training_tokens": 495548.0,
+          "output_tps": 957.2887828011877,
+          "output_tps_common_window": 955.78312356018,
+          "mean_step_seconds": 77.27401872475942,
+          "elapsed_seconds": 463.646924495697
+        },
+        {
+          "client": 3,
+          "output_tokens": 441930,
+          "prompt_tokens": 58664,
+          "training_tokens": 500210.0,
+          "output_tps": 952.7457229635539,
+          "output_tps_common_window": 951.6614751916222,
+          "mean_step_seconds": 77.30767933527629,
+          "elapsed_seconds": 463.8488416671753
+        }
+      ]
+    },
+    {
+      "run": "dapo-scale-v2-c08",
+      "clients": 8,
+      "measured_steps_per_client": 6,
+      "seconds": 646.564110994339,
+      "output_tokens": 3375125,
+      "prompt_tokens": 455576,
+      "training_tokens": 3827629.0,
+      "output_tps": 5220.093325021486,
+      "output_tps_per_client": 652.5116656276857,
+      "training_tps": 5919.952770211078,
+      "mean_step_seconds": 105.08574192225933,
+      "train_call_seconds": 81.34911412583332,
+      "publication_seconds": 12.24752765460415,
+      "rollout_wait_seconds": 11.483547208208359,
+      "mean_output_length": 1098.6735026041667,
+      "truncated_fraction": 0.11328125,
+      "cost": {
+        "lilo_training_gpu": 6.522538751710892,
+        "lilo_inference_gpu": 6.522538751710892,
+        "lilo_total_gpu": 13.045077503421783,
+        "tinker_training": 5.5998212270000005,
+        "tinker_output": 6.733374375,
+        "tinker_prompt": 0.090204048,
+        "tinker_total": 12.42339965,
+        "tinker_total_no_cache": 12.633875762,
+        "lilo_per_client": 1.630634687927723,
+        "tinker_per_client": 1.55292495625,
+        "lilo_per_million_output": 3.8650649986065058,
+        "tinker_per_million_output": 3.6808709751490687
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 437312,
+          "prompt_tokens": 55360,
+          "training_tokens": 492288.0,
+          "output_tps": 778.0706347863079,
+          "output_tps_common_window": 676.3629353436676,
+          "mean_step_seconds": 93.67384048302968,
+          "elapsed_seconds": 562.046658039093
+        },
+        {
+          "client": 1,
+          "output_tokens": 444129,
+          "prompt_tokens": 55304,
+          "training_tokens": 499049.0,
+          "output_tps": 733.7885214344593,
+          "output_tps_common_window": 686.9063600158416,
+          "mean_step_seconds": 100.87512012322743,
+          "elapsed_seconds": 605.2547662258148
+        },
+        {
+          "client": 2,
+          "output_tokens": 416999,
+          "prompt_tokens": 52088,
+          "training_tokens": 468703.0,
+          "output_tps": 646.0008628697126,
+          "output_tps_common_window": 644.9460972380681,
+          "mean_step_seconds": 107.58428414662679,
+          "elapsed_seconds": 645.5084257125854
+        },
+        {
+          "client": 3,
+          "output_tokens": 450464,
+          "prompt_tokens": 58664,
+          "training_tokens": 508744.0,
+          "output_tps": 697.7941145056774,
+          "output_tps_common_window": 696.7043056368219,
+          "mean_step_seconds": 107.59197243054707,
+          "elapsed_seconds": 645.5543127059937
+        },
+        {
+          "client": 4,
+          "output_tokens": 388579,
+          "prompt_tokens": 60768,
+          "training_tokens": 448963.0,
+          "output_tps": 601.0551190411754,
+          "output_tps_common_window": 600.990672684278,
+          "mean_step_seconds": 107.74851361910503,
+          "elapsed_seconds": 646.4947850704193
+        },
+        {
+          "client": 5,
+          "output_tokens": 428260,
+          "prompt_tokens": 56032,
+          "training_tokens": 483908.0,
+          "output_tps": 662.5048510507361,
+          "output_tps_common_window": 662.3627768967673,
+          "mean_step_seconds": 107.73699653148651,
+          "elapsed_seconds": 646.4254553318024
+        },
+        {
+          "client": 6,
+          "output_tokens": 412051,
+          "prompt_tokens": 60232,
+          "training_tokens": 471899.0,
+          "output_tps": 637.5598180217788,
+          "output_tps_common_window": 637.2933371855645,
+          "mean_step_seconds": 107.71512039502461,
+          "elapsed_seconds": 646.2938666343689
+        },
+        {
+          "client": 7,
+          "output_tokens": 397331,
+          "prompt_tokens": 57128,
+          "training_tokens": 454075.0,
+          "output_tps": 614.5268400204768,
+          "output_tps_common_window": 614.5268400204768,
+          "mean_step_seconds": 107.76008764902751,
+          "elapsed_seconds": 646.564110994339
+        }
+      ]
+    },
+    {
+      "run": "dapo-scale-v4-c16",
+      "clients": 16,
+      "measured_steps_per_client": 6,
+      "seconds": 791.0481705665588,
+      "output_tokens": 6636539,
+      "prompt_tokens": 898560,
+      "training_tokens": 7528955.0,
+      "output_tps": 8389.5510373873,
+      "output_tps_per_client": 524.3469398367063,
+      "training_tps": 9517.69472471906,
+      "mean_step_seconds": 115.11837219198544,
+      "train_call_seconds": 63.60662300021874,
+      "publication_seconds": 33.80345459629165,
+      "rollout_wait_seconds": 17.704424363385407,
+      "mean_output_length": 1080.1658528645833,
+      "truncated_fraction": 0.10725911458333333,
+      "cost": {
+        "lilo_training_gpu": 7.9800939446754455,
+        "lilo_inference_gpu": 7.9800939446754455,
+        "lilo_total_gpu": 15.960187889350891,
+        "tinker_training": 11.014861165000001,
+        "tinker_output": 13.239895305000001,
+        "tinker_prompt": 0.17791488000000003,
+        "tinker_total": 24.432671350000003,
+        "tinker_total_no_cache": 24.847806070000004,
+        "lilo_per_client": 0.9975117430844307,
+        "tinker_per_client": 1.5270419593750002,
+        "lilo_per_million_output": 2.4048962703829346,
+        "tinker_per_million_output": 3.6815381255199435
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 435295,
+          "prompt_tokens": 55360,
+          "training_tokens": 490271.0,
+          "output_tps": 758.5536246025371,
+          "output_tps_common_window": 550.276223618893,
+          "mean_step_seconds": 95.64057628313701,
+          "elapsed_seconds": 573.8486850261688
+        },
+        {
+          "client": 1,
+          "output_tokens": 415652,
+          "prompt_tokens": 55304,
+          "training_tokens": 470572.0,
+          "output_tps": 683.6499723408886,
+          "output_tps_common_window": 525.4446131925249,
+          "mean_step_seconds": 101.3310204744339,
+          "elapsed_seconds": 607.989492893219
+        },
+        {
+          "client": 2,
+          "output_tokens": 427728,
+          "prompt_tokens": 52088,
+          "training_tokens": 479432.0,
+          "output_tps": 704.1931495545708,
+          "output_tps_common_window": 540.7104344779101,
+          "mean_step_seconds": 101.2331770658493,
+          "elapsed_seconds": 607.4015350341797
+        },
+        {
+          "client": 3,
+          "output_tokens": 397901,
+          "prompt_tokens": 58664,
+          "training_tokens": 456181.0,
+          "output_tps": 578.8787403560583,
+          "output_tps_common_window": 503.00476608778223,
+          "mean_step_seconds": 114.55998655160268,
+          "elapsed_seconds": 687.3650252819061
+        },
+        {
+          "client": 4,
+          "output_tokens": 406175,
+          "prompt_tokens": 60768,
+          "training_tokens": 466559.0,
+          "output_tps": 667.8003512498647,
+          "output_tps_common_window": 513.4643061105777,
+          "mean_step_seconds": 101.37078058719635,
+          "elapsed_seconds": 608.228191614151
+        },
+        {
+          "client": 5,
+          "output_tokens": 451049,
+          "prompt_tokens": 56032,
+          "training_tokens": 506697.0,
+          "output_tps": 656.4816336233142,
+          "output_tps_common_window": 570.1915721225332,
+          "mean_step_seconds": 114.51104108492534,
+          "elapsed_seconds": 687.0702497959137
+        },
+        {
+          "client": 6,
+          "output_tokens": 359219,
+          "prompt_tokens": 60232,
+          "training_tokens": 419067.0,
+          "output_tps": 522.6564404165634,
+          "output_tps_common_window": 454.105089128419,
+          "mean_step_seconds": 114.54860993226369,
+          "elapsed_seconds": 687.2946972846985
+        },
+        {
+          "client": 7,
+          "output_tokens": 396922,
+          "prompt_tokens": 57128,
+          "training_tokens": 453666.0,
+          "output_tps": 577.6269196661711,
+          "output_tps_common_window": 501.7671676248481,
+          "mean_step_seconds": 114.52616536617279,
+          "elapsed_seconds": 687.1598024368286
+        },
+        {
+          "client": 8,
+          "output_tokens": 414056,
+          "prompt_tokens": 51360,
+          "training_tokens": 465032.0,
+          "output_tps": 602.5125642062982,
+          "output_tps_common_window": 523.427036944473,
+          "mean_step_seconds": 114.53544819355011,
+          "elapsed_seconds": 687.2155447006226
+        },
+        {
+          "client": 9,
+          "output_tokens": 425962,
+          "prompt_tokens": 57400,
+          "training_tokens": 482978.0,
+          "output_tps": 620.823900878281,
+          "output_tps_common_window": 538.4779534916572,
+          "mean_step_seconds": 114.35354165236156,
+          "elapsed_seconds": 686.12371301651
+        },
+        {
+          "client": 10,
+          "output_tokens": 412128,
+          "prompt_tokens": 53768,
+          "training_tokens": 465512.0,
+          "output_tps": 599.8949916481896,
+          "output_tps_common_window": 520.9897643841697,
+          "mean_step_seconds": 114.49956675370534,
+          "elapsed_seconds": 687.0002346038818
+        },
+        {
+          "client": 11,
+          "output_tokens": 390696,
+          "prompt_tokens": 54336,
+          "training_tokens": 444648.0,
+          "output_tps": 528.1906237632613,
+          "output_tps_common_window": 493.8965976246156,
+          "mean_step_seconds": 123.28074638048808,
+          "elapsed_seconds": 739.6874961853027
+        },
+        {
+          "client": 12,
+          "output_tokens": 433017,
+          "prompt_tokens": 54040,
+          "training_tokens": 486673.0,
+          "output_tps": 585.2499329061369,
+          "output_tps_common_window": 547.3965001269994,
+          "mean_step_seconds": 123.3134873310725,
+          "elapsed_seconds": 739.8838951587677
+        },
+        {
+          "client": 13,
+          "output_tokens": 418337,
+          "prompt_tokens": 56728,
+          "training_tokens": 474681.0,
+          "output_tps": 534.0935203099363,
+          "output_tps_common_window": 528.8388439105822,
+          "mean_step_seconds": 130.5437055826187,
+          "elapsed_seconds": 783.26544713974
+        },
+        {
+          "client": 14,
+          "output_tokens": 396329,
+          "prompt_tokens": 59944,
+          "training_tokens": 455889.0,
+          "output_tps": 501.153162706455,
+          "output_tps_common_window": 501.0175293321823,
+          "mean_step_seconds": 131.80520824591318,
+          "elapsed_seconds": 790.8340792655945
+        },
+        {
+          "client": 15,
+          "output_tokens": 456073,
+          "prompt_tokens": 55408,
+          "training_tokens": 511097.0,
+          "output_tps": 576.5426392091327,
+          "output_tps_common_window": 576.5426392091327,
+          "mean_step_seconds": 131.84089358647665,
+          "elapsed_seconds": 791.0481705665588
+        }
+      ]
+    },
+    {
+      "run": "dapo-scale-v4-c32",
+      "clients": 32,
+      "measured_steps_per_client": 6,
+      "seconds": 1478.5185737609863,
+      "output_tokens": 13747526,
+      "prompt_tokens": 1791128,
+      "training_tokens": 15526366.0,
+      "output_tps": 9298.17605539421,
+      "output_tps_per_client": 290.56800173106905,
+      "training_tps": 10501.299256934431,
+      "mean_step_seconds": 179.43393191198507,
+      "train_call_seconds": 80.92132316715104,
+      "publication_seconds": 78.37195172289583,
+      "rollout_wait_seconds": 20.13196542457294,
+      "mean_output_length": 1118.7765299479167,
+      "truncated_fraction": 0.11279296875,
+      "cost": {
+        "lilo_training_gpu": 14.91529537210083,
+        "lilo_inference_gpu": 14.91529537210083,
+        "lilo_total_gpu": 29.83059074420166,
+        "tinker_training": 22.715073458,
+        "tinker_output": 27.426314370000004,
+        "tinker_prompt": 0.354643344,
+        "tinker_total": 50.49603117200001,
+        "tinker_total_no_cache": 51.323532308000004,
+        "lilo_per_client": 0.9322059607563019,
+        "tinker_per_client": 1.5780009741250003,
+        "lilo_per_million_output": 2.169887930686704,
+        "tinker_per_million_output": 3.6730995214702635
+      },
+      "per_client": [
+        {
+          "client": 0,
+          "output_tokens": 458376,
+          "prompt_tokens": 55360,
+          "training_tokens": 513352.0,
+          "output_tps": 678.1398978728737,
+          "output_tps_common_window": 310.0238361118485,
+          "mean_step_seconds": 112.65428177515666,
+          "elapsed_seconds": 675.9313254356384
+        },
+        {
+          "client": 1,
+          "output_tokens": 418504,
+          "prompt_tokens": 55304,
+          "training_tokens": 473424.0,
+          "output_tps": 590.5911464440261,
+          "output_tps_common_window": 283.0563020493068,
+          "mean_step_seconds": 118.1023942232132,
+          "elapsed_seconds": 708.6188178062439
+        },
+        {
+          "client": 2,
+          "output_tokens": 450187,
+          "prompt_tokens": 52088,
+          "training_tokens": 501891.0,
+          "output_tps": 635.6480525905922,
+          "output_tps_common_window": 304.4851840141821,
+          "mean_step_seconds": 118.03813072045644,
+          "elapsed_seconds": 708.2331144809723
+        },
+        {
+          "client": 3,
+          "output_tokens": 443306,
+          "prompt_tokens": 58664,
+          "training_tokens": 501586.0,
+          "output_tps": 625.1551270108163,
+          "output_tps_common_window": 299.8312012221388,
+          "mean_step_seconds": 118.18491923809052,
+          "elapsed_seconds": 709.1135957241058
+        },
+        {
+          "client": 4,
+          "output_tokens": 454769,
+          "prompt_tokens": 60768,
+          "training_tokens": 515153.0,
+          "output_tps": 640.9223293907056,
+          "output_tps_common_window": 307.58423199458355,
+          "mean_step_seconds": 118.25828508536021,
+          "elapsed_seconds": 709.5539960861206
+        },
+        {
+          "client": 5,
+          "output_tokens": 441927,
+          "prompt_tokens": 56032,
+          "training_tokens": 497575.0,
+          "output_tps": 623.4323911914834,
+          "output_tps_common_window": 298.89851087622577,
+          "mean_step_seconds": 118.142875512441,
+          "elapsed_seconds": 708.8611471652985
+        },
+        {
+          "client": 6,
+          "output_tokens": 417470,
+          "prompt_tokens": 60232,
+          "training_tokens": 477318.0,
+          "output_tps": 527.7162748325298,
+          "output_tps_common_window": 282.356953378042,
+          "mean_step_seconds": 131.8472714026769,
+          "elapsed_seconds": 791.0879764556885
+        },
+        {
+          "client": 7,
+          "output_tokens": 420004,
+          "prompt_tokens": 57128,
+          "training_tokens": 476748.0,
+          "output_tps": 512.4352907666625,
+          "output_tps_common_window": 284.07083106951677,
+          "mean_step_seconds": 136.60309048493704,
+          "elapsed_seconds": 819.6234872341156
+        },
+        {
+          "client": 8,
+          "output_tokens": 434071,
+          "prompt_tokens": 51360,
+          "training_tokens": 485047.0,
+          "output_tps": 529.8612086346699,
+          "output_tps_common_window": 293.58508422104603,
+          "mean_step_seconds": 136.53544421990713,
+          "elapsed_seconds": 819.2164154052734
+        },
+        {
+          "client": 9,
+          "output_tokens": 437147,
+          "prompt_tokens": 57400,
+          "training_tokens": 494163.0,
+          "output_tps": 534.3179077685483,
+          "output_tps_common_window": 295.6655450651566,
+          "mean_step_seconds": 136.35566445191702,
+          "elapsed_seconds": 818.1402750015259
+        },
+        {
+          "client": 10,
+          "output_tokens": 432718,
+          "prompt_tokens": 53768,
+          "training_tokens": 486102.0,
+          "output_tps": 528.7632816139377,
+          "output_tps_common_window": 292.6699790448166,
+          "mean_step_seconds": 136.39207462469736,
+          "elapsed_seconds": 818.3586399555206
+        },
+        {
+          "client": 11,
+          "output_tokens": 417110,
+          "prompt_tokens": 54336,
+          "training_tokens": 471062.0,
+          "output_tps": 451.95881654676407,
+          "output_tps_common_window": 282.11346641319165,
+          "mean_step_seconds": 153.8148560921351,
+          "elapsed_seconds": 922.8938229084015
+        },
+        {
+          "client": 12,
+          "output_tokens": 422127,
+          "prompt_tokens": 54040,
+          "training_tokens": 475783.0,
+          "output_tps": 450.80420990713577,
+          "output_tps_common_window": 285.50672780945393,
+          "mean_step_seconds": 156.06367353598276,
+          "elapsed_seconds": 936.3865525722504
+        },
+        {
+          "client": 13,
+          "output_tokens": 442965,
+          "prompt_tokens": 56728,
+          "training_tokens": 499309.0,
+          "output_tps": 447.6180100160671,
+          "output_tps_common_window": 299.60056495821107,
+          "mean_step_seconds": 164.93306036790213,
+          "elapsed_seconds": 989.6049535274506
+        },
+        {
+          "client": 14,
+          "output_tokens": 413699,
+          "prompt_tokens": 59944,
+          "training_tokens": 473259.0,
+          "output_tps": 418.1500498547324,
+          "output_tps_common_window": 279.8064274212341,
+          "mean_step_seconds": 164.8917599519094,
+          "elapsed_seconds": 989.3553764820099
+        },
+        {
+          "client": 15,
+          "output_tokens": 491348,
+          "prompt_tokens": 55408,
+          "training_tokens": 546372.0,
+          "output_tps": 468.7993297993771,
+          "output_tps_common_window": 332.32453668142426,
+          "mean_step_seconds": 174.68230334917703,
+          "elapsed_seconds": 1048.0987679958344
+        },
+        {
+          "client": 16,
+          "output_tokens": 382814,
+          "prompt_tokens": 58368,
+          "training_tokens": 440798.0,
+          "output_tps": 313.89749917666285,
+          "output_tps_common_window": 258.9172748951105,
+          "mean_step_seconds": 203.2575852473577,
+          "elapsed_seconds": 1219.5509712696075
+        },
+        {
+          "client": 17,
+          "output_tokens": 380620,
+          "prompt_tokens": 58576,
+          "training_tokens": 438812.0,
+          "output_tps": 312.26474058381194,
+          "output_tps_common_window": 257.43335711488334,
+          "mean_step_seconds": 203.1496487458547,
+          "elapsed_seconds": 1218.9016258716583
+        },
+        {
+          "client": 18,
+          "output_tokens": 455219,
+          "prompt_tokens": 54656,
+          "training_tokens": 509491.0,
+          "output_tps": 374.1082808380424,
+          "output_tps_common_window": 307.88859070064655,
+          "mean_step_seconds": 202.80105030536652,
+          "elapsed_seconds": 1216.8108093738556
+        },
+        {
+          "client": 19,
+          "output_tokens": 442804,
+          "prompt_tokens": 57816,
+          "training_tokens": 500236.0,
+          "output_tps": 363.3821666052132,
+          "output_tps_common_window": 299.49167217670856,
+          "mean_step_seconds": 203.0931087732315,
+          "elapsed_seconds": 1218.5628263950348
+        },
+        {
+          "client": 20,
+          "output_tokens": 400198,
+          "prompt_tokens": 53160,
+          "training_tokens": 452974.0,
+          "output_tps": 328.5913060897864,
+          "output_tps_common_window": 270.6749898866641,
+          "mean_step_seconds": 202.98593970139822,
+          "elapsed_seconds": 1217.9202327728271
+        },
+        {
+          "client": 21,
+          "output_tokens": 400372,
+          "prompt_tokens": 53096,
+          "training_tokens": 453084.0,
+          "output_tps": 312.2722904643447,
+          "output_tps_common_window": 270.79267525300844,
+          "mean_step_seconds": 213.68645842870077,
+          "elapsed_seconds": 1282.1246464252472
+        },
+        {
+          "client": 22,
+          "output_tokens": 408052,
+          "prompt_tokens": 52656,
+          "training_tokens": 460324.0,
+          "output_tps": 318.2032679999597,
+          "output_tps_common_window": 275.98706383648357,
+          "mean_step_seconds": 213.72600773970285,
+          "elapsed_seconds": 1282.3626940250397
+        },
+        {
+          "client": 23,
+          "output_tokens": 462645,
+          "prompt_tokens": 55088,
+          "training_tokens": 517349.0,
+          "output_tps": 360.72798705361157,
+          "output_tps_common_window": 312.91118570336613,
+          "mean_step_seconds": 213.75413890679678,
+          "elapsed_seconds": 1282.5314824581146
+        },
+        {
+          "client": 24,
+          "output_tokens": 378071,
+          "prompt_tokens": 59240,
+          "training_tokens": 436927.0,
+          "output_tps": 295.0246970224204,
+          "output_tps_common_window": 255.7093341332065,
+          "mean_step_seconds": 213.58083307743073,
+          "elapsed_seconds": 1281.4893255233765
+        },
+        {
+          "client": 25,
+          "output_tokens": 499048,
+          "prompt_tokens": 53392,
+          "training_tokens": 552056.0,
+          "output_tps": 363.05580678855705,
+          "output_tps_common_window": 337.5324523185022,
+          "mean_step_seconds": 229.095245997111,
+          "elapsed_seconds": 1374.5765545368195
+        },
+        {
+          "client": 26,
+          "output_tokens": 482750,
+          "prompt_tokens": 57480,
+          "training_tokens": 539846.0,
+          "output_tps": 334.93298700499327,
+          "output_tps_common_window": 326.5092563375806,
+          "mean_step_seconds": 240.22130453586578,
+          "elapsed_seconds": 1441.3330986499786
+        },
+        {
+          "client": 27,
+          "output_tokens": 354392,
+          "prompt_tokens": 60352,
+          "training_tokens": 414360.0,
+          "output_tps": 245.9063901970784,
+          "output_tps_common_window": 239.69397902017167,
+          "mean_step_seconds": 240.19357252120972,
+          "elapsed_seconds": 1441.166289806366
+        },
+        {
+          "client": 28,
+          "output_tokens": 411725,
+          "prompt_tokens": 54704,
+          "training_tokens": 466045.0,
+          "output_tps": 285.67495072025514,
+          "output_tps_common_window": 278.47130723063776,
+          "mean_step_seconds": 240.20490543047586,
+          "elapsed_seconds": 1441.235918521881
+        },
+        {
+          "client": 29,
+          "output_tokens": 429333,
+          "prompt_tokens": 57944,
+          "training_tokens": 486893.0,
+          "output_tps": 298.0543079484708,
+          "output_tps_common_window": 290.38052522254276,
+          "mean_step_seconds": 240.0746797323227,
+          "elapsed_seconds": 1440.4522550106049
+        },
+        {
+          "client": 30,
+          "output_tokens": 447196,
+          "prompt_tokens": 55000,
+          "training_tokens": 501812.0,
+          "output_tps": 310.36803334449024,
+          "output_tps_common_window": 302.4622131478834,
+          "mean_step_seconds": 240.14203055699667,
+          "elapsed_seconds": 1440.8571500778198
+        },
+        {
+          "client": 31,
+          "output_tokens": 416559,
+          "prompt_tokens": 51040,
+          "training_tokens": 467215.0,
+          "output_tps": 281.7407960864345,
+          "output_tps_common_window": 281.7407960864345,
+          "mean_step_seconds": 246.41922644774118,
+          "elapsed_seconds": 1478.5185737609863
+        }
+      ]
+    }
+  ]
+}

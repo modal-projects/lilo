@@ -1,0 +1,26 @@
+{
+  "reason": "CPU driver preempted during initial client creation, before any optimizer updates",
+  "orphan_model_id": "a7c4b7ac3ae3d84b4a224bb932ebe75a",
+  "orphan_had_no_published_sampler": true,
+  "unload_completed": true,
+  "verified_at": 1789722483.7058258,
+  "placement": {
+    "engine_instance_id": "engine-8eda74e85419",
+    "engine_boot_id": "963c4dc9917f43099642e72f0d685619",
+    "model_ids": [
+      "d0180e04e86eab14e9e6a60b6b3b0651",
+      "2738ba27698376e45f54b3f9967d3051",
+      "046c547ccce2b6ec6f6ccf39fd284fb3",
+      "5f068c5380e9fc733ea1052161758d00"
+    ],
+    "resident_model_ids": [
+      "d0180e04e86eab14e9e6a60b6b3b0651",
+      "2738ba27698376e45f54b3f9967d3051",
+      "046c547ccce2b6ec6f6ccf39fd284fb3",
+      "5f068c5380e9fc733ea1052161758d00"
+    ]
+  },
+  "preempted_driver_task_id": "ta-01M2SVT7JXJNWBWPSXPNSVE1MR",
+  "preempted_driver_finished_at": 1789722202.907533,
+  "trainer_initialized_at": 1789722348.864
+}

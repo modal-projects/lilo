@@ -1,0 +1,4676 @@
+{
+  "lifetimes": [
+    {
+      "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720286.722797,
+      "finished_at": 1789721560.79587,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720275.426425,
+      "finished_at": 1789721563.376836,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720397.829952,
+      "finished_at": 1789721564.071806,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720288.091421,
+      "finished_at": 1789721560.625325,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720270.875015,
+      "finished_at": 1789721557.914063,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720336.075561,
+      "finished_at": 1789721561.958663,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720394.177047,
+      "finished_at": 1789721563.579844,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+      "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+      "app_name": "lilo-lora-3326ec110c8ebf2d",
+      "started_at": 1789720327.236737,
+      "finished_at": 1789721564.207359,
+      "gpu_type": "H200",
+      "gpu_count": 1
+    },
+    {
+      "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+      "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+      "app_name": "lilo-dapo-scale-v2-c02",
+      "started_at": 1789720459.592402,
+      "finished_at": 1789721551.131567,
+      "gpu_type": "H200",
+      "gpu_count": 8
+    }
+  ],
+  "samples": 40,
+  "first_observed": 1789721104.921458,
+  "last_observed": 1789721518.1791344,
+  "trainer_gpus": 8,
+  "inference_gpus": 8,
+  "gpu_type": "H200",
+  "observations": [
+    {
+      "time": 1789721104.921458,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        }
+      ]
+    },
+    {
+      "time": 1789721115.6685545,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        }
+      ]
+    },
+    {
+      "time": 1789721126.2203367,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721136.8385508,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721147.3616347,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721157.9620733,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721168.8653605,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721179.398263,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721189.9193578,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721200.457152,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721211.1290867,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721221.637759,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721232.3139184,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721242.8646877,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721253.4155812,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721263.9713953,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721274.5752778,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721285.1139705,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 0.0,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721295.6639802,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721306.6328282,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721317.180905,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721327.7476642,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721338.3498013,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721348.9004686,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721359.4244044,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721369.9706438,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2SV6YNF9DQXGW5VVV9DCY3R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721285.880537,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721380.61133,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721391.1866775,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721401.71036,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721412.305285,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721422.8563552,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721433.3885598,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721443.9037776,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721454.4215689,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721464.9335568,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721475.4739394,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721486.4042807,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721496.9940033,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721507.639233,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    },
+    {
+      "time": 1789721518.1791344,
+      "tasks": [
+        {
+          "task_id": "ta-01M2ST2YNBJ588DC3EKH5QF7BR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720270.875015,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNNKY3NAVG93VM11CR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720275.426425,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ31AFS31KMJP4W21R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720286.722797,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN0AD5YYBEPEQ1M2R9R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720397.829952,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YMJ8209WBENGHTEJ4NR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720288.091421,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YN04D0ZSV8JVD314TER",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720336.075561,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNBJQVAVCKBPSM7G32R",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720394.177047,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2ST2YNNC8WCKFBR59W547AR",
+          "app_id": "ap-NLBWS5D1jPe5i3cEEd1uOT",
+          "app_name": "lilo-lora-3326ec110c8ebf2d",
+          "started_at": 1789720327.236737,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 1
+        },
+        {
+          "task_id": "ta-01M2STCCMWTPGR09K4ZB0SSYNR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720413.940371,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STCQGFNPBBRSZ1Q804W2WR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720426.142555,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        },
+        {
+          "task_id": "ta-01M2STDAKZNST5R3GHKXT3J33R",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789720459.592402,
+          "finished_at": 0.0,
+          "gpu_type": "H200",
+          "gpu_count": 8
+        },
+        {
+          "task_id": "ta-01M2SV1ZK3KEMYJ0CHM43KQRDR",
+          "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+          "app_name": "lilo-dapo-scale-v2-c02",
+          "started_at": 1789721120.025561,
+          "finished_at": 0.0,
+          "gpu_type": "CPU",
+          "gpu_count": 0
+        }
+      ]
+    }
+  ]
+}

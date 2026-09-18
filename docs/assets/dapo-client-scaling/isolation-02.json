@@ -1,0 +1,22 @@
+{
+  "run": "dapo-scale-v2-c02",
+  "clients": 2,
+  "status": "completed",
+  "pool": {
+    "definition_id": "qwen3_5_9b_dapo_sweep",
+    "revision": "2c70e9cfdf8e2a1743b5653711901df4997b5fffd4cab125036b8442ca32dc18"
+  },
+  "pool_app": "lilo-lora-3326ec110c8ebf2d",
+  "app_id": "ap-px00pETQ0dmO3uymORJzcM",
+  "preflight": {
+    "status": "passed",
+    "rows": 320,
+    "max_prompt_tokens": 362
+  },
+  "inference_allocated_at": 1789720406.452845,
+  "call_id": "fc-01M2STCADXAGA49DJTY3TH6A7K",
+  "remaining_tasks": [],
+  "drained": true,
+  "finished_at": 1789721571.8596284,
+  "cleanup_errors": []
+}

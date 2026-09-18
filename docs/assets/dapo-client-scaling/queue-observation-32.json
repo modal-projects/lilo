@@ -1,0 +1,232 @@
+{
+  "run": "dapo-scale-v4-c32",
+  "observed_at": 1789733803.3286223,
+  "measurement_start": 1789733105.5905783,
+  "note": "Driver-side train_start precedes sending forward/backward and optimizer. This distinguishes sampling completion from subsequent trainer/API/publication waits; it does not measure pure GPU queue time.",
+  "clients": [
+    {
+      "client": 0,
+      "model_id": "2a70a3d01effd1cadba3695f4b415ba2",
+      "last_completed_step": 8,
+      "update_3_train_submitted_at": 1789733212.7428553,
+      "last_update_completed_at": 1789733781.517795
+    },
+    {
+      "client": 1,
+      "model_id": "3e64c59085aeffc9b399e6d66589d352",
+      "last_completed_step": 7,
+      "update_3_train_submitted_at": 1789733192.2867074,
+      "last_update_completed_at": 1789733744.456707
+    },
+    {
+      "client": 2,
+      "model_id": "18dabcfd552be672c10686126afc9f6a",
+      "last_completed_step": 7,
+      "update_3_train_submitted_at": 1789733238.7917142,
+      "last_update_completed_at": 1789733743.515007
+    },
+    {
+      "client": 3,
+      "model_id": "2869fcf7c0c4717763b2be6e8dcdd815",
+      "last_completed_step": 7,
+      "update_3_train_submitted_at": 1789733228.642091,
+      "last_update_completed_at": 1789733754.2960615
+    },
+    {
+      "client": 4,
+      "model_id": "04e626381c9651739edd32680e380781",
+      "last_completed_step": 7,
+      "update_3_train_submitted_at": 1789733217.3868935,
+      "last_update_completed_at": 1789733754.0808434
+    },
+    {
+      "client": 5,
+      "model_id": "a50207dd2330836561784660526fa424",
+      "last_completed_step": 7,
+      "update_3_train_submitted_at": 1789733190.7526991,
+      "last_update_completed_at": 1789733755.2486806
+    },
+    {
+      "client": 6,
+      "model_id": "4f6420fa744d539d654ab64b996dcd84",
+      "last_completed_step": 6,
+      "update_3_train_submitted_at": 1789733253.0397537,
+      "last_update_completed_at": 1789733753.6729724
+    },
+    {
+      "client": 7,
+      "model_id": "675b74b75bdb29fe10f4dac3e190db4f",
+      "last_completed_step": 6,
+      "update_3_train_submitted_at": 1789733191.4841137,
+      "last_update_completed_at": 1789733754.8267622
+    },
+    {
+      "client": 8,
+      "model_id": "9906875cc4806370eedf04bed1c5c94e",
+      "last_completed_step": 6,
+      "update_3_train_submitted_at": 1789733199.054903,
+      "last_update_completed_at": 1789733755.2199392
+    },
+    {
+      "client": 9,
+      "model_id": "90109d05e34d7f961b05af3fc101d384",
+      "last_completed_step": 6,
+      "update_3_train_submitted_at": 1789733211.946948,
+      "last_update_completed_at": 1789733754.3061945
+    },
+    {
+      "client": 10,
+      "model_id": "d41611e1a7e3b0e610284a6c6f208e16",
+      "last_completed_step": 6,
+      "update_3_train_submitted_at": 1789733196.7960696,
+      "last_update_completed_at": 1789733755.669468
+    },
+    {
+      "client": 11,
+      "model_id": "44aebab5822e91e1358504115a4e589a",
+      "last_completed_step": 5,
+      "update_3_train_submitted_at": 1789733225.063197,
+      "last_update_completed_at": 1789733758.5312402
+    },
+    {
+      "client": 12,
+      "model_id": "ac347d9fc7066bb37d9961bf48f8751b",
+      "last_completed_step": 5,
+      "update_3_train_submitted_at": 1789733201.5901017,
+      "last_update_completed_at": 1789733754.7807376
+    },
+    {
+      "client": 13,
+      "model_id": "15d554df35921fc937498559af5fe2d7",
+      "last_completed_step": 5,
+      "update_3_train_submitted_at": 1789733240.1208751,
+      "last_update_completed_at": 1789733755.89279
+    },
+    {
+      "client": 14,
+      "model_id": "bc0b13803d2cf4289eaefd137b737fc8",
+      "last_completed_step": 4,
+      "update_3_train_submitted_at": 1789733233.0649993,
+      "last_update_completed_at": 1789733645.0731955
+    },
+    {
+      "client": 15,
+      "model_id": "6d22e427749cec6f137c88793de36fc0",
+      "last_completed_step": 3,
+      "update_3_train_submitted_at": 1789733192.9509625,
+      "last_update_completed_at": 1789733442.9588332
+    },
+    {
+      "client": 16,
+      "model_id": "da8a711dcfffb0d780c158f1179c32d7",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733238.9839408,
+      "last_update_completed_at": 1789733025.801062
+    },
+    {
+      "client": 17,
+      "model_id": "11b0237a6619a72f38b2722a9dedd284",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733201.1918912,
+      "last_update_completed_at": 1789733027.6742804
+    },
+    {
+      "client": 18,
+      "model_id": "2b93e200f88491eccab1b64fc2bce94c",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733190.502678,
+      "last_update_completed_at": 1789733023.8196821
+    },
+    {
+      "client": 19,
+      "model_id": "046bbeb3ac826f9d50b15e6bd967528a",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733191.7195065,
+      "last_update_completed_at": 1789733027.863691
+    },
+    {
+      "client": 20,
+      "model_id": "eac99c3fb902f97ed49f91b874a42b35",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733213.7552104,
+      "last_update_completed_at": 1789733031.584582
+    },
+    {
+      "client": 21,
+      "model_id": "ec152ba4f3b73a29deb067fbd9224f88",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733194.1210098,
+      "last_update_completed_at": 1789733036.9407368
+    },
+    {
+      "client": 22,
+      "model_id": "9e2aa6ca73f17f0f72815996c8b7d970",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733200.390725,
+      "last_update_completed_at": 1789733036.1766198
+    },
+    {
+      "client": 23,
+      "model_id": "5932d396027ff6cbb86d41aeeaba1921",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733203.160947,
+      "last_update_completed_at": 1789733036.5631967
+    },
+    {
+      "client": 24,
+      "model_id": "27e7757c6fa504bb3adc239627ba62e2",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733240.084827,
+      "last_update_completed_at": 1789733036.1647482
+    },
+    {
+      "client": 25,
+      "model_id": "5bdd37b431cc4a2f99fde6576d757f86",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733193.7677493,
+      "last_update_completed_at": 1789733036.1808786
+    },
+    {
+      "client": 26,
+      "model_id": "4fecf1385fcde09f01b03140261df882",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733261.1803582,
+      "last_update_completed_at": 1789733105.3717442
+    },
+    {
+      "client": 27,
+      "model_id": "76f4e49a39fde4decfb4ff6b05b7abbe",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733213.7201345,
+      "last_update_completed_at": 1789733101.1700032
+    },
+    {
+      "client": 28,
+      "model_id": "695d625698bb061033c468f033c721bc",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733188.8399324,
+      "last_update_completed_at": 1789733105.5788908
+    },
+    {
+      "client": 29,
+      "model_id": "712ce7dec926992a786412819ea9f9a3",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733192.0089037,
+      "last_update_completed_at": 1789733105.580572
+    },
+    {
+      "client": 30,
+      "model_id": "881570123e1661fe2f45951e4ab1b46a",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733261.2231188,
+      "last_update_completed_at": 1789733103.4788342
+    },
+    {
+      "client": 31,
+      "model_id": "4b725a5b0811f882a3e7960aa52d5b94",
+      "last_completed_step": 2,
+      "update_3_train_submitted_at": 1789733201.1686282,
+      "last_update_completed_at": 1789733105.5881467
+    }
+  ]
+}
