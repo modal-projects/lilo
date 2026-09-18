@@ -185,8 +185,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         finally:
             AutoBridge.to_megatron_provider = original
 
-    # Signatures stay open so a Miles rename of the batch identifier keeps
-    # binding through Ray's remote-call argument check.
     def forward_backward(self, *args, **kwargs):
         return self._profiled("forward_backward", *args, **kwargs)
 
