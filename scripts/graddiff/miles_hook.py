@@ -251,6 +251,10 @@ def _probe_loss_function() -> None:
         return result
 
     miles_loss.loss_function = wrapped
+    # model.py bound the name at import time (`from ..loss import loss_function`)
+    import miles.backends.megatron_utils.model as miles_model
+
+    miles_model.loss_function = wrapped
     logger.info("[graddiff-probe] wrapped loss_function")
 
 
