@@ -443,6 +443,21 @@ def test_oldest_results_evicted_beyond_cap() -> None:
     asyncio.run(run())
 
 
+def test_unretrieved_results_survive_the_cap() -> None:
+    async def run() -> None:
+        server = Engine(EchoExecutor(), max_results=1)
+        await server.accept_model("model-a", {})
+        await forward_backward(server, 1)
+        await forward_backward(server, 2)
+        await forward_backward(server, 3)
+        for seq in (1, 2, 3):
+            state = await server.retrieve_future(f"model-a:{seq}", timeout=1.0)
+            assert state.status == FutureStatus.COMPLETE
+        await server.close()
+
+    asyncio.run(run())
+
+
 def test_duplicate_accept_waits_for_registration() -> None:
     async def run() -> None:
         release = asyncio.Event()
