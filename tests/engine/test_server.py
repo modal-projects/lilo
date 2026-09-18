@@ -443,7 +443,7 @@ def test_oldest_results_evicted_beyond_cap() -> None:
     asyncio.run(run())
 
 
-def test_unretrieved_results_survive_the_cap() -> None:
+def test_retrieved_results_are_eagerly_evicted_past_the_cap() -> None:
     async def run() -> None:
         server = Engine(EchoExecutor(), max_results=1)
         await server.accept_model("model-a", {})
@@ -453,6 +453,11 @@ def test_unretrieved_results_survive_the_cap() -> None:
         for seq in (1, 2, 3):
             state = await server.retrieve_future(f"model-a:{seq}", timeout=1.0)
             assert state.status == FutureStatus.COMPLETE
+        model = server._models["model-a"]
+        assert len(model.done) <= 1
+        assert all(f"model-a:{seq}" not in server._futures for seq in (1, 2))
+        assert "model-a:3" in server._futures
+        assert await server.retrieve_future("model-a:1") is None
         await server.close()
 
     asyncio.run(run())

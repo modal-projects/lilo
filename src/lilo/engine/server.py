@@ -258,6 +258,7 @@ class Engine:
             model.retrieved.add(int(seq))
         except ValueError:
             return
+        self._evict_retrieved(model_id, model)
 
     async def shutdown_if_idle(self) -> bool:
         async with self._lock:
@@ -654,15 +655,18 @@ class Engine:
         if model is not None and model.unload is None:
             self._futures[operation.request_id] = state
             model.done.append(operation.seq_id)
-            while len(model.done) > self.max_results:
-                oldest = model.done[0]
-                if oldest not in model.retrieved:
-                    break
-                model.done.popleft()
-                model.retrieved.discard(oldest)
-                self._futures.pop(f"{operation.model_id}:{oldest}", None)
-                model.fingerprints.pop(oldest, None)
+            self._evict_retrieved(operation.model_id, model)
         self._completed.notify_all()
+
+    def _evict_retrieved(self, model_id: str, model: _ModelState) -> None:
+        while len(model.done) > self.max_results:
+            oldest = model.done[0]
+            if oldest not in model.retrieved:
+                break
+            model.done.popleft()
+            model.retrieved.discard(oldest)
+            self._futures.pop(f"{model_id}:{oldest}", None)
+            model.fingerprints.pop(oldest, None)
 
     def _ready_lifecycle(
         self,
