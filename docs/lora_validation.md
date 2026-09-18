@@ -64,6 +64,11 @@ has not been measured on this workload.
 
 [Cost assumptions](assets/lora-validation/dapo-cost-estimate.json).
 
+For the separate 1–32-client sweep on a fixed 8×H200 trainer and eight H200
+inference replicas, see [workload tuning and memory budgeting](multi-lora.md#how-to-optimize-lilo-workloads-for-token-pricing).
+It includes total/per-client TPS, token cost, batch sizes, trainer activity over
+time, and the sweep's 4 h 43 min elapsed time.
+
 ## Codeforces codegolf: Qwen3.5-9B
 
 Four rank-32 clients, 500 updates each, sharing an 8×H200 TP8 trainer and 4–8 H200
