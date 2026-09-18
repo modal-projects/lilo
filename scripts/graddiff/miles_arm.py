@@ -333,6 +333,7 @@ def run(
     gbs: int = GBS,
     rbs: int = RBS,
     lilo_dump_dir: str = "/graddiff/lilo_dump/lilo",
+    probe: bool = False,
 ) -> str:
     import os
 
@@ -413,6 +414,7 @@ def run(
             "MASTER_ADDR": "127.0.0.1",
             "MILES_GRADDIFF_DUMP_DIR": miles_dump_dir,
             "LILO_DUMP_DIR": lilo_dump_dir,
+            "MILES_GRADDIFF_PROBE": "1" if probe else "",
             "PYTHONPATH": "/root/graddiff"
             + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else ""),
             "WANDB_API_KEY": os.environ.get("WANDB_API_KEY", ""),
@@ -453,5 +455,6 @@ def main():
             int(os.environ.get("GBS", "128")),
             int(os.environ.get("RBS", "16")),
             os.environ.get("LILO_DUMP_DIR", "/graddiff/lilo_dump/lilo"),
+            os.environ.get("MILES_GRADDIFF_PROBE") == "1",
         )
     )

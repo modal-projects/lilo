@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 DUMP_DIR = os.environ.get("MILES_GRADDIFF_DUMP_DIR")
 LILO_DUMP_DIR = os.environ.get("LILO_DUMP_DIR")
 TAG = os.environ.get("MILES_GRADDIFF_TAG", "miles")
+PROBE = os.environ.get("MILES_GRADDIFF_PROBE") == "1"
 
 _installed = False
 
@@ -188,6 +189,71 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
     )
 
 
+def _probe_config(args: Any, model: Any) -> None:
+    """Log the effective loss-scaling config (args vs model config vs DDP)."""
+    info = _rank_info()
+    cfg: dict[str, Any] = {
+        "args_calculate_per_token_loss": getattr(args, "calculate_per_token_loss", None)
+    }
+    chunk = model[0] if isinstance(model, (list, tuple)) else model
+    try:
+        from megatron.core.utils import get_model_config
+
+        cfg["model_config_calculate_per_token_loss"] = getattr(
+            get_model_config(chunk), "calculate_per_token_loss", None
+        )
+    except Exception as e:  # noqa: BLE001
+        cfg["model_config_error"] = repr(e)
+    ddp = getattr(chunk, "ddp_config", None)
+    if ddp is not None:
+        for k in (
+            "grad_reduce_in_fp32",
+            "average_in_collective",
+            "gradient_scaling_factor",
+            "use_distributed_optimizer",
+        ):
+            cfg[f"ddp_config_{k}"] = getattr(ddp, k, None)
+    for attr in ("gradient_scaling_factor", "_grad_scaling_factor"):
+        if hasattr(chunk, attr):
+            cfg[f"ddp_{attr}"] = getattr(chunk, attr)
+    logger.info(f"[graddiff-probe] config: {cfg}")
+    out = Path(DUMP_DIR) / TAG / f"rank{info['rank']}_probe_config.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({**cfg, **info}, default=str))
+
+
+def _probe_loss_function() -> None:
+    """Wrap miles' loss_function to log per-microbatch scale + token counts."""
+    import miles.backends.training_utils.loss as miles_loss
+
+    info = _rank_info()
+    original = miles_loss.loss_function
+    out = Path(DUMP_DIR) / TAG / f"rank{info['rank']}_probe_loss_calls.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    def wrapped(*f_args: Any, **f_kwargs: Any):
+        result = original(*f_args, **f_kwargs)
+        batch = f_args[1] if len(f_args) > 1 else f_kwargs["batch"]
+        row = {
+            "loss": float(result[0].detach().float().cpu()),
+            "normalizer": float(
+                result[1].detach().float().cpu()
+                if torch.is_tensor(result[1])
+                else result[1]
+            ),
+            "response_lengths": [int(x) for x in batch["response_lengths"].tolist()],
+            "loss_mask_sums": [float(m.sum().item()) for m in batch["loss_masks"]],
+            "n_loss_masks": len(batch["loss_masks"]),
+        }
+        logger.info(f"[graddiff-probe] loss_call: {row}")
+        with out.open("a") as fh:
+            fh.write(json.dumps({**row, **info}, default=str) + "\n")
+        return result
+
+    miles_loss.loss_function = wrapped
+    logger.info("[graddiff-probe] wrapped loss_function")
+
+
 def before_train_step(
     args: Any,
     rollout_id: int,
@@ -209,6 +275,7 @@ def before_train_step(
     )
 
     _copy_lilo_A(model, params)
+
     # Refresh the FP32 master weights so the optimizer does not write Miles'
     # original init back into param.data at step end. ChainedOptimizer has no
     # reload_model_params; its LayerWise children do.
@@ -219,12 +286,15 @@ def before_train_step(
             opt.reload_model_params()
             return 1
         return sum(
-            _reload_masters(child)
-            for child in getattr(opt, "chained_optimizers", [])
+            _reload_masters(child) for child in getattr(opt, "chained_optimizers", [])
         )
 
     n_reload = _reload_masters(optimizer)
     logger.info(f"[graddiff] reloaded fp32 masters on {n_reload} optimizer children")
+
+    if PROBE:
+        _probe_config(args, model)
+        _probe_loss_function()
     _write(
         "master_reload",
         {},
