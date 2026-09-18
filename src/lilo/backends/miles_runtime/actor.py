@@ -213,28 +213,23 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         finally:
             AutoBridge.to_megatron_provider = original
 
-    def forward_backward(self, unit_id, rollout_data_ref):
+    # Signatures stay open so a Miles rename of the batch identifier keeps
+    # binding through Ray's remote-call argument check.
+    def forward_backward(self, *args, **kwargs):
+        return self._profiled("forward_backward", *args, **kwargs)
+
+    def optim_step(self, *args, **kwargs):
+        return self._profiled("optim_step", *args, **kwargs)
+
+    def forward_only(self, *args, **kwargs):
+        return self._profiled("forward_only", *args, **kwargs)
+
+    def _profiled(self, operation: str, *args, **kwargs):
         import torch
 
-        with torch.profiler.record_function("lilo/forward_backward"):
-            result = super().forward_backward(unit_id, rollout_data_ref)
-        self._log_peak_memory("forward_backward")
-        return result
-
-    def optim_step(self, adam_params_by_slot):
-        import torch
-
-        with torch.profiler.record_function("lilo/optim_step"):
-            result = super().optim_step(adam_params_by_slot)
-        self._log_peak_memory("optim_step")
-        return result
-
-    def forward_only_logprobs(self, unit_id, rollout_data_ref):
-        import torch
-
-        with torch.profiler.record_function("lilo/forward_only_logprobs"):
-            result = super().forward_only_logprobs(unit_id, rollout_data_ref)
-        self._log_peak_memory("forward_only_logprobs")
+        with torch.profiler.record_function(f"lilo/{operation}"):
+            result = getattr(super(), operation)(*args, **kwargs)
+        self._log_peak_memory(operation)
         return result
 
     @staticmethod
