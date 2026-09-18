@@ -4,19 +4,41 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
+import uuid
 from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import modal
+from fastapi import HTTPException
+from modal.config import config
 
+from lilo.control_plane import create_control_plane_app
 from lilo.engines import Engine, gpu_count
+from lilo.inference.sampling import sample_task
+from lilo.inference.serving import (
+    start_fft_sidecar,
+    start_sglang,
+    supervise_children,
+    terminate,
+    wait_http,
+)
+
+from .engines import ModalEnginePlatform
+from .fft_pool import proxy_auth_headers
+from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
+from .kv import ModalSessionKeyValueStores, shared_kv
+from .sampling import ModalSamplingTaskPlatform
+from .scoped_assignment import claim_model
+from .scoped_control import ScopedControlPlane
+from .scoped_pins import forget_pin_route, pin_demand, publish_pin, touch_pin
+from .scoped_pool import ScopedFlashPool, set_minimum
+from .serve import run_engine_with_backend
 
 
 def control_image(*extra_packages):
-    from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
-
     return (
         modal.Image.debian_slim(python_version="3.12")
         .apt_install("git")
@@ -46,14 +68,6 @@ def register_sampler(
     proxy_secret,
     name,
 ):
-    from lilo.inference.serving import (
-        start_fft_sidecar,
-        start_sglang,
-        supervise_children,
-        terminate,
-        wait_http,
-    )
-
     model_path = engine.training.hf_checkpoint
 
     # Latest min is activated only after its model has been assigned.
@@ -129,18 +143,9 @@ def build_app(
     *,
     telemetry_secret=None,
 ):
-    from lilo.control_plane import create_control_plane_app
-    from lilo.inference.sampling import sample_task
-
-    from .engines import ModalEnginePlatform
     from .checkpoint_storage import ModalCheckpointStorage
-    from .fft_pool import proxy_auth_headers
-    from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
-    from .sampling import ModalSamplingTaskPlatform
-    from .scoped_control import ScopedControlPlane
-    from .scoped_pool import ScopedFlashPool
 
     engine = replace(
         engine,
@@ -200,10 +205,6 @@ def build_app(
         secrets=[*telemetry_secrets, api_secret, proxy_secret],
     )
     def trainer(instance_id):
-        from modal.config import config
-
-        from .serve import run_engine_with_backend
-
         backend_config = {
             "megatron": asdict(engine.training),
             "checkpoint_dir": "/checkpoints",
@@ -285,8 +286,6 @@ def build_app(
             await registry.put.aio("closing", True)
             return
         if action == "forget_pin_route":
-            from .scoped_pins import forget_pin_route
-
             return await forget_pin_route(registry, model_id, route)
         if await registry.get.aio("closing"):
             raise RuntimeError("deployment is closing")
@@ -303,17 +302,12 @@ def build_app(
                 await asyncio.sleep(2)
             raise TimeoutError("trainer warmup exceeded deadline")
         if action == "claim":
-            from .scoped_assignment import claim_model
-
             route = await claim_model(
                 registry, shared_kv(), engines, engine.name, model_id
             )
             if latest.min_containers:
-                from lilo.providers.modal.scoped_pool import set_minimum
-
                 await set_minimum.aio(route["function_id"], latest.min_containers)
             return route
-        from .scoped_pins import pin_demand, publish_pin, touch_pin
 
         if action == "pin_demand":
             return await pin_demand(registry, now=time.time(), routes=route)
@@ -342,8 +336,6 @@ def build_app(
             return (await registry.get.aio("routes"))[0]
         if is_latest:
             if await registry.get.aio("slot:0") != model_id:
-                from fastapi import HTTPException
-
                 raise HTTPException(
                     410, "sampling model was replaced; use a new sampling client"
                 )
@@ -363,7 +355,7 @@ def build_app(
     )
     @modal.concurrent(max_inputs=128)
     async def execute_sample(task):
-        import uuid
+        from lilo.telemetry.otlp import sample_trace
 
         pinned_request = task["model_id"] is not None and not task.get("latest")
         lease = uuid.uuid4().hex if pinned_request else None
@@ -382,8 +374,6 @@ def build_app(
             )
             gateway = ScopedFlashPool(route).gateway_url()
         try:
-            from lilo.telemetry.otlp import sample_trace
-
             stats = {}
             with sample_trace(task, stats):
                 return await sample_task(
@@ -407,8 +397,6 @@ def build_app(
                 except Exception:
                     # A cleanup outage must not discard a completed sample.
                     # The bounded lease still permits eventual reclamation.
-                    import logging
-
                     logging.getLogger(__name__).exception(
                         "pinned lease release failed; lease will expire"
                     )

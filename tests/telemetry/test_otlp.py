@@ -6,11 +6,15 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import httpx
 import pytest
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
+)
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
+from lilo.inference import sampling
 from lilo.inference.sampling import sample_task
 from lilo.telemetry import otlp
 
@@ -126,8 +130,6 @@ def test_missing_evidence_and_failure_do_not_become_zero_or_leak_errors(spans):
 
 
 def test_retry_is_a_separate_attempt_in_same_trace(spans, monkeypatch):
-    from lilo.inference import sampling
-
     async def no_wait(*args):
         pass
 
@@ -162,10 +164,6 @@ def test_retry_is_a_separate_attempt_in_same_trace(spans, monkeypatch):
 
 
 def test_http_protobuf_export_uses_configured_endpoint_and_header(monkeypatch):
-    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
-        ExportTraceServiceRequest,
-    )
-
     received = []
 
     class Handler(BaseHTTPRequestHandler):

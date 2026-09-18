@@ -8,6 +8,7 @@ import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
 
@@ -59,8 +60,6 @@ def deploy_pool(spec: LoraPoolSpec) -> str:
     try:
         return pool.gateway_url()
     except Exception as exc:
-        import modal
-
         if not isinstance(exc, modal.exception.NotFoundError):
             raise
     modal_cli = shutil.which("modal")

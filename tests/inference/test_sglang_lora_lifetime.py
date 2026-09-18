@@ -5,6 +5,7 @@ The backend-only development environment does not install SGLang.
 """
 
 import asyncio
+import copy
 from types import SimpleNamespace
 
 import pytest
@@ -308,8 +309,6 @@ def test_partial_batch_cleanup_releases_only_undispatched_references():
 @pytest.mark.parametrize("cancel", [False, True])
 def test_parallel_samples_share_parent_reference_until_last_completion(cancel):
     async def scenario():
-        import copy
-
         m, obj, lifecycles, adapters = await setup_request(n=3)
         await m._resolve_lora_path(obj)
         rid = obj.rid[0]

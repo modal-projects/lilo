@@ -28,13 +28,13 @@ from lilo.providers.contracts import (
     SamplingTaskStatus,
     SessionKeyValueStores,
 )
+from lilo.telemetry.metadata import experiment_tags
 
 from .keys import (
     model_creation_key,
     model_key,
     placement_claim_key,
     placement_key,
-    trainer_demand_key,
     sample_task_key,
     sampler_artifact_key,
     sampler_export_result_key,
@@ -44,6 +44,7 @@ from .keys import (
     session_closed_key,
     session_key,
     session_last_seen_key,
+    trainer_demand_key,
 )
 from .records import (
     ModelCreationRecord,
@@ -990,8 +991,6 @@ class ControlPlane:
             model.model_id,
             publish_version,
         )
-        from lilo.telemetry.metadata import experiment_tags
-
         telemetry_tags = experiment_tags((model.spec or {}).get("user_metadata"))
         latest = SamplerArtifactRecord(
             telemetry_tags=telemetry_tags,
@@ -1154,7 +1153,7 @@ class ControlPlane:
         if placement is None:
             return FutureResolution(request_id, FutureResolutionStatus.PENDING)
         try:
-            instance = await self._live_instance(placement)
+            await self._live_instance(placement)
         except ModelLost:
             return FutureResolution(
                 request_id,

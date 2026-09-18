@@ -8,6 +8,7 @@ from .api import (
 )
 from .http import HttpEngineClient, create_engine_app
 from .server import Engine
+from .spmd import DistributedExecutor
 
 __all__ = [
     "JSON_OPERATIONS",
@@ -21,11 +22,3 @@ __all__ = [
     "OperationKind",
     "create_engine_app",
 ]
-
-
-def __getattr__(name: str):
-    if name == "DistributedExecutor":
-        from .spmd import DistributedExecutor
-
-        return DistributedExecutor
-    raise AttributeError(name)

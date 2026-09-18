@@ -23,7 +23,7 @@ def pad_slot_rows(
     slot_rows: tuple[tuple[int, dict[str, Any]], ...],
     multiple: int,
 ) -> tuple[tuple[int, dict[str, Any]], ...]:
-    """Pad to a multiple of multiple with zero-weight rows for Miles DP sharding."""
+    """Add zero-weight rows so Miles can shard the batch evenly across DP ranks."""
     if multiple <= 1 or len(slot_rows) % multiple == 0:
         return slot_rows
     slot, last = slot_rows[-1]
@@ -149,9 +149,8 @@ def _datum_row(datum, loss_fn: str, datum_index: int) -> dict[str, Any]:
         "target_len": len(targets),
         "target_tokens": targets,
     }
-    # Miles derives batch fields from its first datum. Forward only the fields
-    # consumed by this loss so optional, unrelated inputs on one client cannot
-    # cause missing-key failures when its rows are combined with another client.
+    # Miles derives the batch schema from its first datum, so include only fields
+    # used by the selected loss.
     fields = (
         (("weights", "weights"),)
         if loss_fn == "cross_entropy"

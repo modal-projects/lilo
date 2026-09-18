@@ -7,14 +7,12 @@ from unittest.mock import AsyncMock
 import modal
 import pytest
 
-from lilo.providers.modal.scoped_pin_owner import reconcile_pins
+from lilo.providers.modal import scoped_pin_owner
+from lilo.providers.modal.scoped_pin_owner import open_pinned_app, reconcile_pins
 
 
 @pytest.mark.parametrize("model_id", ["model-a", "session-a:train:1"])
 def test_pinned_app_preserves_complete_model_identity(monkeypatch, model_id):
-    from lilo.providers.modal import scoped
-    from lilo.providers.modal.scoped_pin_owner import open_pinned_app
-
     lifecycle, registrations = [], []
 
     @asynccontextmanager
@@ -40,16 +38,22 @@ def test_pinned_app_preserves_complete_model_identity(monkeypatch, model_id):
     monkeypatch.setattr(modal, "App", lambda _: child)
     monkeypatch.setattr(modal.Image, "from_id", lambda _: image)
     monkeypatch.setattr(modal.Volume, "from_name", lambda *a, **k: object())
-    monkeypatch.setattr(scoped, "register_sampler", register)
+    monkeypatch.setattr(scoped_pin_owner, "register_sampler", register)
 
     async def check():
         async with open_pinned_app(
             f"pinned:{model_id}:7",
-            engine=object(), name="test", image_id="im-test",
-            registry_name="registry", pool=object(), proxy_secret=None,
+            engine=object(),
+            name="test",
+            image_id="im-test",
+            registry_name="registry",
+            pool=object(),
+            proxy_secret=None,
         ) as route:
             assert route == {
-                "url": "https://sampler", "function_id": "fu-sampler", "app_id": "ap-child"
+                "url": "https://sampler",
+                "function_id": "fu-sampler",
+                "app_id": "ap-child",
             }
 
     asyncio.run(check())

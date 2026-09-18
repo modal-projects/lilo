@@ -24,7 +24,7 @@ from opentelemetry.trace import (
     set_span_in_context,
 )
 
-from lilo.telemetry.otlp import _attributes, provider
+from lilo.telemetry.otlp import _attributes, flush, provider
 
 from . import backend
 from .metadata import common_tags, experiment_tags
@@ -59,7 +59,7 @@ def best_effort(method):
 
 
 def workload(payload):
-    """Count input examples and text tokens; never infer loss tokens from input length."""
+    """Count input examples and text tokens."""
     data = getattr(payload, "data", None)
     if data is None:
         return {}
@@ -106,7 +106,10 @@ class CommandMiddleware:
         if p is None:
             return await self.app(scope, receive, send)
         now = time.time()
-        carrier = {k.decode("latin-1"): v.decode("latin-1") for k, v in scope.get("headers", [])}
+        carrier = {
+            k.decode("latin-1"): v.decode("latin-1")
+            for k, v in scope.get("headers", [])
+        }
         if self.receiver:
             try:
                 started = float(carrier.get("x-lilo-command-start", now))
@@ -395,7 +398,7 @@ class TrainerTelemetry:
         p = provider()
         if p is None:
             return
-        # A batch shared by several commands has links to all of them; no arbitrary parent.
+        # Shared batches link to every command instead of choosing one parent.
         context = (
             set_span_in_context(parents[0].span)
             if len(parents) == 1 and not independent
@@ -557,6 +560,4 @@ class TrainerTelemetry:
         self.model_tags.clear()
         if self.meter_provider:
             self.meter_provider.shutdown(timeout_millis=5000)
-        from lilo.telemetry.otlp import flush
-
         flush()

@@ -20,6 +20,9 @@ from miles.backends.training_utils.parallel import get_parallel_state
 
 from .profiling import RankProfiler, TorchProfileConfig
 
+_LOGPROB_CP_PATCHED = False
+_SLICE_CP_PATCHED = False
+
 
 def _pad_local_shard(
     tensor,
@@ -75,90 +78,84 @@ def _pad_local_shard(
 
 def _gather_tinker_logprobs_across_cp() -> None:
     """Reassemble full-response logprobs for Miles' Tinker loss path under CP>1."""
+    global _LOGPROB_CP_PATCHED, _SLICE_CP_PATCHED
+    if not _LOGPROB_CP_PATCHED:
+        original = logit_processors.get_log_probs_and_entropy
 
-    original = logit_processors.get_log_probs_and_entropy
-    if getattr(original, "__lilo_gathers_cp__", False):
-        return
-
-    def get_log_probs_and_entropy(
-        logits,
-        *,
-        args,
-        unconcat_tokens,
-        total_lengths,
-        response_lengths,
-        with_entropy=False,
-        entropy_requires_grad=True,
-        non_loss_data=True,
-        max_seq_lens=None,
-        rollout_sampling_mask=None,
-    ):
-        out = original(
+        def get_log_probs_and_entropy(
             logits,
-            args=args,
-            unconcat_tokens=unconcat_tokens,
-            total_lengths=total_lengths,
-            response_lengths=response_lengths,
-            with_entropy=with_entropy,
-            entropy_requires_grad=entropy_requires_grad,
-            non_loss_data=non_loss_data,
-            max_seq_lens=max_seq_lens,
-            rollout_sampling_mask=rollout_sampling_mask,
-        )
-        parallel_state = get_parallel_state()
-        if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
-            return out
-        log_probs = []
-        for index, (lp, total_length, response_length) in enumerate(
-            zip(out["log_probs"], total_lengths, response_lengths, strict=True)
+            *,
+            args,
+            unconcat_tokens,
+            total_lengths,
+            response_lengths,
+            with_entropy=False,
+            entropy_requires_grad=True,
+            non_loss_data=True,
+            max_seq_lens=None,
+            rollout_sampling_mask=None,
         ):
-            max_seq_len = max_seq_lens[index] if max_seq_lens is not None else None
-            padded = _pad_local_shard(
-                lp,
-                total_length,
-                response_length,
-                qkv_format=args.qkv_format,
-                max_seq_len=max_seq_len,
+            out = original(
+                logits,
+                args=args,
+                unconcat_tokens=unconcat_tokens,
+                total_lengths=total_lengths,
+                response_lengths=response_lengths,
+                with_entropy=with_entropy,
+                entropy_requires_grad=entropy_requires_grad,
+                non_loss_data=non_loss_data,
+                max_seq_lens=max_seq_lens,
+                rollout_sampling_mask=rollout_sampling_mask,
             )
-            summed = padded.detach().clone()
-            dist.all_reduce(summed, group=parallel_state.cp.group)
-            log_probs.append(padded + (summed - padded.detach()))
-        out["log_probs"] = log_probs
-        return out
+            parallel_state = get_parallel_state()
+            if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
+                return out
+            log_probs = []
+            for index, (lp, total_length, response_length) in enumerate(
+                zip(out["log_probs"], total_lengths, response_lengths, strict=True)
+            ):
+                max_seq_len = max_seq_lens[index] if max_seq_lens is not None else None
+                padded = _pad_local_shard(
+                    lp,
+                    total_length,
+                    response_length,
+                    qkv_format=args.qkv_format,
+                    max_seq_len=max_seq_len,
+                )
+                summed = padded.detach().clone()
+                dist.all_reduce(summed, group=parallel_state.cp.group)
+                log_probs.append(padded + (summed - padded.detach()))
+            out["log_probs"] = log_probs
+            return out
 
-    get_log_probs_and_entropy.__lilo_gathers_cp__ = True
-    logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
+        logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-    # Callers on the multi-LoRA path that bound the name at import time must
-    # be re-pointed. Miles' non-Tinker losses handle CP natively.
-    for module in (
-        loss,
-        tinker_losses,
-        megatron_actor,
-        megatron_model,
-        fsdp_actor,
-    ):
-        if getattr(module, "get_log_probs_and_entropy", None) is original:
-            module.get_log_probs_and_entropy = get_log_probs_and_entropy
+        # Update modules that imported the original function by name.
+        for module in (
+            loss,
+            tinker_losses,
+            megatron_actor,
+            megatron_model,
+            fsdp_actor,
+        ):
+            if getattr(module, "get_log_probs_and_entropy", None) is original:
+                module.get_log_probs_and_entropy = get_log_probs_and_entropy
+        _LOGPROB_CP_PATCHED = True
 
-    # get_rollout_data slices rollout_log_probs/teacher_log_probs to the CP
-    # shard for the native (non-tinker) losses. The tinker loss path pairs
-    # them with full-response log_probs (gathered above) and full-length
-    # advantages/loss_weights, so the slice must be disabled on this path.
-    original_slice = cp_utils.slice_log_prob_with_cp
-    if getattr(original_slice, "__lilo_unslices_cp__", False):
-        return
+    if not _SLICE_CP_PATCHED:
+        # Tinker losses use the full response tensors assembled above.
+        original_slice = cp_utils.slice_log_prob_with_cp
 
-    def slice_log_prob_with_cp(
-        value, total_length, response_length, qkv_format, max_seq_len=None
-    ):
-        return value
+        def slice_log_prob_with_cp(
+            value, total_length, response_length, qkv_format, max_seq_len=None
+        ):
+            return value
 
-    slice_log_prob_with_cp.__lilo_unslices_cp__ = True
-    cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
-    for module in (data, mm_data, math_utils):
-        if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
-            module.slice_log_prob_with_cp = slice_log_prob_with_cp
+        cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
+        for module in (data, mm_data, math_utils):
+            if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
+                module.slice_log_prob_with_cp = slice_log_prob_with_cp
+        _SLICE_CP_PATCHED = True
 
 
 _gather_tinker_logprobs_across_cp()
@@ -202,18 +199,21 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         return profiler.stop(output_dir, f"rank{dist.get_rank()}")
 
     def forward_backward(self, *args, **kwargs):
-        return self._profiled("forward_backward", *args, **kwargs)
+        with torch.profiler.record_function("lilo/forward_backward"):
+            result = super().forward_backward(*args, **kwargs)
+        self._log_peak_memory("forward_backward")
+        return result
 
     def optim_step(self, *args, **kwargs):
-        return self._profiled("optim_step", *args, **kwargs)
+        with torch.profiler.record_function("lilo/optim_step"):
+            result = super().optim_step(*args, **kwargs)
+        self._log_peak_memory("optim_step")
+        return result
 
     def forward_only(self, *args, **kwargs):
-        return self._profiled("forward_only", *args, **kwargs)
-
-    def _profiled(self, operation: str, *args, **kwargs):
-        with torch.profiler.record_function(f"lilo/{operation}"):
-            result = getattr(super(), operation)(*args, **kwargs)
-        self._log_peak_memory(operation)
+        with torch.profiler.record_function("lilo/forward_only"):
+            result = super().forward_only(*args, **kwargs)
+        self._log_peak_memory("forward_only")
         return result
 
     @staticmethod
@@ -251,9 +251,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             )
 
     def save_slot_weights(self, slot: int, path: str) -> None:
-        self._save_slot_weights(slot, path)
-
-    def _save_slot_weights(self, slot: int, path: str) -> None:
         weights = checkpoint._slot_weights_sharded_state_dict(self.model, slot)
         sharded = {checkpoint._WEIGHTS_KEY: weights}
         checkpoint._canonicalize_slot_keys(sharded, slot)

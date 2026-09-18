@@ -198,7 +198,6 @@ class FFTMegatronBackend(Backend):
 
         self._require_model(model_id)
 
-        # require optim step was run right before publishing
         if self.accumulating:
             raise ValueError("cannot publish with accumulated gradients")
         bulletin_root = os.environ["LILO_BULLETIN_ROOT"]

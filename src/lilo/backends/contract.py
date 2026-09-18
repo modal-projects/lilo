@@ -24,10 +24,7 @@ LossFn = Literal[
 
 @dataclass(frozen=True)
 class ModelSpec:
-    """base model x parameterization x (optional lora config)
-
-    consumed by accept_model to creat new model instance
-    """
+    """Configuration for a trainable model instance."""
 
     base_model: str
     parameterization: Literal["lora", "full"]
@@ -48,7 +45,7 @@ class ForwardItem:
 
 @dataclass(frozen=True)
 class ForwardBatch:
-    """group compatible tinker forward-backward operations together"""
+    """Compatible Tinker forward-backward operations executed as one batch."""
 
     items: tuple[ForwardItem, ...]
     loss_fn: LossFn
@@ -58,7 +55,7 @@ class ForwardBatch:
 
 @dataclass(frozen=True)
 class SamplerPublication:
-    """record for sampler publication to bulletin"""
+    """Metadata for weights published to a sampler bulletin."""
 
     publish_version: int
     base_model: str

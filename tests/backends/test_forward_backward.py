@@ -20,6 +20,7 @@ from lilo.backends.megatron_runtime.common.forward_backward import (  # noqa: E4
 from lilo.backends.megatron_runtime.common.forward_backward import (  # noqa: E402
     build_sequence_batches as build_microbatches,
 )
+from lilo.telemetry import backend  # noqa: E402
 
 
 def forward_batch(
@@ -177,9 +178,17 @@ def test_full_parameter_microbatches_do_not_include_adapter_routing() -> None:
         ),
         (
             # sampling prob 1.0 each; ratios 0.5, 1.5, 1.05, 0.95, 0.5, 1.5
-            # blocked: A>0 & ratio>1 & tv>0.1 (1.5, A=1); A<0 & ratio<1 & tv>0.1 (0.5, A=-1)
+            # Block high ratios for positive advantages and low ratios for
+            # negative advantages when total variation exceeds 0.1.
             "dppo",
-            [math.log(0.5), math.log(1.5), math.log(1.05), math.log(0.95), math.log(0.5), math.log(1.5)],
+            [
+                math.log(0.5),
+                math.log(1.5),
+                math.log(1.05),
+                math.log(0.95),
+                math.log(0.5),
+                math.log(1.5),
+            ],
             [1.0, 1.0, 1.0, -1.0, -1.0, -1.0],
             {"tv_threshold": 0.1},
             -(0.5 + 0.0 + 1.05 - 0.95 - 0.0 - 1.5),
@@ -567,8 +576,6 @@ def test_packing_metrics_are_rank_zero_and_reduction_compatible(capsys) -> None:
 def test_observed_loss_tokens_use_resolved_mask_and_valid_targets(
     loss_name, datum, expected
 ):
-    from lilo.telemetry import backend
-
     with backend.recording() as measurements:
         build_microbatches(
             forward_batch(loss_name, datum), None, max_slots=None, max_seq_length=8
@@ -577,8 +584,6 @@ def test_observed_loss_tokens_use_resolved_mask_and_valid_targets(
 
 
 def test_observed_packing_counts_are_global_before_data_parallel_sharding():
-    from lilo.telemetry import backend
-
     request = packed_batch(5, 3)
     with backend.recording() as measurements:
         sequences = build_microbatches(

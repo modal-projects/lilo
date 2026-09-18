@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import secrets
+import sys
 import uuid
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from functools import partial
+
+import modal
 
 from lilo.engines import Engine
 
@@ -48,15 +52,12 @@ def run(
     Pinned pools have min_containers=0 and are ephemeral apps owned by this
     process. Owner loss stops them after Modal's heartbeat timeout.
     """
-    import modal
-
     from lilo.providers.modal.scoped import build_app
+    from lilo.providers.modal.scoped_pin_owner import PinOwner, open_pinned_app
 
     engine.validate()
     latest = latest or Pool()
-    pinned = Pool()  # Fixed zero minimum; not a user-facing pool setting.
-    import sys
-
+    pinned = Pool()
     if sys.version_info[:2] != (3, 12):
         raise RuntimeError(
             "Scoped runs require Python 3.12 to match the bundled runtime images"
@@ -90,11 +91,6 @@ def run(
                     for server in servers
                 ],
             )
-            from dataclasses import replace
-            from functools import partial
-
-            from lilo.providers.modal.scoped_pin_owner import PinOwner, open_pinned_app
-
             sampler_engine = replace(
                 engine,
                 training=replace(

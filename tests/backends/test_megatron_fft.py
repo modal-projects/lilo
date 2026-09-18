@@ -18,6 +18,7 @@ with backend_runtime_imports():
         add_packing_metrics,
     )
     from lilo.backends.megatron_runtime.fft import checkpoint as fft_checkpoint
+    from lilo.backends.megatron_runtime.fft.model import apply_fp32_lm_head
 
 BASE_MODEL = "Qwen/Qwen3.5-9B-Base"
 DEFINITION_ID = "qwen3_5_9b_base_full_32k"
@@ -416,9 +417,7 @@ def test_distributed_optimizer_capture_includes_detached_parameter_state(
             "metadata": {"distrib_optim_sharding_type": "dp_reshardable"},
         }
     ]
-    assert captured["format"] == (
-        fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT
-    )
+    assert captured["format"] == (fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT)
     tensors = captured["state_dict"]["param_state"][0]["float32"][0][0]
     assert tensors["param"].tolist() == [1.25]
     assert tensors["exp_avg"].tolist() == [2.5]
@@ -867,8 +866,6 @@ def test_fft_sampler_failure_discards_pending_capture(monkeypatch) -> None:
 
 def test_fp32_lm_head_upcasts_output_projection() -> None:
     torch = pytest.importorskip("torch")
-
-    from lilo.backends.megatron_runtime.fft.model import apply_fp32_lm_head
 
     calls: list[dict] = []
 

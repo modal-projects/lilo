@@ -164,6 +164,7 @@ def create_control_plane_app(
     definitions = tuple(
         definition for definition in all_definitions if definition.CATALOG_VISIBLE
     )
+    from lilo.telemetry.trainer import CommandMiddleware
 
     def definition_for(
         model_name: str,
@@ -200,8 +201,6 @@ def create_control_plane_app(
             raise HTTPException(status_code=401, detail="unauthorized")
 
     app = FastAPI(dependencies=[Depends(authorize)])
-    from lilo.telemetry.trainer import CommandMiddleware
-
     app.add_middleware(CommandMiddleware)
 
     async def skip_rejected_operation(request: Request, exc: Exception) -> None:
@@ -501,7 +500,8 @@ def create_control_plane_app(
                 or body.seq_id is not None
             ):
                 raise ValueError(
-                    "session_id and model_seq_id must be provided without model_id and seq_id"
+                    "session_id and model_seq_id must be provided without "
+                    "model_id and seq_id"
                 )
             creation = await control_plane.create_model_from_checkpoint(
                 session_id=body.session_id,

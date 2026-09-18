@@ -14,6 +14,7 @@ from lilo.backends.miles_runtime.profiling import (
     StepPhaseTimer,
     TorchProfileConfig,
 )
+from lilo.providers.modal.deployment import trainer_deployment_env
 
 
 def test_torch_profile_config_disabled_when_unset(monkeypatch) -> None:
@@ -245,8 +246,6 @@ def test_trainer_deployment_env_forwards_profile_vars(monkeypatch) -> None:
     monkeypatch.delenv("LILO_TORCH_PROFILE_DIR", raising=False)
     monkeypatch.setenv("LILO_TORCH_PROFILE_STEP", "2")
     monkeypatch.setenv("LILO_TORCH_PROFILE_DIR", "/traces")
-
-    from lilo.providers.modal.deployment import trainer_deployment_env
 
     env = trainer_deployment_env()
     assert env["LILO_TORCH_PROFILE_STEP"] == "2"

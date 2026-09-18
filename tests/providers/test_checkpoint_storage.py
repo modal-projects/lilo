@@ -1,4 +1,6 @@
 import ast
+import asyncio
+import importlib
 import runpy
 from pathlib import Path
 from unittest.mock import patch, sentinel
@@ -9,6 +11,7 @@ from lilo.providers.modal.app import DEFINITIONS
 from lilo.providers.modal.checkpoint_storage import (
     CHECKPOINT_ROOT,
     CHECKPOINT_VOLUME_NAME,
+    _scan_checkpoints,
     checkpoint_volume,
 )
 
@@ -101,13 +104,11 @@ def test_full_definitions_configure_checkpoint_dir_and_environment() -> None:
 
 
 def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
-    import asyncio
-    import importlib
-
     app = importlib.import_module("lilo.providers.modal.app")
-    from lilo.providers.modal.checkpoint_storage import _scan_checkpoints
+
     def scan(model_id):
         return _scan_checkpoints(str(tmp_path), model_id)
+
     monkeypatch.setattr(app, "CHECKPOINT_ROOT", str(tmp_path))
     for relative in ("final/run-a", "final/run-b"):
         checkpoint = tmp_path / relative
@@ -117,7 +118,8 @@ def test_same_checkpoint_name_isolated_by_model(tmp_path, monkeypatch) -> None:
     (tmp_path / "notes.txt").write_text("notes")
     entries = scan(None)
     assert {(e["model_id"], e["name"]) for e in entries} == {
-        ("run-a", "final"), ("run-b", "final")
+        ("run-a", "final"),
+        ("run-b", "final"),
     }
     assert len(entries) == 2
     assert scan("run-a")[0]["path"] == str(tmp_path / "final/run-a")

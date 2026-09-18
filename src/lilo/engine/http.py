@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
 import zstandard
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from opentelemetry.context import set_value
+from opentelemetry.propagate import extract
 from pydantic import BaseModel, ConfigDict
 
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
@@ -47,6 +50,8 @@ class SkipSequenceBody(BaseModel):
 
 
 def create_engine_app(server: EngineApi, *, token: str | None = None) -> FastAPI:
+    from lilo.telemetry.trainer import CommandMiddleware
+
     async def authorize(request: Request) -> None:
         if (
             token is not None
@@ -55,8 +60,6 @@ def create_engine_app(server: EngineApi, *, token: str | None = None) -> FastAPI
             raise HTTPException(status_code=401, detail="unauthorized")
 
     app = FastAPI(dependencies=[Depends(authorize)])
-    from lilo.telemetry.trainer import CommandMiddleware
-
     app.add_middleware(CommandMiddleware, receiver=True)
 
     @app.exception_handler(RecordNotFound)
@@ -170,21 +173,14 @@ class HttpEngineClient:
         token: str | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
+        from lilo.telemetry import trainer as trainer_telemetry
+
         headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
 
         async def inject_context(request):
-            from lilo.telemetry.trainer import headers as trace_headers
-
-            request.headers.update(trace_headers())
+            request.headers.update(trainer_telemetry.headers())
 
         async def read_context(response):
-            import json
-
-            from opentelemetry.context import set_value
-            from opentelemetry.propagate import extract
-
-            from lilo.telemetry.trainer import accepted_root
-
             canonical = response.headers.get("x-lilo-command-traceparent")
             if canonical:
                 context = extract({"traceparent": canonical})
@@ -205,7 +201,9 @@ class HttpEngineClient:
                     }
                 except (ValueError, AttributeError):
                     tags = {}
-                accepted_root.set(set_value("lilo.command.tags", tags, context))
+                trainer_telemetry.accepted_root.set(
+                    set_value("lilo.command.tags", tags, context)
+                )
 
         self.http = httpx.AsyncClient(
             event_hooks={"request": [inject_context], "response": [read_context]},
