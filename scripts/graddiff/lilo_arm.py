@@ -72,7 +72,7 @@ app = modal.App(APP_NAME)
     cpu=4,
     memory=32 * 1024,
 )
-def lilo_arm() -> dict:
+def lilo_arm(datum_range: str | None = None, out_name: str = "outputs") -> dict:
     import tinker
     import torch
 
@@ -81,8 +81,8 @@ def lilo_arm() -> dict:
     payload = json.loads(batch_path.read_text())
 
     entries = payload["datums"]
-    if DATUM_RANGE:
-        lo, hi = (int(x) for x in DATUM_RANGE.split(":"))
+    if datum_range:
+        lo, hi = (int(x) for x in datum_range.split(":"))
         entries = entries[lo:hi]
     datums = []
     for entry in entries:
@@ -124,7 +124,9 @@ def lilo_arm() -> dict:
     loss_fn_outputs = []
     for output in fwd_bwd_result.loss_fn_outputs:
         row = {
-            key: (list(value.to_torch().tolist()) if hasattr(value, "to_torch") else value)
+            key: (
+                list(value.to_torch().tolist()) if hasattr(value, "to_torch") else value
+            )
             for key, value in output.items()
         }
         loss_fn_outputs.append(row)
@@ -145,7 +147,7 @@ def lilo_arm() -> dict:
         "loss_fn_config": LOSS_FN_CONFIG,
     }
 
-    out_path = Path(VOLUME_ROOT) / "lilo_arm" / f"{OUT_NAME}.json"
+    out_path = Path(VOLUME_ROOT) / "lilo_arm" / f"{out_name}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result))
     volume.commit()
@@ -166,9 +168,13 @@ def lilo_arm() -> dict:
 
 @app.local_entrypoint()
 def main() -> None:
-    result = lilo_arm.remote()
+    result = lilo_arm.remote(DATUM_RANGE, OUT_NAME)
     out_dir = Path.home() / "work/graddiff"
     out_dir.mkdir(parents=True, exist_ok=True)
-    local_name = "lilo_arm_outputs.json" if OUT_NAME == "outputs" else f"lilo_arm_outputs_{OUT_NAME}.json"
+    local_name = (
+        "lilo_arm_outputs.json"
+        if OUT_NAME == "outputs"
+        else f"lilo_arm_outputs{OUT_NAME}.json"
+    )
     (out_dir / local_name).write_text(json.dumps(result))
     print(f"wrote {out_dir / local_name}")
