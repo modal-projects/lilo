@@ -67,6 +67,9 @@ def convert_batch() -> None:
         samples.append(sample)
 
     assert len(samples) == 128, len(samples)
+    import os
+
+    os.makedirs(os.path.dirname(ROLLOUT_PT), exist_ok=True)
     torch.save(
         {"rollout_id": 0, "metadata": {}, "samples": [s.to_dict() for s in samples]},
         ROLLOUT_PT,
