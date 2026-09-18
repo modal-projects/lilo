@@ -12,6 +12,7 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 
 from lilo.encoding import fingerprint
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
+from lilo.request_timing import mark
 
 from .api import Command, Executor, FutureState, FutureStatus, OperationKind
 from .ingress import decode_forward_backward, decode_json_operation
@@ -177,7 +178,9 @@ class Engine:
         return tuple(self._models)
 
     async def forward_backward(self, body: bytes, content_type: str) -> str:
+        mark("engine.forward_backward.received", bytes=len(body))
         model_id, seq_id, kind, payload = decode_forward_backward(body, content_type)
+        mark("engine.forward_backward.decoded", request_id=f"{model_id}:{seq_id}")
         return await self._submit(kind, model_id, seq_id, payload)
 
     async def forward(self, request: dict) -> str:
@@ -255,6 +258,11 @@ class Engine:
     def _mark_retrieved(self, request_id: str, state: FutureState | None) -> None:
         if state is None or state.status == FutureStatus.PENDING:
             return
+        mark(
+            "engine.retrieve.returned",
+            request_id=request_id,
+            status=state.status.value,
+        )
         model_id, _, seq = request_id.rpartition(":")
         model = self._models.get(model_id)
         if model is None:
@@ -349,13 +357,15 @@ class Engine:
             model = self._models.get(operation.model_id)
             if model is None or model.unload is not None:
                 raise RecordNotFound("model", operation.model_id)
-            mark = fingerprint(
+            fingerprint_started = time.perf_counter()
+            mark_ = fingerprint(
                 operation.kind.value,
                 serialize_operation_payload(operation.payload),
             )
+            fingerprint_s = time.perf_counter() - fingerprint_started
             seen = model.fingerprints.get(operation.seq_id)
             if seen is not None:
-                if seen != mark:
+                if seen != mark_:
                     raise SequenceConflict(operation.model_id, operation.seq_id)
                 if self.observer is not None:
                     self.observer.reuse(operation.request_id)
@@ -368,11 +378,17 @@ class Engine:
                 raise EngineSaturated("operation buffer full")
             if self.observer is not None:
                 self.observer.begin(operation)
-            model.fingerprints[operation.seq_id] = mark
+            model.fingerprints[operation.seq_id] = mark_
             model.buffered[operation.seq_id] = operation
             self._futures[operation.request_id] = FutureState(FutureStatus.PENDING)
             self._start_tasks()
             self._work.notify_all()
+        mark(
+            "engine.op.submitted",
+            request_id=operation.request_id,
+            kind=operation.kind.value,
+            fingerprint_s=fingerprint_s,
+        )
         return operation.request_id
 
     def _start_tasks(self) -> None:
@@ -437,6 +453,11 @@ class Engine:
             self._observe_state(models, f"executing:{operation.kind.value}")
             if operation.kind == OperationKind.LOAD_WEIGHTS:
                 await self._join_persistence()
+            mark(
+                "engine.op.exec_begin",
+                kind=operation.kind.value,
+                request_ids=[item.request_id for item in operations],
+            )
             started = time.time()
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
@@ -460,10 +481,22 @@ class Engine:
                     FutureState(FutureStatus.COMPLETE, result=result)
                     for result in results
                 )
+                mark(
+                    "engine.op.exec_end",
+                    kind=operation.kind.value,
+                    request_ids=[item.request_id for item in operations],
+                    ok=True,
+                )
             except Exception as exc:  # noqa: BLE001
                 error = _failure(exc, f"{operation.kind.value} x{len(operations)}")
                 states = tuple(
                     FutureState(FutureStatus.FAILED, error=error) for _ in operations
+                )
+                mark(
+                    "engine.op.exec_end",
+                    kind=operation.kind.value,
+                    request_ids=[item.request_id for item in operations],
+                    ok=False,
                 )
             self._observe_span(
                 models,
@@ -477,6 +510,11 @@ class Engine:
             async with self._lock:
                 for item, state in zip(operations, states, strict=True):
                     self._finish(item, state)
+            mark(
+                "engine.op.finished",
+                kind=operation.kind.value,
+                request_ids=[item.request_id for item in operations],
+            )
 
     async def _run_accept(self, operation: _AcceptOperation) -> None:
         error = None
