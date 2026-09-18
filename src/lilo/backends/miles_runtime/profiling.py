@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 PROFILE_STEP_ENV = "LILO_TORCH_PROFILE_STEP"
 PROFILE_DIR_ENV = "LILO_TORCH_PROFILE_DIR"
+PROFILE_RANKS_ENV = "LILO_TORCH_PROFILE_RANKS"
 
 _MAX_TRACKED_STEPS = 8
 
@@ -22,6 +23,8 @@ class TorchProfileConfig:
 
     step: int | None
     output_dir: str
+    ranks: frozenset[int] | None = frozenset({0})
+    """Trainer ranks that record a trace; ``None`` means every rank."""
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> TorchProfileConfig:
@@ -31,17 +34,26 @@ class TorchProfileConfig:
             step = int(raw_step)
             if step < 0:
                 raise ValueError(f"{PROFILE_STEP_ENV} must be non-negative")
+        raw_ranks = env.get(PROFILE_RANKS_ENV, "0").strip()
+        ranks: frozenset[int] | None
+        if raw_ranks == "all":
+            ranks = None
+        else:
+            ranks = frozenset(int(part) for part in raw_ranks.split(",") if part)
         checkpoint_root = env.get("LILO_CHECKPOINT_ROOT") or "/checkpoints"
         output_dir = env.get(PROFILE_DIR_ENV) or os.path.join(
             checkpoint_root,
             "torch-profile",
             env.get("LILO_DEFINITION_ID", "trainer"),
         )
-        return cls(step=step, output_dir=output_dir)
+        return cls(step=step, output_dir=output_dir, ranks=ranks)
 
     @property
     def enabled(self) -> bool:
         return self.step is not None
+
+    def profiles_rank(self, rank: int) -> bool:
+        return self.ranks is None or rank in self.ranks
 
 
 class StepPhaseTimer:

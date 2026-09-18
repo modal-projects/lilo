@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import torch
+import torch.distributed as dist
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
+
+from .profiling import RankProfiler, TorchProfileConfig
 
 
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
@@ -29,32 +33,25 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             AutoBridge.to_megatron_provider = original
 
     def forward_backward(self, unit_id, rollout_data_ref):
-        import torch
-
         with torch.profiler.record_function("lilo/forward_backward"):
             return super().forward_backward(unit_id, rollout_data_ref)
 
     def optim_step(self, adam_params_by_slot):
-        import torch
-
         with torch.profiler.record_function("lilo/optim_step"):
             return super().optim_step(adam_params_by_slot)
 
     def forward_only(self, unit_id, rollout_data_ref):
-        import torch
-
         with torch.profiler.record_function("lilo/forward_only"):
             return super().forward_only(unit_id, rollout_data_ref)
 
     def export_slot(self, slot, rank, alpha, path, metadata=None):
-        import torch
-
         with torch.profiler.record_function("lilo/export_slot"):
             return super().export_slot(slot, rank, alpha, path, metadata=metadata)
 
     def torch_profile_start(self) -> None:
-        from .profiling import RankProfiler
-
+        if not TorchProfileConfig.from_env().profiles_rank(dist.get_rank()):
+            self._lilo_profiler = None
+            return
         self._lilo_profiler = RankProfiler()
         self._lilo_profiler.start()
 
@@ -62,8 +59,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         profiler = self._lilo_profiler
         if profiler is None:
             return None
-        import torch.distributed as dist
-
         self._lilo_profiler = None
         return profiler.stop(output_dir, f"rank{dist.get_rank()}")
 

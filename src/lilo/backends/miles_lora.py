@@ -151,8 +151,6 @@ class MilesCommandBackend(Backend):
             and self._profile.step is not None
             and step > self._profile.step
         ):
-            # Stop just before the next step's forward so the trace ends right
-            # where the next step begins, after the post-step save/publish.
             self._stop_profiling()
         with self._timer.phase("prepare_batch", step, model_id=batch.items[0].model_id):
             prepared = prepare_batch(batch, self.job_to_slot)

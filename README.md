@@ -204,10 +204,12 @@ Set these environment variables in the deploying shell before `modal deploy`;
 `trainer_deployment_env()` forwards them onto the trainer container:
 
 - `LILO_TORCH_PROFILE_STEP`: 0-based optimizer step index to trace. When the
-  first `forward_backward` of that step arrives, each rank-local Ray actor
-  starts a CPU+CUDA profiler and the backend process starts a CPU-only
+  first `forward_backward` of that step arrives, the selected rank-local Ray
+  actors start a CPU+CUDA profiler and the backend process starts a CPU-only
   controller trace. The capture stops just before the first forward of the
   following step, so it includes the post-step sampler save/publish.
+- `LILO_TORCH_PROFILE_RANKS`: comma-separated trainer ranks to trace, or
+  `all`. Defaults to `0`; traces are large (~250 MB per rank per step).
 - `LILO_TORCH_PROFILE_DIR`: output directory. Defaults to
   `<checkpoint volume mount>/torch-profile/<LILO_DEFINITION_ID>`. Each rank
   writes `rank{N}.trace.json.gz` (Chrome trace, loadable in

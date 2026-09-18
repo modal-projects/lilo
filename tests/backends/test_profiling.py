@@ -33,6 +33,21 @@ def test_torch_profile_config_reads_step_and_dir() -> None:
     assert config.enabled
     assert config.step == 2
     assert config.output_dir == "/traces"
+    assert config.profiles_rank(0)
+    assert not config.profiles_rank(3)
+
+
+def test_torch_profile_config_rank_selection() -> None:
+    all_ranks = TorchProfileConfig.from_env(
+        {"LILO_TORCH_PROFILE_STEP": "2", "LILO_TORCH_PROFILE_RANKS": "all"}
+    )
+    some = TorchProfileConfig.from_env(
+        {"LILO_TORCH_PROFILE_STEP": "2", "LILO_TORCH_PROFILE_RANKS": "0,4"}
+    )
+
+    assert all_ranks.ranks is None and all_ranks.profiles_rank(7)
+    assert some.ranks == frozenset({0, 4})
+    assert some.profiles_rank(4) and not some.profiles_rank(1)
 
 
 def test_torch_profile_config_rejects_bad_step() -> None:

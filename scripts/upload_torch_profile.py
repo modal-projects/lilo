@@ -10,6 +10,9 @@
 from __future__ import annotations
 
 import argparse
+import time
+
+import wandb
 
 
 def main() -> None:
@@ -32,8 +35,6 @@ def main() -> None:
     parser.add_argument("--group", default=None, help="W&B run group")
     args = parser.parse_args()
 
-    import wandb
-
     run = wandb.init(
         entity=args.entity,
         project=args.project,
@@ -44,9 +45,12 @@ def main() -> None:
     )
     artifact = wandb.Artifact(args.name, type="torch-profile")
     artifact.add_dir(args.dir)
+    started = time.perf_counter()
     logged = run.log_artifact(artifact)
     logged.wait()
-    print(f"uploaded artifact: {logged.qualified_name}")
+    print(
+        f"uploaded artifact: {logged.qualified_name} in {time.perf_counter() - started:.1f}s"
+    )
     run.finish()
 
 
