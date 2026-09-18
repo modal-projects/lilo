@@ -17,6 +17,7 @@ _RL_LOSSES = SUPPORTED_LOSSES - {"cross_entropy"}
 class PreparedBatch:
     slot_rows: tuple[tuple[int, dict[str, Any]], ...]
     locations: tuple[tuple[int, int], ...]
+    target_lengths: tuple[int, ...]
 
 
 def pad_slot_rows(
@@ -45,10 +46,13 @@ def pad_slot_rows(
 def prepare_batch(
     batch: ForwardBatch,
     slots: dict[str, int],
+    sequence_alignment: int = 1,
 ) -> PreparedBatch:
     if batch.loss_fn not in SUPPORTED_LOSSES:
         raise ValueError(f"Miles does not support loss {batch.loss_fn!r}")
-    entries: list[tuple[int, int, int, dict[str, Any]]] = []
+    if sequence_alignment < 1:
+        raise ValueError("sequence_alignment must be at least 1")
+    entries: list[tuple[int, int, int, dict[str, Any], int]] = []
     for item_index, item in enumerate(batch.items):
         if item.model_id not in slots:
             raise ValueError(f"model {item.model_id} is not loaded")
@@ -56,15 +60,42 @@ def prepare_batch(
             raise ValueError(f"forward_backward has no data for model {item.model_id}")
         for datum_index, datum in enumerate(item.data):
             row = _datum_row(datum, batch.loss_fn, datum_index)
-            entries.append((slots[item.model_id], item_index, datum_index, row))
+            target_length = int(row["target_len"])
+            _align_row(row, sequence_alignment)
+            entries.append(
+                (slots[item.model_id], item_index, datum_index, row, target_length)
+            )
 
     entries.sort(key=lambda entry: entry[0])
     return PreparedBatch(
-        slot_rows=tuple((slot, row) for slot, _, _, row in entries),
+        slot_rows=tuple((slot, row) for slot, _, _, row, _ in entries),
         locations=tuple(
-            (item_index, datum_index) for _, item_index, datum_index, _ in entries
+            (item_index, datum_index) for _, item_index, datum_index, _, _ in entries
         ),
+        target_lengths=tuple(length for *_, length in entries),
     )
+
+
+def _align_row(row: dict[str, Any], multiple: int) -> None:
+    """Pad one sequence so Megatron's THD context-parallel chunks tile a TP rank.
+
+    Megatron splits each packed sequence into ``2 * cp`` chunks and then shards
+    every chunk across the tensor-parallel ranks; with a multiple of
+    ``2 * cp * tp`` tokens that split is exact for every sequence rather than
+    only for the concatenated stream.
+    """
+
+    pad = -len(row["tokens"]) % multiple
+    if pad == 0:
+        return
+    filler = row["tokens"][-1]
+    row["tokens"] = [*row["tokens"], *([filler] * pad)]
+    row["target_tokens"] = [*row["target_tokens"], *([filler] * pad)]
+    row["target_len"] = len(row["target_tokens"])
+    for key in ("weights", "advantages", "sampling_logprobs"):
+        values = row.get(key)
+        if values is not None:
+            row[key] = [*values, *([0.0] * pad)]
 
 
 def build_outputs(
@@ -80,9 +111,11 @@ def build_outputs(
     grouped: list[list[dict[str, Any] | None]] = [
         [None] * len(item.data) for item in batch.items
     ]
-    for location, output in zip(prepared.locations, raw_outputs, strict=True):
+    for location, output, target_length in zip(
+        prepared.locations, raw_outputs, prepared.target_lengths, strict=True
+    ):
         item_index, datum_index = location
-        logprobs = [float(value) for value in output["logprobs"]]
+        logprobs = [float(value) for value in output["logprobs"]][:target_length]
         grouped[item_index][datum_index] = {
             "loss": float(output["loss"]),
             "logprobs": logprobs,
