@@ -96,7 +96,8 @@ def _adapter_params(model: Any) -> dict[str, Any]:
 
 _LILO_PREFIX_RE = re.compile(r"^slot0\.module\.module\.")
 _LAYER_KEY_RE = re.compile(
-    r"language_model\.decoder\.layers\.\d+\.[\w.]+?\.(?:adapters?\.\d+\.)?linear_in\.weight"
+    r"(language_model\.decoder\.layers\.\d+\.[\w.]+?)"
+    r"\.(?:adapters?\.(?:\d+\.)?)?linear_in\.weight"
 )
 
 
@@ -104,12 +105,12 @@ def _lilo_key(name: str) -> str | None:
     """Map a dump name to its canonical ``language_model...linear_in.weight`` key."""
     stripped = _LILO_PREFIX_RE.sub("", name)
     m = _LAYER_KEY_RE.search(stripped)
-    return m.group(0) if m else None
+    return m.group(1) if m else None
 
 
 def _miles_key(name: str) -> str | None:
     m = _LAYER_KEY_RE.search(name)
-    return m.group(0) if m else None
+    return m.group(1) if m else None
 
 
 def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
