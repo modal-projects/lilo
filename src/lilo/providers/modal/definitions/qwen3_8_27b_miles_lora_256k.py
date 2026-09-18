@@ -97,6 +97,14 @@ proxy_secret = modal.Secret.from_name(
 huggingface_secret = modal.Secret.from_name("huggingface-secret")
 
 
+def ensure_assets() -> None:
+    from huggingface_hub import snapshot_download
+
+    if not os.path.exists(HF_CHECKPOINT):
+        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
+        assets.commit()
+
+
 @app.function(
     image=image,
     gpu=f"{GPU_TYPE}:{GPUS}",
@@ -112,7 +120,11 @@ huggingface_secret = modal.Secret.from_name("huggingface-secret")
 def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
     from lilo.providers.modal.ray_cluster import start_trainer_cluster
 
-    ray_address = start_trainer_cluster(TRAINER_NODES)
+    ray_address = start_trainer_cluster(
+        TRAINER_NODES,
+        before_head=ensure_assets,
+        before_worker_join=assets.reload,
+    )
     if ray_address is None:
         return
     run_trainer(instance_id, ray_address=ray_address)
@@ -167,15 +179,12 @@ def run_trainer(
 ) -> None:
     import json
 
-    from huggingface_hub import snapshot_download
     from modal.config import config
 
     from lilo.providers.modal.kv import shared_kv
     from lilo.providers.modal.serve import run_engine_with_backend
 
-    if not os.path.exists(HF_CHECKPOINT):
-        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
-        assets.commit()
+    ensure_assets()
     config_payload = backend_config(
         instance_id,
         deterministic_training=deterministic_training,

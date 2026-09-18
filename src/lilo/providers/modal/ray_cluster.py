@@ -11,6 +11,7 @@ import os
 import socket
 import subprocess
 import time
+from collections.abc import Callable
 
 RAY_PORT = 6379
 
@@ -57,7 +58,13 @@ def discover_topology(nodes: int) -> ClusterTopology:
     )
 
 
-def start_trainer_cluster(nodes: int, *, join_timeout: float = 900.0) -> str | None:
+def start_trainer_cluster(
+    nodes: int,
+    *,
+    join_timeout: float = 900.0,
+    before_head: Callable[[], None] | None = None,
+    before_worker_join: Callable[[], None] | None = None,
+) -> str | None:
     """Bring up Ray across the cluster.
 
     Returns the Ray address for rank 0, or ``None`` on ranks that only
@@ -69,10 +76,14 @@ def start_trainer_cluster(nodes: int, *, join_timeout: float = 900.0) -> str | N
         return None
 
     if topology.is_head:
+        if before_head is not None:
+            before_head()
         _start_head(topology, join_timeout=join_timeout)
         return topology.ray_address
 
     _wait_for_head(topology, timeout=join_timeout)
+    if before_worker_join is not None:
+        before_worker_join()
     _start_worker(topology)
     _idle_until_head_exits(topology)
     return None
