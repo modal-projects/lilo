@@ -44,7 +44,7 @@ GBS = int(os.environ.get("GBS", "128"))
 RBS = int(os.environ.get("RBS", "16"))
 
 
-def convert_batch() -> None:
+def convert_batch(datum_range: str | None = None) -> None:
     """batch.json datums -> Miles debug rollout .pt (rollout_id 0)."""
     sys.path.insert(0, "/root/miles")
     import torch
@@ -54,8 +54,8 @@ def convert_batch() -> None:
         batch = json.load(f)
 
     entries = batch["datums"]
-    if DATUM_RANGE:
-        lo, hi = (int(x) for x in DATUM_RANGE.split(":"))
+    if datum_range:
+        lo, hi = (int(x) for x in datum_range.split(":"))
         entries = entries[lo:hi]
     samples = []
     for index, dm in enumerate(entries):
@@ -114,7 +114,7 @@ def convert_batch() -> None:
 
 
 # slim-hill-371ae1cfcb8e argv with graddiff overrides applied.
-def train_cmd() -> str:
+def train_cmd(miles_dump_dir: str, wandb_name: str, gbs: int, rbs: int) -> str:
     args = [
         "--spec",
         "miles_plugins.models.qwen3_5",
@@ -177,9 +177,9 @@ def train_cmd() -> str:
         "--load-debug-rollout-data",
         "/graddiff/miles_batch/rollout_{rollout_id}.pt",
         "--dump-details",
-        MILES_DUMP_DIR + "/details",
+        miles_dump_dir + "/details",
         "--rollout-batch-size",
-        str(RBS),
+        str(rbs),
         "--n-samples-per-prompt",
         "8",
         "--rollout-max-response-len",
@@ -242,7 +242,7 @@ def train_cmd() -> str:
         "miles.rollout.filter_hub.dynamic_sampling_filters.check_reward_nonzero_std",
         "--balance-data",
         "--global-batch-size",
-        str(GBS),
+        str(gbs),
         "--lr",
         "0.0001",
         "--lr-decay-style",
@@ -308,7 +308,7 @@ def train_cmd() -> str:
         "--wandb-group",
         "graddiff-step0",
         "--wandb-exp-name",
-        WANDB_NAME,
+        wandb_name,
         "--disable-wandb-random-suffix",
         "--custom-megatron-before-train-step-hook-path",
         "miles_hook.before_train_step",
@@ -326,7 +326,13 @@ def train_cmd() -> str:
         modal.Secret.from_name("huggingface-secret"),
     ],
 )
-def run() -> str:
+def run(
+    datum_range: str | None = None,
+    miles_dump_dir: str = MILES_DUMP_DIR,
+    wandb_name: str = WANDB_NAME,
+    gbs: int = GBS,
+    rbs: int = RBS,
+) -> str:
     import os
 
     def _sh(cmd: str) -> str:
@@ -375,7 +381,7 @@ def run() -> str:
     )
     commit = _sh("git -C /root/miles rev-parse HEAD")
 
-    convert_batch()
+    convert_batch(datum_range)
 
     env = {**os.environ, "PYTHONPATH": "/root/graddiff"}
     subprocess.Popen(["ray", "start", "--head", "--dashboard-host=0.0.0.0"], env=env)
@@ -404,7 +410,7 @@ def run() -> str:
             "NCCL_NVLS_ENABLE": os.environ.get("NCCL_NVLS_ENABLE", "1"),
             "no_proxy": "127.0.0.1",
             "MASTER_ADDR": "127.0.0.1",
-            "MILES_GRADDIFF_DUMP_DIR": MILES_DUMP_DIR,
+            "MILES_GRADDIFF_DUMP_DIR": miles_dump_dir,
             "LILO_DUMP_DIR": "/graddiff/lilo_dump/lilo",
             "PYTHONPATH": "/root/graddiff"
             + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else ""),
@@ -412,7 +418,10 @@ def run() -> str:
             "HF_HOME": HF_MOUNT,
         }
     }
-    job_id = client.submit_job(entrypoint=train_cmd(), runtime_env=runtime_env)
+    job_id = client.submit_job(
+        entrypoint=train_cmd(miles_dump_dir, wandb_name, gbs, rbs),
+        runtime_env=runtime_env,
+    )
     print("submitted ray job", job_id, flush=True)
 
     status = "PENDING"
@@ -435,4 +444,12 @@ def run() -> str:
 
 @app.local_entrypoint()
 def main():
-    print(run.remote())
+    print(
+        run.remote(
+            os.environ.get("DATUM_RANGE"),
+            os.environ.get("MILES_DUMP_DIR", "/graddiff/miles_dump2"),
+            os.environ.get("WANDB_NAME", "graddiff-step0-miles-rerun"),
+            int(os.environ.get("GBS", "128")),
+            int(os.environ.get("RBS", "16")),
+        )
+    )
