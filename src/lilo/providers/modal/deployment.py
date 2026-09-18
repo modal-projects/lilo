@@ -1,6 +1,7 @@
 import os
 
 TRAINER_MAX_CONTAINERS_ENV = "LILO_TRAINER_MAX_CONTAINERS"
+APP_NAME_ENV = "LILO_APP_NAME"
 
 
 def trainer_max_containers() -> int | None:
@@ -19,5 +20,9 @@ def trainer_max_containers() -> int | None:
 
 
 def trainer_deployment_env() -> dict[str, str]:
-    value = os.environ.get(TRAINER_MAX_CONTAINERS_ENV)
-    return {TRAINER_MAX_CONTAINERS_ENV: value} if value is not None else {}
+    env = {
+        name: os.environ[name]
+        for name in (TRAINER_MAX_CONTAINERS_ENV, APP_NAME_ENV)
+        if name in os.environ
+    }
+    return env

@@ -426,7 +426,7 @@ def test_executor_errors_fail_the_future() -> None:
 
 def test_oldest_results_evicted_beyond_cap() -> None:
     async def run() -> None:
-        server = Engine(EchoExecutor(), max_results=1)
+        server = Engine(EchoExecutor(), max_results=1, result_retention_s=0.0)
         await server.accept_model("model-a", {})
         await server.accept_model("model-b", {})
         await forward_backward(server, 1, model_id="model-b")
@@ -441,6 +441,48 @@ def test_oldest_results_evicted_beyond_cap() -> None:
         await server.close()
 
     asyncio.run(run())
+
+
+def test_retrieved_results_are_eagerly_evicted_past_the_cap() -> None:
+    async def run() -> None:
+        server = Engine(EchoExecutor(), max_results=1, result_retention_s=0.0)
+        await server.accept_model("model-a", {})
+        await forward_backward(server, 1)
+        await forward_backward(server, 2)
+        await forward_backward(server, 3)
+        for seq in (1, 2, 3):
+            state = await server.retrieve_future(f"model-a:{seq}", timeout=1.0)
+            assert state.status == FutureStatus.COMPLETE
+        model = server._models["model-a"]
+        assert len(model.done) <= 1
+        assert all(f"model-a:{seq}" not in server._futures for seq in (1, 2))
+        assert "model-a:3" in server._futures
+        assert await server.retrieve_future("model-a:1") is None
+        await server.close()
+
+    asyncio.run(run())
+
+
+def test_retrieved_results_survive_the_cap_within_the_retention_window() -> None:
+    async def run() -> None:
+        server = Engine(EchoExecutor(), max_results=1, result_retention_s=3600.0)
+        await server.accept_model("model-a", {})
+        for seq in (1, 2, 3):
+            await forward_backward(server, seq)
+            state = await server.retrieve_future(f"model-a:{seq}", timeout=1.0)
+            assert state.status == FutureStatus.COMPLETE
+        for seq in (1, 2, 3):
+            replay = await server.retrieve_future(f"model-a:{seq}")
+            assert replay is not None
+            assert replay.status == FutureStatus.COMPLETE
+        await server.close()
+
+    asyncio.run(run())
+
+
+def test_negative_result_retention_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        Engine(EchoExecutor(), result_retention_s=-1.0)
 
 
 def test_duplicate_accept_waits_for_registration() -> None:
