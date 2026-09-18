@@ -254,6 +254,11 @@ class TinkerClientTimer:
             future = await original(*args, **kwargs)
             submit_s = time.time() - submit_started
             timer.record_call(name, submit_s)
+            if not isinstance(future, APIFuture):
+                # save_weights_and_get_sampling_client_async resolves inline
+                # and returns a SamplingClient; the call itself is the wait.
+                timer.record_result(name, 0.0, submit_s)
+                return future
 
             def on_result(wait_s: float, result_ts: float) -> None:
                 timer.record_result(name, wait_s, result_ts - submit_started)
