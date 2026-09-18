@@ -27,6 +27,37 @@ All 504 optimizer updates across 63 clients succeeded; 378 updates enter the mea
 
 Download the [summary CSV](assets/dapo-client-scaling/summary.csv), [summary and per-client JSON](assets/dapo-client-scaling/summary.json), [main figure PDF](assets/dapo-client-scaling/sweep.pdf), or [diagnostic PDF](assets/dapo-client-scaling/diagnostics.pdf). The [artifact directory](assets/dapo-client-scaling) also contains every update record, GPU lifetimes and observations, isolation checks, original source manifests, and records of the discarded attempts.
 
+## Batch size and trainer activity over time
+
+Each client update contains about **78,000–83,000 prompt-plus-answer tokens on average**. That is **68–72% of the configured 114,688-token microbatch budget**. A client update and a microbatch are different: the server can combine several clients' updates, then divide that combined work into smaller microbatches for forward/backward.
+
+![Client batch tokens over time](assets/dapo-client-scaling/trainer-batch-tokens.png)
+
+Dots show each measured client batch at its training submission time. Black segments show the mean of batches submitted within each one-minute interval; missing segments mean no submissions. The dashed line is the configured microbatch budget. A batch above that line can be split across multiple microbatches. Counts include prompt and answer tokens, including the final token that Miles restores when preparing training data; they exceed the loss-token metric by 64 tokens per client batch. Padding is excluded.
+
+**114,688 is not a measured maximum for the 8×H200 machine.** These GPUs split the same model using tensor parallelism; this is not eight independent trainers with eight independent token budgets. The run uses tensor parallelism 8, data parallelism 1 and context parallelism 1. The pinned [Miles batching implementation](https://github.com/radixark/miles/blob/ef3807c0ef659d7c6d8494c4933bd7ee0332700f/miles/backends/training_utils/data.py#L520) uses the token budget to choose how many microbatches to make; it does not multiply it by tensor-parallel GPU count. We did not test the largest batch that fits in memory.
+
+![Trainer activity over time](assets/dapo-client-scaling/trainer-activity.png)
+
+Teal bars show forward/backward calls, orange optimizer calls, and purple snapshot capture calls. Bar height is binary: a call was in progress. The black line is the fraction of a centered 60-second window spent inside these calls. White gaps are time outside these three calls, which can include input preparation, result handling and waiting. Each row has its own elapsed-time scale and ends when that run finishes. Short optimizer calls can be thinner than a pixel; the PDF retains their exact widths.
+
+| Clients | Mean tokens/client batch | Fraction of microbatch budget | Time inside trainer calls |
+|---:|---:|---:|---:|
+| 1 | 80,344 | 70.1% | 57.9% |
+| 2 | 78,647 | 68.6% | 73.7% |
+| 4 | 82,705 | 72.1% | 73.4% |
+| 8 | 79,806 | 69.6% | 84.3% |
+| 16 | 78,491 | 68.4% | 75.9% |
+| 32 | 80,930 | 70.6% | 80.4% |
+
+More clients reduce the large gaps seen with one client, but the occupied fraction does **not** increase monotonically. It is highest at eight clients even though output TPS continues increasing through 32. Time spent in a call does not describe how much useful work it performs: multiple clients can share one forward/backward call, and the call includes internal overhead. The average number of client batches combined per forward/backward call is 1.0, 1.0, 2.0, 3.2, 4.0 and 4.9 across these six runs. Those combined calls may contain several sequential microbatches; their total tokens are not all resident at once.
+
+**This is server activity, not GPU compute utilization or a microbatch-fill measurement.** The saved logs contain exact server call start/end timestamps and combined sequence counts, but not each microbatch's token count or start/end timestamps. Painting forward/backward bars at the per-client token fraction would therefore be misleading. Neither the real token-fill timeline nor GPU memory headroom can be recovered from these records. To measure the former in a future run, record token counts (including padding), configured budget, and start/end times for each actual microbatch. GPU kernel timing would be a separate measurement.
+
+The extractor pairs embedded UTC timestamps, checks for missing/failed/overlapping calls, and reconciles forward/backward sequence counts, optimizer counts and snapshot counts against all 378 measured updates. Submission events are matched to each client's eight update records before warmup is excluded. Ray's repeated actor messages are deduplicated by their enclosing forward/backward call. Snapshot capture bars cover `export_slot`; asynchronous persistence is outside those bars. No new training runs were needed.
+
+Download the [batch-size PDF](assets/dapo-client-scaling/trainer-batch-tokens.pdf), [activity PDF](assets/dapo-client-scaling/trainer-activity.pdf), or [extracted intervals and batch records](assets/dapo-client-scaling/trainer-activity.json). The JSON includes the source log hashes. Regenerate the figures from committed data with `python scripts/plot_dapo_trainer_activity.py`; to re-extract, pass the six original run directories in the same order as the main analysis command below.
+
 ## Workload
 
 Each client performs eight optimizer updates. An update contains eight DAPO Math prompts with eight sampled answers each: 64 sequences, temperature 1, a 4,096-token output limit and a 16,384-token context limit. The model, plain-text prompt format, 320-row dataset, learning rate and group size match the earlier 12-client DAPO cost experiment. That earlier experiment used a different GPU allocation; it is not a hardware-matched baseline for this sweep.
