@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+import socket
+
+import modal
 import torch
 import torch.distributed as dist
 from megatron.bridge import AutoBridge
@@ -164,6 +168,36 @@ def _gather_tinker_logprobs_across_cp() -> None:
 _gather_tinker_logprobs_across_cp()
 
 
+def _sync_checkpoint_volume(action: str) -> None:
+    """Publish checkpoint shards across trainer nodes.
+
+    Ranks on different Modal containers each mount their own view of the
+    checkpoint volume, so a sharded save is only readable elsewhere once every
+    node commits, and a sharded load only sees it after every node reloads.
+    """
+    name = os.environ.get("LILO_CHECKPOINT_VOLUME")
+    if name is None:
+        return
+    if not dist.is_available() or not dist.is_initialized():
+        _volume_action(name, action)
+        return
+
+    dist.barrier()
+    hosts: list[str] = [""] * dist.get_world_size()
+    dist.all_gather_object(hosts, socket.gethostname())
+    if hosts.index(hosts[dist.get_rank()]) == dist.get_rank():
+        _volume_action(name, action)
+    dist.barrier()
+
+
+def _volume_action(name: str, action: str) -> None:
+    volume = modal.Volume.from_name(name)
+    if action == "commit":
+        volume.commit()
+    else:
+        volume.reload()
+
+
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     """Upstream multi-LoRA actor with Qwen MTP and weights-only save support."""
 
@@ -210,6 +244,21 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     def forward_only(self, *args, **kwargs):
         return self._profiled("forward_only", *args, **kwargs)
 
+    def load_slot(self, *args, **kwargs):
+        if kwargs.get("ckpt_path") or len(args) > 3:
+            _sync_checkpoint_volume("reload")
+        return super().load_slot(*args, **kwargs)
+
+    def save_slot(self, *args, **kwargs):
+        result = super().save_slot(*args, **kwargs)
+        _sync_checkpoint_volume("commit")
+        return result
+
+    def export_slot(self, *args, **kwargs):
+        result = super().export_slot(*args, **kwargs)
+        _sync_checkpoint_volume("commit")
+        return result
+
     def _profiled(self, operation: str, *args, **kwargs):
         with torch.profiler.record_function(f"lilo/{operation}"):
             result = getattr(super(), operation)(*args, **kwargs)
@@ -252,6 +301,7 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
 
     def save_slot_weights(self, slot: int, path: str) -> None:
         self._save_slot_weights(slot, path)
+        _sync_checkpoint_volume("commit")
 
     def _save_slot_weights(self, slot: int, path: str) -> None:
         weights = checkpoint._slot_weights_sharded_state_dict(self.model, slot)
