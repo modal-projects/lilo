@@ -86,7 +86,8 @@ def convert_batch() -> None:
         seen.add(dm["group_idx"])
         prompt_len = len(dm["mask"]) - int(sum(dm["mask"]))
         prompts.append(tok.decode(dm["input_tokens"][:prompt_len]))
-    pd.DataFrame({"prompt": prompts, "label": ["0"] * len(prompts)}).to_parquet(
+    convs = [[{"role": "user", "content": p}] for p in prompts]
+    pd.DataFrame({"prompt": convs, "label": ["0"] * len(convs)}).to_parquet(
         PROMPT_PARQUET
     )
     print(f"wrote {PROMPT_PARQUET}: {len(prompts)} prompts", flush=True)
@@ -181,6 +182,9 @@ def train_cmd() -> str:
         "prompt",
         "--label-key",
         "label",
+        "--apply-chat-template",
+        "--apply-chat-template-kwargs",
+        '{"enable_thinking": false}',
         "--rollout-health-check-interval",
         "30",
         "--rollout-health-check-timeout",
