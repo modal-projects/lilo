@@ -32,21 +32,21 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         finally:
             AutoBridge.to_megatron_provider = original
 
-    def forward_backward(self, unit_id, rollout_data_ref):
+    def forward_backward(self, *args, **kwargs):
         with torch.profiler.record_function("lilo/forward_backward"):
-            return super().forward_backward(unit_id, rollout_data_ref)
+            return super().forward_backward(*args, **kwargs)
 
-    def optim_step(self, adam_params_by_slot):
+    def optim_step(self, *args, **kwargs):
         with torch.profiler.record_function("lilo/optim_step"):
-            return super().optim_step(adam_params_by_slot)
+            return super().optim_step(*args, **kwargs)
 
-    def forward_only(self, unit_id, rollout_data_ref):
+    def forward_only(self, *args, **kwargs):
         with torch.profiler.record_function("lilo/forward_only"):
-            return super().forward_only(unit_id, rollout_data_ref)
+            return super().forward_only(*args, **kwargs)
 
-    def export_slot(self, slot, rank, alpha, path, metadata=None):
+    def export_slot(self, *args, **kwargs):
         with torch.profiler.record_function("lilo/export_slot"):
-            return super().export_slot(slot, rank, alpha, path, metadata=metadata)
+            return super().export_slot(*args, **kwargs)
 
     def torch_profile_start(self) -> None:
         if not TorchProfileConfig.from_env().profiles_rank(dist.get_rank()):
