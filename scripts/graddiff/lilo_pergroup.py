@@ -175,10 +175,24 @@ def lilo_pergroup() -> dict:
             "n_datums": len(group_datums),
         }
 
-        # Move the trainer-written dump aside before the next call overwrites it.
-        volume.reload()
+        # The trainer's post-step files (grads_reduced/params/delta) are flushed
+        # asynchronously; poll until the full set for all 8 ranks is present.
         dest = PERGROUP_DIR / tag
         dest.mkdir(parents=True, exist_ok=True)
+        moved = 0
+        deadline = time.time() + 300
+        while True:
+            volume.reload()
+            n_reduced = len(list(DUMP_SRC.glob("rank*_grads_reduced.pt")))
+            n_delta = len(list(DUMP_SRC.glob("rank*_delta.pt")))
+            if n_reduced >= 8 and n_delta >= 8:
+                break
+            if time.time() > deadline:
+                raise RuntimeError(
+                    f"[{tag}] dump incomplete after 300s: "
+                    f"{n_reduced} reduced, {n_delta} delta"
+                )
+            time.sleep(5)
         moved = 0
         for f in DUMP_SRC.iterdir():
             if f.is_file():
