@@ -2,7 +2,6 @@ import asyncio
 
 import pytest
 
-from tests.support import EchoExecutor
 from lilo.control_plane import ControlPlane, FutureResolutionStatus
 from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
 from lilo.engine import OperationKind
@@ -15,6 +14,7 @@ from lilo.providers.local import (
     InMemoryKeyValueStore,
     LocalEnginePlatform,
 )
+from tests.support import EchoExecutor
 
 DEFINITION = "qwen3_4b_lora32_16k"
 
@@ -427,5 +427,48 @@ def test_prepare_model_runs_once_per_created_model() -> None:
                 spec={"rank": 32},
             )
         assert prepared == [creation.model.model_id]
+
+    asyncio.run(run())
+
+
+def test_prepare_model_failure_leaves_no_runnable_model() -> None:
+    attempts = 0
+    reconciled = []
+
+    async def prepare(model) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("asset download failed")
+
+    async def reconcile(definition_id: str) -> None:
+        reconciled.append(definition_id)
+
+    async def run() -> None:
+        kv = InMemoryKeyValueStore()
+        plane = ControlPlane(
+            kv,
+            LocalEnginePlatform(DEFINITION, EchoExecutor),
+            prepare_model=prepare,
+            reconcile_trainers=reconcile,
+        )
+        session = await plane.create_session()
+        request = {
+            "session_id": session.session_id,
+            "model_seq_id": 0,
+            "definition_id": DEFINITION,
+            "spec": {"rank": 32},
+        }
+
+        with pytest.raises(RuntimeError, match="asset download failed"):
+            await plane.create_model(**request)
+        assert reconciled == []
+        assert await kv.list_keys("model:") == ()
+        assert await kv.list_keys("trainer_demand:") == ()
+
+        creation = await plane.create_model(**request)
+        assert attempts == 2
+        assert reconciled == [DEFINITION]
+        assert not creation.created
 
     asyncio.run(run())

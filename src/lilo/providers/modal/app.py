@@ -80,6 +80,7 @@ from .trainer_reconciler import (
 
 APP_NAME = os.environ.get("LILO_APP_NAME", "lilo")
 ROUTING_REGION = "us-west"
+MODEL_ASSET_ROOT = "/assets"
 SESSION_IDLE_TIMEOUT = 300.0
 FFT_POOL_IDLE_TIMEOUT = 300.0
 LORA_POOL_IDLE_TIMEOUT = 300.0
@@ -135,13 +136,36 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git")
     .pip_install_from_pyproject("pyproject.toml")
-    .pip_install(STITCH_PACKAGE)
+    .pip_install(STITCH_PACKAGE, "huggingface-hub")
     .add_local_python_source("lilo")
 )
+model_assets = modal.Volume.from_name("lilo-model-assets", create_if_missing=True)
 proxy_secret = modal.Secret.from_name(
     "lilo-proxy",
     required_keys=["MODAL_PROXY_TOKEN_ID", "MODAL_PROXY_TOKEN_SECRET"],
 )
+
+
+@app.function(
+    image=image,
+    volumes={MODEL_ASSET_ROOT: model_assets},
+    secrets=[modal.Secret.from_name("huggingface-secret")],
+    timeout=4 * 60 * 60,
+    max_containers=1,
+    retries=2,
+)
+def prepare_model_assets(definition_id: str) -> None:
+    from huggingface_hub import snapshot_download
+
+    definition = module_for(definition_id)
+    checkpoint = os.path.normpath(definition.HF_CHECKPOINT)
+    if (
+        os.path.commonpath((MODEL_ASSET_ROOT, checkpoint)) != MODEL_ASSET_ROOT
+        or checkpoint == MODEL_ASSET_ROOT
+    ):
+        raise ValueError(f"invalid model asset path: {checkpoint}")
+    snapshot_download(repo_id=definition.MODEL_NAME, local_dir=checkpoint)
+    model_assets.commit()
 
 
 async def _touch_fft_pool(spec: FFTPoolSpec) -> None:
@@ -387,9 +411,12 @@ def _plane():
 
     async def prepare_model(model) -> None:
         parameterization = parameterization_for(model.engine_definition_id)
+        if parameterization is None:
+            return
+        await prepare_model_assets.remote.aio(model.engine_definition_id)
         if parameterization == "full":
             await ensure_fft_pool.spawn.aio(_latest_pool(model).as_dict())
-        elif parameterization == "lora":
+        else:
             await ensure_lora_pool.spawn.aio(
                 LoraPoolSpec(model.engine_definition_id).as_dict()
             )
@@ -417,6 +444,8 @@ def _plane():
         key = f"fft_pool:{pool.app_name}"
         record = await registry.get(key)
         if record is None:
+            if session.model_id is None:
+                await prepare_model_assets.remote.aio(definition_id)
             if pool.latest:
                 model = ModelRecord.model_validate(
                     await kv.get(model_key(session.model_id))
