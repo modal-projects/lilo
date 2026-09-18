@@ -1,12 +1,12 @@
 # Lilo
 
-Lilo runs model training and sampling on Modal through the Tinker SDK. Trainers
-run `forward_backward` and `optim_step`, then publish updated weights to sampling
-replicas managed by [Stitch](https://github.com/modal-projects/stitch).
+Lilo is a Tinker SDK-compatible backend run on Modal. Trainers run `forward_backward` and `optim_step` calls, then publish updated weights to autoscaling sampling replicas managed by the [Stitch](https://github.com/modal-projects/stitch) protocol. Currently, Lilo supports single-tenant full-parameter training as well as multi-tenant LoRA training.
 
-## Scoped training runs
+# Getting Started 
 
-For a dedicated full-training run, use Python 3.12 and configure your Modal
+## Full-parameter training runs
+
+For a dedicated full-parameter fine-tuning (FFT) run, use Python 3.12 and configure your Modal
 credentials and `lilo-proxy` secret as described below. Then:
 
 ```python
@@ -21,14 +21,30 @@ with lilo.run(engine=engine) as (url, api_key):
     # Train and sample through the Tinker SDK here.
 ```
 
-`lilo.run` creates an API endpoint, API key, trainer, and sampling apps. Leaving
-the context stops those resources but keeps completed checkpoints. It does not
-save a checkpoint automatically. Each scope allows one active training model;
-other processes can connect while the process holding the context stays alive.
-This path does not require deploying the shared API or creating a `lilo-api`
-secret. See [scoped runs](docs/scoped-runs.md) for recovery and custom engines,
+Our FFT path is *not* Tinker compatible, but roughly obeys the same abstractions. 
+
+See [scoped runs](docs/scoped-runs.md) for recovery and custom engines,
 and the [Codeforces example](examples/codeforces-codegolf/README.md) for a complete
 training loop with sandbox judging and checkpoints.
+
+## LoRA training runs
+
+The traditional Tinker path uses LoRA training, which is implemented via a multi-tenant Miles/Megatron backend in our system. Our LoRA path *is* Tinker-compatible out of the box on any of our supported models: 
+
+```python
+import os
+import tinker
+
+service = tinker.ServiceClient(
+    base_url=os.environ["TINKER_BASE_URL"],
+    api_key=os.environ["TINKER_API_KEY"],
+)
+training = service.create_lora_training_client(
+    base_model="Qwen/Qwen3.5-9B-Base",
+    rank=16,
+)
+# Train and sample through the Tinker SDK here.
+```
 
 ## Shared deployment quick start
 
@@ -113,6 +129,8 @@ uv run modal secret create lilo-proxy \
 
 ### 3. Deploy the installed package
 
+Deploying the entire Tinker server can be done with a single modal deploy command: 
+
 ```bash
 uv run modal deploy -m lilo.providers.modal.app
 ```
@@ -121,68 +139,10 @@ This deploys the control plane and bundled model definitions, then prints the
 `server` URL to use in step 4. Reuse the deployment across training runs and
 redeploy after updating Lilo.
 
-Training and sampling allocate GPUs on demand. The bundled `Qwen/Qwen3.5-4B`
-definition used below has a four-H100 trainer and one H100 per sampling replica;
-a tiny training batch still uses that trainer topology. Model assets may need
-to download on first use. See [cold starts and capacity configuration](docs/full-fine-tunes.md#performance-and-behavior-considerations)
+Deploying the server doesn't allocate any GPUs; rather, this allocation for both the training and sampling sides are done on demand. See [cold starts and capacity configuration](docs/full-fine-tunes.md#performance-and-behavior-considerations)
 before running a larger workload.
 
-### 4. Connect and run one SFT update
-
-Set the server URL printed by deployment. In a new shell, also load the same
-`TINKER_API_KEY` stored in `lilo-api`:
-
-```bash
-export TINKER_BASE_URL=https://your-modal-server-url
-```
-
-Save the following as `sft_smoke.py` in **your project**. It checks API access,
-creates a full-training client, and performs one supervised next-token update.
-It uses regular Tinker training calls after Lilo's client-creation helper.
-
-```python
-import os
-
-import tinker
-from tinker import types
-from lilo.client import create_full_training_client
-
-service = tinker.ServiceClient(
-    base_url=os.environ["TINKER_BASE_URL"],
-    api_key=os.environ["TINKER_API_KEY"],
-)
-print("Supported models:", service.get_server_capabilities().supported_models)
-training = create_full_training_client(service, "Qwen/Qwen3.5-4B")
-tokenizer = training.get_tokenizer()
-tokens = tokenizer.encode("The capital of France is Paris.", add_special_tokens=True)
-
-datum = types.Datum(
-    model_input=types.ModelInput.from_ints(tokens[:-1]),
-    loss_fn_inputs={
-        "target_tokens": tokens[1:],
-        "weights": [1.0] * (len(tokens) - 1),
-    },
-)
-forward = training.forward_backward([datum], "cross_entropy")
-optimizer = training.optim_step(types.AdamParams(learning_rate=1e-6))
-
-print("Training metrics:", forward.result(timeout=3600).metrics)
-print("Optimizer metrics:", optimizer.result(timeout=3600).metrics)
-```
-
-Run it with:
-
-```bash
-uv run python sft_smoke.py
-```
-
-Expect a supported-model list followed by training and optimizer metrics.
-The first update can take several minutes for GPU allocation, model loading,
-and compilation. This smoke test checks connectivity and one training update.
-To save checkpoints, sample, or run longer jobs, see
-[Working with Full Fine-Tunes](docs/full-fine-tunes.md).
-
-### 5. Clean up
+### 4. Clean up
 
 After the script exits, session heartbeats stop and Lilo's periodic cleaner
 reclaims idle training models and their latest sampler pools. Check that cleanup
@@ -197,11 +157,12 @@ using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler ap
 
 ## Next steps
 
+Refer to the docs for design and for more advanced features when working with either the full-parameter or LoRA paths: 
+
 Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) for full training,
 or [Working with Multi-LoRA](docs/multi-lora.md) for shared Miles adapters, batch
 submission, scheduling, and sampling.
-See [FFT validation](docs/validation.md) and [LoRA validation](docs/lora_validation.md)
-for end-to-end training runs,
+
 and the [raw Tinker RL example](scripts/rl_example.py) for sampling and a toy
 policy update. Copy examples you want to run into your project; repository
 `scripts/` are not installed with the package.
@@ -220,10 +181,10 @@ a training step and read it in Perfetto.
 See [Observability](docs/observability.md) for OTLP export to Datadog or a custom
 destination, experiment labels, and the complete span/metric inventory.
 
-## Examples
+## Validation
 
-[Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
+See [FFT validation](docs/validation.md) and [LoRA validation](docs/lora_validation.md)
+for end-to-end training runs we've done with both parameterizations. The [Codeforces codegolf](examples/codeforces-codegolf/README.md) example provides a larger-scale e2e code-RL training run, which trains Qwen3.5-9B
 with GRPO or TailRL advantages for correctness and short solutions. It includes
 a sandboxed judge, checkpoint recovery, and commands to continue a checkpoint
-with a different reward or advantage estimator. It also includes held-out
-Pass@k and Best-of-k evaluation, plotting tools, and recorded learning curves.
+with a different reward or advantage estimator, as well as pass@k and best-of-k evaluation. 
