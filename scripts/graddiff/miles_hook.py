@@ -135,7 +135,7 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
             raise RuntimeError(f"unparseable Lilo A name: {name}")
         lilo_a[key] = tensor
 
-    copied, skipped, mismatched, master_copied = 0, 0, [], 0
+    copied, skipped, mismatched = 0, 0, []
     example_names = [n for n in params if n.endswith("linear_in.weight")][:4]
     for name in example_names:
         logger.info(
@@ -156,17 +156,7 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
                 f"shape mismatch for {name}: lilo {tuple(src.shape)} vs miles {tuple(param.shape)}"
             )
         with torch.no_grad():
-            src_dev = src.to(device=param.device, dtype=param.dtype)
-            param.copy_(src_dev)
-            # Also update the FP32 master weight; Megatron's optimizer writes
-            # param.data back from master at step end and would otherwise
-            # restore Miles' original init.
-            main_param = getattr(param, "main_param", None)
-            if main_param is not None:
-                main_param.data.copy_(
-                    src.to(device=main_param.device, dtype=main_param.dtype)
-                )
-                master_copied += 1
+            param.copy_(src.to(device=param.device, dtype=param.dtype))
         copied += 1
 
     b_names = [n for n in params if n.endswith("linear_out.weight")]
@@ -193,7 +183,6 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
             "n_skipped": skipped,
             "unmatched": mismatched,
             "lilo_a_keys": len(lilo_a),
-            "master_copied": master_copied,
             "example_miles_names": example_names,
         },
     )
@@ -220,6 +209,27 @@ def before_train_step(
     )
 
     _copy_lilo_A(model, params)
+    # Refresh the FP32 master weights so the optimizer does not write Miles'
+    # original init back into param.data at step end. ChainedOptimizer has no
+    # reload_model_params; its LayerWise children do.
+    def _reload_masters(opt: Any) -> int:
+        if opt is None:
+            return 0
+        if hasattr(opt, "reload_model_params"):
+            opt.reload_model_params()
+            return 1
+        return sum(
+            _reload_masters(child)
+            for child in getattr(opt, "chained_optimizers", [])
+        )
+
+    n_reload = _reload_masters(optimizer)
+    logger.info(f"[graddiff] reloaded fp32 masters on {n_reload} optimizer children")
+    _write(
+        "master_reload",
+        {},
+        {"n_optimizer_children_reloaded": n_reload},
+    )
     _write("params_before", {n: p.detach().clone() for n, p in params.items()})
 
     # ---- grads around DP reduce ----
