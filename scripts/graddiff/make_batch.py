@@ -55,6 +55,7 @@ secrets = [modal.Secret.from_name("lilo-api", required_keys=["TINKER_API_KEY"])]
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
+    .apt_install("git")
     .pip_install(
         "datasets",
         "wandb",
@@ -104,7 +105,6 @@ def make_batch() -> dict:
     training_client = service.create_lora_training_client(
         base_model=MODEL_ID,
         rank=32,
-        seed=SEED,
         train_mlp=True,
         train_attn=True,
         train_unembed=False,
