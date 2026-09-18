@@ -12,8 +12,8 @@ import uuid
 from collections.abc import Awaitable, Callable
 
 import httpx
-
 import modal
+
 from lilo.engine import Engine
 from lilo.engine.backend_http import HttpBackendClient
 from lilo.engine.http import create_engine_app
@@ -32,7 +32,10 @@ async def _kick_trainer_reconciler(definition_id: str) -> None:
     from .trainer_reconciler import request_reconcile
 
     async def spawn(delay_seconds: float) -> str:
-        function = modal.Function.from_name("lilo", "trainer_reconciler")
+        function = modal.Function.from_name(
+            os.environ.get("LILO_APP_NAME", "lilo"),
+            "trainer_reconciler",
+        )
         call = await function.spawn.aio(delay_seconds)
         return call.object_id
 

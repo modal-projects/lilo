@@ -24,7 +24,7 @@ from .contract import (
     SamplerPublication,
 )
 from .miles_config import MilesBackendConfig, parse_backend_config
-from .miles_runtime.data import build_outputs, prepare_batch
+from .miles_runtime.data import build_outputs, pad_slot_rows, prepare_batch
 from .miles_runtime.runtime import MilesRuntime
 
 
@@ -131,12 +131,17 @@ class MilesCommandBackend(Backend):
             return ()
         self._require_jobs(tuple(item.model_id for item in batch.items))
         prepared = prepare_batch(batch, self.job_to_slot)
-        raw_outputs = self.runtime.forward_backward(
+        slot_rows = pad_slot_rows(
             prepared.slot_rows,
+            self.config.data_parallel_size,
+        )
+        raw_outputs = self.runtime.forward_backward(
+            slot_rows,
             loss_fn=str(batch.loss_fn),
             loss_fn_config=dict(batch.loss_fn_config),
             forward_only=batch.forward_only,
         )
+        raw_outputs = raw_outputs[: len(prepared.slot_rows)]
         if not batch.forward_only:
             for item in batch.items:
                 self.jobs[item.model_id].accumulating = True
@@ -221,6 +226,7 @@ class MilesCommandBackend(Backend):
             "has_optimizer": include_optimizer,
             "topology": {
                 "world_size": self.config.world_size,
+                "data_parallel_size": self.config.data_parallel_size,
                 "tensor_model_parallel_size": (self.config.tensor_model_parallel_size),
                 "expert_model_parallel_size": (self.config.expert_model_parallel_size),
                 "expert_tensor_parallel_size": (
@@ -431,16 +437,18 @@ class MilesCommandBackend(Backend):
             raise ValueError("checkpoint LoRA targets do not match the model")
         expected_topology = {
             "world_size": self.config.world_size,
+            "data_parallel_size": self.config.data_parallel_size,
             "tensor_model_parallel_size": self.config.tensor_model_parallel_size,
             "expert_model_parallel_size": self.config.expert_model_parallel_size,
             "expert_tensor_parallel_size": self.config.expert_tensor_parallel_size,
             "pipeline_model_parallel_size": 1,
         }
-        if metadata.get("topology") != expected_topology:
+        stored_topology = dict(metadata.get("topology") or {})
+        stored_topology.setdefault("data_parallel_size", 1)
+        if stored_topology != expected_topology:
             raise ValueError("checkpoint topology does not match deployment")
-        if restore_optimizer:
-            if not metadata.get("has_optimizer"):
-                raise ValueError("checkpoint does not include optimizer state")
+        if restore_optimizer and not metadata.get("has_optimizer"):
+            raise ValueError("checkpoint does not include optimizer state")
 
 
 def _adam_parameters(adam: AdamParams) -> dict[str, float]:

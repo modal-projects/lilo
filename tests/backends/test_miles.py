@@ -1,15 +1,17 @@
 import json
-import pytest
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
+from stitch.types import VersionRef
+from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
+
 from lilo.backends import ForwardBatch, ForwardItem, ModelSpec
 from lilo.backends.miles_config import MilesBackendConfig, parse_backend_config
 from lilo.backends.miles_lora import MilesCommandBackend
+from lilo.backends.miles_runtime.data import pad_slot_rows
 from lilo.inference.bulletin import SnapshotBulletin
-from stitch.types import VersionRef
-from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 
 
 class FakeMilesRuntime:
@@ -43,6 +45,7 @@ class FakeMilesRuntime:
         loss_fn_config,
         forward_only,
     ):
+        self.last_slot_rows = tuple((slot, dict(row)) for slot, row in slot_rows)
         self.calls.append(
             (
                 "forward_backward",
@@ -150,6 +153,7 @@ def test_config_translates_stable_fields_to_miles_arguments() -> None:
     )
 
     assert config.world_size == 4
+    assert config.data_parallel_size == 1
     assert config.peft_target_modules == (
         "q_proj",
         "k_proj",
@@ -168,13 +172,13 @@ def test_config_translates_stable_fields_to_miles_arguments() -> None:
     assert capture_dir == Path("/tmp/lilo-miles-captures")
 
 
-def test_config_rejects_data_parallel_topology() -> None:
+def test_config_rejects_non_divisible_data_parallel_topology() -> None:
     config = _config(
         actor_num_gpus_per_node=4,
-        tensor_model_parallel_size=2,
+        tensor_model_parallel_size=3,
     )
 
-    with pytest.raises(ValueError, match="data parallel size 1"):
+    with pytest.raises(ValueError, match="must be a multiple"):
         config.validate()
 
 
@@ -217,6 +221,73 @@ def test_backend_routes_batches_and_preserves_per_model_state(tmp_path) -> None:
     backend.unload_model("model-a")
     assert backend.job_to_slot == {"model-b": 1}
     assert 0 in backend.free_slots
+
+
+def test_pad_slot_rows_adds_zero_weight_rows() -> None:
+    rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(11))
+    padded = pad_slot_rows(rows, 2)
+    assert len(padded) == 12
+    assert padded[-1] == (
+        0,
+        {"tokens": [1, 2], "target_len": 1, "target_tokens": [2]},
+    )
+
+    rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(3))
+    assert len(pad_slot_rows(rows, 4)) == 4
+
+
+def test_backend_pads_dp_ragged_batches(tmp_path) -> None:
+    runtime = FakeMilesRuntime()
+    backend = MilesCommandBackend(
+        _config(actor_num_gpus_per_node=4, tensor_model_parallel_size=2),
+        checkpoint_dir=tmp_path / "checkpoints",
+        capture_dir=tmp_path / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=runtime,
+    )
+    backend.accept_model("model-a", _spec())
+
+    outputs = backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(outputs) == 1
+    assert len(runtime.last_slot_rows) == 2
+    assert runtime.last_slot_rows[-1][1] == {
+        "tokens": [1, 2],
+        "target_len": 1,
+        "target_tokens": [2],
+        "weights": [0.0],
+    }
+
+    backend.forward_backward(
+        ForwardBatch(
+            items=(
+                ForwardItem(
+                    "model-a",
+                    (
+                        _datum([1, 2], 3),
+                        _datum([4, 5], 6),
+                    ),
+                ),
+            ),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(runtime.last_slot_rows) == 2
+
+    dp1_runtime = FakeMilesRuntime()
+    dp1_backend = _backend(tmp_path / "dp1", dp1_runtime)
+    dp1_backend.accept_model("model-a", _spec())
+    dp1_backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("model-a", (_datum([1, 2], 3),)),),
+            loss_fn="cross_entropy",
+        )
+    )
+    assert len(dp1_runtime.last_slot_rows) == 1
 
 
 def test_checkpoint_capture_persist_and_restore(tmp_path, monkeypatch) -> None:
@@ -311,6 +382,42 @@ def test_checkpoint_restore_rejects_different_lora_targets(
 
     with pytest.raises(ValueError, match="LoRA targets"):
         backend.load_checkpoint("model-a", str(uri))
+
+
+def test_checkpoint_topology_defaults_legacy_data_parallel_size(tmp_path) -> None:
+    backend = _backend(tmp_path)
+    backend.accept_model("model-a", _spec())
+    backend.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=False
+    )
+    uri = Path(backend.persist_checkpoint("capture-a", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+    del metadata["topology"]["data_parallel_size"]
+
+    backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
+
+
+def test_checkpoint_topology_rejects_legacy_data_parallel_size_for_dp2(
+    tmp_path,
+) -> None:
+    source = _backend(tmp_path / "source")
+    source.accept_model("model-a", _spec())
+    source.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=False
+    )
+    uri = Path(source.persist_checkpoint("capture-a", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+
+    dp2 = MilesCommandBackend(
+        _config(actor_num_gpus_per_node=4, tensor_model_parallel_size=2),
+        checkpoint_dir=tmp_path / "dp2" / "checkpoints",
+        capture_dir=tmp_path / "dp2" / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=FakeMilesRuntime(),
+    )
+    dp2.accept_model("model-a", _spec())
+    with pytest.raises(ValueError, match="topology"):
+        dp2._validate_checkpoint(metadata, dp2.jobs["model-a"], False)
 
 
 def test_sampler_capture_publishes_existing_lilo_format(tmp_path, monkeypatch) -> None:
@@ -462,6 +569,7 @@ def test_checkpoint_rejects_different_resolved_main_commit(tmp_path):
 def test_miles_checkpoint_storage_lifecycle_uses_control_plane_layout(tmp_path):
     import asyncio
     from types import SimpleNamespace
+
     from lilo.control_plane.service import ControlPlane
     from lilo.providers.modal.checkpoint_storage import ModalCheckpointStorage
 
@@ -529,17 +637,18 @@ def test_mixed_clients_only_forward_fields_consumed_by_loss(tmp_path, loss_fn):
 )
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_nonfinite_adam_parameters_rejected_before_runtime(name, value):
-    from lilo.backends.miles_lora import _adam_parameters
     from types import SimpleNamespace
 
-    values = dict(
-        learning_rate=1e-4,
-        beta1=0.9,
-        beta2=0.99,
-        eps=1e-8,
-        weight_decay=0.0,
-        grad_clip_norm=1.0,
-    )
+    from lilo.backends.miles_lora import _adam_parameters
+
+    values = {
+        "learning_rate": 1e-4,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "eps": 1e-8,
+        "weight_decay": 0.0,
+        "grad_clip_norm": 1.0,
+    }
     values[name] = value
     with pytest.raises(ValueError, match="finite"):
         _adam_parameters(SimpleNamespace(**values))

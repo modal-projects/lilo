@@ -49,6 +49,10 @@ class MilesBackendConfig:
         return self.actor_num_gpus_per_node
 
     @property
+    def data_parallel_size(self) -> int:
+        return self.world_size // self.tensor_model_parallel_size
+
+    @property
     def peft_target_modules(self) -> tuple[str, ...]:
         targets: list[str] = []
         for target in self.target_modules:
@@ -84,10 +88,10 @@ class MilesBackendConfig:
             raise ValueError("default_lora_alpha must be a positive integer")
         if not 0 <= self.lora_dropout < 1:
             raise ValueError("lora_dropout must be in [0, 1)")
-        if self.world_size != self.tensor_model_parallel_size:
+        if self.world_size % self.tensor_model_parallel_size != 0:
             raise ValueError(
-                "MilesCommandBackend currently requires data parallel size 1; "
-                "actor_num_gpus_per_node must equal tensor_model_parallel_size"
+                "actor_num_gpus_per_node must be a multiple of "
+                "tensor_model_parallel_size"
             )
 
     def miles_arguments(self) -> list[str]:
