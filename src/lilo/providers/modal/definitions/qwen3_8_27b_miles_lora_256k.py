@@ -42,6 +42,11 @@ TARGET_MODULES = (
     "linear_fc2",
 )
 TRAINER_MODELS_PER_INSTANCE = MAX_LORA_SLOTS
+# Megatron's default 10-minute collective timeout is the NCCL watchdog budget
+# for a single collective. At 250k tokens the inter-node context-parallel
+# all-to-all runs behind a straggler's recompute, so a rank can sit in one
+# collective far longer than ten minutes without anything being wrong.
+DISTRIBUTED_TIMEOUT_MINUTES = 120
 
 ROLLOUT_GPU_TYPE = "H200"
 ROLLOUT_GPUS = 4
@@ -157,6 +162,8 @@ def backend_config(
                 "uniform",
                 "--recompute-num-layers",
                 "1",
+                "--distributed-timeout-minutes",
+                str(DISTRIBUTED_TIMEOUT_MINUTES),
             ),
         },
         "checkpoint_dir": CHECKPOINT_ROOT,
