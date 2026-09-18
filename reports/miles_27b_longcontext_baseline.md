@@ -34,19 +34,22 @@ preferring whichever has more available compute.
 | 128k | H200 141 GB | 2 | TP2×CP4×DP1 | 32768 | 8 eng × 1 GPU | 102–109 GB (step 0–1) growing to **~140.7 GB** (steps 2–4, allocator cache; no OOM) | 1452 s (step 0) → 994 / 972 / 888 s | 929 → 679 s | 359 → 207 s | 159/72/15/15/17 s | ~1.2k (67k tok × 128 / 888 s / 8) | 0.493, 0.339, 0.329, 0.543, 0.537 | 684/968/1079/876/449 | 0/0/0.016/0.016/0 | mean **66.8k** (63.7k–71.9k), cap 126976, floor 63488 | OK, no OOM; **prompts only ~52% of cap (dataset-limited)** |
 | 256k (padded) — 1-node trainer probe | H200 141 GB | 2 (1 trainer + 1 rollout) | TP1×CP8×DP1 | 32768 | 8 eng × 1 GPU | **OOM** (111 GB in use, +30 GiB alloc failed) | — | — | — | — | — | — | — | — | padded to ~250k | **OOM in compute_log_prob** (TP1 = 54 GB weights/GPU) |
 | 256k (padded) | H200 141 GB | **3** (2 trainer + 1 rollout) | TP2×CP8×DP1 (16 trainer GPUs) | 32768 | 8 eng × 1 GPU | ~98–103 GB (nvidia-smi after backward); 27 GB allocated / 88 GB reserved idle | 3889 s (step 0) → 2938 / 2817 / 2863 s (**~48 min**) | 2546 → 2200–2300 s | 826 → 608–631 s | 506/283/68/67/66 s | ~0.7k (250k tok × 128 / 2860 s / 16) | 0.403, 0.461, 0.311, 0.558, 0.479 | 802/784/989/935/503 | 0/0/0.016/0.008/0 | mean **248k** (232k–258k), cap 258048, floor 232243, `pad_to` 250k — **synthetic** (distractor-padded) | OK, no OOM |
+| 128k (padded), **30 steps** (`miles-27b-128k-pad-30`) | H200 141 GB | 2 | TP2×CP4×DP1 | 32768 | 8 eng × 1 GPU | ~140 GB (allocator cache, as natural 128k); no OOM | 2610 s (step 0) → **1546–1818 s, mean 1666 s (27.8 min)** over steps 1–28 | 1774 → 1194–1405 s (mean ~1290 s) | 609 → 349–411 s | 219/109 s then 25–29 s | ~1.1k (113.5k tok × 128 / 1666 s / 8) | 30 steps, mean **0.744**; steps 0–4 0.477 → steps 25–29 **0.874**; steps 10–29 0.818 ± 0.118 sd (n=20); max 1.136 (step 27) — full series in §Padded 30-step runs | 863 → 226–549 (late mean ~290) | 0 except 0.008 at steps 5, 17 | mean **113.5k** (84.7k–127.0k), cap 126976, floor 0, `pad_to` 120k — **synthetic** | OK, completed 30/30, final adapter saved |
+| 256k (padded), **30 steps** (`miles-27b-256k-pad-30`) | H200 141 GB | 3 | TP2×CP8×DP1 | 32768 | 8 eng × 1 GPU | as 5-step run | 3718 s (step 0) → ~2690–2800 s (~45.5 min) | — | — | 63–150 s | ~0.7k | in flight (step 18/30 at 18:50 UTC 2026-09-17); rewards 0–12: 0.440, 0.394, 0.460, 0.518, 0.543, 0.534, 0.758, 0.795, 0.643, 0.778, …, 0.899 | 899 → ~265 | 0 | mean **247k** (232k–258k), `pad_to` 250k — **synthetic** | pending |
 
 Notes on columns:
 - "Rollout wait" is Miles `perf/rollout_time` in fully-async mode: time the trainer waited for the
   next batch, not generation wall time. Generation overlaps training after step 0.
 - Step 4 `perf/step_time` is not flushed to W&B before the run exits (Miles logs perf after the next
   rollout); the last complete row (step 3) is used as the steady-state number for 64k and 128k.
-- tok/s/trainer-GPU = 128 samples × mean(prompt+response) / step time / 8 trainer GPUs.
+- tok/s/trainer-GPU = 128 samples × mean(prompt+response) / step time / trainer GPUs (8, or 16 for
+  the 3-node 256k topology).
 - Rollout GPUs show ~121–123 GB used on every rung: SGLang static preallocation (`mem_fraction 0.8`),
   not demand; KV cache for 128k × 32 requests fit on one H200 per engine.
 
 ## W&B runs
 
-| Rung | Raw Miles run | `cmp/*` re-log (`miles-27b-<ctx>k-5`) |
+| Rung | Raw Miles run | `cmp/*` re-log (`miles-27b-<ctx>k-<steps>`) |
 |---|---|---|
 | 16k prove (1 step) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/sour-cilantro-1d2b0f829b5f | — |
 | 16k | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/aquamarine-strut-8cb234449949 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/vv9l76wt |
@@ -54,8 +57,8 @@ Notes on columns:
 | 128k | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/fried-vault-4f0063789cf8 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/nakynr4k |
 | 256k padded, 2-node TP1×CP8 probe (OOM) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/matte-degree-093dd63e9914 | — |
 | 256k padded, 3-node TP2×CP8 probe (1 step) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/molten-area-e262106588e6 | — |
-| 256k padded, 3-node TP2×CP8 (5 steps) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/merciless-barracuda-46b27a74bc00 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/kv3by4f4 |
-| 128k padded, 30 steps (`miles-27b-128k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/mild-bleed-b1d6255af892 | pending completion |
+| 256k padded, 3-node TP2×CP8 (5 steps) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/merciless-barracuda-46b27a74bc00 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/7jiwji5w (tok/s normalised to 16 trainer GPUs) |
+| 128k padded, 30 steps (`miles-27b-128k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/mild-bleed-b1d6255af892 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/xw5cx2je |
 | 256k padded, 30 steps (`miles-27b-256k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/cool-muntin-b1d6255af892 | pending completion |
 
 The `cmp/*` runs (`scripts/relog_miles_cmp_27b.py`) carry `cmp/reward_mean, cmp/response_len_mean,

@@ -41,7 +41,7 @@ def merge_by_step(history: list[dict], overrides: dict[int, dict]) -> dict[int, 
     return merged
 
 
-def cmp_metrics(m: dict) -> dict:
+def cmp_metrics(m: dict, trainer_gpus: float = TRAINER_GPUS) -> dict:
     d: dict[str, float] = {}
     if "rollout/raw_reward" in m:
         d["cmp/reward_mean"] = float(m["rollout/raw_reward"])
@@ -65,14 +65,21 @@ def cmp_metrics(m: dict) -> dict:
         d["cmp/samples_per_s"] = SAMPLES / st
         if "rollout/total_lengths" in m:
             d["cmp/tokens_per_gpu_per_s"] = (
-                SAMPLES * float(m["rollout/total_lengths"]) / st / TRAINER_GPUS
+                SAMPLES * float(m["rollout/total_lengths"]) / st / trainer_gpus
             )
     return d
 
 
 @app.function(secrets=[modal.Secret.from_name("wandb-secret")], timeout=600, retries=0)
 def run(
-    source_run: str, context_k: int, steps: int, topology: str, overrides: str
+    source_run: str,
+    context_k: int,
+    steps: int,
+    topology: str,
+    overrides: str,
+    run_name: str,
+    group: str,
+    trainer_gpus: float,
 ) -> str:
     import wandb
 
@@ -83,8 +90,8 @@ def run(
     new = wandb.init(
         entity=ENTITY,
         project=PROJECT,
-        group=GROUP,
-        name=f"miles-27b-{context_k}k-{steps}",
+        group=group,
+        name=run_name or f"miles-27b-{context_k}k-{steps}",
         config={
             "source_run": source_run,
             "framework": "miles+modal",
@@ -92,11 +99,12 @@ def run(
             "dataset": "Guanzheng/LongRLVR-Data",
             "context": context_k * 1024,
             "topology": topology,
+            "trainer_gpus": trainer_gpus,
             "note": "cmp/* re-log of the source run; values copied from its metrics",
         },
     )
     for step in sorted(merged):
-        d = cmp_metrics(merged[step])
+        d = cmp_metrics(merged[step], trainer_gpus)
         if d:
             new.log(d, step=step)
     url = new.url
@@ -111,5 +119,19 @@ def main(
     steps: int = 5,
     topology: str = "",
     overrides: str = "{}",
+    run_name: str = "",
+    group: str = GROUP,
+    trainer_gpus: float = TRAINER_GPUS,
 ):
-    print(run.remote(source_run, context_k, steps, topology, overrides))
+    print(
+        run.remote(
+            source_run,
+            context_k,
+            steps,
+            topology,
+            overrides,
+            run_name,
+            group,
+            trainer_gpus,
+        )
+    )
