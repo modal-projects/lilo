@@ -62,6 +62,12 @@ class PlacementRecord(DurableRecord):
     engine_boot_id: str = ""
 
 
+class EngineStrikesRecord(DurableRecord):
+    engine_instance_id: Identifier
+    strikes: int = Field(ge=1)
+    last_strike_at: Timestamp
+
+
 class SamplingSessionCreationRecord(DurableRecord):
     session_id: Identifier
     sampling_session_seq_id: int = Field(ge=0)

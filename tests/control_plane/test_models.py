@@ -1,10 +1,16 @@
 import asyncio
+import itertools
 
 import pytest
 
 from tests.support import EchoExecutor
 from lilo.control_plane import ControlPlane, FutureResolutionStatus
-from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
+from lilo.control_plane.keys import (
+    engine_strikes_key,
+    model_key,
+    placement_key,
+    trainer_demand_key,
+)
 from lilo.engine import OperationKind
 from lilo.errors import (
     RecordNotFound,
@@ -383,46 +389,118 @@ def test_sweep_reclaims_orphaned_engine_models() -> None:
     asyncio.run(run())
 
 
-def test_creation_stops_instance_that_cannot_unload_idle_models() -> None:
-    async def run() -> None:
-        now = 0.0
-        sessions = iter(("session-idle", "session-live"))
-        engines = LocalEnginePlatform(DEFINITION, EchoExecutor, max_models=1)
-        plane = ControlPlane(
-            InMemoryKeyValueStore(),
-            engines,
-            session_idle_timeout=60.0,
-            session_id_factory=lambda: next(sessions),
-            clock=lambda: now,
-        )
-        idle = await plane.create_session()
-        creation = await plane.create_model(
-            session_id=idle.session_id,
-            model_seq_id=0,
-            definition_id=DEFINITION,
-            spec={},
-        )
-        await plane.retrieve(creation.request_id)
-        (wedged,) = await engines.list_instances()
+class Wedge:
+    """Engine whose unload_model times out the way a busy trainer's does."""
+
+    def __init__(self) -> None:
+        self.wedged = True
+
+    def install(self, engines: LocalEnginePlatform, instance_id: str) -> None:
+        client = engines.client(instance_id)
+        unload = client.unload_model
 
         async def unload_model(model_id: str) -> None:
-            raise TimeoutError("engine is wedged")
+            if self.wedged:
+                raise TimeoutError("engine is wedged")
+            await unload(model_id)
 
-        engines.client(wedged.instance_id).unload_model = unload_model
+        client.unload_model = unload_model
+
+
+async def plane_with_models(
+    clock,
+    *,
+    max_models: int,
+) -> tuple[ControlPlane, LocalEnginePlatform, InMemoryKeyValueStore]:
+    kv = InMemoryKeyValueStore()
+    engines = LocalEnginePlatform(DEFINITION, EchoExecutor, max_models=max_models)
+    sessions = (f"session-{index}" for index in itertools.count())
+    plane = ControlPlane(
+        kv,
+        engines,
+        session_idle_timeout=60.0,
+        session_id_factory=lambda: next(sessions),
+        clock=clock,
+    )
+    return plane, engines, kv
+
+
+async def place_model(plane: ControlPlane) -> str:
+    session = await plane.create_session()
+    creation = await plane.create_model(
+        session_id=session.session_id,
+        model_seq_id=0,
+        definition_id=DEFINITION,
+        spec={},
+    )
+    return creation.request_id
+
+
+def test_reclaim_spares_instance_still_holding_a_live_model() -> None:
+    async def run() -> None:
+        now = 0.0
+        plane, engines, kv = await plane_with_models(lambda: now, max_models=2)
+        await plane.retrieve(await place_model(plane))
+        now = 100.0
+        await plane.retrieve(await place_model(plane))
+        (instance,) = await engines.list_instances()
+        Wedge().install(engines, instance.instance_id)
+
+        now = 110.0
+        request_id = await place_model(plane)
+        for _ in range(3):
+            await plane.retrieve(request_id)
+            state = (await engines.get_instance(instance.instance_id)).state
+            assert state == "running"
+            assert await kv.get(engine_strikes_key(instance.instance_id)) is None
+
+    asyncio.run(run())
+
+
+def test_reclaim_stops_fully_wedged_instance_on_the_second_sweep() -> None:
+    async def run() -> None:
+        now = 0.0
+        plane, engines, kv = await plane_with_models(lambda: now, max_models=1)
+        await plane.retrieve(await place_model(plane))
+        (instance,) = await engines.list_instances()
+        Wedge().install(engines, instance.instance_id)
 
         now = 100.0
-        live = await plane.create_session()
-        replacement = await plane.create_model(
-            session_id=live.session_id,
-            model_seq_id=0,
-            definition_id=DEFINITION,
-            spec={},
-        )
-        await plane.retrieve(replacement.request_id)
-        assert (await engines.get_instance(wedged.instance_id)).state == "stopped"
+        request_id = await place_model(plane)
+        first = await plane.retrieve(request_id)
+        assert first.status == FutureResolutionStatus.PENDING
+        assert (await engines.get_instance(instance.instance_id)).state == "running"
+        assert await kv.get(engine_strikes_key(instance.instance_id)) is not None
+
+        await plane.retrieve(request_id)
+        assert (await engines.get_instance(instance.instance_id)).state == "stopped"
+        assert await kv.get(engine_strikes_key(instance.instance_id)) is None
+        final = await plane.retrieve(request_id)
+        assert final.status == FutureResolutionStatus.COMPLETE
+
+    asyncio.run(run())
+
+
+def test_reclaim_clears_strikes_once_the_engine_responds_again() -> None:
+    async def run() -> None:
+        now = 0.0
+        plane, engines, kv = await plane_with_models(lambda: now, max_models=1)
+        await plane.retrieve(await place_model(plane))
+        (instance,) = await engines.list_instances()
+        wedge = Wedge()
+        wedge.install(engines, instance.instance_id)
+
+        now = 100.0
+        request_id = await place_model(plane)
+        await plane.retrieve(request_id)
+        assert await kv.get(engine_strikes_key(instance.instance_id)) is not None
+
+        wedge.wedged = False
         assert (
-            await plane.retrieve(replacement.request_id)
+            await plane.retrieve(request_id)
         ).status == FutureResolutionStatus.COMPLETE
+        assert (await engines.get_instance(instance.instance_id)).state == "running"
+        assert await kv.get(engine_strikes_key(instance.instance_id)) is None
 
     asyncio.run(run())
 
