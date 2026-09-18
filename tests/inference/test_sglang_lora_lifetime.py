@@ -143,6 +143,106 @@ def test_eviction_still_waits_for_another_live_request():
     asyncio.run(scenario())
 
 
+def test_cpu_eviction_prefers_idle_without_evicting_the_new_adapter():
+    async def scenario():
+        registry = LoRARegistry()
+        busy = LoRARef(lora_name="busy", lora_path="/busy", pinned=False)
+        pinned = LoRARef(lora_name="pinned", lora_path="/pinned", pinned=True)
+        idle = LoRARef(lora_name="idle", lora_path="/idle", pinned=False)
+        new = LoRARef(lora_name="new", lora_path="/new", pinned=False)
+        await registry.register(busy)
+        await registry.acquire(busy.lora_name)
+        for adapter in (pinned, idle, new):
+            await registry.register(adapter)
+        # Preserve ordinary strict LRU lookups; eviction specifically skips busy.
+        assert await registry.lru_lora_name() == "busy"
+        assert (
+            await registry.lru_lora_name(exclude_pinned=True, exclude_names={"new"})
+            == "idle"
+        )
+        ident = await registry.unregister("idle")
+        await asyncio.wait_for(registry.wait_for_unload(ident), 0.2)
+        # No idle old victim: fallback to the oldest busy adapter and wait for it.
+        assert (
+            await registry.lru_lora_name(exclude_pinned=True, exclude_names={"new"})
+            == "busy"
+        )
+        ident = await registry.unregister("busy")
+        eviction = asyncio.create_task(registry.wait_for_unload(ident))
+        await asyncio.sleep(0)
+        assert not eviction.done()
+        await registry.release(busy.lora_id)
+        await asyncio.wait_for(eviction, 0.2)
+        assert (
+            await registry.lru_lora_name(exclude_pinned=True, exclude_names={"new"})
+            is None
+        )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("registers", [False, True])
+def test_implicit_reload_delegates_to_snapshot_owner_and_checks_registration(
+    monkeypatch, registers
+):
+    import httpx
+
+    monkeypatch.setenv(
+        "LILO_LORA_RELOAD_URL", "http://sidecar/internal/reload_lora_adapter"
+    )
+
+    async def scenario():
+        registry = LoRARegistry()
+        adapter = LoRARef(lora_name="known", lora_path="/immutable", pinned=False)
+        m = manager(registry)
+        m.lora_ref_cache[adapter.lora_name] = adapter
+        calls = []
+
+        class Client:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                pass
+
+            async def post(self, url, json):
+                assert url == "http://sidecar/internal/reload_lora_adapter"
+                assert json == {"lora_name": "known"}
+                calls.append(True)
+                if registers:
+                    await registry.register(adapter)
+                return httpx.Response(200, request=httpx.Request("POST", url))
+
+        monkeypatch.setattr(httpx, "AsyncClient", Client)
+        request = GenerateReqInput(input_ids=[1], rid="guarded", lora_path="known")
+        request.normalize_batch_and_arguments()
+        m._init_req_state(request)
+        if not registers:
+            with pytest.raises(ValueError, match="did not register"):
+                await m._resolve_lora_path(request)
+        else:
+            await m._resolve_lora_path(request)
+            assert request.lora_id == adapter.lora_id
+            m._remove_req_state(request.rid)
+            await drain(m)
+            # A CPU-resident hit never calls the sidecar again.
+            request = GenerateReqInput(input_ids=[1], rid="resident", lora_path="known")
+            request.normalize_batch_and_arguments()
+            m._init_req_state(request)
+            await m._resolve_lora_path(request)
+            m._remove_req_state(request.rid)
+            await drain(m)
+            assert registry._counters[adapter.lora_id].value() == 0
+        m._remove_req_state(request.rid)
+        await drain(m)
+        assert calls == [True]
+
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize("status", [None, 400, 499, 500, 503])
 @pytest.mark.parametrize("stream", [False, True])
 def test_queue_abort_releases_without_a_response_consumer(status, stream):

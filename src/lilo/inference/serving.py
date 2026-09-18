@@ -33,6 +33,7 @@ def start_sglang(
     cpu_weight_cache_max_compile_group_gb: float | None = None,
     memory_fraction: float = 0.85,
     schedule_policy: str = "fcfs",
+    lora_reload_url: str | None = None,
 ) -> subprocess.Popen:
     if enable_lora and max_loaded_loras < max_loras_per_batch:
         raise ValueError("max_loaded_loras must be at least max_loras_per_batch")
@@ -141,7 +142,10 @@ def start_sglang(
                 str(max_queued_requests),
             ]
         )
-    return subprocess.Popen(command, start_new_session=True)
+    kwargs = {}
+    if lora_reload_url is not None:
+        kwargs["env"] = {**os.environ, "LILO_LORA_RELOAD_URL": lora_reload_url}
+    return subprocess.Popen(command, start_new_session=True, **kwargs)
 
 
 def start_fft_sidecar(
