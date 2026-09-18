@@ -332,6 +332,7 @@ def run(
     wandb_name: str = WANDB_NAME,
     gbs: int = GBS,
     rbs: int = RBS,
+    lilo_dump_dir: str = "/graddiff/lilo_dump/lilo",
 ) -> str:
     import os
 
@@ -411,7 +412,7 @@ def run(
             "no_proxy": "127.0.0.1",
             "MASTER_ADDR": "127.0.0.1",
             "MILES_GRADDIFF_DUMP_DIR": miles_dump_dir,
-            "LILO_DUMP_DIR": "/graddiff/lilo_dump/lilo",
+            "LILO_DUMP_DIR": lilo_dump_dir,
             "PYTHONPATH": "/root/graddiff"
             + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else ""),
             "WANDB_API_KEY": os.environ.get("WANDB_API_KEY", ""),
@@ -451,5 +452,6 @@ def main():
             os.environ.get("WANDB_NAME", "graddiff-step0-miles-rerun"),
             int(os.environ.get("GBS", "128")),
             int(os.environ.get("RBS", "16")),
+            os.environ.get("LILO_DUMP_DIR", "/graddiff/lilo_dump/lilo"),
         )
     )
