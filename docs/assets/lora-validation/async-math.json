@@ -79,7 +79,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 0,
-          "response_length_mean": 155.078125
+          "response_length_mean": 155.078125,
+          "completion_time": 1789598526.3721054
         },
         {
           "step": 1,
@@ -89,7 +90,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 334.765625
+          "response_length_mean": 334.765625,
+          "completion_time": 1789598583.2839978
         },
         {
           "step": 2,
@@ -99,7 +101,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 218.328125
+          "response_length_mean": 218.328125,
+          "completion_time": 1789598597.252806
         },
         {
           "step": 3,
@@ -109,7 +112,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 187.5625
+          "response_length_mean": 187.5625,
+          "completion_time": 1789598638.493092
         },
         {
           "step": 4,
@@ -119,7 +123,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 161.9375
+          "response_length_mean": 161.9375,
+          "completion_time": 1789598647.467829
         },
         {
           "step": 5,
@@ -129,7 +134,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 222.453125
+          "response_length_mean": 222.453125,
+          "completion_time": 1789598729.1593716
         },
         {
           "step": 6,
@@ -139,7 +145,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 171.84375
+          "response_length_mean": 171.84375,
+          "completion_time": 1789598737.0561566
         },
         {
           "step": 7,
@@ -149,7 +156,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 202.0625
+          "response_length_mean": 202.0625,
+          "completion_time": 1789598789.9814773
         },
         {
           "step": 8,
@@ -159,7 +167,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 209.453125
+          "response_length_mean": 209.453125,
+          "completion_time": 1789598816.082583
         },
         {
           "step": 9,
@@ -169,7 +178,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 194.734375
+          "response_length_mean": 194.734375,
+          "completion_time": 1789598870.7446728
         },
         {
           "step": 10,
@@ -179,7 +189,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 225.640625
+          "response_length_mean": 225.640625,
+          "completion_time": 1789598932.9131515
         },
         {
           "step": 11,
@@ -189,7 +200,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 232.046875
+          "response_length_mean": 232.046875,
+          "completion_time": 1789598957.1766644
         },
         {
           "step": 12,
@@ -199,7 +211,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 184.125
+          "response_length_mean": 184.125,
+          "completion_time": 1789598969.8275049
         },
         {
           "step": 13,
@@ -209,7 +222,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 115.484375
+          "response_length_mean": 115.484375,
+          "completion_time": 1789598987.6218889
         },
         {
           "step": 14,
@@ -219,7 +233,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 166.453125
+          "response_length_mean": 166.453125,
+          "completion_time": 1789599004.8164406
         },
         {
           "step": 15,
@@ -229,7 +244,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 204.0625
+          "response_length_mean": 204.0625,
+          "completion_time": 1789599015.5427117
         },
         {
           "step": 16,
@@ -239,7 +255,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 138.453125
+          "response_length_mean": 138.453125,
+          "completion_time": 1789599032.0046828
         },
         {
           "step": 17,
@@ -249,7 +266,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 176.96875
+          "response_length_mean": 176.96875,
+          "completion_time": 1789599051.6052566
         },
         {
           "step": 18,
@@ -259,7 +277,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 137.921875
+          "response_length_mean": 137.921875,
+          "completion_time": 1789599084.2816598
         },
         {
           "step": 19,
@@ -269,7 +288,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 121.65625
+          "response_length_mean": 121.65625,
+          "completion_time": 1789599097.8282747
         },
         {
           "step": 20,
@@ -279,7 +299,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 241.921875
+          "response_length_mean": 241.921875,
+          "completion_time": 1789599128.3506393
         },
         {
           "step": 21,
@@ -289,7 +310,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 175.9375
+          "response_length_mean": 175.9375,
+          "completion_time": 1789599159.1313345
         },
         {
           "step": 22,
@@ -299,7 +321,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 239.640625
+          "response_length_mean": 239.640625,
+          "completion_time": 1789599204.2677507
         },
         {
           "step": 23,
@@ -309,7 +332,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 173.359375
+          "response_length_mean": 173.359375,
+          "completion_time": 1789599226.2647305
         },
         {
           "step": 24,
@@ -319,7 +343,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 188.875
+          "response_length_mean": 188.875,
+          "completion_time": 1789599264.6066167
         },
         {
           "step": 25,
@@ -329,7 +354,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 128.5625
+          "response_length_mean": 128.5625,
+          "completion_time": 1789599279.4620144
         },
         {
           "step": 26,
@@ -339,7 +365,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 174.359375
+          "response_length_mean": 174.359375,
+          "completion_time": 1789599296.518683
         },
         {
           "step": 27,
@@ -349,7 +376,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 174.65625
+          "response_length_mean": 174.65625,
+          "completion_time": 1789599333.2339182
         },
         {
           "step": 28,
@@ -359,7 +387,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 187.609375
+          "response_length_mean": 187.609375,
+          "completion_time": 1789599353.483897
         },
         {
           "step": 29,
@@ -369,9 +398,11 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 173.0625
+          "response_length_mean": 173.0625,
+          "completion_time": 1789599368.4699929
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598426.3078923
     },
     {
       "client": 1,
@@ -385,7 +416,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 0,
-          "response_length_mean": 1484.421875
+          "response_length_mean": 1484.421875,
+          "completion_time": 1789598583.1616473
         },
         {
           "step": 1,
@@ -395,7 +427,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1027.28125
+          "response_length_mean": 1027.28125,
+          "completion_time": 1789598614.1323023
         },
         {
           "step": 2,
@@ -405,7 +438,8 @@
           "sequences": 64,
           "truncated_samples": 10,
           "policy_lag_updates": 1,
-          "response_length_mean": 2050.84375
+          "response_length_mean": 2050.84375,
+          "completion_time": 1789598732.1288798
         },
         {
           "step": 3,
@@ -415,7 +449,8 @@
           "sequences": 64,
           "truncated_samples": 8,
           "policy_lag_updates": 1,
-          "response_length_mean": 1768.203125
+          "response_length_mean": 1768.203125,
+          "completion_time": 1789598792.925348
         },
         {
           "step": 4,
@@ -425,7 +460,8 @@
           "sequences": 64,
           "truncated_samples": 8,
           "policy_lag_updates": 1,
-          "response_length_mean": 1750.09375
+          "response_length_mean": 1750.09375,
+          "completion_time": 1789598853.2151623
         },
         {
           "step": 5,
@@ -435,7 +471,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1395.59375
+          "response_length_mean": 1395.59375,
+          "completion_time": 1789598932.7227824
         },
         {
           "step": 6,
@@ -445,7 +482,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1439.203125
+          "response_length_mean": 1439.203125,
+          "completion_time": 1789598999.5893388
         },
         {
           "step": 7,
@@ -455,7 +493,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1187.015625
+          "response_length_mean": 1187.015625,
+          "completion_time": 1789599084.281732
         },
         {
           "step": 8,
@@ -465,7 +504,8 @@
           "sequences": 64,
           "truncated_samples": 10,
           "policy_lag_updates": 1,
-          "response_length_mean": 2134.921875
+          "response_length_mean": 2134.921875,
+          "completion_time": 1789599172.018452
         },
         {
           "step": 9,
@@ -475,7 +515,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 1,
-          "response_length_mean": 1859.078125
+          "response_length_mean": 1859.078125,
+          "completion_time": 1789599263.1092527
         },
         {
           "step": 10,
@@ -485,7 +526,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 966.328125
+          "response_length_mean": 966.328125,
+          "completion_time": 1789599330.7710502
         },
         {
           "step": 11,
@@ -495,7 +537,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1151.90625
+          "response_length_mean": 1151.90625,
+          "completion_time": 1789599417.289564
         },
         {
           "step": 12,
@@ -505,7 +548,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1309.75
+          "response_length_mean": 1309.75,
+          "completion_time": 1789599503.714814
         },
         {
           "step": 13,
@@ -515,7 +559,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 1552.65625
+          "response_length_mean": 1552.65625,
+          "completion_time": 1789599585.3550613
         },
         {
           "step": 14,
@@ -525,7 +570,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1296.703125
+          "response_length_mean": 1296.703125,
+          "completion_time": 1789599654.7774787
         },
         {
           "step": 15,
@@ -535,7 +581,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 1465.40625
+          "response_length_mean": 1465.40625,
+          "completion_time": 1789599745.972142
         },
         {
           "step": 16,
@@ -545,7 +592,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 969.8125
+          "response_length_mean": 969.8125,
+          "completion_time": 1789599830.25714
         },
         {
           "step": 17,
@@ -555,7 +603,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1750.71875
+          "response_length_mean": 1750.71875,
+          "completion_time": 1789599908.7943795
         },
         {
           "step": 18,
@@ -565,7 +614,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 859.203125
+          "response_length_mean": 859.203125,
+          "completion_time": 1789599992.8110085
         },
         {
           "step": 19,
@@ -575,7 +625,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2071.984375
+          "response_length_mean": 2071.984375,
+          "completion_time": 1789600085.3203413
         },
         {
           "step": 20,
@@ -585,7 +636,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1444.078125
+          "response_length_mean": 1444.078125,
+          "completion_time": 1789600164.5581598
         },
         {
           "step": 21,
@@ -595,7 +647,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1097.421875
+          "response_length_mean": 1097.421875,
+          "completion_time": 1789600249.7342381
         },
         {
           "step": 22,
@@ -605,7 +658,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1571.9375
+          "response_length_mean": 1571.9375,
+          "completion_time": 1789600339.7184737
         },
         {
           "step": 23,
@@ -615,7 +669,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1196.828125
+          "response_length_mean": 1196.828125,
+          "completion_time": 1789600420.17777
         },
         {
           "step": 24,
@@ -625,7 +680,8 @@
           "sequences": 64,
           "truncated_samples": 8,
           "policy_lag_updates": 1,
-          "response_length_mean": 1908.921875
+          "response_length_mean": 1908.921875,
+          "completion_time": 1789600502.2402973
         },
         {
           "step": 25,
@@ -635,7 +691,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1468.53125
+          "response_length_mean": 1468.53125,
+          "completion_time": 1789600602.2291365
         },
         {
           "step": 26,
@@ -645,7 +702,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1187.03125
+          "response_length_mean": 1187.03125,
+          "completion_time": 1789600679.7137554
         },
         {
           "step": 27,
@@ -655,7 +713,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1589.421875
+          "response_length_mean": 1589.421875,
+          "completion_time": 1789600766.900357
         },
         {
           "step": 28,
@@ -665,7 +724,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 1,
-          "response_length_mean": 1649.96875
+          "response_length_mean": 1649.96875,
+          "completion_time": 1789600850.8209264
         },
         {
           "step": 29,
@@ -675,9 +735,11 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1489.515625
+          "response_length_mean": 1489.515625,
+          "completion_time": 1789600928.58669
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598426.3071485
     },
     {
       "client": 2,
@@ -691,7 +753,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 0,
-          "response_length_mean": 228.0
+          "response_length_mean": 228.0,
+          "completion_time": 1789598583.1312892
         },
         {
           "step": 1,
@@ -701,7 +764,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 149.6875
+          "response_length_mean": 149.6875,
+          "completion_time": 1789598615.4936733
         },
         {
           "step": 2,
@@ -711,7 +775,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 144.59375
+          "response_length_mean": 144.59375,
+          "completion_time": 1789598645.241812
         },
         {
           "step": 3,
@@ -721,7 +786,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 174.875
+          "response_length_mean": 174.875,
+          "completion_time": 1789598652.9756887
         },
         {
           "step": 4,
@@ -731,7 +797,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 221.28125
+          "response_length_mean": 221.28125,
+          "completion_time": 1789598735.2880676
         },
         {
           "step": 5,
@@ -741,7 +808,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 176.59375
+          "response_length_mean": 176.59375,
+          "completion_time": 1789598792.9777496
         },
         {
           "step": 6,
@@ -751,7 +819,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 142.5625
+          "response_length_mean": 142.5625,
+          "completion_time": 1789598806.422888
         },
         {
           "step": 7,
@@ -761,7 +830,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 171.796875
+          "response_length_mean": 171.796875,
+          "completion_time": 1789598828.32134
         },
         {
           "step": 8,
@@ -771,7 +841,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 282.390625
+          "response_length_mean": 282.390625,
+          "completion_time": 1789598872.0147967
         },
         {
           "step": 9,
@@ -781,7 +852,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 276.703125
+          "response_length_mean": 276.703125,
+          "completion_time": 1789598932.6354146
         },
         {
           "step": 10,
@@ -791,7 +863,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 197.3125
+          "response_length_mean": 197.3125,
+          "completion_time": 1789598957.3619938
         },
         {
           "step": 11,
@@ -801,7 +874,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 191.875
+          "response_length_mean": 191.875,
+          "completion_time": 1789598969.822331
         },
         {
           "step": 12,
@@ -811,7 +885,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 170.4375
+          "response_length_mean": 170.4375,
+          "completion_time": 1789598990.392624
         },
         {
           "step": 13,
@@ -821,7 +896,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 218.015625
+          "response_length_mean": 218.015625,
+          "completion_time": 1789599028.217715
         },
         {
           "step": 14,
@@ -831,7 +907,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 215.125
+          "response_length_mean": 215.125,
+          "completion_time": 1789599044.3251061
         },
         {
           "step": 15,
@@ -841,7 +918,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 199.25
+          "response_length_mean": 199.25,
+          "completion_time": 1789599061.3974452
         },
         {
           "step": 16,
@@ -851,7 +929,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 316.796875
+          "response_length_mean": 316.796875,
+          "completion_time": 1789599099.2510488
         },
         {
           "step": 17,
@@ -861,7 +940,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 210.765625
+          "response_length_mean": 210.765625,
+          "completion_time": 1789599116.3038695
         },
         {
           "step": 18,
@@ -871,7 +951,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 159.609375
+          "response_length_mean": 159.609375,
+          "completion_time": 1789599129.6731007
         },
         {
           "step": 19,
@@ -881,7 +962,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 152.25
+          "response_length_mean": 152.25,
+          "completion_time": 1789599150.8622072
         },
         {
           "step": 20,
@@ -891,7 +973,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 164.078125
+          "response_length_mean": 164.078125,
+          "completion_time": 1789599173.2840655
         },
         {
           "step": 21,
@@ -901,7 +984,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 155.578125
+          "response_length_mean": 155.578125,
+          "completion_time": 1789599196.0839505
         },
         {
           "step": 22,
@@ -911,7 +995,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 230.5625
+          "response_length_mean": 230.5625,
+          "completion_time": 1789599213.6487477
         },
         {
           "step": 23,
@@ -921,7 +1006,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 147.484375
+          "response_length_mean": 147.484375,
+          "completion_time": 1789599233.0134358
         },
         {
           "step": 24,
@@ -931,7 +1017,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 173.546875
+          "response_length_mean": 173.546875,
+          "completion_time": 1789599263.118972
         },
         {
           "step": 25,
@@ -941,7 +1028,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 229.40625
+          "response_length_mean": 229.40625,
+          "completion_time": 1789599282.8466237
         },
         {
           "step": 26,
@@ -951,7 +1039,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 169.71875
+          "response_length_mean": 169.71875,
+          "completion_time": 1789599301.5472388
         },
         {
           "step": 27,
@@ -961,7 +1050,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 155.40625
+          "response_length_mean": 155.40625,
+          "completion_time": 1789599336.1960669
         },
         {
           "step": 28,
@@ -971,7 +1061,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 196.640625
+          "response_length_mean": 196.640625,
+          "completion_time": 1789599375.208451
         },
         {
           "step": 29,
@@ -981,9 +1072,11 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 189.015625
+          "response_length_mean": 189.015625,
+          "completion_time": 1789599389.2789161
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598443.8944805
     },
     {
       "client": 3,
@@ -997,7 +1090,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 0,
-          "response_length_mean": 1861.46875
+          "response_length_mean": 1861.46875,
+          "completion_time": 1789598583.1306577
         },
         {
           "step": 1,
@@ -1007,7 +1101,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 1,
-          "response_length_mean": 1268.5
+          "response_length_mean": 1268.5,
+          "completion_time": 1789598614.0894694
         },
         {
           "step": 2,
@@ -1017,7 +1112,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1461.1875
+          "response_length_mean": 1461.1875,
+          "completion_time": 1789598734.7424414
         },
         {
           "step": 3,
@@ -1027,7 +1123,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1635.453125
+          "response_length_mean": 1635.453125,
+          "completion_time": 1789598793.0556426
         },
         {
           "step": 4,
@@ -1037,7 +1134,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1088.4375
+          "response_length_mean": 1088.4375,
+          "completion_time": 1789598853.2193725
         },
         {
           "step": 5,
@@ -1047,7 +1145,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1712.5625
+          "response_length_mean": 1712.5625,
+          "completion_time": 1789598932.6406498
         },
         {
           "step": 6,
@@ -1057,7 +1156,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1183.796875
+          "response_length_mean": 1183.796875,
+          "completion_time": 1789599001.995804
         },
         {
           "step": 7,
@@ -1067,7 +1167,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2004.40625
+          "response_length_mean": 2004.40625,
+          "completion_time": 1789599087.0210783
         },
         {
           "step": 8,
@@ -1077,7 +1178,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1528.46875
+          "response_length_mean": 1528.46875,
+          "completion_time": 1789599167.4365716
         },
         {
           "step": 9,
@@ -1087,7 +1189,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1410.125
+          "response_length_mean": 1410.125,
+          "completion_time": 1789599256.0487068
         },
         {
           "step": 10,
@@ -1097,7 +1200,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1162.90625
+          "response_length_mean": 1162.90625,
+          "completion_time": 1789599339.8015082
         },
         {
           "step": 11,
@@ -1107,7 +1211,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1457.71875
+          "response_length_mean": 1457.71875,
+          "completion_time": 1789599414.4692826
         },
         {
           "step": 12,
@@ -1117,7 +1222,8 @@
           "sequences": 64,
           "truncated_samples": 10,
           "policy_lag_updates": 1,
-          "response_length_mean": 2611.5625
+          "response_length_mean": 2611.5625,
+          "completion_time": 1789599507.548187
         },
         {
           "step": 13,
@@ -1127,7 +1233,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1704.234375
+          "response_length_mean": 1704.234375,
+          "completion_time": 1789599601.9725358
         },
         {
           "step": 14,
@@ -1137,7 +1244,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2270.171875
+          "response_length_mean": 2270.171875,
+          "completion_time": 1789599683.2027476
         },
         {
           "step": 15,
@@ -1147,7 +1255,8 @@
           "sequences": 64,
           "truncated_samples": 9,
           "policy_lag_updates": 1,
-          "response_length_mean": 1982.96875
+          "response_length_mean": 1982.96875,
+          "completion_time": 1789599769.1382904
         },
         {
           "step": 16,
@@ -1157,7 +1266,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1709.875
+          "response_length_mean": 1709.875,
+          "completion_time": 1789599848.4935522
         },
         {
           "step": 17,
@@ -1167,7 +1277,8 @@
           "sequences": 64,
           "truncated_samples": 10,
           "policy_lag_updates": 1,
-          "response_length_mean": 2872.546875
+          "response_length_mean": 2872.546875,
+          "completion_time": 1789599948.7215729
         },
         {
           "step": 18,
@@ -1177,7 +1288,8 @@
           "sequences": 64,
           "truncated_samples": 9,
           "policy_lag_updates": 1,
-          "response_length_mean": 2421.78125
+          "response_length_mean": 2421.78125,
+          "completion_time": 1789600036.264192
         },
         {
           "step": 19,
@@ -1187,7 +1299,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 1719.234375
+          "response_length_mean": 1719.234375,
+          "completion_time": 1789600123.983033
         },
         {
           "step": 20,
@@ -1197,7 +1310,8 @@
           "sequences": 64,
           "truncated_samples": 8,
           "policy_lag_updates": 1,
-          "response_length_mean": 2247.296875
+          "response_length_mean": 2247.296875,
+          "completion_time": 1789600218.1303358
         },
         {
           "step": 21,
@@ -1207,7 +1321,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1881.453125
+          "response_length_mean": 1881.453125,
+          "completion_time": 1789600308.4417045
         },
         {
           "step": 22,
@@ -1217,7 +1332,8 @@
           "sequences": 64,
           "truncated_samples": 11,
           "policy_lag_updates": 1,
-          "response_length_mean": 2914.5
+          "response_length_mean": 2914.5,
+          "completion_time": 1789600406.0806496
         },
         {
           "step": 23,
@@ -1227,7 +1343,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2775.515625
+          "response_length_mean": 2775.515625,
+          "completion_time": 1789600490.3158617
         },
         {
           "step": 24,
@@ -1237,7 +1354,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 2222.015625
+          "response_length_mean": 2222.015625,
+          "completion_time": 1789600566.96692
         },
         {
           "step": 25,
@@ -1247,7 +1365,8 @@
           "sequences": 64,
           "truncated_samples": 12,
           "policy_lag_updates": 1,
-          "response_length_mean": 2545.015625
+          "response_length_mean": 2545.015625,
+          "completion_time": 1789600660.195648
         },
         {
           "step": 26,
@@ -1257,7 +1376,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1869.75
+          "response_length_mean": 1869.75,
+          "completion_time": 1789600728.0032938
         },
         {
           "step": 27,
@@ -1267,7 +1387,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 2334.578125
+          "response_length_mean": 2334.578125,
+          "completion_time": 1789600815.1158938
         },
         {
           "step": 28,
@@ -1277,7 +1398,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 2525.484375
+          "response_length_mean": 2525.484375,
+          "completion_time": 1789600898.2432876
         },
         {
           "step": 29,
@@ -1287,9 +1409,11 @@
           "sequences": 64,
           "truncated_samples": 13,
           "policy_lag_updates": 1,
-          "response_length_mean": 3146.96875
+          "response_length_mean": 3146.96875,
+          "completion_time": 1789600992.06896
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598444.0496135
     },
     {
       "client": 4,
@@ -1303,7 +1427,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 0,
-          "response_length_mean": 170.90625
+          "response_length_mean": 170.90625,
+          "completion_time": 1789598583.792693
         },
         {
           "step": 1,
@@ -1313,7 +1438,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 205.46875
+          "response_length_mean": 205.46875,
+          "completion_time": 1789598614.0913374
         },
         {
           "step": 2,
@@ -1323,7 +1449,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 265.859375
+          "response_length_mean": 265.859375,
+          "completion_time": 1789598645.2388778
         },
         {
           "step": 3,
@@ -1333,7 +1460,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 198.359375
+          "response_length_mean": 198.359375,
+          "completion_time": 1789598659.3057642
         },
         {
           "step": 4,
@@ -1343,7 +1471,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 247.34375
+          "response_length_mean": 247.34375,
+          "completion_time": 1789598734.7773826
         },
         {
           "step": 5,
@@ -1353,7 +1482,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 239.921875
+          "response_length_mean": 239.921875,
+          "completion_time": 1789598792.9222822
         },
         {
           "step": 6,
@@ -1363,7 +1493,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 157.65625
+          "response_length_mean": 157.65625,
+          "completion_time": 1789598808.2656932
         },
         {
           "step": 7,
@@ -1373,7 +1504,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 158.328125
+          "response_length_mean": 158.328125,
+          "completion_time": 1789598822.8346825
         },
         {
           "step": 8,
@@ -1383,7 +1515,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 199.359375
+          "response_length_mean": 199.359375,
+          "completion_time": 1789598854.6277254
         },
         {
           "step": 9,
@@ -1393,7 +1526,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 221.453125
+          "response_length_mean": 221.453125,
+          "completion_time": 1789598898.246208
         },
         {
           "step": 10,
@@ -1403,7 +1537,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 212.5625
+          "response_length_mean": 212.5625,
+          "completion_time": 1789598932.6406066
         },
         {
           "step": 11,
@@ -1413,7 +1548,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 187.21875
+          "response_length_mean": 187.21875,
+          "completion_time": 1789598948.0204985
         },
         {
           "step": 12,
@@ -1423,7 +1559,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 172.75
+          "response_length_mean": 172.75,
+          "completion_time": 1789598967.067818
         },
         {
           "step": 13,
@@ -1433,7 +1570,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 227.453125
+          "response_length_mean": 227.453125,
+          "completion_time": 1789599004.6774848
         },
         {
           "step": 14,
@@ -1443,7 +1581,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 247.515625
+          "response_length_mean": 247.515625,
+          "completion_time": 1789599036.084429
         },
         {
           "step": 15,
@@ -1453,7 +1592,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 200.171875
+          "response_length_mean": 200.171875,
+          "completion_time": 1789599056.1884634
         },
         {
           "step": 16,
@@ -1463,7 +1603,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 272.25
+          "response_length_mean": 272.25,
+          "completion_time": 1789599096.8517318
         },
         {
           "step": 17,
@@ -1473,7 +1614,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 212.40625
+          "response_length_mean": 212.40625,
+          "completion_time": 1789599111.8608644
         },
         {
           "step": 18,
@@ -1483,7 +1625,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 202.59375
+          "response_length_mean": 202.59375,
+          "completion_time": 1789599131.2811973
         },
         {
           "step": 19,
@@ -1493,7 +1636,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 236.015625
+          "response_length_mean": 236.015625,
+          "completion_time": 1789599178.2369227
         },
         {
           "step": 20,
@@ -1503,7 +1647,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 165.125
+          "response_length_mean": 165.125,
+          "completion_time": 1789599200.7294383
         },
         {
           "step": 21,
@@ -1513,7 +1658,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 282.328125
+          "response_length_mean": 282.328125,
+          "completion_time": 1789599263.1144216
         },
         {
           "step": 22,
@@ -1523,7 +1669,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 229.59375
+          "response_length_mean": 229.59375,
+          "completion_time": 1789599280.7374732
         },
         {
           "step": 23,
@@ -1533,7 +1680,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 236.125
+          "response_length_mean": 236.125,
+          "completion_time": 1789599309.0012352
         },
         {
           "step": 24,
@@ -1543,7 +1691,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 182.234375
+          "response_length_mean": 182.234375,
+          "completion_time": 1789599348.2179334
         },
         {
           "step": 25,
@@ -1553,7 +1702,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 159.4375
+          "response_length_mean": 159.4375,
+          "completion_time": 1789599368.2156234
         },
         {
           "step": 26,
@@ -1563,7 +1713,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 160.78125
+          "response_length_mean": 160.78125,
+          "completion_time": 1789599388.0782402
         },
         {
           "step": 27,
@@ -1573,7 +1724,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 174.0625
+          "response_length_mean": 174.0625,
+          "completion_time": 1789599422.11629
         },
         {
           "step": 28,
@@ -1583,7 +1735,8 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 173.9375
+          "response_length_mean": 173.9375,
+          "completion_time": 1789599442.869781
         },
         {
           "step": 29,
@@ -1593,9 +1746,11 @@
           "sequences": 64,
           "truncated_samples": 0,
           "policy_lag_updates": 1,
-          "response_length_mean": 142.96875
+          "response_length_mean": 142.96875,
+          "completion_time": 1789599459.92372
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598443.9695399
     },
     {
       "client": 5,
@@ -1609,7 +1764,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 0,
-          "response_length_mean": 1422.546875
+          "response_length_mean": 1422.546875,
+          "completion_time": 1789598583.2842016
         },
         {
           "step": 1,
@@ -1619,7 +1775,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 1070.046875
+          "response_length_mean": 1070.046875,
+          "completion_time": 1789598638.6882718
         },
         {
           "step": 2,
@@ -1629,7 +1786,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1564.234375
+          "response_length_mean": 1564.234375,
+          "completion_time": 1789598734.739288
         },
         {
           "step": 3,
@@ -1639,7 +1797,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 1543.75
+          "response_length_mean": 1543.75,
+          "completion_time": 1789598792.9611804
         },
         {
           "step": 4,
@@ -1649,7 +1808,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1301.546875
+          "response_length_mean": 1301.546875,
+          "completion_time": 1789598853.1006973
         },
         {
           "step": 5,
@@ -1659,7 +1819,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 1,
-          "response_length_mean": 1777.546875
+          "response_length_mean": 1777.546875,
+          "completion_time": 1789598932.7273755
         },
         {
           "step": 6,
@@ -1669,7 +1830,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1289.109375
+          "response_length_mean": 1289.109375,
+          "completion_time": 1789599004.2504783
         },
         {
           "step": 7,
@@ -1679,7 +1841,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1034.0
+          "response_length_mean": 1034.0,
+          "completion_time": 1789599084.4332867
         },
         {
           "step": 8,
@@ -1689,7 +1852,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1343.65625
+          "response_length_mean": 1343.65625,
+          "completion_time": 1789599173.2698038
         },
         {
           "step": 9,
@@ -1699,7 +1863,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1590.84375
+          "response_length_mean": 1590.84375,
+          "completion_time": 1789599264.4483058
         },
         {
           "step": 10,
@@ -1709,7 +1874,8 @@
           "sequences": 64,
           "truncated_samples": 9,
           "policy_lag_updates": 1,
-          "response_length_mean": 1948.078125
+          "response_length_mean": 1948.078125,
+          "completion_time": 1789599348.0098662
         },
         {
           "step": 11,
@@ -1719,7 +1885,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1576.828125
+          "response_length_mean": 1576.828125,
+          "completion_time": 1789599426.5221946
         },
         {
           "step": 12,
@@ -1729,7 +1896,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1937.84375
+          "response_length_mean": 1937.84375,
+          "completion_time": 1789599523.819326
         },
         {
           "step": 13,
@@ -1739,7 +1907,8 @@
           "sequences": 64,
           "truncated_samples": 8,
           "policy_lag_updates": 1,
-          "response_length_mean": 2106.609375
+          "response_length_mean": 2106.609375,
+          "completion_time": 1789599607.4442036
         },
         {
           "step": 14,
@@ -1749,7 +1918,8 @@
           "sequences": 64,
           "truncated_samples": 1,
           "policy_lag_updates": 1,
-          "response_length_mean": 928.875
+          "response_length_mean": 928.875,
+          "completion_time": 1789599687.4171166
         },
         {
           "step": 15,
@@ -1759,7 +1929,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 1987.546875
+          "response_length_mean": 1987.546875,
+          "completion_time": 1789599769.3244035
         },
         {
           "step": 16,
@@ -1769,7 +1940,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 1446.625
+          "response_length_mean": 1446.625,
+          "completion_time": 1789599846.4173846
         },
         {
           "step": 17,
@@ -1779,7 +1951,8 @@
           "sequences": 64,
           "truncated_samples": 4,
           "policy_lag_updates": 1,
-          "response_length_mean": 1646.5625
+          "response_length_mean": 1646.5625,
+          "completion_time": 1789599943.54829
         },
         {
           "step": 18,
@@ -1789,7 +1962,8 @@
           "sequences": 64,
           "truncated_samples": 6,
           "policy_lag_updates": 1,
-          "response_length_mean": 2061.859375
+          "response_length_mean": 2061.859375,
+          "completion_time": 1789600050.1457343
         },
         {
           "step": 19,
@@ -1799,7 +1973,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2321.203125
+          "response_length_mean": 2321.203125,
+          "completion_time": 1789600123.9984088
         },
         {
           "step": 20,
@@ -1809,7 +1984,8 @@
           "sequences": 64,
           "truncated_samples": 11,
           "policy_lag_updates": 1,
-          "response_length_mean": 2504.78125
+          "response_length_mean": 2504.78125,
+          "completion_time": 1789600221.7707355
         },
         {
           "step": 21,
@@ -1819,7 +1995,8 @@
           "sequences": 64,
           "truncated_samples": 9,
           "policy_lag_updates": 1,
-          "response_length_mean": 2423.625
+          "response_length_mean": 2423.625,
+          "completion_time": 1789600308.755935
         },
         {
           "step": 22,
@@ -1829,7 +2006,8 @@
           "sequences": 64,
           "truncated_samples": 12,
           "policy_lag_updates": 1,
-          "response_length_mean": 3108.671875
+          "response_length_mean": 3108.671875,
+          "completion_time": 1789600406.2383847
         },
         {
           "step": 23,
@@ -1839,7 +2017,8 @@
           "sequences": 64,
           "truncated_samples": 5,
           "policy_lag_updates": 1,
-          "response_length_mean": 2157.578125
+          "response_length_mean": 2157.578125,
+          "completion_time": 1789600494.0795577
         },
         {
           "step": 24,
@@ -1849,7 +2028,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2358.0
+          "response_length_mean": 2358.0,
+          "completion_time": 1789600579.1511586
         },
         {
           "step": 25,
@@ -1859,7 +2039,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2701.75
+          "response_length_mean": 2701.75,
+          "completion_time": 1789600679.7013211
         },
         {
           "step": 26,
@@ -1869,7 +2050,8 @@
           "sequences": 64,
           "truncated_samples": 2,
           "policy_lag_updates": 1,
-          "response_length_mean": 2030.0625
+          "response_length_mean": 2030.0625,
+          "completion_time": 1789600761.4078958
         },
         {
           "step": 27,
@@ -1879,7 +2061,8 @@
           "sequences": 64,
           "truncated_samples": 3,
           "policy_lag_updates": 1,
-          "response_length_mean": 2064.34375
+          "response_length_mean": 2064.34375,
+          "completion_time": 1789600848.0854678
         },
         {
           "step": 28,
@@ -1889,7 +2072,8 @@
           "sequences": 64,
           "truncated_samples": 7,
           "policy_lag_updates": 1,
-          "response_length_mean": 2277.015625
+          "response_length_mean": 2277.015625,
+          "completion_time": 1789600938.4035342
         },
         {
           "step": 29,
@@ -1899,9 +2083,11 @@
           "sequences": 64,
           "truncated_samples": 14,
           "policy_lag_updates": 1,
-          "response_length_mean": 3234.84375
+          "response_length_mean": 3234.84375,
+          "completion_time": 1789601022.6828485
         }
-      ]
+      ],
+      "pipeline_start_time": 1789598444.5883062
     }
   ],
   "roundtrip": [

@@ -114,26 +114,44 @@ def parity():
 
 
 def async_math():
-    data = load("async-math.json")
+    source, native = load("async-math.json"), load("native-async-math.json")
+    assert source["status"] == native["status"] == "passed"
+    assert source["dataset_sha256"] == native["dataset_sha256"]
+    for key, value in native["matched_configuration"].items():
+        assert source["configuration"][key] == value
+    systems = (("Lilo + Miles", source, COLORS[0]), ("Native Miles", native, COLORS[1]))
+    for _, data, _ in systems:
+        assert [c["client"] for c in data["clients"]] == list(range(6))
+        for c in data["clients"]:
+            assert [s["step"] for s in c["steps"]] == list(range(30))
+            assert all(
+                s["sequences"] == 64 and s["policy_lag_updates"] <= 2
+                for s in c["steps"]
+            )
+            assert c["pipeline_start_time"] < c["steps"][0]["completion_time"]
+            assert all(
+                np.isfinite(s[k])
+                for s in c["steps"]
+                for k in ("reward_mean", "step_seconds", "completion_time")
+            )
     fig, axes = plt.subplots(2, 2, figsize=(13, 8), layout="constrained")
     for row, dataset in enumerate(("GSM8K", "DAPO-Math")):
-        clients = [c for c in data["clients"] if c["dataset"] == dataset]
-        for j, c in enumerate(clients):
-            rows = c["steps"]
-            assert len(rows) == 30
-            x = [s["step"] + 1 for s in rows]
+        for label, data, color in systems:
+            clients = [c for c in data["clients"] if c["dataset"] == dataset]
+            assert len(clients) == 3
             for col, key in enumerate(("reward_mean", "step_seconds")):
-                y = [s[key] for s in rows]
-                axes[row, col].plot(x, y, color=COLORS[j], alpha=0.2, lw=0.8)
+                values = np.array([[s[key] for s in c["steps"]] for c in clients])
+                for y in values:
+                    axes[row, col].plot(range(1, 31), y, color=color, alpha=0.2, lw=0.8)
                 axes[row, col].plot(
-                    x,
-                    smooth(y, 5),
-                    color=COLORS[j],
+                    range(1, 31),
+                    smooth(values.mean(axis=0), 5),
+                    color=color,
                     lw=2,
-                    label=f"Client {c['client']}",
+                    label=label,
                 )
         axes[row, 0].set(
-            title=f"{dataset}: independent training",
+            title=f"{dataset}: training reward",
             ylabel="Recorded training reward",
             ylim=(-0.02, 1.02),
         )
@@ -147,10 +165,42 @@ def async_math():
     finish(
         fig,
         axes,
-        "Lilo with the Miles backend · Qwen3.5-9B-Base · six asynchronous clients",
-        "Shared 4×H100 trainer · 30 updates each · bold: trailing 5-update mean; faint: raw",
+        "Qwen3.5-9B-Base · six asynchronous clients · Lilo versus native Miles",
+        "4×H100 training + 8×H200 rollout · faint: each client; bold: trailing 5-update mean across 3 clients/dataset",
         "qwen3-5-9b-async-math.png",
     )
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), layout="constrained")
+    for label, data, color in systems:
+        start = min(c["pipeline_start_time"] for c in data["clients"])
+        for ax, dataset in zip(axes, ("GSM8K", "DAPO-Math"), strict=True):
+            clients = [c for c in data["clients"] if c["dataset"] == dataset]
+            for i, client in enumerate(clients):
+                minutes = [(s["completion_time"] - start) / 60 for s in client["steps"]]
+                ax.plot(
+                    minutes,
+                    smooth([s["reward_mean"] for s in client["steps"]], 5),
+                    color=color,
+                    alpha=0.65,
+                    lw=1.3,
+                    label=label if i == 0 else None,
+                )
+            ax.set(
+                title=dataset,
+                xlabel="Minutes since first client pipeline started",
+                ylabel="Recorded training reward",
+                ylim=(-0.02, 1.02),
+            )
+            ax.grid(alpha=0.16)
+            ax.set_axisbelow(True)
+            ax.legend(fontsize=9)
+    fig.suptitle(
+        "Training reward versus elapsed time · same GPU allocation\n"
+        "Each line: one client, trailing 5-update mean; startup and initial warmup excluded",
+        fontsize=14,
+    )
+    fig.savefig(ROOT / "qwen3-5-9b-async-math-walltime.png", dpi=170)
+    plt.close(fig)
 
 
 def codegolf():

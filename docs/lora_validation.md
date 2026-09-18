@@ -15,15 +15,44 @@ exports. This validates experiment revision `1a4148f`.
 
 [Config and verification](assets/lora-validation/deterministic-parity.json).
 
-### Async RL
+### Async RL: Lilo versus native Miles
 
-Six clients, 30 steps each, sharing one 4×H100 trainer and eight H200 inference
-workers. GSM8K uses rank 16 and a 4k generation cap; DAPO uses rank 32 and 8k.
-All six checkpoint round trips reproduce logprobs and adapter exports exactly.
+Both runs complete 30 updates for each of six clients on one 4×H100 TP4 trainer
+and eight H200 inference workers. They use the same dataset bytes, prompt order,
+grader, learning recipe, and one-batch prefetch. GSM8K uses rank 16 and a 4k
+generation cap; DAPO uses rank 32 and 8k. Each update uses 8 prompts × 8 samples
+and learning rate 1e-5. Native Miles uses its Tinker gateway and a fixed rollout
+pool on Modal.
 
-![Six-client async RL](assets/lora-validation/qwen3-5-9b-async-math.png)
+![Six-client async math: Lilo versus native Miles reward and step timings](assets/lora-validation/qwen3-5-9b-async-math.png)
 
-[Config and metrics](assets/lora-validation/async-math.json).
+Faint curves show all three clients per dataset and system; bold curves show the
+trailing five-update mean across those clients. Step time includes waiting,
+rollout, training, and publication.
+
+| Metric | Lilo + Miles | Native Miles |
+| --- | ---: | ---: |
+| GSM8K median step | 21.95 s | 17.65 s |
+| DAPO median step | 84.28 s | 74.81 s |
+| GSM8K mean training reward | 0.659 | 0.642 |
+| DAPO mean training reward | 0.156 | 0.169 |
+| Training interval | 43.27 min | 38.98 min |
+
+Medians exclude each client's first two updates. The training interval runs from
+the first client pipeline start through final publication, excluding infrastructure
+startup and initial warmup. Each system has one nondeterministic run; equal GPU
+allocation does not imply equal total GPU-hours or generated token counts.
+
+![Six-client async math: training reward versus elapsed time](assets/lora-validation/qwen3-5-9b-async-math-walltime.png)
+
+The native run passed all 180 updates and raw-rollout checks, with finite metrics
+and maximum policy lag one. Its deployment uses a router backfill fix and private
+HTTP adapter transfer with local caching; transfer and native router retries are
+included in timing. [Full setup differences and verification](assets/lora-validation/native-async-math.json).
+The separate checkpoint roundtrip checks belong to the Lilo run.
+
+[Lilo config and metrics](assets/lora-validation/async-math.json) ·
+[Native Miles config and metrics](assets/lora-validation/native-async-math.json).
 
 ## DAPO Math: Qwen3.5-9B cost estimate
 
