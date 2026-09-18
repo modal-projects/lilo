@@ -19,10 +19,18 @@ def trainer_max_containers() -> int | None:
     return limit
 
 
+FORWARDED_DEPLOYMENT_ENVS = (
+    TRAINER_MAX_CONTAINERS_ENV,
+    APP_NAME_ENV,
+    "LILO_TORCH_PROFILE_STEP",
+    "LILO_TORCH_PROFILE_DIR",
+    "LILO_TORCH_PROFILE_RANKS",
+)
+
+
 def trainer_deployment_env() -> dict[str, str]:
-    env = {
-        name: os.environ[name]
-        for name in (TRAINER_MAX_CONTAINERS_ENV, APP_NAME_ENV)
-        if name in os.environ
+    return {
+        name: value
+        for name in FORWARDED_DEPLOYMENT_ENVS
+        if (value := os.environ.get(name)) is not None
     }
-    return env

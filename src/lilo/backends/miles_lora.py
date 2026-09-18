@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import torch
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
@@ -25,6 +27,7 @@ from .contract import (
 )
 from .miles_config import MilesBackendConfig, parse_backend_config
 from .miles_runtime.data import build_outputs, pad_slot_rows, prepare_batch
+from .miles_runtime.profiling import RankProfiler, StepPhaseTimer, TorchProfileConfig
 from .miles_runtime.runtime import MilesRuntime
 
 
@@ -67,7 +70,29 @@ class MilesCommandBackend(Backend):
         self._checkpoint_io_lock = threading.RLock()
         self._checkpoint_captures: dict[str, dict[str, Any]] = {}
         self._sampler_captures: dict[str, dict[str, Any]] = {}
+        self._timer = StepPhaseTimer()
+        self._profile = TorchProfileConfig.from_env()
+        self._profiling_active = False
+        self._profile_step_done = False
+        self._controller_profiler: RankProfiler | None = None
         self._closed = False
+        if self._profile.enabled:
+            print(
+                json.dumps(
+                    {
+                        "event": "lilo_torch_profile",
+                        "state": "configured",
+                        "step": self._profile.step,
+                        "ranks": (
+                            "all"
+                            if self._profile.ranks is None
+                            else sorted(self._profile.ranks)
+                        ),
+                        "output_dir": self._profile.output_dir,
+                    }
+                ),
+                flush=True,
+            )
 
     def accept_model(self, model_id: str, spec: ModelSpec) -> None:
         if spec.parameterization != "lora" or spec.lora_config is None:
@@ -130,22 +155,44 @@ class MilesCommandBackend(Backend):
         if not batch.items:
             return ()
         self._require_jobs(tuple(item.model_id for item in batch.items))
-        prepared = prepare_batch(batch, self.job_to_slot)
-        slot_rows = pad_slot_rows(
-            prepared.slot_rows,
-            self.config.data_parallel_size,
-        )
-        raw_outputs = self.runtime.forward_backward(
-            slot_rows,
-            loss_fn=str(batch.loss_fn),
-            loss_fn_config=dict(batch.loss_fn_config),
-            forward_only=batch.forward_only,
-        )
+        step = self.jobs[batch.items[0].model_id].optimizer_step
+        if (
+            self._profile.enabled
+            and not self._profile_step_done
+            and not self._profiling_active
+            and step == self._profile.step
+            and not batch.forward_only
+        ):
+            self._start_profiling(step)
+        elif (
+            self._profiling_active
+            and self._profile.step is not None
+            and step > self._profile.step
+        ):
+            self._stop_profiling()
+        with self._timer.phase("prepare_batch", step, model_id=batch.items[0].model_id):
+            prepared = prepare_batch(batch, self.job_to_slot)
+        phase_name = "forward_only" if batch.forward_only else "forward_backward"
+        with (
+            self._timer.phase(phase_name, step, model_id=batch.items[0].model_id),
+            self._record(f"lilo/{phase_name}"),
+        ):
+            slot_rows = pad_slot_rows(
+                prepared.slot_rows,
+                self.config.data_parallel_size,
+            )
+            raw_outputs = self.runtime.forward_backward(
+                slot_rows,
+                loss_fn=str(batch.loss_fn),
+                loss_fn_config=dict(batch.loss_fn_config),
+                forward_only=batch.forward_only,
+            )
         raw_outputs = raw_outputs[: len(prepared.slot_rows)]
         if not batch.forward_only:
             for item in batch.items:
                 self.jobs[item.model_id].accumulating = True
-        return build_outputs(batch, prepared, raw_outputs)
+        with self._timer.phase("build_outputs", step, model_id=batch.items[0].model_id):
+            return build_outputs(batch, prepared, raw_outputs)
 
     def optim_step(
         self,
@@ -164,7 +211,14 @@ class MilesCommandBackend(Backend):
         by_slot = {
             self.job_to_slot[model_id]: parameters.copy() for model_id in model_ids
         }
-        outcomes = self.runtime.optim_step(by_slot)
+        step = self.jobs[model_ids[0]].optimizer_step
+        with (
+            self._timer.phase("optim_step", step, model_id=model_ids[0]),
+            self._record("lilo/optim_step"),
+        ):
+            outcomes = self.runtime.optim_step(by_slot)
+        timing_metrics = self._timer.metrics_for_step(step)
+        self._timer.pop_step(step)
         outputs = []
         for model_id in model_ids:
             state = self.jobs[model_id]
@@ -179,7 +233,11 @@ class MilesCommandBackend(Backend):
             if not successful and "skipped_nonfinite" not in outcome:
                 raise BackendFailed(f"unexpected Miles optimizer outcome: {outcome}")
             state.optimizer_step += int(successful)
-            metrics = {"update_successful:mean": float(successful)}
+            metrics = {
+                "update_successful:mean": float(successful),
+                "timing/optimizer_step": float(step),
+                **timing_metrics,
+            }
             if successful:
                 metrics["grad_norm:mean"] = float(outcome["grad_norm"])
             else:
@@ -201,11 +259,17 @@ class MilesCommandBackend(Backend):
         capture_path = self.capture_dir / "checkpoints" / snapshot_id
         capture_path.parent.mkdir(parents=True, exist_ok=True)
         state = self.jobs[model_id]
-        self.runtime.save_slot(
-            self.job_to_slot[model_id],
-            str(capture_path / "miles"),
-            include_optimizer=include_optimizer,
-        )
+        with (
+            self._timer.phase(
+                "save_checkpoint", state.optimizer_step, model_id=model_id
+            ),
+            self._record("lilo/save_checkpoint"),
+        ):
+            self.runtime.save_slot(
+                self.job_to_slot[model_id],
+                str(capture_path / "miles"),
+                include_optimizer=include_optimizer,
+            )
         metadata = {
             "schema_version": 1,
             "checkpoint_format": "miles_torch_dist",
@@ -260,8 +324,16 @@ class MilesCommandBackend(Backend):
                     raise ValueError("snapshot destination does not match its capture")
                 model_id = capture["model_id"]
                 target = self.checkpoint_dir / destination / model_id
-                _install_directory(capture["path"], target, overwrite=overwrite)
-                _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
+                job = self.jobs.get(model_id)
+                persist_step = job.optimizer_step if job is not None else -1
+                with (
+                    self._timer.phase(
+                        "persist_checkpoint", persist_step, model_id=model_id
+                    ),
+                    self._record("lilo/persist_checkpoint"),
+                ):
+                    _install_directory(capture["path"], target, overwrite=overwrite)
+                    _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
                 return str(target)
             finally:
                 capture = self._checkpoint_captures.pop(snapshot_id, None)
@@ -311,15 +383,21 @@ class MilesCommandBackend(Backend):
         state = self.jobs[model_id]
         path = self.capture_dir / "sampler" / capture_id
         path.parent.mkdir(parents=True, exist_ok=True)
-        self.runtime.export_slot_peft(
-            slot=self.job_to_slot[model_id],
-            path=str(path),
-            rank=state.rank,
-            alpha=state.alpha,
-            base_model=self.base_model,
-            target_modules=self.config.peft_target_modules,
-            lora_dropout=self.config.lora_dropout,
-        )
+        with (
+            self._timer.phase(
+                "save_sampler_weights", state.optimizer_step, model_id=model_id
+            ),
+            self._record("lilo/save_sampler_weights"),
+        ):
+            self.runtime.export_slot_peft(
+                slot=self.job_to_slot[model_id],
+                path=str(path),
+                rank=state.rank,
+                alpha=state.alpha,
+                base_model=self.base_model,
+                target_modules=self.config.peft_target_modules,
+                lora_dropout=self.config.lora_dropout,
+            )
         self._sampler_captures[capture_id] = {
             "model_id": model_id,
             "publish_version": requested_version,
@@ -343,13 +421,27 @@ class MilesCommandBackend(Backend):
                     else None
                 ),
             )
-            bulletin.publish(
-                VersionRef(
-                    capture["model_id"],
-                    int(capture["publish_version"]),
+            job = self.jobs.get(capture["model_id"])
+            publish_step = job.optimizer_step if job is not None else -1
+            with (
+                self._timer.phase(
+                    "publish_weights", publish_step, model_id=capture["model_id"]
                 ),
-                capture["path"],
-            )
+                self._record("lilo/publish_weights"),
+            ):
+                bulletin.publish(
+                    VersionRef(
+                        capture["model_id"],
+                        int(capture["publish_version"]),
+                    ),
+                    capture["path"],
+                )
+            if (
+                self._profiling_active
+                and self._profile.step is not None
+                and publish_step > self._profile.step
+            ):
+                self._stop_profiling()
         finally:
             capture = self._sampler_captures.pop(capture_id, None)
             if capture is not None:
@@ -367,7 +459,82 @@ class MilesCommandBackend(Backend):
         if self._closed:
             return
         self._closed = True
+        if self._profiling_active:
+            self._stop_profiling()
         self.runtime.close()
+
+    def _record(self, name: str):
+        """Controller-side profiler span; inert when profiling is off."""
+        if self._controller_profiler is None:
+            return contextlib.nullcontext()
+        return torch.profiler.record_function(name)
+
+    def _start_profiling(self, step: int) -> None:
+        try:
+            self.runtime.torch_profile_start()
+            self._controller_profiler = RankProfiler(activities_cpu_only=True)
+            self._controller_profiler.start()
+            self._profiling_active = True
+            print(
+                json.dumps(
+                    {
+                        "event": "lilo_torch_profile",
+                        "state": "start",
+                        "step": step,
+                        "output_dir": self._profile.output_dir,
+                    }
+                ),
+                flush=True,
+            )
+        except Exception:  # noqa: BLE001 - profiling must not kill training
+            self._profiling_active = False
+            self._controller_profiler = None
+            print(
+                json.dumps(
+                    {"event": "lilo_torch_profile", "state": "error", "step": step}
+                ),
+                flush=True,
+            )
+
+    def _stop_profiling(self) -> None:
+        files: list[str] = []
+        try:
+            results = self.runtime.torch_profile_stop(self._profile.output_dir)
+            for result in results or []:
+                if result:
+                    files.extend(result.values())
+            if self._controller_profiler is not None:
+                controller = self._controller_profiler.stop(
+                    self._profile.output_dir, "controller"
+                )
+                files.extend(controller.values())
+            _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
+        except Exception as exc:  # noqa: BLE001 - profiling must not kill training
+            print(
+                json.dumps(
+                    {
+                        "event": "lilo_torch_profile",
+                        "state": "error",
+                        "error": str(exc),
+                    }
+                ),
+                flush=True,
+            )
+        finally:
+            self._profiling_active = False
+            self._profile_step_done = True
+            self._controller_profiler = None
+        if files:
+            print(
+                json.dumps(
+                    {
+                        "event": "lilo_torch_profile",
+                        "state": "stop",
+                        "files": files,
+                    }
+                ),
+                flush=True,
+            )
 
     def _validate_job(self, state: MilesJobState) -> None:
         if not 0 < state.rank <= self.config.max_lora_rank:

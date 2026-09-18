@@ -18,6 +18,8 @@ from miles.backends.training_utils.loss_hub import (
 )
 from miles.backends.training_utils.parallel import get_parallel_state
 
+from .profiling import RankProfiler, TorchProfileConfig
+
 
 def _pad_local_shard(
     tensor,
@@ -184,6 +186,20 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             return super().init(args, role, **kwargs)
         finally:
             AutoBridge.to_megatron_provider = original
+
+    def torch_profile_start(self) -> None:
+        if not TorchProfileConfig.from_env().profiles_rank(dist.get_rank()):
+            self._lilo_profiler = None
+            return
+        self._lilo_profiler = RankProfiler()
+        self._lilo_profiler.start()
+
+    def torch_profile_stop(self, output_dir: str) -> dict | None:
+        profiler = self._lilo_profiler
+        if profiler is None:
+            return None
+        self._lilo_profiler = None
+        return profiler.stop(output_dir, f"rank{dist.get_rank()}")
 
     def forward_backward(self, *args, **kwargs):
         return self._profiled("forward_backward", *args, **kwargs)

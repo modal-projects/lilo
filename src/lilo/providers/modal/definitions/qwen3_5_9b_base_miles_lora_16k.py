@@ -9,7 +9,7 @@ from ..checkpoint_storage import (
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
 )
-from ..deployment import trainer_max_containers
+from ..deployment import trainer_deployment_env, trainer_max_containers
 
 MODEL_NAME = "Qwen/Qwen3.5-9B-Base"
 HF_CHECKPOINT = "/assets/Qwen3.5-9B-Base"
@@ -95,20 +95,26 @@ proxy_secret = modal.Secret.from_name(
     secrets=[api_secret, proxy_secret],
     timeout=86_400,
     max_containers=trainer_max_containers(),
+    env=trainer_deployment_env(),
     single_use_containers=True,
 )
 def qwen3_5_9b_base_miles_lora_16k(instance_id: str) -> None:
     run_trainer(instance_id)
 
 
-def run_trainer(instance_id: str, *, definition_id: str = DEFINITION_ID, max_models: int = MAX_LORA_SLOTS) -> None:
+def run_trainer(
+    instance_id: str,
+    *,
+    definition_id: str = DEFINITION_ID,
+    max_models: int = MAX_LORA_SLOTS,
+) -> None:
     import json
 
     from huggingface_hub import snapshot_download
+    from modal.config import config
 
     from lilo.providers.modal.kv import shared_kv
     from lilo.providers.modal.serve import run_engine_with_backend
-    from modal.config import config
 
     if not os.path.exists(HF_CHECKPOINT):
         snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)

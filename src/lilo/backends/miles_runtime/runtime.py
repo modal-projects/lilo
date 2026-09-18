@@ -119,6 +119,14 @@ class MilesRuntime:
         self._run(self._bridge.export_slot(slot, rank, alpha, path))
         _materialize_capture(path)
 
+    def torch_profile_start(self) -> None:
+        self._run_best_effort(self._trainer._execute_slots("torch_profile_start"))
+
+    def torch_profile_stop(self, output_dir: str) -> list[dict | None]:
+        return self._run_best_effort(
+            self._trainer._execute_slots("torch_profile_stop", output_dir=output_dir)
+        )
+
     def close(self) -> None:
         if self._closed:
             return
@@ -142,6 +150,15 @@ class MilesRuntime:
         except Exception as exc:
             self._failure = exc
             raise BackendFailed(f"Miles trainer failed: {exc}") from exc
+
+    def _run_best_effort(self, coroutine: Coroutine[Any, Any, Any]) -> Any:
+        """Like ``_run`` but an exception does not mark the trainer as failed."""
+        if self._closed or self._failure is not None:
+            coroutine.close()
+            raise BackendFailed("Miles trainer is unavailable")
+        result = self._call(coroutine)
+        _check_result(result)
+        return result
 
     def _call(self, coroutine: Coroutine[Any, Any, Any]) -> Any:
         future = asyncio.run_coroutine_threadsafe(coroutine, self._loop)

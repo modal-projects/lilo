@@ -83,6 +83,13 @@ class FakeMilesRuntime:
         (destination / "adapter_model.safetensors").write_bytes(b"adapter")
         (destination / "adapter_config.json").write_text("{}", encoding="utf-8")
 
+    def torch_profile_start(self):
+        self.calls.append(("torch_profile_start",))
+
+    def torch_profile_stop(self, output_dir):
+        self.calls.append(("torch_profile_stop", output_dir))
+        return [{"trace": f"{output_dir}/rank0.trace.json.gz"}]
+
     def close(self):
         self.closed = True
 
@@ -558,10 +565,11 @@ def test_nonfinite_optimizer_skip_does_not_advance_policy(tmp_path):
     backend.accept_model("model-a", _spec())
     backend.jobs["model-a"].accumulating = True
     (result,) = backend.optim_step(("model-a",), AdamParams(learning_rate=1e-5))
-    assert result.metrics == {
-        "update_successful:mean": 0.0,
-        "skipped_nonfinite:sum": 1.0,
-    }
+    assert result.metrics["update_successful:mean"] == 0.0
+    assert result.metrics["skipped_nonfinite:sum"] == 1.0
+    assert result.metrics["timing/optimizer_step"] == 0.0
+    assert result.metrics["timing/optim_step_s"] >= 0.0
+    assert result.metrics["timing/optim_step_calls"] == 1.0
     assert backend.jobs["model-a"].optimizer_step == 0
     assert not backend.jobs["model-a"].accumulating
 
