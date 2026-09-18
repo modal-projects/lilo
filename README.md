@@ -1,6 +1,6 @@
 # Lilo
 
-Lilo is a Tinker SDK-compatible backend run on Modal. Trainers run `forward_backward` and `optim_step` calls, then publish updated weights to autoscaling sampling replicas managed by the [Stitch](https://github.com/modal-projects/stitch) protocol. Currently, Lilo supports single-tenant full-parameter training as well as multi-tenant LoRA training.
+Lilo is a Tinker SDK-compatible backend run on Modal. Trainers run `forward_backward` and `optim_step` calls, then publish updated weights to autoscaling sampling replicas managed by the [Stitch](https://github.com/modal-projects/stitch) protocol (hence the name!). Currently, Lilo supports single-tenant full-parameter training as well as multi-tenant LoRA training.
 
 # Getting Started 
 
