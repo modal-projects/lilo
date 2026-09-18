@@ -58,3 +58,28 @@ One experimental path we've been working on is having multi-tenant runs be fully
 ![Six-client numerical parity](assets/lora-validation/qwen3-5-9b-parity.png)
 
 The main source of trainer non-determinism was in the fa3 backwards kernel, as well as ensuring ordered gradient accumulation with multiple clients' packed microbatches. 
+
+## LongRLVR at 128k context: Qwen3.8-27B (2026-09-18)
+
+Qwen3.8-27B LoRA r32 on LongRLVR-Data, generation cap 4k, GRPO 16 groups × 8
+samples, lr 1e-4, PPO clip 0.8/1.28, no KL. Both runs use an 8×H200 trainer and
+8 H200 rollout GPUs; Lilo runs the trainer as TP2×CP4 and the rollout pool as
+4×TP2 SGLang workers.
+
+![128k LongRLVR: Lilo versus native Miles](assets/lora-validation/qwen3-8-27b-128k-longrlvr.png)
+
+- Context parallelism (CP4) is what makes the 128k prompt fit on a single
+  8-GPU trainer. Miles does not support context parallelism on the Tinker /
+  multi-LoRA loss path, so the sequence-sharded loss and the all-gather around
+  cross entropy are implemented in Lilo's Miles backend and are being upstreamed
+  (radixark/miles#3284). The native Miles run in the plot therefore trains the
+  same prompts without CP.
+- Step time is at parity: 1676 s median for Lilo versus 1658 s for native Miles.
+- Reward tracks the same trajectory over the measured steps (mean 0.56 versus
+  0.57 over steps 0–8).
+- Lilo's responses stay longer than Miles' over the same window. This is
+  related to a loss-weighting delta between Lilo and Miles, which we are
+  actively looking into.
+
+The Lilo curve covers the steps completed at the time of writing; the native
+Miles curve is the full run.
