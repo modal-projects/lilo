@@ -144,3 +144,24 @@ def test_lora_pool_registry_supports_publication_and_cleanup():
         assert await routed.list_items("lora_pool:") == ()
 
     asyncio.run(run())
+
+
+def test_every_control_plane_key_family_is_routable():
+    import inspect
+
+    from lilo.control_plane import keys as key_builders
+
+    # sample_task keys live in the per-session task store, not the routed one.
+    unrouted = {"sample_task"}
+    families = set()
+    for name, builder in vars(key_builders).items():
+        if name.startswith("_") or not name.endswith("_key"):
+            continue
+        signature = inspect.signature(builder)
+        args = [
+            1 if parameter.annotation is int else "value"
+            for parameter in signature.parameters.values()
+        ]
+        families.add(builder(*args).partition(":")[0])
+
+    assert families - unrouted <= set(kv.KEY_STORES)
