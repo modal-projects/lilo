@@ -1,13 +1,13 @@
 # Working with Multi-LoRA
 
 Our multi-tenant Miles backend runs several LoRA adapters on a shared base model. Each Tinker
-training client has its own adapter, gradients, and optimizer state. On the inference side, we adapt the [stitch](https://github.com/modal-projects/stitch) protocol to have multi-lora inference replicas, each with an LRU cache based on Sglang's own S-lora CPU offloading logic. 
+training client has its own adapter, gradients, and optimizer state. On the inference side, we adapt the [stitch](https://github.com/modal-projects/stitch) protocol to have multi-lora inference replicas. 
 
-[LoRA validation](lora_validation.md) has more details on validation runs that we've done with our multi-lora system so far. 
+This doc assumes you've gone through the [README](README.md) and understand how to deploy the Tinker server and configure Tinker scripts to hit the server via TINKER_BASE_URL and TINKER_API_KEY, as well as the [Lilo design doc](design.md) to understand what terms such as "training engine" and "rollout pool" mean. 
 
 ## Creating clients
 
-The README describes how to deploy our Tinker server and set the BASE_URL for the service client. Then, the Tinker SDK can be used against this server: 
+For creating multi-lora clients, use the base Tinker `create_lora_training_client` method: 
 
 ```python
 import tinker
@@ -21,21 +21,15 @@ clients = [
 ]
 ```
 
-Clients using the same definition may share an engine depending on available slots/deployment limits. 
+Clients using the same definition may share an engine depending on available slots/deployment limits. With our Multi-lora backend, clients can use different ranks, up to 32. The LoRA alpha and target modules are set by the deployment (SDK defaults are `train_attn`, `train_mlp`, and `train_unembed` to be true). 
 
-The bundled `qwen3_5_9b_base_miles_lora_16k` definition provides six adapter slots
-on four H100s, with tensor parallelism of 4 and a 16,384-token context. Placement
-fills available trainer capacity automatically. Clients using the same
-definition may share an engine; their placement depends on available slots and
-deployment limits.
-
-With our Multi-lora backend, clients can use different ranks, up to 32. The LoRA alpha and target modules are set by the deployment (SDK defaults are `train_attn`, `train_mlp`, and `train_unembed` to be true). 
+From the perspective of the Tinker client, the usage of multi-lora engines is completely identical to Tinker. Below, we detail some considerations for extracting maximum performance from our multi-lora system. 
 
 ## Submit training work
 
+When multiple clients hit the same training engine, the engine will try and batch these clients' requests when possible. The intended use of multi-tenancy to maximize trainer utilization is thus to maintain a steady stream of incoming forward_backward data. The engine's current scheduling logic will interleave client batches when large enough, and multi-lora batch when multiple can fit within a single forward pass. The batching is done wrt "compatibility": in particular, fb requests which share the same `loss_fn` and `loss_fn_config`. This includes consecutive compatible requests from one client (see deterministic training section for ensuring gradient accumulation order). 
 
-The engine will try and batch multiple clients' requests when possible, and so the intended use of multi-tenancy to maximize trainer utilization is to maintain a steady stream of incoming forward_backward data. The engine's current scheduling logic will interleave client batches when large enough, and multi-lora batch when multiple can fit within a single forward pass. The batching is done wrt "compatibility": in particular, fb requests which share the same `loss_fn` and `loss_fn_config`. This includes consecutive compatible requests
-from one client (see deterministic training section for ensuring gradient accumulation order). 
+The EngineServer's packing of ready batches scans all clients whose forward_backward requests are queued, and packs work up till a max token budget set by the compute configuration. The current greedily scheduler does not account for fairness across clients, so given large-enough client batches, the scheduler will effectively take one-client per engine forward_backward (which reduces to multi-tenant interleaving), whereas with small batches, we are still able to saturate trainer with packing multiple client batches into a single forward-backward (which is the multi-lora batching benefit). 
 
 Miles then packs the combined batch into microbatches using the deployment's token
 budget. Scheduling order depends on the queued operations, so clients can
@@ -84,9 +78,6 @@ GPU $ per output token = GPU$ per second / output TPS
 ```
 In this section we detail some considerations when implementing multi-lora experiments to maximize output TPS: 
 
-### Multi-client Batch Scheduling
-The EngineServer's packing of ready batches scans all clients whose forward_backward requests are queued, and packs work up till a max token budget set by the compute configuration. The current greedily scheduler does not account for fairness across clients, so given large-enough client batches, the scheduler will effectively take one-client per engine forward_backward (which reduces to multi-tenant interleaving), whereas with small batches, we are still able to saturate trainer with packing multiple client batches into a single forward-backward (which is the multi-lora batching benefit). 
-
 ### Keep clients asynchronous and measure the tradeoff
 
 Because trainer is continuously polling for incoming forward_backward data, the best training pattern is to have async RL clients that produce a continuous stream of tokens towards the trainer, such that the latency of one clients' rollouts is hidden behind running forward_backwards for other clients. The system is much less friendly towards synchronous RL (especially if all clients do sync RL in lockstep), which will cause periodic bursts and troughs of trainer utilization as all clients switch between rollout and training phases. 
@@ -130,4 +121,9 @@ results tabluated:
 | 16 | 8,390 | 524 | 75.9% | $2.40 |
 | 32 | 9,298 | 291 | 80.4% | $2.17 |
 
+# Deterministic Training (Experimental) 
+
+The deterministic path aims to give each client the same training results regardless of which other clients share its batches (think of it as batch-invariance for training). It uses deterministic attention kernels, fixed reduction layouts, and ordered per-client gradient accumulation, alongside batch-invariant inference.
+
+To enable it, build the patched FA3 artifacts, set LILO_MILES_FA3_ARTIFACTS to their directory before deployment, and use the qwen3_5_9b_base_miles_lora_deterministic definition. The Tinker training code stays the same. We've validated on small math experiments (see  [LoRA validation](lora_validation.md) deterministic training section) but still need to do larger validation. Our changes to fa3 to make it deterministic also come at a throughput cost, and so this path remains experimental for now. 
 
