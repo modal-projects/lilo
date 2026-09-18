@@ -69,7 +69,9 @@ def _load_actor(monkeypatch):
     sys.modules["miles.backends.megatron_utils"].model = megatron_model
 
     path = Path(__file__).parents[2] / "src/lilo/backends/miles_runtime/actor.py"
-    spec = importlib.util.spec_from_file_location("test_miles_actor_module", path)
+    spec = importlib.util.spec_from_file_location(
+        "lilo.backends.miles_runtime._test_actor", path
+    )
     assert spec is not None and spec.loader is not None
     actor = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(actor)
