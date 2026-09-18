@@ -4,6 +4,9 @@ The Miles backend runs several LoRA adapters on a shared base model. Each Tinker
 training client has its own adapter, gradients, and optimizer state. Clients
 share trainer GPUs and a rollout pool.
 
+See [LoRA validation](lora_validation.md) for shared-client parity checks and
+complete math and Codeforces training curves.
+
 ## Create clients
 
 Connect to a deployment with a Miles LoRA definition enabled:
