@@ -10,6 +10,8 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+import torch
+
 PROFILE_STEP_ENV = "LILO_TORCH_PROFILE_STEP"
 PROFILE_DIR_ENV = "LILO_TORCH_PROFILE_DIR"
 PROFILE_RANKS_ENV = "LILO_TORCH_PROFILE_RANKS"
@@ -162,23 +164,16 @@ class StepPhaseTimer:
 
 
 class RankProfiler:
-    """Rank-local torch.profiler wrapper usable in any process.
-
-    ``torch`` is imported lazily so importing this module never requires CUDA.
-    """
+    """Rank-local torch.profiler wrapper usable in any process."""
 
     def __init__(self, *, activities_cpu_only: bool = False) -> None:
         self._cpu_only = activities_cpu_only
-        self._profile = None
-        self._torch = None
+        self._profile: torch.profiler.profile | None = None
 
     def start(self) -> None:
-        import torch
-
         activities = [torch.profiler.ProfilerActivity.CPU]
         if not self._cpu_only:
             activities.append(torch.profiler.ProfilerActivity.CUDA)
-        self._torch = torch
         self._profile = torch.profiler.profile(
             activities=activities,
             record_shapes=True,
@@ -190,7 +185,6 @@ class RankProfiler:
     def stop(self, output_dir: str, name: str) -> dict[str, str]:
         if self._profile is None:
             raise RuntimeError("RankProfiler.stop() called without start()")
-        torch = self._torch
         if not self._cpu_only and torch.cuda.is_available():
             torch.cuda.synchronize()
         profile = self._profile

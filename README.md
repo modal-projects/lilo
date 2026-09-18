@@ -198,7 +198,11 @@ using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler ap
 ## Profiling a training step
 
 The Miles LoRA trainer path supports an opt-in `torch.profiler` capture plus
-always-on per-phase wall-clock timing.
+always-on per-phase wall-clock timing. Profiling is **off by default**: it is
+enabled only when `LILO_TORCH_PROFILE_STEP` is set, and unsetting it (or
+deploying without it) disables the profiler entirely; the other two variables
+have no effect on their own. The per-phase timers are always on and cannot be
+disabled.
 
 Set these environment variables in the deploying shell before `modal deploy`;
 `trainer_deployment_env()` forwards them onto the trainer container:

@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 
 import pytest
+import torch
 from test_miles import FakeMilesRuntime, _backend, _datum, _spec
 from tinker import AdamParams
 
@@ -111,8 +112,6 @@ def test_timer_accumulates_idle_between_ops() -> None:
 
 
 def test_rank_profiler_writes_cpu_trace(tmp_path) -> None:
-    import torch
-
     profiler = RankProfiler(activities_cpu_only=True)
     profiler.start()
     torch.randn(64, 64) @ torch.randn(64, 64)

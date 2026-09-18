@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import torch
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
 
@@ -459,8 +460,6 @@ class MilesCommandBackend(Backend):
         """Controller-side profiler span; inert when profiling is off."""
         if self._controller_profiler is None:
             return contextlib.nullcontext()
-        import torch
-
         return torch.profiler.record_function(name)
 
     def _start_profiling(self, step: int) -> None:
