@@ -383,6 +383,50 @@ def test_sweep_reclaims_orphaned_engine_models() -> None:
     asyncio.run(run())
 
 
+def test_creation_stops_instance_that_cannot_unload_idle_models() -> None:
+    async def run() -> None:
+        now = 0.0
+        sessions = iter(("session-idle", "session-live"))
+        engines = LocalEnginePlatform(DEFINITION, EchoExecutor, max_models=1)
+        plane = ControlPlane(
+            InMemoryKeyValueStore(),
+            engines,
+            session_idle_timeout=60.0,
+            session_id_factory=lambda: next(sessions),
+            clock=lambda: now,
+        )
+        idle = await plane.create_session()
+        creation = await plane.create_model(
+            session_id=idle.session_id,
+            model_seq_id=0,
+            definition_id=DEFINITION,
+            spec={},
+        )
+        await plane.retrieve(creation.request_id)
+        (wedged,) = await engines.list_instances()
+
+        async def unload_model(model_id: str) -> None:
+            raise TimeoutError("engine is wedged")
+
+        engines.client(wedged.instance_id).unload_model = unload_model
+
+        now = 100.0
+        live = await plane.create_session()
+        replacement = await plane.create_model(
+            session_id=live.session_id,
+            model_seq_id=0,
+            definition_id=DEFINITION,
+            spec={},
+        )
+        await plane.retrieve(replacement.request_id)
+        assert (await engines.get_instance(wedged.instance_id)).state == "stopped"
+        assert (
+            await plane.retrieve(replacement.request_id)
+        ).status == FutureResolutionStatus.COMPLETE
+
+    asyncio.run(run())
+
+
 def test_creation_future_reports_lost_after_engine_death() -> None:
     async def run() -> None:
         kv = InMemoryKeyValueStore()

@@ -1325,6 +1325,7 @@ class ControlPlane:
             return ()
         cutoff = self.clock() - idle_timeout
         reclaimed = []
+        stuck = []
         for model_id in model_ids:
             value = await self.kv.get(model_key(model_id))
             if value is not None:
@@ -1357,9 +1358,21 @@ class ControlPlane:
                     model_id,
                     instance_id,
                 )
+                stuck.append(model_id)
                 continue
             await self.kv.delete(placement_key(model_id))
             reclaimed.append(model_id)
+        if stuck and not reclaimed:
+            try:
+                await self.engines.stop_instance(instance_id)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "stop unresponsive instance %s",
+                    instance_id,
+                )
+            else:
+                for model_id in stuck:
+                    await self.kv.delete(placement_key(model_id))
         return tuple(reclaimed)
 
     async def sweep_idle_sessions(self, idle_timeout: float) -> tuple[str, ...]:
