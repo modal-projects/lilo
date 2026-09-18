@@ -85,12 +85,23 @@ def _write(
         )
 
 
+def _grad_of(param: Any):
+    grad = getattr(param, "main_grad", None)
+    if grad is not None:
+        return grad
+    return param.grad
+
+
 def _grads(params: dict[str, Any]) -> dict[str, Any]:
     return {
-        name: getattr(param, "main_grad", None) or param.grad
+        name: grad
         for name, param in params.items()
-        if (getattr(param, "main_grad", None) or param.grad) is not None
+        if (grad := _grad_of(param)) is not None
     }
+
+
+def _grad_dtypes(grads: dict[str, Any]) -> dict[str, str]:
+    return {name: str(grad.dtype) for name, grad in grads.items()}
 
 
 @contextmanager
@@ -108,11 +119,21 @@ def capture_grads(model: Any, slot_optimizers: dict[int, Any]) -> Iterator[None]
     original = miles_model.finalize_model_grads
 
     def wrapped(*args: Any, **kwargs: Any):
-        _write("grads_local", _grads(params), {**meta, "phase": "pre_reduce"})
+        local = _grads(params)
+        _write(
+            "grads_local",
+            local,
+            {**meta, "phase": "pre_reduce", "dtypes": _grad_dtypes(local)},
+        )
         try:
             return original(*args, **kwargs)
         finally:
-            _write("grads_reduced", _grads(params), {**meta, "phase": "post_reduce"})
+            reduced = _grads(params)
+            _write(
+                "grads_reduced",
+                reduced,
+                {**meta, "phase": "post_reduce", "dtypes": _grad_dtypes(reduced)},
+            )
 
     miles_model.finalize_model_grads = wrapped
     try:
