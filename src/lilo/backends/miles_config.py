@@ -44,6 +44,7 @@ class MilesBackendConfig:
         "output_layer",
     )
     max_tokens_per_gpu: int = 8192
+    align_sequences_to_parallel_layout: bool = False
     extra_args: tuple[str, ...] = ()
 
     @property
@@ -55,6 +56,12 @@ class MilesBackendConfig:
         return self.world_size // (
             self.tensor_model_parallel_size * self.context_parallel_size
         )
+
+    @property
+    def sequence_alignment(self) -> int:
+        if not self.align_sequences_to_parallel_layout:
+            return 1
+        return 2 * self.context_parallel_size * self.tensor_model_parallel_size
 
     @property
     def peft_target_modules(self) -> tuple[str, ...]:

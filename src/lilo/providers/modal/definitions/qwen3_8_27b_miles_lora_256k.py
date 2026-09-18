@@ -158,6 +158,12 @@ def backend_config(
             "default_lora_alpha": DEFAULT_LORA_ALPHA,
             "target_modules": TARGET_MODULES,
             "max_tokens_per_gpu": MAX_TOKENS_PER_GPU,
+            # Miles pads each packed sequence to a multiple of 2 * cp and the
+            # concatenated stream to tp * 128, so with TP8 an individual
+            # sequence's context-parallel chunks need not tile a tensor-parallel
+            # rank. TP2 rungs are immune (chunks are even by construction); TP8
+            # is not, and the THD layout fallback routes such a batch per rank.
+            "align_sequences_to_parallel_layout": True,
             "extra_args": (
                 "--seq-length",
                 str(SEQ_LENGTH),

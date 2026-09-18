@@ -712,6 +712,51 @@ def test_mixed_clients_only_forward_fields_consumed_by_loss(tmp_path, loss_fn):
     assert ("sampling_logprobs" in rows[0]) == (loss_fn != "cross_entropy")
 
 
+def test_sequence_alignment_pads_rows_and_trims_returned_logprobs(tmp_path) -> None:
+    runtime = FakeMilesRuntime()
+    backend = MilesCommandBackend(
+        _config(
+            actor_num_gpus_per_node=8,
+            tensor_model_parallel_size=8,
+            context_parallel_size=3,
+            actor_num_nodes=3,
+            align_sequences_to_parallel_layout=True,
+        ),
+        checkpoint_dir=tmp_path / "checkpoints",
+        capture_dir=tmp_path / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=runtime,
+    )
+    backend.accept_model("a", _spec())
+    datum = _datum(list(range(1, 11)), 11)
+    outputs = backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("a", (datum,)),),
+            loss_fn="cross_entropy",
+            loss_fn_config={},
+        )
+    )
+
+    (_, row), *_ = runtime.last_slot_rows
+    assert len(row["tokens"]) == 48
+    assert row["target_len"] == 47
+    assert row["weights"][10:] == [0.0] * 37
+    assert len(outputs[0].loss_fn_outputs[0]["logprobs"].data) == 10
+
+
+def test_sequence_alignment_is_off_by_default() -> None:
+    from lilo.backends.miles_runtime.data import prepare_batch
+
+    assert _config().sequence_alignment == 1
+    batch = ForwardBatch(
+        items=(ForwardItem("a", (_datum([1, 2, 3], 4),)),),
+        loss_fn="cross_entropy",
+        loss_fn_config={},
+    )
+    (_, row), *_ = prepare_batch(batch, {"a": 0}).slot_rows
+    assert row["target_len"] == 3
+
+
 @pytest.mark.parametrize(
     "name", ["learning_rate", "beta1", "beta2", "eps", "weight_decay", "grad_clip_norm"]
 )

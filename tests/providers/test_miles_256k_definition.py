@@ -25,3 +25,14 @@ def test_256k_definition_serializes_forward_backward_calls() -> None:
     )
 
     assert definition.MAX_FORWARD_BACKWARD_BATCH == 1
+
+
+def test_256k_definition_aligns_sequences_to_parallel_layout() -> None:
+    from lilo.backends.miles_config import parse_backend_config
+    from lilo.providers.modal.definitions import (
+        qwen3_8_27b_miles_lora_256k as definition,
+    )
+
+    config, _, _ = parse_backend_config(definition.backend_config("instance-a"))
+
+    assert config.sequence_alignment == 48

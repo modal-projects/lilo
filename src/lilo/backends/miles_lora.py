@@ -171,7 +171,11 @@ class MilesCommandBackend(Backend):
         ):
             self._stop_profiling()
         with self._timer.phase("prepare_batch", step, model_id=batch.items[0].model_id):
-            prepared = prepare_batch(batch, self.job_to_slot)
+            prepared = prepare_batch(
+                batch,
+                self.job_to_slot,
+                sequence_alignment=self.config.sequence_alignment,
+            )
         phase_name = "forward_only" if batch.forward_only else "forward_backward"
         with (
             self._timer.phase(phase_name, step, model_id=batch.items[0].model_id),
