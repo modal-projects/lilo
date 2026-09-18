@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
+from .loss_scaling import configure_deterministic_loss_scaling
+
 
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     """Upstream multi-LoRA actor with Qwen MTP and weights-only save support."""
@@ -23,6 +25,7 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
 
             configure_deterministic_attention()
             configure_deterministic_losses()
+            configure_deterministic_loss_scaling()
             configure_deterministic_gdn()
             configure_deterministic_batching()
 
