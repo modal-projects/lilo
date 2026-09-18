@@ -6,7 +6,7 @@ from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
 
 def _preserve_advantages_in_dp_shards() -> None:
-    """Work around radixark/miles#3145 omitting Tinker advantages from DP shards."""
+    """Re-attach Tinker advantages that Miles' `_package_shards` drops from DP shards."""
 
     from miles.ray.rollout import train_data_conversion
 
