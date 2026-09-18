@@ -105,11 +105,11 @@ class MilesBackendConfig:
             )
         if (
             self.actor_num_nodes > 1
-            and self.tensor_model_parallel_size > self.actor_num_gpus_per_node
+            and self.actor_num_gpus_per_node % self.tensor_model_parallel_size != 0
         ):
             raise ValueError(
-                "tensor_model_parallel_size must not span nodes; keep it at or "
-                "below actor_num_gpus_per_node"
+                "tensor_model_parallel_size must evenly divide "
+                "actor_num_gpus_per_node on each node"
             )
 
     def miles_arguments(self) -> list[str]:

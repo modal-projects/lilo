@@ -213,7 +213,17 @@ def test_config_rejects_tensor_parallel_spanning_nodes() -> None:
         tensor_model_parallel_size=16,
     )
 
-    with pytest.raises(ValueError, match="must not span nodes"):
+    with pytest.raises(ValueError, match="must evenly divide"):
+        config.validate()
+
+    config = _config(
+        actor_num_gpus_per_node=8,
+        actor_num_nodes=3,
+        tensor_model_parallel_size=6,
+        context_parallel_size=2,
+    )
+
+    with pytest.raises(ValueError, match="must evenly divide"):
         config.validate()
 
 
