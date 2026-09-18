@@ -237,13 +237,14 @@ runs after `optim_step` k returns, so `timing/save_sampler_weights_s` and
 `timing/publish_weights_s` reported at step k+1 refer to the checkpoint taken
 after step k.
 
-To copy the traces off the checkpoint volume and attach them to the run in
-W&B:
+To copy the traces off the checkpoint volume into the W&B run's **Files** tab
+(under `<trace dir basename>/rank0.trace.json.gz` etc., downloadable straight into
+Perfetto):
 
 ```bash
 uv run scripts/upload_torch_profile.py \
   --dir <trace dir> --entity modal-labs --project miles-lora-longcontext \
-  --run-id <wandb run id> --name torch-profile
+  --run-id <wandb run id>
 ```
 
 `WANDB_API_KEY` is read from the environment.

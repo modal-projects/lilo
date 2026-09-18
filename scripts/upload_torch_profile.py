@@ -5,11 +5,12 @@
 # ]
 # ///
 
-"""Upload a torch.profiler trace directory to W&B as an artifact."""
+"""Upload a torch.profiler trace directory to a W&B run's Files tab."""
 
 from __future__ import annotations
 
 import argparse
+import os
 import time
 
 import wandb
@@ -31,7 +32,6 @@ def main() -> None:
         default=None,
         help="Attach the artifact to an existing run (resume=allow)",
     )
-    parser.add_argument("--name", default="torch-profile", help="Artifact name")
     parser.add_argument("--group", default=None, help="W&B run group")
     args = parser.parse_args()
 
@@ -43,15 +43,16 @@ def main() -> None:
         group=args.group,
         job_type="torch-profile-upload",
     )
-    artifact = wandb.Artifact(args.name, type="torch-profile")
-    artifact.add_dir(args.dir)
+    trace_dir = os.path.abspath(args.dir)
     started = time.perf_counter()
-    logged = run.log_artifact(artifact)
-    logged.wait()
-    print(
-        f"uploaded artifact: {logged.qualified_name} in {time.perf_counter() - started:.1f}s"
+    run.save(
+        os.path.join(trace_dir, "*"), base_path=os.path.dirname(trace_dir), policy="now"
     )
     run.finish()
+    print(
+        f"uploaded to {run.url}/files/{os.path.basename(trace_dir)} "
+        f"in {time.perf_counter() - started:.1f}s"
+    )
 
 
 if __name__ == "__main__":
