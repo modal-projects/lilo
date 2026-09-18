@@ -429,3 +429,46 @@ def test_prepare_model_runs_once_per_created_model() -> None:
         assert prepared == [creation.model.model_id]
 
     asyncio.run(run())
+
+
+def test_prepare_model_failure_leaves_no_runnable_model() -> None:
+    attempts = 0
+    reconciled = []
+
+    async def prepare(model) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("asset download failed")
+
+    async def reconcile(definition_id: str) -> None:
+        reconciled.append(definition_id)
+
+    async def run() -> None:
+        kv = InMemoryKeyValueStore()
+        plane = ControlPlane(
+            kv,
+            LocalEnginePlatform(DEFINITION, EchoExecutor),
+            prepare_model=prepare,
+            reconcile_trainers=reconcile,
+        )
+        session = await plane.create_session()
+        request = {
+            "session_id": session.session_id,
+            "model_seq_id": 0,
+            "definition_id": DEFINITION,
+            "spec": {"rank": 32},
+        }
+
+        with pytest.raises(RuntimeError, match="asset download failed"):
+            await plane.create_model(**request)
+        assert reconciled == []
+        assert await kv.list_keys("model:") == ()
+        assert await kv.list_keys("trainer_demand:") == ()
+
+        creation = await plane.create_model(**request)
+        assert attempts == 2
+        assert reconciled == [DEFINITION]
+        assert not creation.created
+
+    asyncio.run(run())

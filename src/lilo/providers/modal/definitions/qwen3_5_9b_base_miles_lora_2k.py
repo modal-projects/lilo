@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import os
-
 import modal
 
 from ..checkpoint_storage import (
@@ -104,9 +102,8 @@ def qwen3_5_9b_base_miles_lora_2k(instance_id: str) -> None:
     from lilo.providers.modal.serve import run_engine_with_backend
     from modal.config import config
 
-    if not os.path.exists(HF_CHECKPOINT):
-        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
-        assets.commit()
+    snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
+    assets.commit()
     backend_config = {
         "miles": {
             "hf_checkpoint": HF_CHECKPOINT,
