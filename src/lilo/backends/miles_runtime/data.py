@@ -27,7 +27,11 @@ def pad_slot_rows(
     if multiple <= 1 or len(slot_rows) % multiple == 0:
         return slot_rows
     slot, last = slot_rows[-1]
-    pad: dict[str, Any] = {"tokens": last["tokens"][:2], "target_len": 1}
+    pad: dict[str, Any] = {
+        "tokens": last["tokens"][:2],
+        "target_len": 1,
+        "target_tokens": last["tokens"][1:2],
+    }
     if "weights" in last:
         pad["weights"] = [0.0]
     if "advantages" in last:

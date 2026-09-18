@@ -227,7 +227,10 @@ def test_pad_slot_rows_adds_zero_weight_rows() -> None:
     rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(11))
     padded = pad_slot_rows(rows, 2)
     assert len(padded) == 12
-    assert padded[-1] == (0, {"tokens": [1, 2], "target_len": 1})
+    assert padded[-1] == (
+        0,
+        {"tokens": [1, 2], "target_len": 1, "target_tokens": [2]},
+    )
 
     rows = tuple((0, {"tokens": [1, 2], "target_len": 1}) for _ in range(3))
     assert len(pad_slot_rows(rows, 4)) == 4
@@ -255,6 +258,7 @@ def test_backend_pads_dp_ragged_batches(tmp_path) -> None:
     assert runtime.last_slot_rows[-1][1] == {
         "tokens": [1, 2],
         "target_len": 1,
+        "target_tokens": [2],
         "weights": [0.0],
     }
 
@@ -378,6 +382,42 @@ def test_checkpoint_restore_rejects_different_lora_targets(
 
     with pytest.raises(ValueError, match="LoRA targets"):
         backend.load_checkpoint("model-a", str(uri))
+
+
+def test_checkpoint_topology_defaults_legacy_data_parallel_size(tmp_path) -> None:
+    backend = _backend(tmp_path)
+    backend.accept_model("model-a", _spec())
+    backend.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=False
+    )
+    uri = Path(backend.persist_checkpoint("capture-a", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+    del metadata["topology"]["data_parallel_size"]
+
+    backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
+
+
+def test_checkpoint_topology_rejects_legacy_data_parallel_size_for_dp2(
+    tmp_path,
+) -> None:
+    source = _backend(tmp_path / "source")
+    source.accept_model("model-a", _spec())
+    source.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=False
+    )
+    uri = Path(source.persist_checkpoint("capture-a", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+
+    dp2 = MilesCommandBackend(
+        _config(actor_num_gpus_per_node=4, tensor_model_parallel_size=2),
+        checkpoint_dir=tmp_path / "dp2" / "checkpoints",
+        capture_dir=tmp_path / "dp2" / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=FakeMilesRuntime(),
+    )
+    dp2.accept_model("model-a", _spec())
+    with pytest.raises(ValueError, match="topology"):
+        dp2._validate_checkpoint(metadata, dp2.jobs["model-a"], False)
 
 
 def test_sampler_capture_publishes_existing_lilo_format(tmp_path, monkeypatch) -> None:

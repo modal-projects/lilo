@@ -443,7 +443,9 @@ class MilesCommandBackend(Backend):
             "expert_tensor_parallel_size": self.config.expert_tensor_parallel_size,
             "pipeline_model_parallel_size": 1,
         }
-        if metadata.get("topology") != expected_topology:
+        stored_topology = dict(metadata.get("topology") or {})
+        stored_topology.setdefault("data_parallel_size", 1)
+        if stored_topology != expected_topology:
             raise ValueError("checkpoint topology does not match deployment")
         if restore_optimizer and not metadata.get("has_optimizer"):
             raise ValueError("checkpoint does not include optimizer state")
