@@ -169,12 +169,7 @@ _gather_tinker_logprobs_across_cp()
 
 
 def _sync_checkpoint_volume(action: str) -> None:
-    """Publish checkpoint shards across trainer nodes.
-
-    Ranks on different Modal containers each mount their own view of the
-    checkpoint volume, so a sharded save is only readable elsewhere once every
-    node commits, and a sharded load only sees it after every node reloads.
-    """
+    """Commit checkpoint shards across nodes and refresh the committed view."""
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
     if name is None:
         return
@@ -185,9 +180,14 @@ def _sync_checkpoint_volume(action: str) -> None:
     dist.barrier()
     hosts: list[str] = [""] * dist.get_world_size()
     dist.all_gather_object(hosts, socket.gethostname())
-    if hosts.index(hosts[dist.get_rank()]) == dist.get_rank():
+    representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
+    if representative:
         _volume_action(name, action)
     dist.barrier()
+    if action == "commit":
+        if representative:
+            _volume_action(name, "reload")
+        dist.barrier()
 
 
 def _volume_action(name: str, action: str) -> None:

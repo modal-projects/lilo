@@ -118,26 +118,12 @@ def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
     run_trainer(instance_id, ray_address=ray_address)
 
 
-def run_trainer(
+def backend_config(
     instance_id: str,
     *,
-    definition_id: str = DEFINITION_ID,
-    max_models: int = MAX_LORA_SLOTS,
     deterministic_training: bool = False,
-    ray_address: str | None = None,
-) -> None:
-    import json
-
-    from huggingface_hub import snapshot_download
-    from modal.config import config
-
-    from lilo.providers.modal.kv import shared_kv
-    from lilo.providers.modal.serve import run_engine_with_backend
-
-    if not os.path.exists(HF_CHECKPOINT):
-        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
-        assets.commit()
-    backend_config = {
+) -> dict:
+    config = {
         "miles": {
             "hf_checkpoint": HF_CHECKPOINT,
             "model_type": "qwen3.8-27B",
@@ -162,11 +148,38 @@ def run_trainer(
             ),
         },
         "checkpoint_dir": CHECKPOINT_ROOT,
+        "capture_dir": f"{CHECKPOINT_ROOT}/.captures/{instance_id}",
     }
     if deterministic_training:
-        backend_config["miles"].update(
+        config["miles"].update(
             tp_reduce_precision="float64", deterministic_attention=True
         )
+    return config
+
+
+def run_trainer(
+    instance_id: str,
+    *,
+    definition_id: str = DEFINITION_ID,
+    max_models: int = MAX_LORA_SLOTS,
+    deterministic_training: bool = False,
+    ray_address: str | None = None,
+) -> None:
+    import json
+
+    from huggingface_hub import snapshot_download
+    from modal.config import config
+
+    from lilo.providers.modal.kv import shared_kv
+    from lilo.providers.modal.serve import run_engine_with_backend
+
+    if not os.path.exists(HF_CHECKPOINT):
+        snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
+        assets.commit()
+    config_payload = backend_config(
+        instance_id,
+        deterministic_training=deterministic_training,
+    )
     run_engine_with_backend(
         shared_kv(),
         "lilo.backends.miles_lora:build_executor",
@@ -174,7 +187,7 @@ def run_trainer(
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env={
-            "LILO_BACKEND_CONFIG": json.dumps(backend_config),
+            "LILO_BACKEND_CONFIG": json.dumps(config_payload),
             "LILO_BASE_MODEL": MODEL_NAME,
             "LILO_DEFINITION_ID": definition_id,
             "LILO_CHECKPOINT_VOLUME": CHECKPOINT_VOLUME_NAME,
