@@ -30,6 +30,10 @@ BASE_URL = os.environ.get(
     "https://modal-labs-micah-dev--lilo-graddiff-server.us-west.modal.run",
 )
 LOSS_FN_CONFIG = {"clip_low_threshold": 0.8, "clip_high_threshold": 1.28}
+# "a:b" slice over batch.json datums; None = full batch. OUT_NAME selects the
+# volume/local output filename (default "outputs" -> lilo_arm_outputs.json).
+DATUM_RANGE = os.environ.get("DATUM_RANGE")
+OUT_NAME = os.environ.get("OUT_NAME", "outputs")
 ADAM = {
     "learning_rate": 1e-4,
     "beta1": 0.9,
@@ -76,8 +80,12 @@ def lilo_arm() -> dict:
     batch_path = Path(VOLUME_ROOT) / "batch" / "batch.json"
     payload = json.loads(batch_path.read_text())
 
+    entries = payload["datums"]
+    if DATUM_RANGE:
+        lo, hi = (int(x) for x in DATUM_RANGE.split(":"))
+        entries = entries[lo:hi]
     datums = []
-    for entry in payload["datums"]:
+    for entry in entries:
         datums.append(
             tinker.Datum(
                 model_input=tinker.ModelInput.from_ints(entry["input_tokens"]),
@@ -137,7 +145,7 @@ def lilo_arm() -> dict:
         "loss_fn_config": LOSS_FN_CONFIG,
     }
 
-    out_path = Path(VOLUME_ROOT) / "lilo_arm" / "outputs.json"
+    out_path = Path(VOLUME_ROOT) / "lilo_arm" / f"{OUT_NAME}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(result))
     volume.commit()
@@ -161,5 +169,6 @@ def main() -> None:
     result = lilo_arm.remote()
     out_dir = Path.home() / "work/graddiff"
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "lilo_arm_outputs.json").write_text(json.dumps(result))
-    print(f"wrote {out_dir / 'lilo_arm_outputs.json'}")
+    local_name = "lilo_arm_outputs.json" if OUT_NAME == "outputs" else f"lilo_arm_outputs_{OUT_NAME}.json"
+    (out_dir / local_name).write_text(json.dumps(result))
+    print(f"wrote {out_dir / local_name}")

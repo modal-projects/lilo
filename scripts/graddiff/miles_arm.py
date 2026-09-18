@@ -8,6 +8,7 @@ Run:
 """
 
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -33,6 +34,15 @@ BATCH_JSON = "/graddiff/batch/batch.json"
 ROLLOUT_PT = "/graddiff/miles_batch/rollout_0.pt"
 PROMPT_PARQUET = "/graddiff/miles_batch/prompts.parquet"
 
+# Optional sub-batch run: DATUM_RANGE="a:b" slices batch.json datums;
+# MILES_DUMP_DIR/WANDB_NAME/GBS/RBS override the dump dir, run name, and
+# batch sizes for sub-batch comparisons.
+DATUM_RANGE = os.environ.get("DATUM_RANGE")
+MILES_DUMP_DIR = os.environ.get("MILES_DUMP_DIR", "/graddiff/miles_dump2")
+WANDB_NAME = os.environ.get("WANDB_NAME", "graddiff-step0-miles-rerun")
+GBS = int(os.environ.get("GBS", "128"))
+RBS = int(os.environ.get("RBS", "16"))
+
 
 def convert_batch() -> None:
     """batch.json datums -> Miles debug rollout .pt (rollout_id 0)."""
@@ -43,8 +53,12 @@ def convert_batch() -> None:
     with open(BATCH_JSON) as f:
         batch = json.load(f)
 
+    entries = batch["datums"]
+    if DATUM_RANGE:
+        lo, hi = (int(x) for x in DATUM_RANGE.split(":"))
+        entries = entries[lo:hi]
     samples = []
-    for index, dm in enumerate(batch["datums"]):
+    for index, dm in enumerate(entries):
         mask = dm["mask"]
         first = next(i for i, x in enumerate(mask) if x)
         assert all(x == 1 for x in mask[first:]), "mask is not a contiguous tail"
@@ -67,7 +81,7 @@ def convert_batch() -> None:
         )
         samples.append(sample)
 
-    assert len(samples) == 128, len(samples)
+    assert len(samples) == len(entries), len(samples)
     import os
 
     os.makedirs(os.path.dirname(ROLLOUT_PT), exist_ok=True)
@@ -163,9 +177,9 @@ def train_cmd() -> str:
         "--load-debug-rollout-data",
         "/graddiff/miles_batch/rollout_{rollout_id}.pt",
         "--dump-details",
-        "/graddiff/miles_dump2/details",
+        MILES_DUMP_DIR + "/details",
         "--rollout-batch-size",
-        "16",
+        str(RBS),
         "--n-samples-per-prompt",
         "8",
         "--rollout-max-response-len",
@@ -228,7 +242,7 @@ def train_cmd() -> str:
         "miles.rollout.filter_hub.dynamic_sampling_filters.check_reward_nonzero_std",
         "--balance-data",
         "--global-batch-size",
-        "128",
+        str(GBS),
         "--lr",
         "0.0001",
         "--lr-decay-style",
@@ -294,7 +308,7 @@ def train_cmd() -> str:
         "--wandb-group",
         "graddiff-step0",
         "--wandb-exp-name",
-        "graddiff-step0-miles-rerun",
+        WANDB_NAME,
         "--disable-wandb-random-suffix",
         "--custom-megatron-before-train-step-hook-path",
         "miles_hook.before_train_step",
@@ -390,7 +404,7 @@ def run() -> str:
             "NCCL_NVLS_ENABLE": os.environ.get("NCCL_NVLS_ENABLE", "1"),
             "no_proxy": "127.0.0.1",
             "MASTER_ADDR": "127.0.0.1",
-            "MILES_GRADDIFF_DUMP_DIR": "/graddiff/miles_dump2",
+            "MILES_GRADDIFF_DUMP_DIR": MILES_DUMP_DIR,
             "LILO_DUMP_DIR": "/graddiff/lilo_dump/lilo",
             "PYTHONPATH": "/root/graddiff"
             + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else ""),
