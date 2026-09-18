@@ -5,11 +5,6 @@ training client has its own adapter, gradients, and optimizer state. On the infe
 
 This doc assumes you've gone through the [README](README.md) and understand how to deploy the Tinker server and configure Tinker scripts to hit the server via TINKER_BASE_URL and TINKER_API_KEY, as well as the [Lilo design doc](design.md) to understand what terms such as "training engine" and "rollout pool" mean. 
 
-## Get started
-
-The [multi-LoRA RL example](../examples/multi-lora/README.md) launches six
-independent GSM8K training loops against an existing deployment using the Tinker
-SDK. Each client samples answers and updates its own adapter.
 
 ## Creating clients
 
@@ -127,9 +122,15 @@ results tabluated:
 | 16 | 8,390 | 524 | 75.9% | $2.40 |
 | 32 | 9,298 | 291 | 80.4% | $2.17 |
 
-# Deterministic Training (Experimental) 
+## Deterministic Training (Experimental) 
 
 The deterministic path aims to give each client the same training results regardless of which other clients share its batches (think of it as batch-invariance for training). It uses deterministic attention kernels, fixed reduction layouts, and ordered per-client gradient accumulation, alongside batch-invariant inference.
 
 To enable it, build the patched FA3 artifacts, set LILO_MILES_FA3_ARTIFACTS to their directory before deployment, and use the qwen3_5_9b_base_miles_lora_deterministic definition. The Tinker training code stays the same. We've validated on small math experiments (see  [LoRA validation](lora_validation.md) deterministic training section) but still need to do larger validation. Our changes to fa3 to make it deterministic also come at a throughput cost, and so this path remains experimental for now. 
+
+
+## Get started
+
+The [multi-LoRA RL example](../examples/multi-lora/README.md) launches six
+independent GSM8K training loops against an existing deployment
 
