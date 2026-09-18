@@ -5,6 +5,12 @@ training client has its own adapter, gradients, and optimizer state. On the infe
 
 This doc assumes you've gone through the [README](README.md) and understand how to deploy the Tinker server and configure Tinker scripts to hit the server via TINKER_BASE_URL and TINKER_API_KEY, as well as the [Lilo design doc](design.md) to understand what terms such as "training engine" and "rollout pool" mean. 
 
+## Get started
+
+The [multi-LoRA RL example](../examples/multi-lora/README.md) launches six
+independent GSM8K training loops against an existing deployment using the Tinker
+SDK. Each client samples answers and updates its own adapter.
+
 ## Creating clients
 
 For creating multi-lora clients, use the base Tinker `create_lora_training_client` method: 

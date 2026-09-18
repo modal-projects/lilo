@@ -287,6 +287,10 @@ destination, experiment labels, and the complete span/metric inventory.
 
 ## Examples
 
+[Multi-LoRA RL](examples/multi-lora/README.md) runs six concurrent GSM8K training
+clients using the Tinker SDK. Each client trains its own adapter and prints
+reward, response length, and step time.
+
 [Codeforces codegolf](examples/codeforces-codegolf/README.md) trains Qwen3.5-9B
 with GRPO or TailRL advantages for correctness and short solutions. It includes
 a sandboxed judge, checkpoint recovery, and commands to continue a checkpoint
