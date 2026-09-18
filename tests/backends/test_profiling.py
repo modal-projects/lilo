@@ -205,6 +205,41 @@ def test_backend_starts_and_stops_torch_profile(tmp_path, monkeypatch) -> None:
     assert len([c for c in runtime.calls if c[0] == "torch_profile_stop"]) == 1
 
 
+def test_backend_stops_torch_profile_after_publish(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("LILO_TORCH_PROFILE_STEP", "1")
+    monkeypatch.setenv("LILO_TORCH_PROFILE_DIR", str(tmp_path / "traces"))
+    monkeypatch.setenv("LILO_BULLETIN_ROOT", str(tmp_path / "bulletin"))
+    monkeypatch.delenv("LILO_BULLETIN_VOLUME", raising=False)
+    monkeypatch.delenv("LILO_CHECKPOINT_VOLUME", raising=False)
+
+    class FakeControllerProfiler:
+        def __init__(self, **_kwargs):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self, output_dir, name):
+            return {"trace": f"{output_dir}/{name}.trace.json.gz"}
+
+    monkeypatch.setattr("lilo.backends.miles_lora.RankProfiler", FakeControllerProfiler)
+    runtime = FakeMilesRuntime()
+    backend = _backend(tmp_path, runtime)
+    backend.accept_model("model-a", _spec())
+
+    _step(backend)
+    _step(backend)  # profiled step; the run ends here (no further step)
+    assert backend._profiling_active
+
+    backend.capture_sampler_snapshot("model-a", "capture-a", 2)
+    backend.publish_sampler_snapshot("capture-a")
+
+    assert not backend._profiling_active
+    assert [c for c in runtime.calls if c[0] == "torch_profile_stop"] == [
+        ("torch_profile_stop", str(tmp_path / "traces"))
+    ]
+
+
 def test_trainer_deployment_env_forwards_profile_vars(monkeypatch) -> None:
     monkeypatch.delenv("LILO_TRAINER_MAX_CONTAINERS", raising=False)
     monkeypatch.delenv("LILO_TORCH_PROFILE_STEP", raising=False)

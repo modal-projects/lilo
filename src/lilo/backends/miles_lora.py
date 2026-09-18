@@ -75,6 +75,23 @@ class MilesCommandBackend(Backend):
         self._profile_step_done = False
         self._controller_profiler: RankProfiler | None = None
         self._closed = False
+        if self._profile.enabled:
+            print(
+                json.dumps(
+                    {
+                        "event": "lilo_torch_profile",
+                        "state": "configured",
+                        "step": self._profile.step,
+                        "ranks": (
+                            "all"
+                            if self._profile.ranks is None
+                            else sorted(self._profile.ranks)
+                        ),
+                        "output_dir": self._profile.output_dir,
+                    }
+                ),
+                flush=True,
+            )
 
     def accept_model(self, model_id: str, spec: ModelSpec) -> None:
         if spec.parameterization != "lora" or spec.lora_config is None:
@@ -411,6 +428,12 @@ class MilesCommandBackend(Backend):
                     ),
                     capture["path"],
                 )
+            if (
+                self._profiling_active
+                and self._profile.step is not None
+                and publish_step > self._profile.step
+            ):
+                self._stop_profiling()
         finally:
             capture = self._sampler_captures.pop(capture_id, None)
             if capture is not None:
