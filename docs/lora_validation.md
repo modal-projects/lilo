@@ -59,6 +59,4 @@ One experimental path we've been working on is having multi-tenant runs be fully
 
 ![Six-client numerical parity](assets/lora-validation/qwen3-5-9b-parity.png)
 
-[Config and verification](assets/lora-validation/deterministic-parity.json).
-
 The main source of trainer non-determinism was in the fa3 backwards kernel, as well as ensuring ordered gradient accumulation with multiple clients' packed microbatches. 
