@@ -420,6 +420,19 @@ def test_checkpoint_topology_defaults_legacy_data_parallel_size(tmp_path) -> Non
     backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
 
 
+def test_checkpoint_topology_defaults_legacy_context_parallel_size(tmp_path) -> None:
+    backend = _backend(tmp_path)
+    backend.accept_model("model-a", _spec())
+    backend.capture_checkpoint(
+        "model-a", "capture-a", destination="step-1", include_optimizer=False
+    )
+    uri = Path(backend.persist_checkpoint("capture-a", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+    del metadata["topology"]["context_parallel_size"]
+
+    backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
+
+
 def test_checkpoint_topology_rejects_legacy_data_parallel_size_for_dp2(
     tmp_path,
 ) -> None:

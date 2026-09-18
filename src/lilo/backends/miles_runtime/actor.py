@@ -1,12 +1,27 @@
 from __future__ import annotations
 
+import torch
+import torch.distributed as dist
+from megatron.bridge import AutoBridge
+from megatron.core import dist_checkpointing
+from miles.backends.fsdp_utils import actor as fsdp_actor
+from miles.backends.megatron_utils import actor as megatron_actor
+from miles.backends.megatron_utils import model as megatron_model
+from miles.backends.megatron_utils.lora import checkpoint
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
+from miles.backends.training_utils import cp_utils, data, loss, mm_data
+from miles.backends.training_utils.checkpoint_io import write_checkpoint_dir
+from miles.backends.training_utils.loss_hub import (
+    logit_processors,
+    math_utils,
+    tinker_losses,
+)
+from miles.backends.training_utils.parallel import get_parallel_state
+from miles.ray.rollout import train_data_conversion
 
 
 def _preserve_advantages_in_dp_shards() -> None:
     """Re-attach Tinker advantages that Miles' `_package_shards` drops from DP shards."""
-
-    from miles.ray.rollout import train_data_conversion
 
     original = train_data_conversion._package_shards
     if getattr(original, "__lilo_preserves_advantages__", False):
@@ -39,12 +54,7 @@ def _pad_local_shard(
     Replicates the placement logic of miles'
     ``all_gather_with_cp`` without its differentiable ``dist.nn.all_reduce``.
     """
-    import torch
-    from miles.backends.training_utils.cp_utils import (
-        get_logits_and_tokens_offset_with_cp,
-    )
-
-    _, _, logits_offset, _ = get_logits_and_tokens_offset_with_cp(
+    _, _, logits_offset, _ = cp_utils.get_logits_and_tokens_offset_with_cp(
         total_length, response_length, qkv_format, max_seq_len
     )
     prompt_length = total_length - response_length
@@ -85,9 +95,6 @@ def _pad_local_shard(
 
 def _gather_tinker_logprobs_across_cp() -> None:
     """Reassemble full-response logprobs for Miles' Tinker loss path under CP>1."""
-    import torch.distributed as dist
-    from miles.backends.training_utils.loss_hub import logit_processors
-    from miles.backends.training_utils.parallel import get_parallel_state
 
     original = logit_processors.get_log_probs_and_entropy
     if getattr(original, "__lilo_gathers_cp__", False):
@@ -144,12 +151,6 @@ def _gather_tinker_logprobs_across_cp() -> None:
 
     # Callers on the multi-LoRA path that bound the name at import time must
     # be re-pointed. Miles' non-Tinker losses handle CP natively.
-    import miles.backends.fsdp_utils.actor as fsdp_actor
-    import miles.backends.megatron_utils.actor as megatron_actor
-    import miles.backends.megatron_utils.model as megatron_model
-    from miles.backends.training_utils import loss
-    from miles.backends.training_utils.loss_hub import tinker_losses
-
     for module in (
         loss,
         tinker_losses,
@@ -164,8 +165,6 @@ def _gather_tinker_logprobs_across_cp() -> None:
     # shard for the native (non-tinker) losses. The tinker loss path pairs
     # them with full-response log_probs (gathered above) and full-length
     # advantages/loss_weights, so the slice must be disabled on this path.
-    from miles.backends.training_utils import cp_utils, data
-
     original_slice = cp_utils.slice_log_prob_with_cp
     if getattr(original_slice, "__lilo_unslices_cp__", False):
         return
@@ -177,9 +176,6 @@ def _gather_tinker_logprobs_across_cp() -> None:
 
     slice_log_prob_with_cp.__lilo_unslices_cp__ = True
     cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
-    from miles.backends.training_utils import mm_data
-    from miles.backends.training_utils.loss_hub import math_utils
-
     for module in (data, mm_data, math_utils):
         if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
             module.slice_log_prob_with_cp = slice_log_prob_with_cp
@@ -195,8 +191,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         # Miles's LoRA builder inherits checkpoint MTP heads without honoring
         # enable_mtp_training. Qwen3.5 then injects an auxiliary backward loss
         # even for a client datum whose weights are all zero.
-        from megatron.bridge import AutoBridge
-
         if args.enable_mtp_training:
             return super().init(args, role, **kwargs)
         original = AutoBridge.to_megatron_provider
@@ -225,8 +219,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         return self._profiled("forward_only", *args, **kwargs)
 
     def _profiled(self, operation: str, *args, **kwargs):
-        import torch
-
         with torch.profiler.record_function(f"lilo/{operation}"):
             result = getattr(super(), operation)(*args, **kwargs)
         self._log_peak_memory(operation)
@@ -234,8 +226,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
 
     @staticmethod
     def _log_peak_memory(operation: str) -> None:
-        import torch
-
         gib = 1024**3
         print(
             f"lilo_memory op={operation} "
@@ -257,8 +247,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         target_modules: tuple[str, ...],
         lora_dropout: float,
     ) -> None:
-        import torch
-
         with torch.profiler.record_function("lilo/export_slot_peft"):
             return super().export_slot_peft(
                 slot=slot,
@@ -274,10 +262,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         self._save_slot_weights(slot, path)
 
     def _save_slot_weights(self, slot: int, path: str) -> None:
-        from megatron.core import dist_checkpointing
-        from miles.backends.megatron_utils.lora import checkpoint
-        from miles.backends.training_utils.checkpoint_io import write_checkpoint_dir
-
         weights = checkpoint._slot_weights_sharded_state_dict(self.model, slot)
         sharded = {checkpoint._WEIGHTS_KEY: weights}
         checkpoint._canonicalize_slot_keys(sharded, slot)
