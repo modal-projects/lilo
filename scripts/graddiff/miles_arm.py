@@ -55,7 +55,7 @@ def convert_batch() -> None:
         sample = Sample(
             group_index=dm["group_idx"],
             index=index,
-            rollout_id=0,
+            rollout_id=dm["traj_idx"],
             prompt="",
             tokens=tokens,
             response="",
