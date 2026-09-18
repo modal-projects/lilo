@@ -17,28 +17,6 @@ from miles.backends.training_utils.loss_hub import (
     tinker_losses,
 )
 from miles.backends.training_utils.parallel import get_parallel_state
-from miles.ray.rollout import train_data_conversion
-
-
-def _preserve_advantages_in_dp_shards() -> None:
-    """Re-attach Tinker advantages that Miles' `_package_shards` drops from DP shards."""
-
-    original = train_data_conversion._package_shards
-    if getattr(original, "__lilo_preserves_advantages__", False):
-        return
-
-    def package_shards(args, data, partitions):
-        shards = original(args, data, partitions)
-        if "advantages" in data:
-            for shard, partition in zip(shards, partitions, strict=True):
-                shard["advantages"] = [data["advantages"][index] for index in partition]
-        return shards
-
-    package_shards.__lilo_preserves_advantages__ = True
-    train_data_conversion._package_shards = package_shards
-
-
-_preserve_advantages_in_dp_shards()
 
 
 def _pad_local_shard(
