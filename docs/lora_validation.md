@@ -1,36 +1,20 @@
 # LoRA validation
 
-Multi-LoRA RL with Lilo's Miles backend on GSM8K, DAPO Math, and Codeforces codegolf.
-Step 0 includes compilation and cold-start times.
+Our primary validation so far has been multi-lora async RL with Lilo's Miles backend on gsm8k, dapo math, as well as a longer codeforces codegolf run. 
+
+(Note in all the plots step 0 typically incurs cold-start/compilation times). 
 
 ## GSM8K and DAPO Math: Qwen3.5-9B-Base
 
-### Numerical parity
-
-30-step deterministic runs: six clients share a 4×H100 TP4 trainer and exactly
-match isolated baselines on generated tokens, rewards, logprobs, and adapter
-exports. This validates experiment revision `1a4148f`.
-
-![Six-client numerical parity](assets/lora-validation/qwen3-5-9b-parity.png)
-
-[Config and verification](assets/lora-validation/deterministic-parity.json).
-
-### Async RL: Lilo versus native Miles
+### Async RL: Lilo versus Miles
 
 Both runs complete 30 updates for each of six clients on one 4×H100 TP4 trainer
-and eight H200 inference workers. They use the same dataset bytes, prompt order,
-grader, learning recipe, and one-batch prefetch. GSM8K uses rank 16 and a 4k
-generation cap; DAPO uses rank 32 and 8k. Each update uses 8 prompts × 8 samples
-and learning rate 1e-5. Native Miles uses its Tinker gateway and a fixed rollout
-pool on Modal.
+and eight H200 inference workers. GSm8k clients use rank 16 + 4k generation cap, dapo uses rank 32 + 8k. Batch size is 8 groups x 8 samples per group. For the native Miles case, we use their Tinker gateway and a fixed rollout pool on Modal. 
 
 ![Six-client async math: Lilo versus native Miles reward and step timings](assets/lora-validation/qwen3-5-9b-async-math.png)
 
-Faint curves show all three clients per dataset and system; bold curves show the
-trailing five-update mean across those clients. Step time includes waiting,
-rollout, training, and publication.
 
-| Metric | Lilo + Miles | Native Miles |
+| Metric | Lilo | Native Miles |
 | --- | ---: | ---: |
 | GSM8K median step | 21.95 s | 17.65 s |
 | DAPO median step | 84.28 s | 74.81 s |
@@ -38,23 +22,15 @@ rollout, training, and publication.
 | DAPO mean training reward | 0.156 | 0.169 |
 | Training interval | 43.27 min | 38.98 min |
 
-Medians exclude each client's first two updates. The training interval runs from
-the first client pipeline start through final publication, excluding infrastructure
-startup and initial warmup. Each system has one nondeterministic run; equal GPU
-allocation does not imply equal total GPU-hours or generated token counts.
+The "step time" here for async RL is the time from one weight publication to the next (which incorporates rollout buffer fill, forward_backward, and optim-step time in between). 
+
+same plots vs wall clock time: 
 
 ![Six-client async math: training reward versus elapsed time](assets/lora-validation/qwen3-5-9b-async-math-walltime.png)
 
-The native run passed all 180 updates and raw-rollout checks, with finite metrics
-and maximum policy lag one. Its deployment uses a router backfill fix and private
-HTTP adapter transfer with local caching; transfer and native router retries are
-included in timing. [Full setup differences and verification](assets/lora-validation/native-async-math.json).
-The separate checkpoint roundtrip checks belong to the Lilo run.
-
-[Lilo config and metrics](assets/lora-validation/async-math.json) ·
-[Native Miles config and metrics](assets/lora-validation/native-async-math.json).
-
 ## DAPO Math: Qwen3.5-9B cost estimate
+
+As part of our initial cost validation vs Tinker, we were interested in seeing what the price differential could be 
 
 12 clients sharing one 4×H100 trainer and 2–6 H200 inference GPUs. Optimistic
 Lilo GPU-cost accounting versus projected Tinker token charges; the Tinker bill
@@ -64,16 +40,12 @@ has not been measured on this workload.
 
 [Cost assumptions](assets/lora-validation/dapo-cost-estimate.json).
 
-For the separate 1–32-client sweep on a fixed 8×H200 trainer and eight H200
-inference replicas, see [workload tuning and memory budgeting](multi-lora.md#how-to-optimize-lilo-workloads-for-token-pricing).
-It includes total/per-client TPS, token cost, batch sizes, trainer activity over
-time, and the sweep's 4 h 43 min elapsed time.
+We have a more comprehensive discussion of pricing differences (as well as more analysis into how this difference scales with multi-tenancy) in [workload tuning and memory budgeting](multi-lora.md#how-to-optimize-lilo-workloads-for-token-pricing).
 
 ## Codeforces codegolf: Qwen3.5-9B
 
 Four rank-32 clients, 500 updates each, sharing an 8×H200 TP8 trainer and 4–8 H200
-inference workers. Async TailRL, learning rate 1e-5, 64k context, 16k generation cap.
-Final sample pass rates on 16 held-out problems reach 82–88%.
+inference workers. We used async TailRL for this example, with 64k context and 16k generation cap per turn. This is analogous to a similar experiment we did on the FFT side, with the full details available in `examples/codeforces-codegolf`
 
 ![Codegolf learning curves](assets/lora-validation/qwen3-5-9b-codegolf-learning.png)
 
@@ -81,5 +53,12 @@ Client-observed training, publication, and rollout timings:
 
 ![Codegolf operation timings](assets/lora-validation/qwen3-5-9b-codegolf-timing.png)
 
-[Config and metrics](assets/lora-validation/codegolf.json).
-[Figure sources and renderer](assets/lora-validation/README.md).
+### Deterministic Training
+
+One experimental path we've been working on is having multi-tenant runs be fully deterministic. On the inference side, this reduces to the existing batch-invariant implementations that SGlang already has, but on the training side, this means that the forward_backward and optimizer step passes are completely batch-invariant as well such that a client's forward_backward executes with the exact same numerical results no matter how its batches are scheduled through multi-tenant heterogeneous trainer batches. We are able to show preliminary results of deterministic training runs where results are bitwise-identical with single-tenant LoRA on gsm8k + dapo-math: 
+
+![Six-client numerical parity](assets/lora-validation/qwen3-5-9b-parity.png)
+
+[Config and verification](assets/lora-validation/deterministic-parity.json).
+
+The main source of trainer non-determinism was in the fa3 backwards kernel, as well as ensuring ordered gradient accumulation with multiple clients' packed microbatches. 
