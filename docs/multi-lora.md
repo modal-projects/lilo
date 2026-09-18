@@ -1,12 +1,13 @@
 # Working with Multi-LoRA
 
-The Miles backend runs several LoRA adapters on a shared base model. Each Tinker
-training client has its own adapter, gradients, and optimizer state. Clients
-share trainer GPUs and a rollout pool.
+Our multi-tenant Miles backend runs several LoRA adapters on a shared base model. Each Tinker
+training client has its own adapter, gradients, and optimizer state. On the inference side, we adapt the [stitch](https://github.com/modal-projects/stitch) protocol to have multi-lora inference replicas, each with an LRU cache based on Sglang's own S-lora CPU offloading logic. 
 
-## Create clients
+[LoRA validation](lora_validation.md) has more details on validation runs that we've done with our multi-lora system so far. 
 
-Connect to a deployment with a Miles LoRA definition enabled:
+## Creating clients
+
+The README describes how to deploy our Tinker server and set the BASE_URL for the service client. Then, the Tinker SDK can be used against this server: 
 
 ```python
 import tinker
@@ -20,40 +21,25 @@ clients = [
 ]
 ```
 
+Clients using the same definition may share an engine depending on available slots/deployment limits. 
+
 The bundled `qwen3_5_9b_base_miles_lora_16k` definition provides six adapter slots
 on four H100s, with tensor parallelism of 4 and a 16,384-token context. Placement
 fills available trainer capacity automatically. Clients using the same
 definition may share an engine; their placement depends on available slots and
 deployment limits.
 
-Clients can use different ranks, up to 32. LoRA alpha and target modules are set
-by the deployment. This definition requires `train_attn`, `train_mlp`, and
-`train_unembed` to be true, which are the SDK defaults. Leave the per-client
-initialization `seed` unset. Reuse clients across updates to keep their adapter
-and optimizer state loaded.
+With our Multi-lora backend, clients can use different ranks, up to 32. The LoRA alpha and target modules are set by the deployment (SDK defaults are `train_attn`, `train_mlp`, and `train_unembed` to be true). 
 
 ## Submit training work
 
-Submit work from clients concurrently so the engine can batch their requests.
-Keep one ordered submission loop per client. Each client's operations execute
-in submission order, and clients can advance at different rates.
 
-At each dispatch, the engine checks the next queued operation for every client.
-A `forward_backward` request can run with other ready requests that use the same
-`loss_fn` and `loss_fn_config`. This includes consecutive compatible requests
-from one client. Ranks, batch sizes, and sequence lengths can differ. The engine
-starts with the work already queued. Other losses, optimizer steps, forward-only
-calls, and adapter captures run as separate operations on the shared GPU lane.
+The engine will try and batch multiple clients' requests when possible, and so the intended use of multi-tenancy to maximize trainer utilization is to maintain a steady stream of incoming forward_backward data. The engine's current scheduling logic will interleave client batches when large enough, and multi-lora batch when multiple can fit within a single forward pass. The batching is done wrt "compatibility": in particular, fb requests which share the same `loss_fn` and `loss_fn_config`. This includes consecutive compatible requests
+from one client (see deterministic training section for ensuring gradient accumulation order). 
 
-Miles packs the combined batch into microbatches using the deployment's token
-budget: 16,384 tokens per GPU for this definition. Larger submissions span
-multiple microbatches and run to completion before the next dispatch. Keep
-outstanding work bounded, since large submissions and long queues delay other
-clients. Scheduling order depends on the queued operations, so clients can
-experience different wait times.
-
-Submit each client's forward/backward and optimizer calls, then check both
-futures:
+Miles then packs the combined batch into microbatches using the deployment's token
+budget. Scheduling order depends on the queued operations, so clients can
+experience different wait times (WIP to figure out a better fair scheduler across clients). 
 
 ```python
 import asyncio
@@ -70,47 +56,15 @@ async def update(client, batch):
     await optimizer.result_async()
     return result
 
-# Each batch contains data for its corresponding adapter.
 results = await asyncio.gather(*(
     update(client, batch)
     for client, batch in zip(clients, batches, strict=True)
 ))
 ```
 
-For gradient accumulation, submit all of a client's `forward_backward` calls
-before its `optim_step`. The example above waits for all clients to finish;
-an async RL controller can publish and start the next rollout for each client
-as soon as its update finishes.
+## Adapter publication via the Bulletin
 
-### Batch requirements
-
-- Send each adapter's data through its own training client. The engine combines
-  compatible requests across clients.
-- Inputs must be text tokens. `target_tokens` must match the length of
-  `model_input` and be shifted by one token. Align per-token weights, advantages,
-  and sampling logprobs with those targets. Mask prompt positions when training
-  on completions.
-- Supported losses are `cross_entropy`, `importance_sampling`, `ppo`, `cispo`,
-  and `dro`. For RL losses, compute advantages in your controller and supply
-  the logprobs from the sampled policy.
-- Each prompt plus completion must fit within the context limit.
-
-## Publish adapters and generate rollouts
-
-Publish after `optim_step()` and wait for publication to finish before sampling
-from the updated policy.
-
-`save_weights_and_get_sampling_client()` returns a client that serves the
-published version or a newer one. To select an exact version, call
-`save_weights_for_sampler(name)` and create a sampling client from the returned
-path. Sampler publications use PEFT format. Both sampling methods use the
-deployment's shared multi-LoRA rollout pool.
-
-A replica loads adapter versions as needed. The bundled 16K definition caches
-up to 64 versions per replica across all clients, evicting older versions and
-reloading them when requested. The pool keeps eight one-H200 replicas warm and
-allows up to eight LoRAs in an inference batch. All clients share this capacity;
-model cold starts and adapter loading contribute to sampling latency.
+Unlike the FFT case, sampler publication is done with full-weights adapters, such that using the same rollout pool for both monotonic min-weight versioning and exact versioning is cheap. The entire rollout pool supports arbitrary weight-version sampling, using SGLang's LRU-based eviction mechanism per container. The amount of concurrent LoRAs cached in-container CPU and on GPU can be tuned via `ROLLOUT_MAX_LOADED_LORAS` (which corresponds to sglang's `--max-loaded-loras`) and `ROLLOUT_MAX_LORAS_PER_BATCH` (which corresponds to sglang's `--max-loras-per-batch`) respectively. 
 
 When prefetching rollouts, set a maximum policy lag in your controller and retain
 the returned sampling logprobs. The backend accepts batches generated by older
@@ -119,30 +73,61 @@ policy version served, even when sampling seeds match.
 
 ### Publication and persistence scheduling
 
-Adapter capture uses the shared GPU lane. Persistence then runs in the
-background, allowing training and other adapters' publications to proceed.
-Each adapter can have one publication in flight. A second publication waits
-for the first to persist and holds up later operations from that client.
+Our backend schedules checkpoint/publication work such that these operations are split into "capture" and "persist" phases. The capture-phase is GPU-dependent and offloads adapter weights from GPU to CPU. Then, persistence writes the CPU weights to disk/remote volume and is fully asynchronous. Each adapter can have one publication in flight at a time. HOwever, a single multi-lora engine comes with N parallel persistence worker threads, such that multiple clients can have their adapters written to the stitch bulletin at the same time (there will still be shared resource contention for volume committing). 
 
-Checkpoints share one persistence worker. While it is busy, new checkpoints
-stay queued and other clients' ready training can proceed. A queued checkpoint
-holds up later operations from its own client. Model creation, loading, and
-unloading wait for outstanding persistence.
+## How to optimize Lilo workloads for token pricing
 
-## Checkpoint and recover
+Because the pricing model for Modal is fundamentally different from Tinker (compute-based vs token-based), optimizing per-token pricing on Lilo necessarily requires thinking about infrastructure details, something that goes *against* the Tinker contract. With a fixed GPU allocation, higher useful tokens per second lowers GPU cost per token, and thus configs that optimize for TPS directly correlate with lower per-token costs. approximately, 
+```text
+output TPS = total generated tokens used by completed updates / elapsed seconds
+GPU $ per output token = GPU$ per second / output TPS
+```
+In this section we detail some considerations when implementing multi-lora experiments to maximize output TPS: 
 
-Use `save_state()` regularly to save each client's adapter and optimizer state.
-A shared trainer failure loses unsaved state for every resident client. Wait
-for a checkpoint to complete before relying on it for recovery.
+### Multi-client Batch Scheduling
+The EngineServer's packing of ready batches scans all clients whose forward_backward requests are queued, and packs work up till a max token budget set by the compute configuration. The current greedily scheduler does not account for fairness across clients, so given large-enough client batches, the scheduler will effectively take one-client per engine forward_backward (which reduces to multi-tenant interleaving), whereas with small batches, we are still able to saturate trainer with packing multiple client batches into a single forward-backward (which is the multi-lora batching benefit). 
 
-Restore with `load_state_with_optimizer()` on a new matching LoRA client.
-Recovery requires the same base model, LoRA configuration, Miles revision, and
-trainer topology. Upgrading from the earlier checkpoint format requires a
-fresh run.
+### Keep clients asynchronous and measure the tradeoff
 
-At deployment, Lilo resolves `radixark/miles` `main` and builds that commit into
-the image. The commit SHA is recorded in checkpoints and remains fixed for the
-running deployment. Deployment requires Git/network access to resolve the
-branch. To rebuild a specific version, set `LILO_MILES_COMMIT` to its full SHA
-before deployment. Megatron and Megatron-Bridge use their separately configured
-revisions.
+Because trainer is continuously polling for incoming forward_backward data, the best training pattern is to have async RL clients that produce a continuous stream of tokens towards the trainer, such that the latency of one clients' rollouts is hidden behind running forward_backwards for other clients. The system is much less friendly towards synchronous RL (especially if all clients do sync RL in lockstep), which will cause periodic bursts and troughs of trainer utilization as all clients switch between rollout and training phases. 
+
+### Estimating token pricing vs Tinker 
+
+Tinker decomposes its token pricing into 4 categories: training tokens, uncached prompt tokens, cached prompt tokens, and generated tokens. 
+
+```text
+estimated token charge = (training tokens × training rate
+                       + uncached prompt tokens × uncached prompt rate
+                       + cached prompt tokens × cached prompt rate
+                       + generated tokens × generation rate)
+```
+
+We sticky-route same-prompt requests to the same container to maximize prefix reuse across GRPO groups, and also allow clients to specify approximate cache-aware routing via a shared request_id for multi-turn samples which ensure next-turn sample requests go to the same replica as prior turns, allowing maximal prefix reuse. 
+
+### Sweeping over client multi-tenancy
+
+To see how token pricing/TPS scales with multi-tenancy, we ran 1, 2, 4, 8, 16, and 32 lora clients on fixed compute budget (one 8xh200 trainer and 8 single-h200 inference replicas), using Qwen3.5-9B-Base and r32 adapters and fixed training workloads (8 async updates of 8 groups x 8 prompts/group, with 4k token answer limit). For each instance, we run 8 steps, looking at the steady-state TPS, per-client TPS, update time, and token-cost comparison: 
+
+![DAPO client scaling: TPS, per-client TPS, update time and token-cost comparison](assets/lora-validation/dapo-client-scaling/sweep.png)
+
+We can also see how trainer utilization increases as we increase multi-tenancy (naturally at the cost of per-client latency): 
+
+![Trainer activity over time for all six client counts](assets/lora-validation/dapo-client-scaling/trainer-activity.png)
+
+Teal bars mark forward/backward calls, orange marks optimizer updates, and purple
+marks snapshot capture. White gaps are time outside those calls. The black line
+is the fraction of each centered 60-second window spent inside them. Each row
+has its own elapsed-time scale.
+
+results tabluated: 
+
+| Clients | Output TPS | TPS/client | Time inside trainer calls | GPU $/million output tokens, including training |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1,411 | 1,411 | 57.9% | $14.30 |
+| 2 | 1,978 | 989 | 73.7% | $10.20 |
+| 4 | 3,798 | 949 | 73.4% | $5.31 |
+| 8 | 5,220 | 653 | 84.3% | $3.87 |
+| 16 | 8,390 | 524 | 75.9% | $2.40 |
+| 32 | 9,298 | 291 | 80.4% | $2.17 |
+
+
