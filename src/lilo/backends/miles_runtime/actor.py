@@ -299,21 +299,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             flush=True,
         )
 
-    def torch_profile_start(self) -> None:
-        from .profiling import RankProfiler
-
-        self._lilo_profiler = RankProfiler()
-        self._lilo_profiler.start()
-
-    def torch_profile_stop(self, output_dir: str) -> dict | None:
-        profiler = getattr(self, "_lilo_profiler", None)
-        if profiler is None:
-            return None
-        import torch.distributed as dist
-
-        self._lilo_profiler = None
-        return profiler.stop(output_dir, f"rank{dist.get_rank()}")
-
     def export_slot_peft(
         self,
         *,
