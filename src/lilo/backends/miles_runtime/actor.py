@@ -2,9 +2,28 @@ from __future__ import annotations
 
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 
+from . import graddiff
+
 
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
     """Upstream multi-LoRA actor with Qwen MTP and weights-only save support."""
+
+    def forward_backward(self, batch_id: int, rollout_data_ref) -> dict:
+        if graddiff.enabled():
+            with graddiff.capture_grads(self.model, self.slot_optimizers):
+                return super().forward_backward(batch_id, rollout_data_ref)
+        return super().forward_backward(batch_id, rollout_data_ref)
+
+    def optim_step(self, adam_params_by_slot: dict[int, dict]) -> dict[int, dict]:
+        if graddiff.enabled():
+            with graddiff.capture_optim_step(
+                self.model, self.slot_optimizers, adam_params_by_slot
+            ) as outcomes:
+                result = super().optim_step(adam_params_by_slot)
+                if outcomes is not None:
+                    outcomes.update(result)
+            return result
+        return super().optim_step(adam_params_by_slot)
 
     def init(self, args, role, **kwargs):
         # Miles's LoRA builder inherits checkpoint MTP heads without honoring

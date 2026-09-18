@@ -75,6 +75,16 @@ TRAINER_VOLUMES = {
     BULLETIN_ROOT: bulletin,
     CHECKPOINT_ROOT: checkpoint_volume,
 }
+GRADDIFF_DUMP_DIR = os.environ.get("LILO_GRADDIFF_DUMP_DIR")
+GRADDIFF_ENV = {
+    key: value
+    for key in ("LILO_GRADDIFF_DUMP_DIR", "LILO_GRADDIFF_TAG")
+    if (value := os.environ.get(key))
+}
+if GRADDIFF_DUMP_DIR:
+    TRAINER_VOLUMES["/graddiff"] = modal.Volume.from_name(
+        "lilo-graddiff", create_if_missing=True
+    )
 api_secret = modal.Secret.from_name(
     "lilo-api",
     required_keys=["TINKER_API_KEY"],
@@ -89,6 +99,7 @@ proxy_secret = modal.Secret.from_name(
     image=image,
     gpu=f"{GPU_TYPE}:{GPUS}",
     volumes=TRAINER_VOLUMES,
+    env=GRADDIFF_ENV,
     secrets=[api_secret, proxy_secret],
     timeout=86_400,
     max_containers=trainer_max_containers(),
@@ -140,6 +151,15 @@ def run_trainer(
         },
         "checkpoint_dir": CHECKPOINT_ROOT,
     }
+    if graddiff_dump_dir := os.environ.get("LILO_GRADDIFF_DUMP_DIR"):
+        # Miles forwards --train-env-vars into the Ray trainer workers' runtime
+        # env, so this is the channel that reaches LiloMilesTrainRayActor.
+        train_env_vars = {"LILO_GRADDIFF_DUMP_DIR": graddiff_dump_dir}
+        if graddiff_tag := os.environ.get("LILO_GRADDIFF_TAG"):
+            train_env_vars["LILO_GRADDIFF_TAG"] = graddiff_tag
+        backend_config["miles"]["extra_args"] = tuple(
+            backend_config["miles"]["extra_args"]
+        ) + ("--train-env-vars", json.dumps(train_env_vars))
     if deterministic_training:
         backend_config["miles"].update(
             tp_reduce_precision="float64", deterministic_attention=True
