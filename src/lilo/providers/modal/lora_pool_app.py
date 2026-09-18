@@ -84,6 +84,7 @@ class Server:
             enable_lora=True,
             memory_fraction=definition.ROLLOUT_MEMORY_FRACTION,
             schedule_policy="lpm",
+            lora_reload_url=f"http://127.0.0.1:{SIDECAR_PORT}/internal/reload_lora_adapter",
         )
         wait_http(
             f"http://127.0.0.1:{SGLANG_PORT}/health",

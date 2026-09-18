@@ -108,6 +108,7 @@ def _implementation_revision(definition_id: str) -> str:
         *_definition_sources(here.with_name("definitions") / f"{definition_id}.py"),
         here.parents[2] / "inference" / "bulletin.py",
         here.parents[2] / "inference" / "lora_sidecar.py",
+        here.parents[2] / "inference" / "snapshot_access.py",
         here.parents[2] / "inference" / "serving.py",
     )
     digest = hashlib.sha256()

@@ -60,6 +60,7 @@ def test_real_sampling_path_preserves_sequence_timing_and_omits_payloads(spans):
                     "output_token_logprobs": [[-0.1, 3]],
                     "prompt_tokens": 2,
                     "cached_tokens": calls - 1,
+                    "lilo_admission_retries": calls - 1,
                     "completion_tokens": 1,
                     "queue_time": 0.1,
                     "forward_entry_time": 10,
@@ -90,6 +91,10 @@ def test_real_sampling_path_preserves_sequence_timing_and_omits_payloads(spans):
     assert parent.attributes["lilo.retry_count"] == 0
     assert {s.attributes["lilo.sequence_index"] for s in attempts} == {0, 1}
     assert {s.attributes["sglang.cached_tokens"] for s in attempts} == {0, 1}
+    assert {s.attributes["lilo.inference.admission_retries"] for s in attempts} == {
+        0,
+        1,
+    }
     for s in (parent, *attempts):
         assert s.attributes["lilo.run_id"] == "run"
         assert s.attributes["lilo.run_attempt_id"] == "attempt"

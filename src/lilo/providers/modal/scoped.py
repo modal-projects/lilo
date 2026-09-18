@@ -382,6 +382,7 @@ def build_app(
             )
             gateway = ScopedFlashPool(route).gateway_url()
         try:
+            from lilo.inference.http_client import sampling_client
             from lilo.telemetry.otlp import sample_trace
 
             stats = {}
@@ -389,6 +390,7 @@ def build_app(
                 return await sample_task(
                     task,
                     gateway,
+                    client=sampling_client(),
                     data_parallel_size=gpu_count(engine.sampler_gpu)
                     // engine.sampling.tensor_parallel_size,
                     headers=proxy_auth_headers(),

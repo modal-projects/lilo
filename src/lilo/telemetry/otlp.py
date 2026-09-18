@@ -183,6 +183,7 @@ def record_attempt(event):
             "sglang.cached_tokens": raw.get("cached_tokens"),
             "sglang.prompt_tokens": raw.get("prompt_tokens"),
             "sglang.completion_tokens": raw.get("completion_tokens"),
+            "lilo.inference.admission_retries": raw.get("lilo_admission_retries"),
             "lilo.version_served_start": raw.get("weight_version_start"),
             "lilo.version_served_end": raw.get("weight_version_end"),
         },

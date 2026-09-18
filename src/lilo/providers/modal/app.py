@@ -207,6 +207,7 @@ async def execute_sample(task: dict) -> dict:
 
 
 async def _execute_sample(task: dict, stats: dict) -> dict:
+    from lilo.inference.http_client import sampling_client
     from lilo.inference.sampling import sample_task
 
     definition_id = str(task["engine_definition_id"])
@@ -231,6 +232,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
         return await sample_task(
             task,
             gateway,
+            client=sampling_client(),
             data_parallel_size=rollout_data_parallel_size,
             headers=proxy_auth_headers(),
             context_length=definition.MAX_CONTEXT_LENGTH,
@@ -251,6 +253,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
     return await sample_task(
         task,
         await pool_gateway(spec),
+        client=sampling_client(),
         data_parallel_size=rollout_data_parallel_size,
         headers=proxy_auth_headers(),
         on_wait=lambda: _touch_fft_pool(spec),
