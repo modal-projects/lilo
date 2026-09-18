@@ -27,7 +27,11 @@ TRAINER_NODES = 3
 # then spans nodes, where ring P2P only moves K/V blocks.
 TENSOR_MODEL_PARALLEL_SIZE = 8
 CONTEXT_PARALLEL_SIZE = 3
-MAX_TOKENS_PER_GPU = -(-MAX_CONTEXT_LENGTH // CONTEXT_PARALLEL_SIZE)
+# Megatron wants the sequence divisible by 2 * cp (zigzag chunks) and by tp
+# (sequence parallelism), which 262_144 is not for cp=3.
+_SEQ_ALIGNMENT = 2 * CONTEXT_PARALLEL_SIZE * TENSOR_MODEL_PARALLEL_SIZE
+SEQ_LENGTH = -(-MAX_CONTEXT_LENGTH // _SEQ_ALIGNMENT) * _SEQ_ALIGNMENT
+MAX_TOKENS_PER_GPU = SEQ_LENGTH // CONTEXT_PARALLEL_SIZE
 MAX_LORA_SLOTS = 6
 MAX_LORA_RANK = 32
 DEFAULT_LORA_ALPHA = 32
@@ -148,7 +152,7 @@ def run_trainer(
             "max_tokens_per_gpu": MAX_TOKENS_PER_GPU,
             "extra_args": (
                 "--seq-length",
-                str(MAX_CONTEXT_LENGTH),
+                str(SEQ_LENGTH),
                 "--recompute-granularity",
                 "full",
                 "--recompute-method",
