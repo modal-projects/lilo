@@ -84,7 +84,7 @@ def convert_batch() -> None:
         if dm["group_idx"] in seen:
             continue
         seen.add(dm["group_idx"])
-        prompt_len = len(dm["mask"]) - sum(dm["mask"])
+        prompt_len = len(dm["mask"]) - int(sum(dm["mask"]))
         prompts.append(tok.decode(dm["input_tokens"][:prompt_len]))
     pd.DataFrame({"prompt": prompts, "label": ["0"] * len(prompts)}).to_parquet(
         PROMPT_PARQUET
