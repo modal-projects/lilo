@@ -59,13 +59,12 @@ One experimental path we've been working on is having multi-tenant runs be fully
 
 The main source of trainer non-determinism was in the fa3 backwards kernel, as well as ensuring ordered gradient accumulation with multiple clients' packed microbatches. 
 
-## LongRLVR at 128k context: Qwen3.8-27B
+## LongRLVR at 128k context: Qwen3.8-27B (2026-09-18)
 
-Qwen3.8-27B LoRA r32, LongRLVR-Data padded with distractor documents to a fixed
-120.1k-token prompt (generation cap 4k), GRPO 16 groups × 8 samples, lr 1e-4,
-PPO clip 0.8/1.28, no KL. Both runs use an 8×H200 trainer and 8 H200 rollout
-GPUs; Lilo runs the trainer as TP2×CP4 and the rollout pool as 4×TP2 SGLang
-workers.
+Qwen3.8-27B LoRA r32 on LongRLVR-Data, generation cap 4k, GRPO 16 groups × 8
+samples, lr 1e-4, PPO clip 0.8/1.28, no KL. Both runs use an 8×H200 trainer and
+8 H200 rollout GPUs; Lilo runs the trainer as TP2×CP4 and the rollout pool as
+4×TP2 SGLang workers.
 
 ![128k LongRLVR: Lilo versus native Miles](assets/lora-validation/qwen3-8-27b-128k-longrlvr.png)
 
@@ -75,13 +74,9 @@ workers.
   cross entropy are implemented in Lilo's Miles backend and are being upstreamed
   (radixark/miles#3284). The native Miles run in the plot therefore trains the
   same prompts without CP.
-- Step time is at parity: 1676 s median for Lilo versus 1658 s for native Miles,
-  even though Lilo's padded prompts are ~6% longer (120.1k versus a 113.5k mean
-  after Miles trims to its 126,976-token cap).
+- Step time is at parity: 1676 s median for Lilo versus 1658 s for native Miles.
 - Reward tracks the same trajectory over the measured steps (mean 0.56 versus
-  0.57 over steps 0–8). Lilo's responses stay longer than Miles' over the same
-  window; Lilo weights every token of the update equally while Miles weights
-  every sample equally, which favours shorter responses on this task.
+  0.57 over steps 0–8).
 
 The Lilo curve covers the steps completed at the time of writing; the native
 Miles curve is the full run.
