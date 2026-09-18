@@ -35,6 +35,37 @@ def test_trainer_autoscaling_supports_full_and_lora_definitions() -> None:
     assert not modal_app.trainer_autoscaling("missing-definition")
 
 
+@pytest.mark.parametrize(
+    ("state", "available"),
+    [("starting", True), ("draining", True), ("running", False)],
+)
+def test_transitional_trainer_at_cap_keeps_capacity_pending(
+    monkeypatch, state, available
+) -> None:
+    modal_app = importlib.import_module("lilo.providers.modal.app")
+    instance = SimpleNamespace(
+        definition_id=LORA_DEFINITION,
+        state=state,
+        terminal=False,
+    )
+
+    async def list_instances():
+        return (instance,)
+
+    async def kick(_definition_id: str) -> None:
+        return None
+
+    engines = SimpleNamespace(list_instances=list_instances)
+    monkeypatch.setattr(modal_app, "shared_kv", InMemoryKeyValueStore)
+    monkeypatch.setattr(modal_app, "ModalSessionKeyValueStores", SimpleNamespace)
+    monkeypatch.setattr(modal_app, "ModalEnginePlatform", lambda *args: engines)
+    monkeypatch.setattr(modal_app, "kick_trainer_reconciler", kick)
+    monkeypatch.setattr(modal_app, "TRAINER_MAX_CONTAINERS", "1")
+
+    plane = modal_app._plane()
+    assert asyncio.run(plane.reconcile_trainers(LORA_DEFINITION)) is available
+
+
 def test_ensure_pool_deploys_pinned_base_pool(monkeypatch) -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
     registry = InMemoryKeyValueStore()
