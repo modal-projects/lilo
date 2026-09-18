@@ -290,7 +290,8 @@ class LoraMegatronBackend(Backend):
         self.jobs.pop(model_id)
 
     def close(self) -> None:
-        self._shutdown()
+        parallel_state.destroy_model_parallel()
+        dist.destroy_process_group()
 
     def _register_job(
         self,
@@ -506,10 +507,6 @@ class LoraMegatronBackend(Backend):
             "optimizer_step": state.optimizer_step,
             "_path": str(self.checkpoint_dir / destination / model_id),
         }
-
-    def _shutdown(self) -> None:
-        parallel_state.destroy_model_parallel()
-        dist.destroy_process_group()
 
     def _load_job_into_slot(
         self,

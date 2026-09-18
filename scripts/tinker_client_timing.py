@@ -21,6 +21,7 @@ from collections.abc import Awaitable, Callable
 from typing import ParamSpec, TypeVar
 
 import httpx
+import tinker
 from tinker.lib.public_interfaces.api_future import APIFuture
 
 P = ParamSpec("P")
@@ -118,8 +119,6 @@ class TinkerClientTimer:
         self._original_methods: dict[str, Callable[..., object]] = {}
         self._original_send: Callable[..., Awaitable[httpx.Response]] | None = None
 
-    # -- metric helpers -----------------------------------------------------
-
     def _add(self, key: str, value: float) -> None:
         self._metrics[key] = self._metrics.get(key, 0.0) + value
 
@@ -176,8 +175,6 @@ class TinkerClientTimer:
         metrics, self._metrics = self._metrics, {}
         return metrics
 
-    # -- patching -----------------------------------------------------------
-
     def install(self) -> TinkerClientTimer:
         """Monkeypatch TrainingClient methods and httpx.AsyncClient.send.
 
@@ -185,7 +182,6 @@ class TinkerClientTimer:
         """
         if self._installed:
             return self
-        import tinker
 
         originals = {
             "forward_backward_async": tinker.TrainingClient.forward_backward_async,
@@ -221,7 +217,6 @@ class TinkerClientTimer:
         """Restore the original methods."""
         if not self._installed:
             return
-        import tinker
 
         for name, original in self._original_methods.items():
             match name:

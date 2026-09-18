@@ -15,9 +15,6 @@ from typing import Any
 from lilo.backends.miles_config import MilesBackendConfig
 from lilo.errors import BackendFailed
 
-_ACTOR_SPEC_PATCHED = False
-_CP_VALIDATION_PATCHED = False
-
 
 class MilesRuntime:
     """Synchronous owner of Miles's asynchronous Ray trainer controller."""
@@ -267,10 +264,9 @@ def _check_result(result) -> None:
 
 
 def _configure_actor_spec(train_specs) -> None:
-    global _ACTOR_SPEC_PATCHED
-    if _ACTOR_SPEC_PATCHED:
-        return
     original = train_specs._compute_spec_trainer
+    if getattr(original, "_lilo_actor_spec", False):
+        return
 
     @wraps(original)
     def compute(*args, **kwargs):
@@ -288,17 +284,15 @@ def _configure_actor_spec(train_specs) -> None:
             )
         return spec
 
+    compute._lilo_actor_spec = True
     train_specs._compute_spec_trainer = compute
-    _ACTOR_SPEC_PATCHED = True
 
 
 def _allow_context_parallel_multi_lora(multi_lora) -> None:
     """Allow context parallelism after Lilo gathers the sharded log probabilities."""
-    global _CP_VALIDATION_PATCHED
-    if _CP_VALIDATION_PATCHED:
-        return
-
     original = multi_lora.validate_multi_lora_args
+    if getattr(original, "__lilo_allows_cp__", False):
+        return
 
     @wraps(original)
     def validate(args) -> None:
@@ -309,8 +303,8 @@ def _allow_context_parallel_multi_lora(multi_lora) -> None:
         finally:
             args.context_parallel_size = context_parallel_size
 
+    validate.__lilo_allows_cp__ = True
     multi_lora.validate_multi_lora_args = validate
-    _CP_VALIDATION_PATCHED = True
 
 
 def _materialize_capture(path: str) -> None:

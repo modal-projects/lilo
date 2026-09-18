@@ -1,10 +1,14 @@
 """Complete engine recipes; importing these does not register a Modal App."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from lilo.backends.megatron_runtime.common.config import EngineModelConfig, OptimizerConfig
+from lilo.backends.megatron_runtime.common.config import (
+    EngineModelConfig,
+    OptimizerConfig,
+)
 
 
 @dataclass(frozen=True)
@@ -27,6 +31,7 @@ class Engine:
     Images are optional ordinary modal.Image objects. Custom runtime packages can
     be installed into them; no Lilo registry edit or repository checkout is needed.
     """
+
     name: str
     model: str
     trainer_gpu: str
@@ -48,8 +53,11 @@ class Engine:
             raise ValueError("engine name and model are required")
         self.training.validate(gpu_count(self.trainer_gpu))
         world = gpu_count(self.sampler_gpu)
-        for value in (self.sampling.tensor_parallel_size,
-                      self.sampling.expert_parallel_size * self.sampling.expert_tensor_parallel_size):
+        for value in (
+            self.sampling.tensor_parallel_size,
+            self.sampling.expert_parallel_size
+            * self.sampling.expert_tensor_parallel_size,
+        ):
             if value < 1 or world % value:
                 raise ValueError("sampler parallelism must divide sampler GPU count")
         if self.trainer_timeout < 1 or self.trainer_timeout > 86_400:
@@ -68,15 +76,26 @@ def gpu_count(value: str) -> int:
 
 def qwen3_5_4b_full_64k() -> Engine:
     return Engine(
-        name="qwen3_5_4b_full_64k", model="Qwen/Qwen3.5-4B",
-        trainer_gpu="H100:4", sampler_gpu="H100:1",
+        name="qwen3_5_4b_full_64k",
+        model="Qwen/Qwen3.5-4B",
+        trainer_gpu="H100:4",
+        sampler_gpu="H100:1",
         training=EngineModelConfig(
-            hf_checkpoint="", seq_length=65_536, max_tokens_per_microbatch=65_536,
-            tensor_model_parallel_size=2, context_parallel_size=2,
-            sequence_parallel=True, defer_fp32_logits=True, fp32_lm_head=True,
+            hf_checkpoint="",
+            seq_length=65_536,
+            max_tokens_per_microbatch=65_536,
+            tensor_model_parallel_size=2,
+            context_parallel_size=2,
+            sequence_parallel=True,
+            defer_fp32_logits=True,
+            fp32_lm_head=True,
             use_distributed_optimizer=True,
-            provider_overrides={"mtp_num_layers": 0, "recompute_granularity": "full",
-                                "recompute_method": "uniform", "recompute_num_layers": 1},
+            provider_overrides={
+                "mtp_num_layers": 0,
+                "recompute_granularity": "full",
+                "recompute_method": "uniform",
+                "recompute_num_layers": 1,
+            },
             optimizer=OptimizerConfig(loss_scale=1.0),
         ),
     )
@@ -85,20 +104,34 @@ def qwen3_5_4b_full_64k() -> Engine:
 def qwen3_6_27b_full_64k() -> Engine:
     original = qwen3_5_4b_full_64k()
     return replace(
-        original, name="qwen3_6_27b_full_64k", model="Qwen/Qwen3.6-27B",
-        trainer_gpu="H200:8", sampler_gpu="H200:4",
-        training=replace(original.training, tensor_model_parallel_size=4,
-                         defer_fp32_logits=False, fp32_lm_head=False,
-                         gpu_memory_fraction=0.90, optimizer=OptimizerConfig()),
-        sampling=SamplingConfig(tensor_parallel_size=4, memory_fraction=0.90,
-                                cpu_weight_cache_max_compile_group_gb=32),
+        original,
+        name="qwen3_6_27b_full_64k",
+        model="Qwen/Qwen3.6-27B",
+        trainer_gpu="H200:8",
+        sampler_gpu="H200:4",
+        training=replace(
+            original.training,
+            tensor_model_parallel_size=4,
+            defer_fp32_logits=False,
+            fp32_lm_head=False,
+            gpu_memory_fraction=0.90,
+            optimizer=OptimizerConfig(),
+        ),
+        sampling=SamplingConfig(
+            tensor_parallel_size=4,
+            memory_fraction=0.90,
+            cpu_weight_cache_max_compile_group_gb=32,
+        ),
     )
 
 
 def qwen3_5_9b_full_64k() -> Engine:
-    """Codegolf's existing 8-H200 recipe: TP2 × CP2 × DP2, 64K packing."""
+    """8×H200 full fine-tuning with TP2, CP2, DP2, and 64K context."""
     original = qwen3_5_4b_full_64k()
     return replace(
-        original, name="qwen3_5_9b_full_64k", model="Qwen/Qwen3.5-9B",
-        trainer_gpu="H200:8", sampler_gpu="H200:1",
+        original,
+        name="qwen3_5_9b_full_64k",
+        model="Qwen/Qwen3.5-9B",
+        trainer_gpu="H200:8",
+        sampler_gpu="H200:1",
     )

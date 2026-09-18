@@ -10,8 +10,6 @@ from contextlib import AsyncExitStack, asynccontextmanager
 
 import modal
 
-from .scoped import register_sampler
-
 log = logging.getLogger(__name__)
 
 
@@ -98,6 +96,8 @@ class PinOwner:
 async def open_pinned_app(
     key, *, engine, name, image_id, registry_name, pool, proxy_secret
 ):
+    from .scoped import register_sampler
+
     # SDK checkpoint-created models use IDs such as "<session>:train:1".
     _, model_and_version = key.split(":", 1)
     model_id, version = model_and_version.rsplit(":", 1)

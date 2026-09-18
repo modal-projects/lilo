@@ -4,10 +4,6 @@ import json
 import os
 
 import modal
-from modal.config import config
-
-from lilo.providers.modal.kv import shared_kv
-from lilo.providers.modal.serve import run_engine_with_backend
 
 from ..checkpoint_storage import (
     CHECKPOINT_ROOT,
@@ -113,6 +109,10 @@ def run_trainer(
     deterministic_training: bool = False,
 ) -> None:
     from huggingface_hub import snapshot_download
+    from modal.config import config
+
+    from lilo.providers.modal.kv import shared_kv
+    from lilo.providers.modal.serve import run_engine_with_backend
 
     if not os.path.exists(HF_CHECKPOINT):
         snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)

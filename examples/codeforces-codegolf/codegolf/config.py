@@ -2,6 +2,7 @@
 
 import dataclasses
 import os
+from typing import ClassVar
 
 APP_NAME = os.environ.get("CODEGOLF_APP", "lilo-codegolf-example")
 VOLUME_NAME = os.environ.get("CODEGOLF_VOLUME", APP_NAME)
@@ -29,6 +30,17 @@ def with_config_defaults(config):
 
 @dataclasses.dataclass
 class Config:
+    async_rollouts: ClassVar[bool] = False
+    max_policy_lag: ClassVar[int] = 4
+    rollout_workers: ClassVar[int] = 4
+    buffer_batches: ClassVar[int] = 4
+    prefill_batches: ClassVar[int] = 4
+    rollout_min_replicas: ClassVar[int] = 1
+    rollout_max_replicas: ClassVar[int] = 2
+    judge_concurrency: ClassVar[int] = 16
+    explicit_codegolf_prompt: ClassVar[bool] = False
+    enable_thinking: ClassVar[bool] = False
+
     steps: int = 500
     prompts_per_step: int = 4
     group_size: int = 8

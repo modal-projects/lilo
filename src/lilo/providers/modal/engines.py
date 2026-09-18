@@ -59,9 +59,7 @@ class ModalEnginePlatform:
         self.kv = kv
         self.spawn = spawn
         self._records: dict[str, EngineInstanceRecord] = {}
-        self._clients: dict[
-            str, tuple[tuple[str, str | None], HttpEngineClient]
-        ] = {}
+        self._clients: dict[str, tuple[tuple[str, str | None], HttpEngineClient]] = {}
         self._call_ids: dict[str, str] = {}
 
     async def ensure_instance(
@@ -89,7 +87,9 @@ class ModalEnginePlatform:
 
     async def spawn_instance(self, definition_id: str) -> EngineInstance:
         instance_id = f"engine-{uuid.uuid4().hex[:12]}"
-        call_id = await self._spawn(definition_id, instance_id)
+        call_id = await self.spawn(definition_id, instance_id)
+        await self.kv.put(call_key(instance_id), call_id)
+        self._call_ids[instance_id] = call_id
         record = EngineInstanceRecord(
             instance_id=instance_id,
             definition_id=definition_id,
@@ -179,12 +179,6 @@ class ModalEnginePlatform:
         self._records[instance_id] = record
         return record.instance()
 
-    async def _spawn(self, definition_id: str, instance_id: str) -> str:
-        call_id = await self.spawn(definition_id, instance_id)
-        await self.kv.put(call_key(instance_id), call_id)
-        self._call_ids[instance_id] = call_id
-        return call_id
-
     async def _call_finished(
         self,
         instance_id: str,
@@ -225,4 +219,3 @@ class ModalEnginePlatform:
             cached = (endpoint, HttpEngineClient(record.url, token=record.token))
             self._clients[instance_id] = cached
         return cached[1]
-

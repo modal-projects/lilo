@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import modal
 from stitch.engines.sglang import SGLangEngine
 from stitch.service import serve
 from stitch.types import VersionRef
@@ -13,7 +12,6 @@ from .fft_bulletin import (
     FFTSnapshotStore,
     PinnedFFTSnapshotStore,
 )
-from .scoped_sidecar import AssignedSnapshotStore, serve_assigned
 
 
 def main() -> None:
@@ -31,6 +29,8 @@ def main() -> None:
 
     refresh = None
     if args.bulletin_volume:
+        import modal
+
         volume = modal.Volume.from_name(args.bulletin_volume, version=2)
         refresh = volume.reload
     bulletin = FFTSnapshotBulletin(
@@ -49,6 +49,10 @@ def main() -> None:
         delta_update_mode="cpu",
     )
     if args.scoped_registry:
+        import modal
+
+        from .scoped_sidecar import AssignedSnapshotStore, serve_assigned
+
         registry = modal.Dict.from_name(args.scoped_registry)
         store = AssignedSnapshotStore(bulletin, args.run_id, registry)
         serve_assigned(

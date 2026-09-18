@@ -69,9 +69,8 @@ def workload(payload):
         for chunk in example.model_input.chunks:
             values = getattr(chunk, "tokens", None)
             if values is None:
-                return (
-                    counts  # Image/other inputs do not have a known token count here.
-                )
+                # Image and other inputs do not have a known token count here.
+                return counts
             tokens += len(values)
     counts["lilo.input_tokens"] = tokens
     return counts
@@ -323,7 +322,7 @@ class TrainerTelemetry:
             "lilo.request_id": operation.request_id,
             "lilo.seq_id": operation.seq_id,
             "lilo.operation": operation.kind.value,
-            **workload(getattr(operation, "payload", None)),
+            **workload(operation.payload),
             **self.model_tags.get(operation.model_id, {}),
         }
         span = p.get_tracer("lilo.trainer").start_span(

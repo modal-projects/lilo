@@ -20,9 +20,6 @@ from miles.backends.training_utils.parallel import get_parallel_state
 
 from .profiling import RankProfiler, TorchProfileConfig
 
-_LOGPROB_CP_PATCHED = False
-_SLICE_CP_PATCHED = False
-
 
 def _pad_local_shard(
     tensor,
@@ -78,84 +75,85 @@ def _pad_local_shard(
 
 def _gather_tinker_logprobs_across_cp() -> None:
     """Reassemble full-response logprobs for Miles' Tinker loss path under CP>1."""
-    global _LOGPROB_CP_PATCHED, _SLICE_CP_PATCHED
-    if not _LOGPROB_CP_PATCHED:
-        original = logit_processors.get_log_probs_and_entropy
+    original = logit_processors.get_log_probs_and_entropy
+    if getattr(original, "__lilo_gathers_cp__", False):
+        return
 
-        def get_log_probs_and_entropy(
+    def get_log_probs_and_entropy(
+        logits,
+        *,
+        args,
+        unconcat_tokens,
+        total_lengths,
+        response_lengths,
+        with_entropy=False,
+        entropy_requires_grad=True,
+        non_loss_data=True,
+        max_seq_lens=None,
+        rollout_sampling_mask=None,
+    ):
+        out = original(
             logits,
-            *,
-            args,
-            unconcat_tokens,
-            total_lengths,
-            response_lengths,
-            with_entropy=False,
-            entropy_requires_grad=True,
-            non_loss_data=True,
-            max_seq_lens=None,
-            rollout_sampling_mask=None,
-        ):
-            out = original(
-                logits,
-                args=args,
-                unconcat_tokens=unconcat_tokens,
-                total_lengths=total_lengths,
-                response_lengths=response_lengths,
-                with_entropy=with_entropy,
-                entropy_requires_grad=entropy_requires_grad,
-                non_loss_data=non_loss_data,
-                max_seq_lens=max_seq_lens,
-                rollout_sampling_mask=rollout_sampling_mask,
-            )
-            parallel_state = get_parallel_state()
-            if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
-                return out
-            log_probs = []
-            for index, (lp, total_length, response_length) in enumerate(
-                zip(out["log_probs"], total_lengths, response_lengths, strict=True)
-            ):
-                max_seq_len = max_seq_lens[index] if max_seq_lens is not None else None
-                padded = _pad_local_shard(
-                    lp,
-                    total_length,
-                    response_length,
-                    qkv_format=args.qkv_format,
-                    max_seq_len=max_seq_len,
-                )
-                summed = padded.detach().clone()
-                dist.all_reduce(summed, group=parallel_state.cp.group)
-                log_probs.append(padded + (summed - padded.detach()))
-            out["log_probs"] = log_probs
+            args=args,
+            unconcat_tokens=unconcat_tokens,
+            total_lengths=total_lengths,
+            response_lengths=response_lengths,
+            with_entropy=with_entropy,
+            entropy_requires_grad=entropy_requires_grad,
+            non_loss_data=non_loss_data,
+            max_seq_lens=max_seq_lens,
+            rollout_sampling_mask=rollout_sampling_mask,
+        )
+        parallel_state = get_parallel_state()
+        if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
             return out
-
-        logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
-
-        # Update modules that imported the original function by name.
-        for module in (
-            loss,
-            tinker_losses,
-            megatron_actor,
-            megatron_model,
-            fsdp_actor,
+        log_probs = []
+        for index, (lp, total_length, response_length) in enumerate(
+            zip(out["log_probs"], total_lengths, response_lengths, strict=True)
         ):
-            if getattr(module, "get_log_probs_and_entropy", None) is original:
-                module.get_log_probs_and_entropy = get_log_probs_and_entropy
-        _LOGPROB_CP_PATCHED = True
+            max_seq_len = max_seq_lens[index] if max_seq_lens is not None else None
+            padded = _pad_local_shard(
+                lp,
+                total_length,
+                response_length,
+                qkv_format=args.qkv_format,
+                max_seq_len=max_seq_len,
+            )
+            summed = padded.detach().clone()
+            dist.all_reduce(summed, group=parallel_state.cp.group)
+            log_probs.append(padded + (summed - padded.detach()))
+        out["log_probs"] = log_probs
+        return out
 
-    if not _SLICE_CP_PATCHED:
-        # Tinker losses use the full response tensors assembled above.
-        original_slice = cp_utils.slice_log_prob_with_cp
+    get_log_probs_and_entropy.__lilo_gathers_cp__ = True
+    logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-        def slice_log_prob_with_cp(
-            value, total_length, response_length, qkv_format, max_seq_len=None
-        ):
-            return value
+    # Update modules that imported the original function by name.
+    for module in (
+        loss,
+        tinker_losses,
+        megatron_actor,
+        megatron_model,
+        fsdp_actor,
+    ):
+        if getattr(module, "get_log_probs_and_entropy", None) is original:
+            module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-        cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
-        for module in (data, mm_data, math_utils):
-            if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
-                module.slice_log_prob_with_cp = slice_log_prob_with_cp
-        _SLICE_CP_PATCHED = True
+    # Tinker losses use the full response tensors assembled above.
+    original_slice = cp_utils.slice_log_prob_with_cp
+    if getattr(original_slice, "__lilo_unslices_cp__", False):
+        return
+
+    def slice_log_prob_with_cp(
+        value, total_length, response_length, qkv_format, max_seq_len=None
+    ):
+        return value
+
+    slice_log_prob_with_cp.__lilo_unslices_cp__ = True
+    cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
+    for module in (data, mm_data, math_utils):
+        if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
+            module.slice_log_prob_with_cp = slice_log_prob_with_cp
 
 
 _gather_tinker_logprobs_across_cp()

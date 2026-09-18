@@ -13,7 +13,6 @@ from collections.abc import Awaitable, Callable
 
 import httpx
 import modal
-import uvicorn
 
 from lilo.engine import Engine
 from lilo.engine.backend_http import HttpBackendClient
@@ -51,6 +50,8 @@ async def serve_engine(
     instance_id: str,
     notify_reconciler: bool = True,
 ) -> None:
+    import uvicorn
+
     from lilo.telemetry.trainer import TrainerTelemetry
 
     record = EngineInstanceRecord(

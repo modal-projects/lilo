@@ -9,8 +9,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from functools import partial
 
-import modal
-
 from lilo.engines import Engine
 
 
@@ -52,6 +50,8 @@ def run(
     Pinned pools have min_containers=0 and are ephemeral apps owned by this
     process. Owner loss stops them after Modal's heartbeat timeout.
     """
+    import modal
+
     from lilo.providers.modal.scoped import build_app
     from lilo.providers.modal.scoped_pin_owner import PinOwner, open_pinned_app
 

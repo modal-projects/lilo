@@ -70,8 +70,8 @@ def run(
         name=f"codegolf-{run_name}",
         telemetry_secret=modal.Secret.from_dict(telemetry_env),
         latest=lilo.Pool(
-            min_containers=getattr(cfg, "rollout_min_replicas", 1),
-            max_containers=getattr(cfg, "rollout_max_replicas", 2),
+            min_containers=cfg.rollout_min_replicas,
+            max_containers=cfg.rollout_max_replicas,
             scaledown_window=1200,
         ),
     ) as (url, api_key):
