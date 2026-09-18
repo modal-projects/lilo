@@ -588,7 +588,7 @@ def test_batches_compatible_forward_backward_across_models() -> None:
     asyncio.run(run())
 
 
-def test_batches_consecutive_forward_backward_for_one_model() -> None:
+def test_queued_forward_backward_yields_between_requests() -> None:
     async def run() -> None:
         first_started = asyncio.Event()
         release_first = asyncio.Event()
@@ -621,7 +621,8 @@ def test_batches_consecutive_forward_backward_for_one_model() -> None:
             assert state.status == FutureStatus.COMPLETE
         assert batches == [
             [("model-a", 1)],
-            [("model-a", 2), ("model-b", 1), ("model-a", 3), ("model-b", 2)],
+            [("model-b", 1), ("model-a", 2)],
+            [("model-a", 3), ("model-b", 2)],
             [("model-a", 5)],
         ]
         await server.close()

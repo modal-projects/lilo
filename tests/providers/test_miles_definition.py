@@ -28,6 +28,8 @@ def test_miles_definition_uses_one_lilo_driver_for_all_ray_workers() -> None:
     assert keywords["nproc"].value == 1
     assert isinstance(keywords["max_models"], ast.Name)
     assert keywords["max_models"].id == "MAX_LORA_SLOTS"
+    assert keywords["max_batch_tokens"].id == "TRAINER_MAX_BATCH_TOKENS"
+    assert definition.TRAINER_MAX_BATCH_TOKENS == 8 * definition.MAX_CONTEXT_LENGTH
 
 
 def test_long_context_miles_definition_bounds_retained_adapter_versions():
@@ -35,6 +37,14 @@ def test_long_context_miles_definition_bounds_retained_adapter_versions():
 
     assert long.MAX_CONTEXT_LENGTH >= 8192 + 2048
     assert long.MAX_LORA_SLOTS >= 6
+    assert long.TRAINER_MAX_BATCH_TOKENS == 8 * long.MAX_CONTEXT_LENGTH
+    tree = ast.parse(Path(long.__file__).read_text())
+    calls = [node for node in ast.walk(tree)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+             and node.func.id == "run_engine_with_backend"]
+    assert len(calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+    assert keywords["max_batch_tokens"].id == "TRAINER_MAX_BATCH_TOKENS"
     assert long.ROLLOUT_MAX_LOADED_LORAS == 64
     assert long.ROLLOUT_MAX_LOADED_LORAS >= long.ROLLOUT_MAX_LORAS_PER_BATCH
     assert long.ROLLOUT_MAX_CONTAINERS == 8

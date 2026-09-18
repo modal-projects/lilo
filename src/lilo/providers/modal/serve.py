@@ -115,6 +115,7 @@ def run_engine_with_backend(
     backend_env: dict[str, str] | None = None,
     nproc: int = 1,
     max_models: int = 8,
+    max_batch_tokens: int | None = None,
     sampler_persistence_concurrency: int = 1,
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
@@ -181,6 +182,7 @@ def run_engine_with_backend(
                             return Engine(
                                 executor,
                                 max_models=max_models,
+                                max_batch_tokens=max_batch_tokens,
                                 sampler_persistence_concurrency=sampler_persistence_concurrency,
                             )
                     except httpx.TransportError:
