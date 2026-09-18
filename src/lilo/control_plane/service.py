@@ -31,6 +31,7 @@ from lilo.providers.contracts import (
 )
 
 from .keys import (
+    engine_strikes_key,
     model_creation_key,
     model_key,
     placement_claim_key,
@@ -47,6 +48,7 @@ from .keys import (
     session_last_seen_key,
 )
 from .records import (
+    EngineStrikesRecord,
     ModelCreationRecord,
     ModelRecord,
     PlacementRecord,
@@ -137,6 +139,7 @@ class ControlPlane:
         list_checkpoints: CheckpointListing | None = None,
         delete_checkpoint: Callable[[str], Awaitable[None]] | None = None,
         checkpoint_root: str = "/checkpoints",
+        engine_strike_limit: int = 2,
     ) -> None:
         self.kv = kv
         self.engines = engines
@@ -153,6 +156,7 @@ class ControlPlane:
         self.list_checkpoints = list_checkpoints
         self.delete_checkpoint = delete_checkpoint
         self.checkpoint_root = checkpoint_root
+        self.engine_strike_limit = engine_strike_limit
 
     async def create_session(
         self,
@@ -1287,6 +1291,7 @@ class ControlPlane:
             ):
                 raise EngineSaturated("trainer capacity exhausted")
             return None
+        await self.kv.delete(engine_strikes_key(accepted_instance.instance_id))
         record = PlacementRecord(
             model_id=model.model_id,
             engine_definition_id=definition_id,
@@ -1325,6 +1330,8 @@ class ControlPlane:
             return ()
         cutoff = self.clock() - idle_timeout
         reclaimed = []
+        stuck = []
+        live = []
         for model_id in model_ids:
             value = await self.kv.get(model_key(model_id))
             if value is not None:
@@ -1339,6 +1346,7 @@ class ControlPlane:
                     else 0.0
                 )
                 if closed is None and seen_at > cutoff:
+                    live.append(model_id)
                     continue
                 if closed is None:
                     await self.kv.put_if_absent(
@@ -1357,10 +1365,54 @@ class ControlPlane:
                     model_id,
                     instance_id,
                 )
+                stuck.append(model_id)
                 continue
             await self.kv.delete(placement_key(model_id))
             reclaimed.append(model_id)
+        if reclaimed or not stuck or live:
+            await self.kv.delete(engine_strikes_key(instance_id))
+        else:
+            await self._strike_unresponsive_instance(instance_id, stuck)
         return tuple(reclaimed)
+
+    async def _strike_unresponsive_instance(
+        self,
+        instance_id: str,
+        stuck: Sequence[str],
+    ) -> None:
+        """Stop an engine whose every model is unreleasable on repeated sweeps.
+
+        One failed sweep is not enough: a healthy engine busy with a long
+        training step also lets `unload_model` time out.
+        """
+        key = engine_strikes_key(instance_id)
+        previous = await self.kv.get(key)
+        strikes = (
+            EngineStrikesRecord.model_validate(previous).strikes + 1
+            if previous is not None
+            else 1
+        )
+        if strikes < self.engine_strike_limit:
+            await self.kv.put(
+                key,
+                EngineStrikesRecord(
+                    engine_instance_id=instance_id,
+                    strikes=strikes,
+                    last_strike_at=self.clock(),
+                ).model_dump(mode="json"),
+            )
+            return
+        try:
+            await self.engines.stop_instance(instance_id)
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "stop unresponsive instance %s",
+                instance_id,
+            )
+            return
+        await self.kv.delete(key)
+        for model_id in stuck:
+            await self.kv.delete(placement_key(model_id))
 
     async def sweep_idle_sessions(self, idle_timeout: float) -> tuple[str, ...]:
         cutoff = self.clock() - idle_timeout

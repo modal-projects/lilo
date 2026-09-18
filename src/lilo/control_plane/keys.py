@@ -43,6 +43,10 @@ def placement_key(model_id: str) -> str:
     return f"placement:{_model_part(model_id)}"
 
 
+def engine_strikes_key(instance_id: str) -> str:
+    return f"engine_strikes:{_part(instance_id)}"
+
+
 def placement_claim_key(model_id: str) -> str:
     return f"placement_claim:{_model_part(model_id)}"
 
