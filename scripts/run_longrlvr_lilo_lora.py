@@ -66,19 +66,12 @@ def _matched_advantage_stats(
     *,
     std_normalize: bool,
     per_token_scale: bool,
-    sample_mean: bool = False,
+    adv_weighting: str = "token_mean",
 ):
-    """Per-trajectory scalar advantages, scaled to the requested loss weighting.
-
-    The server loss is a plain sum over response tokens, so the scale applied
-    here is the effective per-token weight:
-      token-mean  (per_token_scale): adv_i / T,          T = total tokens in batch
-      sample-mean (sample_mean):     adv_i / (n * len_i), n = trajectories in batch
-    """
     advantages_P = []
     total_tokens = 0
     num_trajectories = 0
-    traj_lens_P = []
+    response_lens_P = []
     first_before_std = None
     first_after_std = None
     for traj_group in trajectory_groups_P:
@@ -103,16 +96,18 @@ def _matched_advantage_stats(
             ],
             dtype=torch.float32,
         )
-        traj_lens_P.append(lens_G)
+        response_lens_P.append(lens_G)
         total_tokens += int(lens_G.sum().item())
         num_trajectories += len(lens_G)
-    if sample_mean and num_trajectories > 0:
-        advantages_P = [
-            advantages / (num_trajectories * lens_G.clamp(min=1.0))
-            for advantages, lens_G in zip(advantages_P, traj_lens_P, strict=True)
-        ]
-    elif per_token_scale and total_tokens > 0:
+    if per_token_scale and total_tokens > 0:
         advantages_P = [advantages / total_tokens for advantages in advantages_P]
+    if adv_weighting == "sample_mean" and total_tokens > 0:
+        # Miles-style per-sample mean: token t of datum i carries
+        # adv_i * T / (n * len_i), so each datum contributes equal total weight.
+        advantages_P = [
+            advantages * (total_tokens / (num_trajectories * lens_G))
+            for advantages, lens_G in zip(advantages_P, response_lens_P, strict=True)
+        ]
     return advantages_P, total_tokens, first_before_std, first_after_std
 
 
@@ -121,13 +116,13 @@ def matched_compute_advantages(
     *,
     std_normalize: bool,
     per_token_scale: bool,
-    sample_mean: bool = False,
+    adv_weighting: str = "token_mean",
 ):
     return _matched_advantage_stats(
         trajectory_groups_P,
         std_normalize=std_normalize,
         per_token_scale=per_token_scale,
-        sample_mean=sample_mean,
+        adv_weighting=adv_weighting,
     )[0]
 
 
@@ -137,8 +132,8 @@ def _comparison_metrics(
     advantage_diagnostics: dict[str, float | bool],
     std_normalize_advantages: bool,
     per_token_loss_scale: bool,
-    sample_mean_advantages: bool = False,
-) -> dict[str, float]:
+    adv_weighting: str = "token_mean",
+) -> dict[str, float | str]:
     """Return metrics shared with the Miles baseline namespace."""
 
     def get(*names: str) -> float | None:
@@ -162,7 +157,7 @@ def _comparison_metrics(
         "env/all/truncated",
         "env/all/frac_truncated",
     )
-    common: dict[str, float] = {}
+    common: dict[str, float | str] = {}
     for key, value in (
         ("cmp/reward_mean", reward),
         ("cmp/response_len_mean", response_len),
@@ -188,13 +183,18 @@ def _comparison_metrics(
         common["cmp/tokens_per_gpu_per_s"] = (
             samples * (prompt_len + response_len) / step_time / trainer_gpus
         )
-    if std_normalize_advantages or per_token_loss_scale or sample_mean_advantages:
+    if (
+        std_normalize_advantages
+        or per_token_loss_scale
+        or adv_weighting != "token_mean"
+    ):
         common.update(
             {
                 "cmp/adv_total_tokens": float(advantage_diagnostics["total_tokens"]),
                 "cmp/std_normalize_advantages": float(std_normalize_advantages),
                 "cmp/per_token_loss_scale": float(per_token_loss_scale),
-                "cmp/sample_mean_advantages": float(sample_mean_advantages),
+                "cmp/adv_weighting": adv_weighting,
+                "cmp/sample_mean_advantages": float(adv_weighting == "sample_mean"),
             }
         )
     return common
@@ -224,14 +224,14 @@ class _ComparisonLogger:
         advantage_diagnostics: dict[str, float],
         std_normalize_advantages: bool,
         per_token_loss_scale: bool,
-        sample_mean_advantages: bool = False,
+        adv_weighting: str = "token_mean",
     ):
         self._wrapped = wrapped
         self._trainer_gpus = trainer_gpus
         self._advantage_diagnostics = advantage_diagnostics
         self._std_normalize_advantages = std_normalize_advantages
         self._per_token_loss_scale = per_token_loss_scale
-        self._sample_mean_advantages = sample_mean_advantages
+        self._adv_weighting = adv_weighting
 
     @property
     def store(self):
@@ -249,7 +249,7 @@ class _ComparisonLogger:
                 self._advantage_diagnostics,
                 self._std_normalize_advantages,
                 self._per_token_loss_scale,
-                self._sample_mean_advantages,
+                self._adv_weighting,
             )
         )
         return self._wrapped.log_metrics(combined, step)
@@ -377,7 +377,7 @@ async def run(
     per_token_loss_scale: bool,
     base_model: str,
     prompt_file: str | None,
-    sample_mean_advantages: bool = False,
+    adv_weighting: str = "token_mean",
     context_length: int,
     pad_to_tokens: int = 0,
     engine_model: str | None = None,
@@ -437,7 +437,7 @@ async def run(
             trajectory_groups_P,
             std_normalize=std_normalize_advantages,
             per_token_scale=per_token_loss_scale,
-            sample_mean=sample_mean_advantages,
+            adv_weighting=adv_weighting,
         )
         advantage_diagnostics["total_tokens"] = float(total_tokens)
         if first_before_std is not None and not advantage_diagnostics.get(
@@ -450,7 +450,7 @@ async def run(
                 f"total_tokens={total_tokens} "
                 f"std_normalize={std_normalize_advantages} "
                 f"per_token_scale={per_token_loss_scale} "
-                f"sample_mean={sample_mean_advantages}",
+                f"adv_weighting={adv_weighting}",
                 flush=True,
             )
             advantage_diagnostics["sanity_logged"] = True
@@ -472,7 +472,7 @@ async def run(
             advantage_diagnostics,
             std_normalize_advantages,
             per_token_loss_scale,
-            sample_mean_advantages,
+            adv_weighting,
         )
 
     dataset_builder = LongRLVRDatasetBuilder(
@@ -540,7 +540,7 @@ async def run(
             )
             if std_normalize_advantages
             or per_token_loss_scale
-            or sample_mean_advantages
+            or adv_weighting != "token_mean"
             else contextlib.nullcontext()
         ),
         patch.object(
@@ -604,9 +604,11 @@ def main() -> None:
         action="store_true",
     )
     parser.add_argument(
-        "--sample-mean-advantages",
-        action="store_true",
-        help="weight each trajectory equally: per-token advantage adv_i/(n*len_i)",
+        "--adv-weighting",
+        choices=("token_mean", "sample_mean"),
+        default="token_mean",
+        help="sample_mean multiplies each trajectory by T/(n*len_i) after "
+        "--per-token-loss-scale (Miles-style per-sample mean)",
     )
     parser.add_argument("--log-path", type=Path)
     parser.add_argument(
@@ -616,10 +618,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.per_token_loss_scale and args.sample_mean_advantages:
-        parser.error(
-            "--per-token-loss-scale and --sample-mean-advantages are exclusive"
-        )
     if not 0 < args.max_generation_tokens < args.context_length:
         parser.error(
             f"--max-generation-tokens must be between 1 and {args.context_length - 1}"
@@ -682,7 +680,8 @@ def main() -> None:
             ),
             *(["--std-normalize-advantages"] if args.std_normalize_advantages else []),
             *(["--per-token-loss-scale"] if args.per_token_loss_scale else []),
-            *(["--sample-mean-advantages"] if args.sample_mean_advantages else []),
+            "--adv-weighting",
+            args.adv_weighting,
             "--save-every",
             str(args.save_every),
             "--log-path",
@@ -716,7 +715,7 @@ def main() -> None:
             max_steps_off_policy=args.max_steps_off_policy,
             std_normalize_advantages=args.std_normalize_advantages,
             per_token_loss_scale=args.per_token_loss_scale,
-            sample_mean_advantages=args.sample_mean_advantages,
+            adv_weighting=args.adv_weighting,
             base_model=args.base_model,
             prompt_file=args.prompt_file,
             context_length=args.context_length,

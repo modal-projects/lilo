@@ -119,8 +119,12 @@ def run(
             else []
         ),
         *(["--std-normalize-advantages"] if std_normalize_advantages else []),
-        *(["--per-token-loss-scale"] if per_token_loss_scale else []),
-        *(["--sample-mean-advantages"] if sample_mean_advantages else []),
+        *(
+            ["--per-token-loss-scale"]
+            if per_token_loss_scale or sample_mean_advantages
+            else []
+        ),
+        *(["--adv-weighting", "sample_mean"] if sample_mean_advantages else []),
         *(["--pad-to-tokens", str(pad_to_tokens)] if pad_to_tokens else []),
     ]
 

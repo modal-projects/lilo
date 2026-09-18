@@ -50,11 +50,14 @@ $PY scripts/lilo27b/spawn_chained_256k.py   # 24-GPU (3 x 8) trainer, TP8xCP3
 
 ## 4. Sample-mean arm on the isolated `lilo-27b-b` app
 
-`--sample-mean-advantages` scales each trajectory's advantage by
-`1/(n_trajectories * len_i)` so every sample contributes equally to the
-(sum-reduced) server loss; `--per-token-loss-scale` scales by `1/total_tokens`
-(token-mean). `--per-token-loss-scale` alone unset is a raw sum, not
-sample-mean. The run logs `cmp/sample_mean_advantages` next to the other
+The launcher's `--adv-weighting sample_mean` (same code path as the 9B
+`lilo-9b-16k-samplemean-30` arm) multiplies each trajectory's token-mean
+advantage `adv_i/T` by `T/(n_trajectories * len_i)`, i.e. per-token weight
+`adv_i/(n * len_i)`, so every sample contributes equally to the sum-reduced
+server loss. `per_token_loss_scale=False` alone is a raw sum, not sample-mean.
+The chained client's `sample_mean_advantages=True` passes
+`--per-token-loss-scale --adv-weighting sample_mean`; the run logs
+`cmp/adv_weighting` and `cmp/sample_mean_advantages` next to the other
 `cmp/*` series.
 
 ```bash
