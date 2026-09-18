@@ -32,7 +32,8 @@ preferring whichever has more available compute.
 | 16k | H200 141 GB | 2 (1 trainer + 1 rollout) | TP4×CP1×DP2 | 16384 | 8 eng × 1 GPU | ~31 GB | 517 s (step 0) → 149–172 s | 277 → 110–126 s | 169 → 37–45 s | 66/35/2.5/2.5/2.4 s | ~1.15–1.27k | 0.548, 0.477, 0.312, 0.574, 0.767 | 668/864/1078/803/550 | 0/0/0/0.039/0 | mean 11.2k (10.4k–12.2k), cap 12288 | OK, no OOM |
 | 64k | H200 141 GB | 2 | TP4×CP2×DP1 | 32768 | 8 eng × 1 GPU | ~71 GB | 1550 s (step 0) → 1038 / 819 / 773 s | 1016 → 582 s | 392 → 189 s | 137/44/9/9/12 s | ~850 | 0.464, 0.427, 0.409, 0.508, 0.643 | 799/815/891/902/491 | 0 | mean 44.6k (32.2k–60.2k), cap 61440, floor 30720 | OK, no OOM |
 | 128k | H200 141 GB | 2 | TP2×CP4×DP1 | 32768 | 8 eng × 1 GPU | 102–109 GB (step 0–1) growing to **~140.7 GB** (steps 2–4, allocator cache; no OOM) | 1452 s (step 0) → 994 / 972 / 888 s | 929 → 679 s | 359 → 207 s | 159/72/15/15/17 s | ~1.2k (67k tok × 128 / 888 s / 8) | 0.493, 0.339, 0.329, 0.543, 0.537 | 684/968/1079/876/449 | 0/0/0.016/0.016/0 | mean **66.8k** (63.7k–71.9k), cap 126976, floor 63488 | OK, no OOM; **prompts only ~52% of cap (dataset-limited)** |
-| 256k | H200 | — | CP8 planned | 32768 | — | — | — | — | — | — | — | — | — | LongRLVR has **no** prompts ≥ 127k tokens (max ≈ 72k) | **Not run — needs decision** (see below) |
+| 256k (padded) — 1-node trainer probe | H200 141 GB | 2 (1 trainer + 1 rollout) | TP1×CP8×DP1 | 32768 | 8 eng × 1 GPU | **OOM** (111 GB in use, +30 GiB alloc failed) | — | — | — | — | — | — | — | — | padded to ~250k | **OOM in compute_log_prob** (TP1 = 54 GB weights/GPU) |
+| 256k (padded) | H200 141 GB | **3** (2 trainer + 1 rollout) | TP2×CP8×DP1 (16 trainer GPUs) | 32768 | 8 eng × 1 GPU | ~98–103 GB (nvidia-smi after backward); 27 GB allocated / 88 GB reserved idle | 3889 s (step 0) → 2938 / 2817 / 2863 s (**~48 min**) | 2546 → 2200–2300 s | 826 → 608–631 s | 506/283/68/67/66 s | ~0.7k (250k tok × 128 / 2860 s / 16) | 0.403, 0.461, 0.311, 0.558, 0.479 | 802/784/989/935/503 | 0/0/0.016/0.008/0 | mean **248k** (232k–258k), cap 258048, floor 232243, `pad_to` 250k — **synthetic** (distractor-padded) | OK, no OOM |
 
 Notes on columns:
 - "Rollout wait" is Miles `perf/rollout_time` in fully-async mode: time the trainer waited for the
@@ -51,10 +52,15 @@ Notes on columns:
 | 16k | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/aquamarine-strut-8cb234449949 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/vv9l76wt |
 | 64k | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/violent-curb-decfe37c85e3 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/5uvc8lks |
 | 128k | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/fried-vault-4f0063789cf8 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/nakynr4k |
+| 256k padded, 2-node TP1×CP8 probe (OOM) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/matte-degree-093dd63e9914 | — |
+| 256k padded, 3-node TP2×CP8 probe (1 step) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/molten-area-e262106588e6 | — |
+| 256k padded, 3-node TP2×CP8 (5 steps) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/merciless-barracuda-46b27a74bc00 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/kv3by4f4 |
+| 128k padded, 30 steps (`miles-27b-128k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/mild-bleed-b1d6255af892 | pending completion |
+| 256k padded, 30 steps (`miles-27b-256k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/cool-muntin-b1d6255af892 | pending completion |
 
 The `cmp/*` runs (`scripts/relog_miles_cmp_27b.py`) carry `cmp/reward_mean, cmp/response_len_mean,
 cmp/step_time_s, cmp/train_time_s, cmp/rollout_time_s, cmp/samples_per_s, cmp/tokens_per_gpu_per_s,
-cmp/truncated_ratio` so they overlay the 9B runs. training-gym does not forward `exp_name` to Miles,
+cmp/truncated_ratio, cmp/prompt_len_mean` so they overlay the 9B runs. training-gym does not forward `exp_name` to Miles,
 so the raw run titles are the group name.
 
 ## Exact launcher args per rung
@@ -74,7 +80,62 @@ uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 64 --steps 5 -
 # 128k — default is now --gpu-type H200 (exact)
 uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 5 --tp 2 --cp 4
 #   -> Context 131072 (prompt cap 126976, floor 63488); TP2xCP4xDP1, max_tokens_per_gpu=32768
+
+# 256k, padded prompts. 2-node probe (OOM), then 3 nodes (2 trainer + 1 rollout)
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 1 --tp 1 --cp 8 --pad-to-tokens 250000 --run-suffix=-probe-2node
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 1 --tp 2 --cp 8 --actor-nodes 2 --pad-to-tokens 250000 --run-suffix=-probe-3node
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 5 --tp 2 --cp 8 --actor-nodes 2 --pad-to-tokens 250000
+#   -> Context 262144 (prompt cap 258048, floor 232243 = 0.9x cap, pad_to 250000); TP2xCP8xDP1, max_tokens_per_gpu=32768
+
+# 30-step statistical runs (W&B group miles-27b), padded, launched in parallel
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 30 --tp 2 --cp 4 --actor-nodes 2 \
+    --pad-to-tokens 120000 --min-prompt-fraction 0 --wandb-group miles-27b --run-name miles-27b-128k-pad-30
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 30 --tp 2 --cp 8 --actor-nodes 2 \
+    --pad-to-tokens 250000 --wandb-group miles-27b --run-name miles-27b-256k-pad-30
 ```
+
+## Prompt padding scheme (`--pad-to-tokens`)
+
+LongRLVR documents top out at ~72k tokens (3,001-row scan: 0 rows ≥ 127k), so the 256k rung — and the
+"padded 128k" comparison run — use **synthetic** prompts: each row keeps its real document, question,
+ground-truth answer and citation chunks, and other LongRLVR rows' documents are added as distractors.
+The numbers measure the systems cost of a ~250k-token sequence and the model's ability to answer under
+distraction, **not** comprehension of a genuinely 250k-token document.
+
+Algorithm (deterministic; two independent 256k preparations produced byte-identical length stats):
+
+1. Distractor pool = first 64 parseable documents of a second, seed-0 shuffled LongRLVR stream.
+2. Per row: `rng = random.Random(f"{seed}:{question}")` (seed 0). Render the base chat prompt with the
+   Qwen3.8-27B tokenizer (`enable_thinking=False`), measure tokens, compute chars/token, and set
+   `target_chars = pad_to_tokens × ratio`.
+3. Shuffle the pool with `rng`, append distractor documents in that order until `target_chars` is
+   reached; insert the real document at an `rng`-chosen position. The real document's chunk order is
+   preserved; all `<CHUNK_n>` IDs are renumbered globally and the row's `ref_chunks` remapped so the
+   chunk-citation F1 reward is unchanged.
+4. Re-render and tokenize; if over the prompt cap, trim distractor chunks from the ends and repeat.
+   Rows still over the cap (or, at 256k, under the 0.9×cap floor) are dropped (`pad_failed` / `too_short`).
+5. The label carries `prompt_tokens` (actual rendered length) and `base_prompt_tokens`, so real prompt
+   lengths are available per sample; W&B `rollout/total_lengths` − `rollout/response_lengths` gives the
+   per-step prompt mean (`cmp/prompt_len_mean`).
+
+Achieved distributions (materialization log lines):
+
+| Run | prompts | scanned | too_short | pad_failed | min | Q1 / median / Q3 | max | mean | base-doc mean |
+|---|---|---|---|---|---|---|---|---|---|
+| 256k, 5 steps (`pad_to` 250k, cap 258048, floor 232243) | 120 | 551 | 168 | 262 | 232,358 | 241,336 / 249,432 / 254,932 | 258,035 | 248,057 | 39,871 |
+| 128k-pad-30 (`pad_to` 120k, cap 126976, floor 0) | 720 | 1,148 | 0 | 428 | 84,730 | 105,433 / 114,910 / 123,282 | 126,973 | 113,467 | 39,610 |
+| 256k-pad-30 (`pad_to` 250k, cap 258048, floor 232243) | 720 | 3,287 | 964 | 1,592 | 232,285 | 240,236 / 247,757 / 255,007 | 258,044 | 247,249 | 37,885 |
+
+`pad_failed` is high because the char→token estimate overshoots and the trim loop gives up once the
+prompt is still over the cap; enough rows survive. Materializing 720 padded 256k prompts took ~2.5 h
+of single-process tokenization on the cluster head (GPUs idle) — a known cost of the current
+implementation.
+
+The padded 128k prompt set is shared for the Lilo lane on Modal volume
+`miles-longrlvr-qwen3-27b-lora-128k-data` (env `micah-dev`), file
+`2ebeaefb-f731-43da-927c-86c257a25ebe-bd73959668bda69b.parquet` (columns `prompt` = padded chat
+messages, `label` = JSON with question, ground_truth, renumbered ref_chunks, prompt_tokens,
+base_prompt_tokens).
 
 ## What each rung required over the previous one
 
@@ -89,16 +150,18 @@ uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 5 
   would OOM. Steady step time 770 → 890 s; per-GPU token throughput actually recovered to ~1.2k tok/s
   because the sequences are ~1.5× longer at only ~15% higher step time. Rollout still fits 1 H200 per
   SGLang engine at 128k context (no TP2 engines needed).
-- **128k → 256k (not run):** the plan was CP8 (TP1×CP8, DP1) at 32768 tok/GPU. Two blockers surfaced:
-  1. **Dataset:** LongRLVR documents top out at ~72k tokens. The 128k final-step prompts were 63.7k–71.9k
-     (mean 66.8k, i.e. ~52% of the 127k cap) and a 3,001-row streaming scan of the dataset found 0 rows
-     ≥ ~127k tokens (max 264k chars ≈ 72k tokens; 171 rows ≥ 63k tokens). A 256k rung would train on the
-     same ~67k-token sequences as 128k, i.e. it would measure nothing new about 256k unless prompts are
-     synthetically extended (concatenating documents) — a methodology decision, not mine to make.
-  2. **Memory / nodes:** TP1×CP8 puts full 27B bf16 weights (~54 GB) on every GPU instead of ~27 GB at
-     TP2, on top of the ~140 GB nvidia-smi peak already observed at TP2×CP4 with the same 32768 tok/GPU.
-     Fitting 256k realistically means a second trainer node (TP2×CP8 over 16 GPUs) → 3 nodes total,
-     which exceeds the 2-node envelope that requires a human decision.
+- **128k → 256k (padded prompts):**
+  1. **Dataset:** LongRLVR documents top out at ~72k tokens (128k final-step prompts were 63.7k–71.9k,
+     ~52% of the cap; a 3,001-row scan found 0 rows ≥ 127k). 256k therefore uses distractor-padded
+     prompts (see "Prompt padding scheme"); the 256k row is a systems number on synthetic sequences.
+  2. **Memory / nodes:** the 2-node plan TP1×CP8×DP1 (one 8-GPU trainer node) **OOMed** in
+     `compute_log_prob` at step 0: 111 GB in use on GPU 7 (full 27B bf16 weights ≈ 54 GB at TP1 plus
+     activations), failed to allocate a further 30 GiB. The working topology is **TP2×CP8×DP1 over two
+     trainer nodes** (16 GPUs, 27 GB weights/GPU) + one rollout node = **3 nodes**, exceeding the original
+     2-node envelope (approved by Micah for this rung). At that topology trainer memory is ~98–103 GB/GPU,
+     with headroom, and steady step time is ~48 min (log-probs ~610 s, actor fwd/bwd ~2200–2300 s);
+     per-trainer-GPU throughput drops to ~0.7k tok/s (16 GPUs share one 128-sample batch).
+     Rollout still fits one H200 per SGLang engine at 256k context (prefix-cache hit ~87%).
 
 ## Unblocks / deviations made
 
@@ -127,9 +190,11 @@ uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 5 
 
 ## Artifacts
 
-- Logs: `logs/16k_*`, `logs/64k_*`, `logs/128k_*` (launcher logs, app logs, W&B history JSON,
-  `nvidia-smi` samples), `logs/probe_h200.log`, `logs/probe_h100strict.log`.
+- Logs: `logs/16k_*`, `logs/64k_*`, `logs/128k_*`, `logs/256k_*` (launcher logs, app logs, W&B history
+  JSON, `nvidia-smi` samples), `logs/probe_h200.log`, `logs/probe_h100strict.log`.
 - Final-step traces (128 samples each): `traces/sour-cilantro-1d2b0f829b5f/step_0000.json`,
   `traces/aquamarine-strut-8cb234449949/step_0004.json`, `traces/violent-curb-decfe37c85e3/step_0004.json`,
   `traces/fried-vault-4f0063789cf8/step_0004.json`.
-- Modal apps: 64k `ap-d6HDmE9FodS3Pp5XEOOxNF`, 128k `ap-MbINJXtPgXTCavSPyxVWlB` (all stopped).
+- Modal apps: 64k `ap-d6HDmE9FodS3Pp5XEOOxNF`, 128k `ap-MbINJXtPgXTCavSPyxVWlB`, 256k 5-step
+  `ap-DUrSuzBftUsmHVuhkILM00` (stopped); 128k-pad-30 `ap-wRXILTBrv9i1OLMtzNulyQ`, 256k-pad-30
+  `ap-hPgnIN4adZYyZjgG2tA4K7` (running at time of writing).

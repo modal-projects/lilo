@@ -544,6 +544,8 @@ def build_config(
     seed: int = SEED,
     use_wandb: bool = True,
     run_suffix: str = "",
+    wandb_group: str = WANDB_GROUP,
+    run_name: str | None = None,
 ) -> TrainConfig:
     max_prompt_tokens = context_length - MAX_GENERATION_TOKENS
     min_prompt_tokens = int(min_prompt_fraction * max_prompt_tokens)
@@ -559,7 +561,7 @@ def build_config(
     # With CP a sequence is sharded across cp ranks, so the per-GPU token
     # budget only has to hold context_length / cp tokens.
     max_tokens_per_gpu = topology.max_tokens_per_gpu or context_length // topology.cp
-    run_name = f"miles-27b-{ctx_k}k-{steps}{run_suffix}"
+    run_name = run_name or f"miles-27b-{ctx_k}k-{steps}{run_suffix}"
     recipe = MilesRecipe(
         name=f"miles-longrlvr-qwen38-27b-lora-{ctx_k}k",
         gpu_type=topology.gpu_type,
@@ -651,7 +653,7 @@ def build_config(
         metrics=WandbConfig(
             project=WANDB_PROJECT,
             entity="modal-labs",
-            group=WANDB_GROUP,
+            group=wandb_group,
             exp_name=run_name,
             modal_wandb_secret_name="wandb-secret",
         )
@@ -698,6 +700,8 @@ def main() -> None:
         "(default 0 at 16k, 0.5 at >=64k, or 0.9 when padding).",
     )
     parser.add_argument("--run-suffix", default="")
+    parser.add_argument("--wandb-group", default=WANDB_GROUP)
+    parser.add_argument("--run-name", default=None, help="Override the W&B run name.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-wandb", action="store_true")
     args = parser.parse_args()
@@ -741,6 +745,8 @@ def main() -> None:
         seed=args.seed,
         use_wandb=not args.no_wandb,
         run_suffix=args.run_suffix,
+        wandb_group=args.wandb_group,
+        run_name=args.run_name,
     )
     print(
         f"Context {context_length} (prompt cap {context_length - MAX_GENERATION_TOKENS}, "
