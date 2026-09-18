@@ -135,7 +135,7 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
             raise RuntimeError(f"unparseable Lilo A name: {name}")
         lilo_a[key] = tensor
 
-    copied, skipped, mismatched = 0, 0, []
+    copied, skipped, mismatched, master_copied = 0, 0, [], 0
     example_names = [n for n in params if n.endswith("linear_in.weight")][:4]
     for name in example_names:
         logger.info(
@@ -156,7 +156,17 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
                 f"shape mismatch for {name}: lilo {tuple(src.shape)} vs miles {tuple(param.shape)}"
             )
         with torch.no_grad():
-            param.copy_(src.to(device=param.device, dtype=param.dtype))
+            src_dev = src.to(device=param.device, dtype=param.dtype)
+            param.copy_(src_dev)
+            # Also update the FP32 master weight; Megatron's optimizer writes
+            # param.data back from master at step end and would otherwise
+            # restore Miles' original init.
+            main_param = getattr(param, "main_param", None)
+            if main_param is not None:
+                main_param.data.copy_(
+                    src.to(device=main_param.device, dtype=main_param.dtype)
+                )
+                master_copied += 1
         copied += 1
 
     b_names = [n for n in params if n.endswith("linear_out.weight")]
@@ -183,6 +193,7 @@ def _copy_lilo_A(model: Any, params: dict[str, Any]) -> None:
             "n_skipped": skipped,
             "unmatched": mismatched,
             "lilo_a_keys": len(lilo_a),
+            "master_copied": master_copied,
             "example_miles_names": example_names,
         },
     )
@@ -224,18 +235,7 @@ def before_train_step(
                 "dtypes": {n: str(g.dtype) for n, g in local.items()},
             },
         )
-        try:
-            return original_finalize(*f_args, **f_kwargs)
-        finally:
-            reduced = _grads(params)
-            _write(
-                "grads_reduced",
-                reduced,
-                {
-                    "phase": "post_reduce",
-                    "dtypes": {n: str(g.dtype) for n, g in reduced.items()},
-                },
-            )
+        return original_finalize(*f_args, **f_kwargs)
 
     miles_model.finalize_model_grads = wrapped_finalize
 
@@ -245,6 +245,17 @@ def before_train_step(
         before = {n: p.detach().clone() for n, p in params.items()}
 
         def wrapped_step(*s_args: Any, **s_kwargs: Any):
+            # At step entry the DP grad reduce is fully synced; snapshot the
+            # reduced grads here (post-finalize is still async in Miles).
+            reduced = _grads(params)
+            _write(
+                "grads_reduced",
+                reduced,
+                {
+                    "phase": "pre_step",
+                    "dtypes": {n: str(g.dtype) for n, g in reduced.items()},
+                },
+            )
             result = original_step(*s_args, **s_kwargs)
             after = {n: p.detach().clone() for n, p in params.items()}
             _write("params_after", after)
