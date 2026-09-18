@@ -207,7 +207,9 @@ Set these environment variables in the deploying shell before `modal deploy`;
   first `forward_backward` of that step arrives, the selected rank-local Ray
   actors start a CPU+CUDA profiler and the backend process starts a CPU-only
   controller trace. The capture stops just before the first forward of the
-  following step, so it includes the post-step sampler save/publish.
+  following step. Rank traces cover the actors' forward/backward, optimizer and
+  slot export; the controller trace also covers the post-step sampler-weight
+  save and publish, which run only in the backend process.
 - `LILO_TORCH_PROFILE_RANKS`: comma-separated trainer ranks to trace, or
   `all`. Defaults to `0`; traces are large (~250 MB per rank per step).
 - `LILO_TORCH_PROFILE_DIR`: output directory. Defaults to

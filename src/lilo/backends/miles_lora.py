@@ -195,6 +195,7 @@ class MilesCommandBackend(Backend):
         ):
             outcomes = self.runtime.optim_step(by_slot)
         timing_metrics = self._timer.metrics_for_step(step)
+        self._timer.pop_step(step)
         outputs = []
         for model_id in model_ids:
             state = self.jobs[model_id]
