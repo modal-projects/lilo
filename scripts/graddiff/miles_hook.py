@@ -241,7 +241,14 @@ def _probe_loss_function() -> None:
                 if torch.is_tensor(result[1])
                 else result[1]
             ),
-            "response_lengths": [int(x) for x in batch["response_lengths"].tolist()],
+            "response_lengths": [
+                int(x)
+                for x in (
+                    batch["response_lengths"].tolist()
+                    if torch.is_tensor(batch["response_lengths"])
+                    else batch["response_lengths"]
+                )
+            ],
             "loss_mask_sums": [float(m.sum().item()) for m in batch["loss_masks"]],
             "n_loss_masks": len(batch["loss_masks"]),
         }
