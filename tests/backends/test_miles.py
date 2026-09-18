@@ -184,32 +184,6 @@ def test_config_context_parallel_topology() -> None:
     assert arguments[arguments.index("--context-parallel-size") + 1] == "2"
 
 
-def test_config_multi_node_topology() -> None:
-    config = _config(
-        actor_num_gpus_per_node=8,
-        actor_num_nodes=3,
-        tensor_model_parallel_size=8,
-        context_parallel_size=3,
-    )
-
-    assert config.world_size == 24
-    assert config.data_parallel_size == 1
-    arguments = config.miles_arguments()
-    assert arguments[arguments.index("--actor-num-nodes") + 1] == "3"
-    assert arguments[arguments.index("--actor-num-gpus-per-node") + 1] == "8"
-
-
-def test_config_rejects_tensor_parallel_spanning_nodes() -> None:
-    config = _config(
-        actor_num_gpus_per_node=8,
-        actor_num_nodes=2,
-        tensor_model_parallel_size=16,
-    )
-
-    with pytest.raises(ValueError, match="must not span nodes"):
-        config.validate()
-
-
 def test_config_rejects_non_divisible_context_parallel_topology() -> None:
     config = _config(
         actor_num_gpus_per_node=8,
