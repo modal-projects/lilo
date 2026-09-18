@@ -9,18 +9,6 @@ from typing import Any
 import torch
 import torch.distributed as dist
 import torch.nn.functional as F
-from megatron.bridge.peft.multi_lora_layers import set_tokens_per_adapter_slot
-from megatron.bridge.training.utils.packed_seq_utils import (
-    get_packed_seq_cp_partition_indices,
-    get_packed_seq_params,
-    get_packed_seq_q_cu_seqlens,
-)
-from megatron.core import mpu, parallel_state
-from megatron.core.fusions.fused_cross_entropy import (
-    fused_vocab_parallel_cross_entropy,
-)
-from megatron.core.pipeline_parallel import get_forward_backward_func
-from megatron.core.utils import get_model_config
 from tinker import ForwardBackwardOutput, TensorData
 
 from lilo.telemetry import backend as telemetry
@@ -378,6 +366,11 @@ def shard_microbatches(
 def _vocab_parallel_logprobs(
     logits: torch.Tensor, labels: torch.Tensor
 ) -> torch.Tensor:
+    from megatron.core import mpu
+    from megatron.core.fusions.fused_cross_entropy import (
+        fused_vocab_parallel_cross_entropy,
+    )
+
     logits = logits.reshape(-1, logits.shape[-1])
     labels = labels.reshape(-1).to(logits.device)
     valid = labels != -100
@@ -452,6 +445,19 @@ def make_forward_step(
     route_adapters: bool = True,
     defer_fp32_logits: bool = False,
 ):
+    from megatron.bridge.training.utils.packed_seq_utils import (
+        get_packed_seq_cp_partition_indices,
+        get_packed_seq_params,
+        get_packed_seq_q_cu_seqlens,
+    )
+    from megatron.core import parallel_state
+    from megatron.core.utils import get_model_config
+
+    if route_adapters:
+        from megatron.bridge.peft.multi_lora_layers import (
+            set_tokens_per_adapter_slot,
+        )
+
     def forward_step(data_iterator, model):
         batch = next(data_iterator)
         device = torch.cuda.current_device()
@@ -625,6 +631,8 @@ def synchronize_collectors(
     output_collector,
     metric_collector,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, float]]]:
+    from megatron.core import parallel_state
+
     if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
         payload = _cpu_payload(output_collector, metric_collector)
         context_parallel_size = parallel_state.get_context_parallel_world_size()
@@ -741,6 +749,8 @@ def prepare_microbatches(
     config,
     rank: int,
 ) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    from megatron.core import parallel_state
+
     sequences = build_sequence_batches(
         batch,
         adapter_slots,
@@ -791,6 +801,9 @@ def run_megatron_pipeline(
     dict[str, list[dict[str, torch.Tensor]]],
     dict[str, dict[str, torch.Tensor]],
 ]:
+    from megatron.core.pipeline_parallel import get_forward_backward_func
+    from megatron.core.utils import get_model_config
+
     output_collector: dict[str, list[dict[str, torch.Tensor]]] = {}
     metric_collector: dict[str, dict[str, torch.Tensor]] = {}
     forward_step = make_forward_step(
