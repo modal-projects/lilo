@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -10,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from lilo.errors import BackendFailed
+from lilo.request_timing import mark
 from lilo.telemetry import backend as telemetry
 from lilo.telemetry.otlp import provider
 
@@ -54,12 +57,21 @@ def create_backend_app(executor: Executor) -> FastAPI:
         with telemetry.recording(request.headers.get("x-lilo-telemetry") == "1"):
             return await call_next(request)
 
-    async def run(action: Awaitable[object]) -> JSONResponse:
+    async def run(action: Awaitable[object], path: str | None = None) -> JSONResponse:
         def respond(content, status=200):
             measurements = telemetry.active.get()
             if measurements is not None:
                 content["telemetry"] = measurements.as_dict()
-            return JSONResponse(status_code=status, content=content)
+            encode_started = time.perf_counter()
+            response = JSONResponse(status_code=status, content=content)
+            if path is not None:
+                mark(
+                    "backend.request.responded",
+                    path=path,
+                    status=status,
+                    encode_s=time.perf_counter() - encode_started,
+                )
+            return response
 
         try:
             return respond({"result": await action})
@@ -82,18 +94,21 @@ def create_backend_app(executor: Executor) -> FastAPI:
 
     @app.post("/execute")
     async def execute(body: ExecuteBody) -> JSONResponse:
+        mark("backend.request.received", path="/execute")
         return await run(
             executor.execute(
                 body.model_id,
                 body.kind,
                 parse_operation_payload(body.kind, body.payload),
-            )
+            ),
+            path="/execute",
         )
 
     @app.post("/execute_forward_backward_batch")
     async def execute_forward_backward_batch(
         body: ForwardBackwardBatchBody,
     ) -> JSONResponse:
+        mark("backend.request.received", path="/execute_forward_backward_batch")
         return await run(
             executor.execute_forward_backward_batch(
                 tuple(
@@ -104,7 +119,8 @@ def create_backend_app(executor: Executor) -> FastAPI:
                     )
                     for item in body.executions
                 )
-            )
+            ),
+            path="/execute_forward_backward_batch",
         )
 
     @app.post("/capture_snapshot")
@@ -249,11 +265,23 @@ class HttpBackendClient:
             raise RuntimeError("backend transport failed; checkpoint recovery required")
         telemetry.received.set(None)
         enabled = provider() is not None
+        encode_started = time.perf_counter()
+        encoded = json.dumps(body).encode()
+        mark(
+            "engine.backend_post.encoded",
+            path=path,
+            bytes=len(encoded),
+            encode_s=time.perf_counter() - encode_started,
+        )
+        headers = {"content-type": "application/json"}
+        if enabled:
+            headers["x-lilo-telemetry"] = "1"
+        http_started = time.perf_counter()
         try:
             response = await self.http.post(
                 path,
-                json=body,
-                headers={"x-lilo-telemetry": "1"} if enabled else {},
+                content=encoded,
+                headers=headers,
             )
         except httpx.ReadTimeout as exc:
             self._fence_transport_failure(read_timeout=True)
@@ -273,6 +301,12 @@ class HttpBackendClient:
                     telemetry.received.set(evidence)
             except (ValueError, AttributeError):
                 pass
+        mark(
+            "engine.backend_post.responded",
+            path=path,
+            http_s=time.perf_counter() - http_started,
+            bytes=len(response.content),
+        )
         if response.headers.get("x-lilo-backend-failed") == "1":
             self._fence_transport_failure()
         if not response.is_success:
@@ -281,7 +315,14 @@ class HttpBackendClient:
             except (ValueError, KeyError):
                 message = response.text
             raise RuntimeError(message)
-        return response.json()["result"]
+        decode_started = time.perf_counter()
+        result = response.json()["result"]
+        mark(
+            "engine.backend_post.decoded",
+            path=path,
+            decode_s=time.perf_counter() - decode_started,
+        )
+        return result
 
     def _fence_transport_failure(self, *, read_timeout: bool = False) -> None:
         if self._transport_failed:

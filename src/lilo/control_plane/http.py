@@ -24,6 +24,8 @@ from lilo.errors import (
 )
 from lilo.proto import tinker_public_pb2
 from lilo.providers.contracts import Parameterization
+from lilo.request_timing import enabled as request_timing_enabled
+from lilo.request_timing import mark
 
 from .service import ControlPlane, FutureResolutionStatus
 
@@ -470,11 +472,19 @@ def create_control_plane_app(
     def operation_route(kind: OperationKind) -> None:
         @app.post(f"/api/v1/{kind.value}")
         async def submit_operation(body: OperationEnvelope) -> dict[str, str]:
+            mark(
+                f"cp.{kind.value}.received", model_id=body.model_id, seq_id=body.seq_id
+            )
             engine = await control_plane.engine_for(body.model_id)
             request_id = await submit_json_operation(
                 engine,
                 kind,
                 body.model_dump(mode="json"),
+            )
+            mark(
+                f"cp.{kind.value}.forwarded",
+                request_id=request_id,
+                model_id=body.model_id,
             )
             return {"request_id": request_id, "model_id": body.model_id}
 
@@ -537,16 +547,32 @@ def create_control_plane_app(
     async def save_weights_for_sampler(
         body: SaveWeightsForSamplerBody,
     ) -> dict[str, str]:
+        mark(
+            "cp.save_weights_for_sampler.received",
+            model_id=body.model_id,
+            seq_id=body.seq_id,
+        )
         request_id = await control_plane.submit_sampler_export(
             body.model_dump(mode="json")
+        )
+        mark(
+            "cp.save_weights_for_sampler.forwarded",
+            request_id=request_id,
+            model_id=body.model_id,
         )
         return {"request_id": request_id, "model_id": body.model_id}
 
     @app.post("/api/v1/forward_backward")
     async def forward_backward(request: Request) -> dict[str, str]:
         body = await request.body()
+        mark(
+            "cp.forward_backward.received",
+            bytes=len(body),
+            encoding=request.headers.get("content-encoding", "identity"),
+        )
         if request.headers.get("content-encoding") == "zstd":
             body = zstandard.ZstdDecompressor().decompress(body)
+        mark("cp.forward_backward.decompressed", bytes=len(body))
         content_type = request.headers.get("content-type", "application/json")
         if content_type.startswith("application/x-protobuf"):
             message = tinker_public_pb2.ForwardBackwardRequest()
@@ -556,6 +582,7 @@ def create_control_plane_app(
             model_id = json.loads(body)["model_id"]
         engine = await control_plane.engine_for(model_id)
         request_id = await engine.forward_backward(body, content_type)
+        mark("cp.forward_backward.forwarded", request_id=request_id, model_id=model_id)
         return {"request_id": request_id, "model_id": model_id}
 
     for kind in JSON_OPERATIONS:
@@ -567,10 +594,21 @@ def create_control_plane_app(
 
     @app.post("/api/v1/retrieve_future")
     async def retrieve_future(body: RetrieveFutureBody) -> JSONResponse:
+        sampled = not body.request_id.startswith("sample-")
+        if sampled:
+            mark("cp.retrieve.begin", request_id=body.request_id)
         resolution = await control_plane.retrieve(
             body.request_id,
             timeout=retrieve_window,
         )
+        if sampled:
+            fields: dict[str, object] = {"status": resolution.status.value}
+            if (
+                request_timing_enabled()
+                and resolution.status == FutureResolutionStatus.COMPLETE
+            ):
+                fields["bytes"] = len(json.dumps(resolution.result))
+            mark("cp.retrieve.end", request_id=body.request_id, **fields)
         if resolution.status == FutureResolutionStatus.PENDING:
             return JSONResponse(
                 status_code=408,

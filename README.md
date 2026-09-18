@@ -253,6 +253,16 @@ uv run scripts/upload_torch_profile.py \
 
 `WANDB_API_KEY` is read from the environment.
 
+Request-path attribution: set `LILO_REQUEST_TIMING=1` alongside the profiler
+envs to have every hop emit one `lilo_request_mark` JSON line with an epoch
+`ts`. Marks cover the control-plane receive/decompress/forward and
+`retrieve_future` long-polls (`cp.*`), engine decode, submit, execution, and
+`retrieve_future` (`engine.*`), and the localhost JSON hop to the backend
+(`engine.backend_post.*`, `backend.request.*`). Set it in the deploying shell
+before `modal deploy`; it forwards to the server function and trainers, and
+`scripts/tinker_client_timing.py` provides matching client-side `client/*`
+metrics for a cookbook training loop.
+
 ## Next steps
 
 Read [Working with Full Fine-Tunes](docs/full-fine-tunes.md) for full training,
