@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import modal
 
 from .miles_revision import MILES_REPOSITORY, resolve_miles_commit
@@ -19,7 +22,7 @@ BRIDGE_REPOSITORY = "https://github.com/radixark/Megatron-Bridge.git"
 BRIDGE_REVISION = "582783a05442245647239e4c5e7d733d7f0e00ea"
 BRIDGE_PATH = "/root/Megatron-Bridge"
 
-image = (
+base_image = (
     modal.Image.from_registry(BASE_IMAGE)
     .entrypoint([])
     .env(
@@ -60,10 +63,18 @@ image = (
     .run_commands(
         "pip install --no-deps 'peft>=0.18.1'",
         MEGATRON_RUNTIME_CHECK,
-        "python -c \"from miles.ray.train.group import TrainerController as T; "
+        'python -c "from miles.ray.train.group import TrainerController as T; '
         "assert all(hasattr(T, name) for name in "
         "('load_slot', 'unload_slot', 'forward_backward', "
         "'forward_only', 'optim_step', 'save_slot', 'export_slot'))\"",
     )
-    .add_local_python_source("lilo")
 )
+
+# Opt in before importing deployment definitions. The artifact directory is
+# produced by scripts/export_fa3_test_wheel.py; ordinary deployments are unchanged.
+if artifacts := os.environ.get("LILO_MILES_FA3_ARTIFACTS"):
+    from .miles_fa3_image import with_deterministic_fa3
+
+    base_image = with_deterministic_fa3(base_image, Path(artifacts))
+
+image = base_image.add_local_python_source("lilo")
