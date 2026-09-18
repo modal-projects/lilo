@@ -321,24 +321,45 @@ def run() -> str:
         )
         return (r.stdout + r.stderr).strip()
 
-    commit = _sh("git -C /root/miles rev-parse HEAD")
-    print(f"miles commit in image: {commit}", flush=True)
-    print("mglm before:", _sh("git -C /root/Megatron-LM rev-parse HEAD"), flush=True)
     print(
-        "pkg versions:",
-        _sh("pip list 2>/dev/null | grep -iE 'megatron|transformer.engine|miles'"),
+        "image versions:",
+        _sh(
+            "git -C /root/miles rev-parse HEAD; "
+            "git -C /root/Megatron-LM rev-parse HEAD; "
+            "pip list 2>/dev/null | grep -iE 'megatron|transformer.engine|miles'"
+        ),
         flush=True,
     )
-    # Match slim-hill's env: megatron-core==0.19.0+73b54618f (packed-GDN support).
+    # Match slim-hill's env: miles ~ef3807c (main 2026-09-16),
+    # megatron-core==0.19.0+73b54618f (packed-GDN), megatron-bridge==0.5.0+40b93089.
     print(
-        "mglm update:",
+        "miles sync:",
         _sh(
-            "git -C /root/Megatron-LM fetch --depth 50 origin miles-main && "
+            "git -C /root/miles fetch --depth 1 origin ef3807c0ef659d7c6d8494c4933bd7ee0332700f && "
+            "git -C /root/miles checkout -f FETCH_HEAD && "
+            "git -C /root/miles rev-parse HEAD"
+        ),
+        flush=True,
+    )
+    print(
+        "mglm sync:",
+        _sh(
+            "git -C /root/Megatron-LM fetch --depth 200 origin miles-main && "
             "git -C /root/Megatron-LM checkout -f 73b54618f && "
             "git -C /root/Megatron-LM rev-parse HEAD"
         ),
         flush=True,
     )
+    print(
+        "bridge sync:",
+        _sh(
+            "pip install --no-deps "
+            "'git+https://github.com/radixark/Megatron-Bridge.git@40b930897717941cfe2bd9806f417e28bf1bfa65' && "
+            "pip list 2>/dev/null | grep megatron-bridge"
+        ),
+        flush=True,
+    )
+    commit = _sh("git -C /root/miles rev-parse HEAD")
 
     convert_batch()
 
