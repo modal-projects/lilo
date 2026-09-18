@@ -31,6 +31,7 @@ HF_MOUNT = "/__modal/volumes/vo-jeCR35EcAFzh7lWyHqWh06"
 
 BATCH_JSON = "/graddiff/batch/batch.json"
 ROLLOUT_PT = "/graddiff/miles_batch/rollout_0.pt"
+PROMPT_PARQUET = "/graddiff/miles_batch/prompts.parquet"
 
 
 def convert_batch() -> None:
@@ -70,6 +71,26 @@ def convert_batch() -> None:
     import os
 
     os.makedirs(os.path.dirname(ROLLOUT_PT), exist_ok=True)
+
+    # RolloutManager still instantiates a prompt dataset in debug-train-only;
+    # give it a real file (contents are never sampled).
+    import pandas as pd
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(HF_SNAPSHOT, trust_remote_code=True)
+    seen = set()
+    prompts = []
+    for dm in batch["datums"]:
+        if dm["group_idx"] in seen:
+            continue
+        seen.add(dm["group_idx"])
+        prompt_len = len(dm["mask"]) - sum(dm["mask"])
+        prompts.append(tok.decode(dm["input_tokens"][:prompt_len]))
+    pd.DataFrame({"prompt": prompts, "label": ["0"] * len(prompts)}).to_parquet(
+        PROMPT_PARQUET
+    )
+    print(f"wrote {PROMPT_PARQUET}: {len(prompts)} prompts", flush=True)
+
     torch.save(
         {"rollout_id": 0, "metadata": {}, "samples": [s.to_dict() for s in samples]},
         ROLLOUT_PT,
@@ -154,6 +175,12 @@ def train_cmd() -> str:
         "--rollout-top-p",
         "1.0",
         "--use-fault-tolerance",
+        "--prompt-data",
+        PROMPT_PARQUET,
+        "--input-key",
+        "prompt",
+        "--label-key",
+        "label",
         "--rollout-health-check-interval",
         "30",
         "--rollout-health-check-timeout",
