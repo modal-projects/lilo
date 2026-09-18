@@ -38,8 +38,6 @@ has not been measured on this workload.
 
 ![DAPO cost estimate](assets/lora-validation/qwen3-5-9b-dapo-cost-estimate.png)
 
-[Cost assumptions](assets/lora-validation/dapo-cost-estimate.json).
-
 We have a more comprehensive discussion of pricing differences (as well as more analysis into how this difference scales with multi-tenancy) in [workload tuning and memory budgeting](multi-lora.md#how-to-optimize-lilo-workloads-for-token-pricing).
 
 ## Codeforces codegolf: Qwen3.5-9B

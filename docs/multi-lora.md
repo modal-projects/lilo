@@ -243,7 +243,7 @@ through 12:31:52 UTC. This spans the first attempted launch through final
 cleanup, including startup, warmup, a monitoring fix, two discarded 16-client
 attempts, and recovery time. The six successful measurement windows sum to
 **1 h 8 min 24 s**. Preparing the benchmark and generating the report are outside
-that elapsed-time figure. [Timing records](assets/lora-validation/dapo-client-scaling/elapsed-time.json).
+that elapsed-time figure.
 
 ![DAPO client scaling: TPS, per-client TPS, update time and token-cost comparison](assets/lora-validation/dapo-client-scaling/sweep.png)
 
@@ -303,9 +303,7 @@ shutdown are excluded. The Tinker comparison applies published prices to the
 same token counts, assuming seven of eight prompt copies are cached. A matched
 Tinker run is still needed to validate that estimate. The
 [full benchmark and reproduction code](https://github.com/modal-projects/lilo/pull/42)
-record configuration, isolation checks and limitations;
-[copied data and figure sources](assets/lora-validation/dapo-client-scaling/README.md)
-are included here.
+record configuration, isolation checks and limitations.
 
 ### Budget GPU memory for adapters and activations
 
