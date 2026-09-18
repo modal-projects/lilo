@@ -237,9 +237,9 @@ runs after `optim_step` k returns, so `timing/save_sampler_weights_s` and
 `timing/publish_weights_s` reported at step k+1 refer to the checkpoint taken
 after step k.
 
-To copy the traces off the checkpoint volume into the W&B run's **Files** tab
-(under `<trace dir basename>/rank0.trace.json.gz` etc., downloadable straight into
-Perfetto):
+To copy the rank-0 trace off the checkpoint volume into the W&B run's **Files**
+tab as `profiler/rank0.trace.json.gz` (downloadable straight into Perfetto; pass
+`--trace` to pick another file):
 
 ```bash
 uv run scripts/upload_torch_profile.py \

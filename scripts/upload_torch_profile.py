@@ -5,15 +5,19 @@
 # ]
 # ///
 
-"""Upload a torch.profiler trace directory to a W&B run's Files tab."""
+"""Upload a torch.profiler trace to a W&B run's Files tab as profiler/<trace>."""
 
 from __future__ import annotations
 
 import argparse
 import os
+import shutil
+import tempfile
 import time
 
 import wandb
+
+FILES_DIR = "profiler"
 
 
 def main() -> None:
@@ -21,7 +25,12 @@ def main() -> None:
     parser.add_argument(
         "--dir",
         required=True,
-        help="Local directory containing *.trace.json.gz / *.key_averages.txt",
+        help="Local directory containing the trace files written by the trainer",
+    )
+    parser.add_argument(
+        "--trace",
+        default="rank0.trace.json.gz",
+        help="Trace file inside --dir to upload",
     )
     parser.add_argument("--entity", default=None, help="W&B entity (e.g. modal-labs)")
     parser.add_argument(
@@ -30,7 +39,7 @@ def main() -> None:
     parser.add_argument(
         "--run-id",
         default=None,
-        help="Attach the artifact to an existing run (resume=allow)",
+        help="Attach the trace to an existing run (resume=allow)",
     )
     parser.add_argument("--group", default=None, help="W&B run group")
     args = parser.parse_args()
@@ -43,14 +52,16 @@ def main() -> None:
         group=args.group,
         job_type="torch-profile-upload",
     )
-    trace_dir = os.path.abspath(args.dir)
+    src = os.path.join(os.path.abspath(args.dir), args.trace)
     started = time.perf_counter()
-    run.save(
-        os.path.join(trace_dir, "*"), base_path=os.path.dirname(trace_dir), policy="now"
-    )
-    run.finish()
+    with tempfile.TemporaryDirectory() as tmp:
+        staged = os.path.join(tmp, FILES_DIR, args.trace)
+        os.makedirs(os.path.dirname(staged))
+        shutil.copyfile(src, staged)
+        run.save(staged, base_path=tmp, policy="now")
+        run.finish()
     print(
-        f"uploaded to {run.url}/files/{os.path.basename(trace_dir)} "
+        f"uploaded to {run.url}/files/{FILES_DIR}/{args.trace} "
         f"in {time.perf_counter() - started:.1f}s"
     )
 
