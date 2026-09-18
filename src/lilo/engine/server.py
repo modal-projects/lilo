@@ -98,6 +98,7 @@ class _ModelState:
     buffered: dict[int, Operation] = field(default_factory=dict)
     fingerprints: dict[int, str] = field(default_factory=dict)
     done: deque[int] = field(default_factory=deque)
+    retrieved: set[int] = field(default_factory=set)
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     registration: asyncio.Future[bool] | None = None
     unload: asyncio.Future[None] | None = None
@@ -237,11 +238,26 @@ class Engine:
                     or state.status != FutureStatus.PENDING
                     or remaining <= 0
                 ):
+                    self._mark_retrieved(request_id, state)
                     return state
                 try:
                     await asyncio.wait_for(self._completed.wait(), remaining)
                 except TimeoutError:
-                    return self._futures.get(request_id)
+                    state = self._futures.get(request_id)
+                    self._mark_retrieved(request_id, state)
+                    return state
+
+    def _mark_retrieved(self, request_id: str, state: FutureState | None) -> None:
+        if state is None or state.status == FutureStatus.PENDING:
+            return
+        model_id, _, seq = request_id.rpartition(":")
+        model = self._models.get(model_id)
+        if model is None:
+            return
+        try:
+            model.retrieved.add(int(seq))
+        except ValueError:
+            return
 
     async def shutdown_if_idle(self) -> bool:
         async with self._lock:
@@ -275,6 +291,7 @@ class Engine:
                         model.buffered.clear()
                         for seq_id in model.fingerprints:
                             self._futures.pop(f"{model_id}:{seq_id}", None)
+                        model.retrieved.clear()
                         self._lifecycle.append(_UnloadOperation(model_id, done))
                         self._start_tasks()
                         self._work.notify_all()
@@ -638,9 +655,13 @@ class Engine:
             self._futures[operation.request_id] = state
             model.done.append(operation.seq_id)
             while len(model.done) > self.max_results:
-                evicted = model.done.popleft()
-                self._futures.pop(f"{operation.model_id}:{evicted}", None)
-                model.fingerprints.pop(evicted, None)
+                oldest = model.done[0]
+                if oldest not in model.retrieved:
+                    break
+                model.done.popleft()
+                model.retrieved.discard(oldest)
+                self._futures.pop(f"{operation.model_id}:{oldest}", None)
+                model.fingerprints.pop(oldest, None)
         self._completed.notify_all()
 
     def _ready_lifecycle(
