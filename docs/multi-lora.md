@@ -84,24 +84,8 @@ GPU $ per output token = GPU$ per second / output TPS
 ```
 In this section we detail some considerations when implementing multi-lora experiments to maximize output TPS: 
 
-### Choose a batch size and a starting client count
-
-One of the promises of the multi-tenant abstraction is that we should be able to guarantee perf roughly independent of batch size. This is true to some extent as long as the total number of client tokens is able to saturate the trainer: 
-
-Let `B` be the average prompt-plus-answer tokens in a client batch, and `C` the
-configured microbatch token budget for a tp group. 
-
-For a group with enough compatible work ready, a rough packing estimate is:
-
-```text
-ready client batches to supply one microbatch ≈ ceil(C/B)
-microbatches needed for k ready batches       ≈ ceil(kB/C)
-```
-
-With `B ≈ 80,000` and `C = 114,688`, two ready client
-batches supply about 160,000 tokens, spread over roughly two microbatches.
-The average fill would be about 70%. Four such batches could fill roughly three
-microbatches to 93%. 
+### Multi-client Batch Scheduling
+The EngineServer's packing of ready batches scans all clients whose forward_backward requests are queued, and packs work up till a max token budget set by the compute configuration. The current greedily scheduler does not account for fairness across clients, so given large-enough client batches, the scheduler will effectively take one-client per engine forward_backward (which reduces to multi-tenant interleaving), whereas with small batches, we are still able to saturate trainer with packing multiple client batches into a single forward-backward (which is the multi-lora batching benefit). 
 
 ### Keep clients asynchronous and measure the tradeoff
 
