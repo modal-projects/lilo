@@ -5,7 +5,6 @@ import os
 import shlex
 import sys
 import threading
-import time
 from collections.abc import Coroutine
 from contextlib import contextmanager, suppress
 from functools import wraps
@@ -185,25 +184,14 @@ class MilesRuntime:
 
         if ray.is_initialized():
             raise RuntimeError("MilesRuntime requires exclusive ownership of Ray")
-        address = os.environ.get("LILO_RAY_ADDRESS")
-        if address:
-            # A multi-node cluster was brought up outside the backend process;
-            # its head already owns the GPU resources of every node.
-            ray.init(
-                address=address,
-                ignore_reinit_error=False,
-                log_to_driver=True,
-            )
-        else:
-            ray.init(
-                ignore_reinit_error=False,
-                include_dashboard=False,
-                log_to_driver=True,
-                num_cpus=max(4, self.config.world_size * 2),
-                num_gpus=self.config.world_size,
-            )
+        ray.init(
+            ignore_reinit_error=False,
+            include_dashboard=False,
+            log_to_driver=True,
+            num_cpus=max(4, self.config.world_size * 2),
+            num_gpus=self.config.world_size,
+        )
         self._owns_ray = True
-        _require_cluster_gpus(ray, self.config.world_size)
 
         self._worker_manager = launch_worker_manager(args)
         object_store.init_instance(args, contribute_segment=False)
@@ -245,20 +233,6 @@ class MilesRuntime:
             self._bridge = None
             self._trainer = None
             self._worker_manager = None
-
-
-def _require_cluster_gpus(ray, world_size: int, *, timeout: float = 120.0) -> None:
-    """Worker nodes register their GPUs shortly after joining the head."""
-    deadline = time.monotonic() + timeout
-    while True:
-        available = int(ray.cluster_resources().get("GPU", 0))
-        if available >= world_size:
-            return
-        if time.monotonic() >= deadline:
-            raise BackendFailed(
-                f"Ray cluster exposes {available} GPUs, trainer needs {world_size}"
-            )
-        time.sleep(2.0)
 
 
 @contextmanager
