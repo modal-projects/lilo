@@ -20,6 +20,7 @@ from lilo.engine.http import create_engine_app
 
 from .engines import EngineInstanceRecord, instance_key
 from .kv import ModalKeyValueStore
+from .trainer_reconciler import request_reconcile
 
 ENGINE_PORT = 8000
 BACKEND_SHUTDOWN_TIMEOUT = 120.0
@@ -29,8 +30,6 @@ NCCL_HEARTBEAT_TIMEOUT = 30 * 60
 
 
 async def _kick_trainer_reconciler(definition_id: str) -> None:
-    from .trainer_reconciler import request_reconcile
-
     async def spawn(delay_seconds: float) -> str:
         function = modal.Function.from_name(
             os.environ.get("LILO_APP_NAME", "lilo"),
@@ -53,6 +52,8 @@ async def serve_engine(
 ) -> None:
     import uvicorn
 
+    from lilo.telemetry.trainer import TrainerTelemetry
+
     record = EngineInstanceRecord(
         instance_id=instance_id,
         definition_id=definition_id,
@@ -66,8 +67,6 @@ async def serve_engine(
     trainer_telemetry = None
     try:
         engine = await make_server()
-        from lilo.telemetry.trainer import TrainerTelemetry
-
         trainer_telemetry = TrainerTelemetry(
             instance_id,
             definition_id,

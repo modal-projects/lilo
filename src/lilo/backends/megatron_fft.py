@@ -161,13 +161,7 @@ class FFTMegatronBackend(Backend):
         model_ids: tuple[str, ...],
         adam: AdamParams,
     ) -> tuple[OptimStepResponse, ...]:
-        return (self._optim_step(model_ids[0], adam),)
-
-    def _optim_step(
-        self,
-        model_id: str,
-        adam: AdamParams,
-    ) -> OptimStepResponse:
+        model_id = model_ids[0]
         self._require_model(model_id)
         if not self.accumulating:
             raise ValueError(f"model {model_id} has no accumulated gradients")
@@ -179,11 +173,13 @@ class FFTMegatronBackend(Backend):
         self.accumulating = False
         if successful:
             self.optimizer_step += 1
-        return OptimStepResponse(
-            metrics={
-                "grad_norm:mean": grad_norm,
-                "update_successful:mean": float(successful),
-            },
+        return (
+            OptimStepResponse(
+                metrics={
+                    "grad_norm:mean": grad_norm,
+                    "update_successful:mean": float(successful),
+                },
+            ),
         )
 
     def capture_sampler_snapshot(
@@ -198,7 +194,6 @@ class FFTMegatronBackend(Backend):
 
         self._require_model(model_id)
 
-        # require optim step was run right before publishing
         if self.accumulating:
             raise ValueError("cannot publish with accumulated gradients")
         bulletin_root = os.environ["LILO_BULLETIN_ROOT"]
@@ -391,7 +386,8 @@ class FFTMegatronBackend(Backend):
         self._delete_model()
 
     def close(self) -> None:
-        self._shutdown()
+        parallel_state.destroy_model_parallel()
+        dist.destroy_process_group()
 
     def _require_model(self, model_id: str) -> None:
         if self.model_id != model_id:
@@ -401,10 +397,6 @@ class FFTMegatronBackend(Backend):
         for chunk in self.model:
             chunk.zero_grad_buffer()
         self.optimizer.zero_grad()
-
-    def _shutdown(self) -> None:
-        parallel_state.destroy_model_parallel()
-        dist.destroy_process_group()
 
 
 def build_executor() -> DistributedExecutor:

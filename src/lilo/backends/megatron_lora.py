@@ -84,8 +84,6 @@ class LoraMegatronBackend(Backend):
         initialize_megatron(config)
 
         self.model, self.optimizers, self.bridge = create_model_and_optimizer(config)
-
-        # multi lora state vars
         self.max_slots = config.max_lora_slots
         self.free_slots = set(range(self.max_slots))
 
@@ -292,7 +290,8 @@ class LoraMegatronBackend(Backend):
         self.jobs.pop(model_id)
 
     def close(self) -> None:
-        self._shutdown()
+        parallel_state.destroy_model_parallel()
+        dist.destroy_process_group()
 
     def _register_job(
         self,
@@ -334,13 +333,9 @@ class LoraMegatronBackend(Backend):
             train_unembed=train_unembed,
         )
 
-    # ------------------------------------------------------------
-    # slot management (onload/offload loras to/from gpu slots)
-    # ------------------------------------------------------------
     def _allocate_slot(self, job_id: str) -> int:
         if not self.free_slots:
-            # todo: implement evictions
-            raise ValueError("No free slots available")
+            raise ValueError("no free LoRA slots available")
 
         slot = min(self.free_slots)
         self.free_slots.remove(slot)
@@ -512,10 +507,6 @@ class LoraMegatronBackend(Backend):
             "optimizer_step": state.optimizer_step,
             "_path": str(self.checkpoint_dir / destination / model_id),
         }
-
-    def _shutdown(self) -> None:
-        parallel_state.destroy_model_parallel()
-        dist.destroy_process_group()
 
     def _load_job_into_slot(
         self,

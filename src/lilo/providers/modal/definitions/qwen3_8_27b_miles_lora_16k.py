@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import modal
@@ -107,8 +108,6 @@ def run_trainer(
     max_models: int = MAX_LORA_SLOTS,
     deterministic_training: bool = False,
 ) -> None:
-    import json
-
     from huggingface_hub import snapshot_download
     from modal.config import config
 

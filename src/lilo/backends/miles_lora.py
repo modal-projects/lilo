@@ -8,9 +8,11 @@ import shutil
 import threading
 import uuid
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
+import modal
 import torch
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
@@ -33,6 +35,8 @@ from .miles_runtime.runtime import MilesRuntime
 
 @dataclass(slots=True)
 class MilesJobState:
+    """LoRA configuration and optimizer state for one loaded model."""
+
     rank: int
     alpha: float
     seed: int | None
@@ -65,8 +69,7 @@ class MilesCommandBackend(Backend):
         self.free_slots = set(range(self.max_slots))
         self.jobs: dict[str, MilesJobState] = {}
         self.job_to_slot: dict[str, int] = {}
-        self.slot_to_job: dict[int, str] = {}
-        # A volume refresh must not race checkpoint writes on the persistence lane.
+        # Serialize checkpoint copies with Modal volume reloads and commits.
         self._checkpoint_io_lock = threading.RLock()
         self._checkpoint_captures: dict[str, dict[str, Any]] = {}
         self._sampler_captures: dict[str, dict[str, Any]] = {}
@@ -140,9 +143,13 @@ class MilesCommandBackend(Backend):
         self.free_slots.remove(slot)
         self.jobs[model_id] = state
         self.job_to_slot[model_id] = slot
-        self.slot_to_job[slot] = model_id
         try:
-            self.runtime.load_slot(slot, state.rank, state.alpha)
+            self.runtime.load_slot(
+                slot,
+                state.rank,
+                state.alpha,
+                restore_optimizer=False,
+            )
         except BaseException:
             self._release(model_id, slot)
             self.jobs.pop(model_id, None)
@@ -394,9 +401,6 @@ class MilesCommandBackend(Backend):
                 path=str(path),
                 rank=state.rank,
                 alpha=state.alpha,
-                base_model=self.base_model,
-                target_modules=self.config.peft_target_modules,
-                lora_dropout=self.config.lora_dropout,
             )
         self._sampler_captures[capture_id] = {
             "model_id": model_id,
@@ -416,7 +420,7 @@ class MilesCommandBackend(Backend):
             bulletin = SnapshotBulletin(
                 os.environ["LILO_BULLETIN_ROOT"],
                 commit=(
-                    (lambda: _commit_volume(volume_name))
+                    partial(_commit_volume, volume_name)
                     if volume_name is not None
                     else None
                 ),
@@ -564,14 +568,11 @@ class MilesCommandBackend(Backend):
 
     def _require_jobs(self, model_ids: tuple[str, ...]) -> None:
         for model_id in model_ids:
-            if model_id not in self.jobs:
-                raise KeyError(f"unknown model: {model_id}")
             if model_id not in self.job_to_slot:
-                raise ValueError(f"model {model_id} is not loaded")
+                raise KeyError(f"unknown or unloaded model: {model_id}")
 
     def _release(self, model_id: str, slot: int) -> None:
         self.job_to_slot.pop(model_id, None)
-        self.slot_to_job.pop(slot, None)
         self.free_slots.add(slot)
 
     def _validate_checkpoint(
@@ -660,16 +661,12 @@ def _install_directory(source: Path, target: Path, *, overwrite: bool) -> None:
 def _commit_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).commit()
 
 
 def _reload_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).reload()
 
 

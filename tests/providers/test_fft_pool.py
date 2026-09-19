@@ -1,5 +1,7 @@
+import subprocess
 from types import SimpleNamespace
 
+import pytest
 from stitch.types import VersionRef
 
 from lilo.providers.modal import fft_pool
@@ -47,9 +49,7 @@ def test_latest_pool_wakes_through_flash_gateway(monkeypatch) -> None:
     pool = fft_pool.FFTLatestPool("definition", "model")
     pool.wake(["replica-a", "replica-b"], VersionRef("model", 3))
 
-    assert {
-        headers["modal-flash-upstream"]: url for url, headers in calls
-    } == {
+    assert {headers["modal-flash-upstream"]: url for url, headers in calls} == {
         "replica-a.modal.host:443": "https://rollout.modal.direct/wake",
         "replica-b.modal.host:8443": "https://rollout.modal.direct/wake",
     }
@@ -79,15 +79,13 @@ def test_pool_spec_round_trips_sizing_through_dict_and_env() -> None:
 
 
 def test_stop_pool_accepts_already_stopped_but_propagates_other_errors(monkeypatch):
-    import subprocess
-
-    import pytest
-
     spec = fft_pool.FFTPoolSpec("definition", "model", True, 0)
     monkeypatch.setattr(fft_pool.shutil, "which", lambda _: "/bin/modal")
     monkeypatch.setenv("MODAL_ENVIRONMENT", "test-env")
     calls = []
-    result = subprocess.CompletedProcess([], 1, "", "App is already stopped. (Stopped yesterday).\n")
+    result = subprocess.CompletedProcess(
+        [], 1, "", "App is already stopped. (Stopped yesterday).\n"
+    )
 
     def run(command, **kwargs):
         calls.append(command)
@@ -96,7 +94,9 @@ def test_stop_pool_accepts_already_stopped_but_propagates_other_errors(monkeypat
 
     monkeypatch.setattr(fft_pool.subprocess, "run", run)
     fft_pool.stop_pool(spec)
-    assert calls == [["/bin/modal", "app", "stop", "-y", spec.app_name, "--env", "test-env"]]
+    assert calls == [
+        ["/bin/modal", "app", "stop", "-y", spec.app_name, "--env", "test-env"]
+    ]
     result = subprocess.CompletedProcess([], 0, "Stopped", "")
     fft_pool.stop_pool(spec)
     result = subprocess.CompletedProcess([], 1, "", "Permission denied")

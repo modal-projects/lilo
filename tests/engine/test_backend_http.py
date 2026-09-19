@@ -4,15 +4,19 @@ import socket
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
+from fastapi import FastAPI, Request
 
+from lilo.backends.miles_runtime.runtime import MilesRuntime
 from lilo.engine import Engine, FutureStatus
 from lilo.engine.api import Command, OperationKind
 from lilo.engine.backend_http import HttpBackendClient, create_backend_app
 from lilo.engine.operations import parse_operation_payload
-from tests.support import EchoExecutor
+from lilo.engine.spmd import DistributedExecutor
+from tests.support import EchoExecutor, serve
 
 MODEL_SPEC = {"base_model": "test/model", "parameterization": "full"}
 
@@ -294,10 +298,6 @@ def test_backend_application_error_does_not_fence_transport() -> None:
 
 
 def test_backend_commands_do_not_reuse_idle_connections() -> None:
-    from fastapi import FastAPI, Request
-
-    from tests.support import serve
-
     app = FastAPI()
     peers = []
 
@@ -325,10 +325,6 @@ def test_backend_commands_do_not_reuse_idle_connections() -> None:
 
 @pytest.mark.parametrize("fatal", [False, True])
 def test_miles_worker_failure_fences_trainer_across_executor_http(fatal):
-    from types import SimpleNamespace
-    from lilo.backends.miles_runtime.runtime import MilesRuntime
-    from lilo.engine.spmd import DistributedExecutor
-
     async def run():
         fenced, calls = [], []
         runtime = MilesRuntime.__new__(MilesRuntime)

@@ -1,13 +1,16 @@
+import asyncio
+
+from codegolf.store import Store
 from codegolf.telemetry import RunTelemetry
 
 
 def test_export_failure_does_not_change_durable_writes(tmp_path):
-    import asyncio
+    class FailingTelemetry(RunTelemetry):
+        @property
+        def run_id(self):
+            raise RuntimeError("export failed")
 
-    from codegolf.store import Store
-
-    t = RunTelemetry.__new__(RunTelemetry)
-    t._observe = lambda *_: (_ for _ in ()).throw(RuntimeError("export failed"))
+    t = FailingTelemetry.__new__(FailingTelemetry)
     s = Store(tmp_path, observer=t.observe)
     asyncio.run(s.write("checkpoint.json", {"step": 50, "path": "saved"}))
     assert s.read("checkpoint.json")["step"] == 50

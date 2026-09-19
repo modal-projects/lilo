@@ -32,6 +32,8 @@ from datasets import load_dataset
 from grouped_tinker_completer import GroupedTinkerTokenCompleter
 from tinker_cookbook import checkpoint_utils, renderers
 from tinker_cookbook.completers import StopCondition
+from tinker_cookbook.rl import rollouts as rl_rollouts
+from tinker_cookbook.rl import train as rl_train
 from tinker_cookbook.rl.problem_env import ProblemGroupBuilder
 from tinker_cookbook.rl.train import AsyncConfig, Config
 from tinker_cookbook.rl.train import main as train_main
@@ -141,7 +143,8 @@ def _with_rollout_worker_count(original, worker_count: int):
                         )
                     else:
                         logger.info(
-                            f"[training_loop] Step {i_batch}: Samples are too stale, requeuing"
+                            f"[training_loop] Step {i_batch}: "
+                            "Samples are too stale, requeuing"
                         )
                         asyncio.create_task(
                             env_group_builders_queue.put(
@@ -426,8 +429,6 @@ async def run(
     seed: int,
 ) -> None:
     sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
-    from tinker_cookbook.rl import rollouts as rl_rollouts
-    from tinker_cookbook.rl import train as rl_train
 
     create_adam_params = tinker.AdamParams
     save_checkpoint = checkpoint_utils.save_checkpoint_async
@@ -545,7 +546,9 @@ def main() -> None:
     parser.add_argument(
         "--detach",
         action="store_true",
-        help="run in a detached process and write stdout/stderr beside the log directory",
+        help=(
+            "run in a detached process and write stdout/stderr beside the log directory"
+        ),
     )
     args = parser.parse_args()
 

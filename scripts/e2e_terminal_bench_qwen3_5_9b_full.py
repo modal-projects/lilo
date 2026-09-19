@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -35,8 +36,6 @@ GRAD_CLIP_NORM = 1.0
 
 
 def _timestamped(path: Path) -> Path:
-    import time
-
     stamp = time.strftime("%Y%m%d%H%M%S")
     return path.with_name(f"{path.stem}.{stamp}{path.suffix}")
 
@@ -77,12 +76,12 @@ async def _run(
 
     import tinker
     from tinker_cookbook import checkpoint_utils
+    from tinker_cookbook.recipes.harbor_rl import train as harbor_train
     from tinker_cookbook.recipes.harbor_rl.harbor_env import (
         HarborDatasetBuilder,
         default_sandbox_factory,
         load_harbor_tasks,
     )
-    from tinker_cookbook.recipes.harbor_rl import train as harbor_train
     from tinker_cookbook.recipes.harbor_rl.train import CLIConfig, cli_main
     from tinker_cookbook.rl import train as rl_train
 
@@ -93,7 +92,6 @@ async def _run(
             f"to ~/.cache/harbor/tasks/{DATASET}"
         )
 
-    create_lora = tinker.ServiceClient.create_lora_training_client_async
     create_adam_params = tinker.AdamParams
     save_checkpoint = checkpoint_utils.save_checkpoint_async
 
@@ -137,7 +135,7 @@ async def _run(
     def harbor_dataset_with_headroom(*args, batch_size: int, **kwargs):
         if batch_size != GROUPS_PER_BATCH:
             raise ValueError(
-                f"expected training batch of {GROUPS_PER_BATCH} groups, got {batch_size}"
+                f"expected {GROUPS_PER_BATCH} training groups, got {batch_size}"
             )
         return HarborDatasetBuilder(
             *args,
@@ -211,14 +209,14 @@ def main() -> None:
         "--rollout-workers",
         type=int,
         default=ROLLOUT_WORKERS,
-        help="concurrent trajectory-group workers; each launches group_size trajectories",
+        help=(
+            "concurrent trajectory-group workers; each launches group_size trajectories"
+        ),
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(
-            "scripts/results/e2e_terminal_bench_qwen3_5_9b_full.json"
-        ),
+        default=Path("scripts/results/e2e_terminal_bench_qwen3_5_9b_full.json"),
     )
     parser.add_argument("--base-url", default=BASE_URL)
     parser.add_argument("--detach", action="store_true")
@@ -281,9 +279,7 @@ def main() -> None:
                 "group_size": GROUP_SIZE,
                 "groups_per_batch": GROUPS_PER_BATCH,
                 "rollout_workers": args.rollout_workers,
-                "max_concurrent_trajectories": (
-                    args.rollout_workers * GROUP_SIZE
-                ),
+                "max_concurrent_trajectories": (args.rollout_workers * GROUP_SIZE),
                 "max_steps_off_policy": MAX_STEPS_OFF_POLICY,
                 "steps": args.steps,
                 "metrics": metrics,

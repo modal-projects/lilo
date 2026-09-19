@@ -1,11 +1,23 @@
+import asyncio
 import importlib
 from contextlib import contextmanager
 from types import SimpleNamespace
 
+import modal
 import pytest
+from modal.client import _Client
 
 from lilo.engines import qwen3_5_4b_full_64k, qwen3_6_27b_full_64k
+from lilo.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
+from lilo.providers.modal.fft_pool import FFTLatestPool
+from lilo.providers.modal.scoped_control import ScopedControlPlane
+from lilo.providers.modal.scoped_pool import (
+    ScopedFlashPool,
+    publication_pool,
+    set_minimum,
+)
 from lilo.run import Pool
+from tests.support import EchoExecutor
 
 
 def test_pool_bounds():
@@ -25,8 +37,6 @@ def test_pool_bounds():
 def test_owned_children_stop_before_parent(
     monkeypatch, warm, body_failure, drain_failure
 ):
-    import modal
-
     module = importlib.import_module("lilo.run")
     scoped = importlib.import_module("lilo.providers.modal.scoped")
     events = []
@@ -114,9 +124,6 @@ def test_recipes_keep_context_and_topology_together():
 
 
 def test_publication_targets_the_scoped_latest_route(monkeypatch):
-    import modal
-    from lilo.providers.modal.scoped_pool import publication_pool, ScopedFlashPool
-
     route = {"url": "https://sampler.invalid", "function_id": "fu-scoped"}
     monkeypatch.setenv("LILO_SCOPED_REGISTRY", "owned-run")
     monkeypatch.setattr(modal.Dict, "from_name", lambda name: {"model:abc": route})
@@ -127,18 +134,11 @@ def test_publication_targets_the_scoped_latest_route(monkeypatch):
 
 
 def test_shared_publication_keeps_existing_pool(monkeypatch):
-    from lilo.providers.modal.scoped_pool import publication_pool
-    from lilo.providers.modal.fft_pool import FFTLatestPool
-
     monkeypatch.delenv("LILO_SCOPED_REGISTRY", raising=False)
     assert isinstance(publication_pool("existing", "abc"), FFTLatestPool)
 
 
 def test_latest_minimum_updates_by_id_without_name_lookup(monkeypatch):
-    import asyncio
-    from modal.client import _Client
-    from lilo.providers.modal.scoped_pool import set_minimum
-
     calls = []
 
     async def update(request):
@@ -156,11 +156,6 @@ def test_latest_minimum_updates_by_id_without_name_lookup(monkeypatch):
 
 
 def test_retry_finishes_preparation_without_creating_another_model():
-    import asyncio
-    from lilo.providers.modal.scoped_control import ScopedControlPlane
-    from lilo.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
-    from tests.support import EchoExecutor
-
     prepared = []
 
     async def prepare(model):

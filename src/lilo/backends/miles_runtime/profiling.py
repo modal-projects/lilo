@@ -25,8 +25,7 @@ class TorchProfileConfig:
 
     step: int | None
     output_dir: str
-    ranks: frozenset[int] | None = frozenset({0})
-    """Trainer ranks that record a trace; ``None`` means every rank."""
+    ranks: frozenset[int] | None = frozenset({0})  # None traces every rank.
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] = os.environ) -> TorchProfileConfig:
@@ -133,13 +132,7 @@ class StepPhaseTimer:
             )
 
     def metrics_for_step(self, step: int) -> dict[str, float]:
-        """Return ``timing/*`` metrics for one optimizer step.
-
-        Save/publish work for step k runs *after* ``optim_step`` k returns, so
-        it is attributed to the model's current optimizer step at the time it
-        runs (k + 1). Values logged under step k + 1 therefore refer to the
-        checkpoint taken after step k.
-        """
+        """Return ``timing/*`` metrics for one optimizer step."""
         with self._lock:
             accumulators = dict(self._steps.get(step, {}))
         metrics: dict[str, float] = {}

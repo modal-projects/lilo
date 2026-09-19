@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, fields
 from typing import Any
 
 import httpx
+import modal
 from stitch.pools.modal_flash import ModalFlashPool, list_flash_containers
 from stitch.types import VersionRef
 
@@ -73,8 +74,6 @@ class FFTLatestPool(ModalFlashPool):
         )
 
     def discover_replicas(self) -> list[str]:
-        import modal
-
         try:
             return super().discover_replicas()
         except modal.exception.NotFoundError:
@@ -124,8 +123,6 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
     try:
         return pool.gateway_url()
     except Exception as exc:
-        import modal
-
         if not isinstance(exc, modal.exception.NotFoundError):
             raise
     modal_cli = shutil.which("modal")

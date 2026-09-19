@@ -35,14 +35,10 @@ class MilesRuntime:
         self._trainer = None
         self._worker_manager = None
         self._bridge = None
-        self._owns_ray = False
-        self._owns_object_store = False
         self._unit_ids = count(1)
         try:
             self._call(self._start())
         except BaseException:
-            with suppress(BaseException):
-                self._call(self._close())
             self._stop_loop()
             raise
 
@@ -112,9 +108,6 @@ class MilesRuntime:
         path: str,
         rank: int,
         alpha: float,
-        base_model: str,
-        target_modules: tuple[str, ...],
-        lora_dropout: float,
     ) -> None:
         self._run(self._bridge.export_slot(slot, rank, alpha, path))
         _materialize_capture(path)
@@ -184,14 +177,14 @@ class MilesRuntime:
         from miles.ray.train.group import TrainerController
         from miles.ray.wiring import launch_worker_manager
         from miles.tinker.runtime import MilesBackend
-        from miles.utils import object_store
+        from miles.utils import multi_lora, object_store
         from miles.utils.arguments import parse_args
         from miles.utils.audit_utils.process_identity import MainProcessIdentity
         from miles.utils.external_utils.model_args_utils import load_model_args
         from miles.utils.logging_utils import configure_logger
 
         _configure_actor_spec(train_specs)
-        _allow_context_parallel_multi_lora()
+        _allow_context_parallel_multi_lora(multi_lora)
         architecture = shlex.split(load_model_args(self.config.model_type))
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
             args = parse_args(entry="serve")
@@ -208,21 +201,24 @@ class MilesRuntime:
             num_cpus=max(4, self.config.world_size * 2),
             num_gpus=self.config.world_size,
         )
-        self._owns_ray = True
 
-        self._worker_manager = launch_worker_manager(args)
-        object_store.init_instance(args, contribute_segment=False)
-        self._owns_object_store = True
-        self._trainer = TrainerController(
-            args=args,
-            role="actor",
-            with_ref=False,
-            with_opd_teacher=False,
-            inference_controller=None,
-            rollout_executor=None,
-        )
-        await self._trainer.init()
-        self._bridge = MilesBackend(self._trainer, router_url="", dp_size=1)
+        try:
+            self._worker_manager = launch_worker_manager(args)
+            object_store.init_instance(args, contribute_segment=False)
+            self._trainer = TrainerController(
+                args=args,
+                role="actor",
+                with_ref=False,
+                with_opd_teacher=False,
+                inference_controller=None,
+                rollout_executor=None,
+            )
+            await self._trainer.init()
+            self._bridge = MilesBackend(self._trainer, router_url="", dp_size=1)
+        except BaseException:
+            with suppress(BaseException):
+                await self._close()
+            raise
 
     async def _close(self) -> None:
         import ray
@@ -241,12 +237,9 @@ class MilesRuntime:
             if self._worker_manager is not None:
                 with suppress(BaseException):
                     ray.kill(self._worker_manager, no_restart=True)
-            if self._owns_object_store:
-                object_store._INSTANCE = None
-                self._owns_object_store = False
-            if self._owns_ray and ray.is_initialized():
+            object_store._INSTANCE = None
+            if ray.is_initialized():
                 ray.shutdown()
-            self._owns_ray = False
             self._bridge = None
             self._trainer = None
             self._worker_manager = None
@@ -284,7 +277,9 @@ def _configure_actor_spec(train_specs) -> None:
         ):
             return spec.model_copy(
                 update={
-                    "worker_class": "lilo.backends.miles_runtime.actor.LiloMilesTrainRayActor"
+                    "worker_class": (
+                        "lilo.backends.miles_runtime.actor.LiloMilesTrainRayActor"
+                    )
                 }
             )
         return spec
@@ -293,13 +288,8 @@ def _configure_actor_spec(train_specs) -> None:
     train_specs._compute_spec_trainer = compute
 
 
-def _allow_context_parallel_multi_lora() -> None:
-    """Miles rejects multi-LoRA with CP>1 because its Tinker losses zip
-    full-length per-datum vectors against CP-sharded log probs. The Lilo actor
-    gathers those log probs back to full response length before the loss runs,
-    so the guard does not apply to this path."""
-    from miles.utils import multi_lora
-
+def _allow_context_parallel_multi_lora(multi_lora) -> None:
+    """Allow context parallelism after Lilo gathers the sharded log probabilities."""
     original = multi_lora.validate_multi_lora_args
     if getattr(original, "__lilo_allows_cp__", False):
         return

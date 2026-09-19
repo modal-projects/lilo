@@ -50,11 +50,19 @@ def main() -> None:
     )
     if args.scoped_registry:
         import modal
+
         from .scoped_sidecar import AssignedSnapshotStore, serve_assigned
+
         registry = modal.Dict.from_name(args.scoped_registry)
         store = AssignedSnapshotStore(bulletin, args.run_id, registry)
-        serve_assigned(store, engine, run_id=args.run_id, registry=registry,
-                       host=args.host, port=args.port)
+        serve_assigned(
+            store,
+            engine,
+            run_id=args.run_id,
+            registry=registry,
+            host=args.host,
+            port=args.port,
+        )
         return
     serve(
         store,

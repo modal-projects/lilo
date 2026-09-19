@@ -1,14 +1,20 @@
 import asyncio
 import importlib
 import json
+import subprocess
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 
+from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
+from lilo.control_plane.records import ModelRecord
 from lilo.errors import RecordNotFound
 from lilo.providers.local import InMemoryKeyValueStore
+from lilo.providers.modal import fft_pool
 from lilo.providers.modal.fft_pool import FFTPoolSpec
 from lilo.providers.modal.lora_pool import LoraPoolSpec
+from lilo.telemetry import otlp
 
 FULL_DEFINITION = "qwen3_5_9b_full_64k"
 LORA_DEFINITION = "qwen3_5_9b_base_miles_lora_2k"
@@ -194,9 +200,6 @@ def test_prepare_model_assets_validates_snapshot_before_commit(monkeypatch) -> N
 
 
 def test_ensure_pool_sizes_latest_pool_from_model_rollout_config(monkeypatch) -> None:
-    from lilo.control_plane.keys import model_key
-    from lilo.control_plane.records import ModelRecord
-
     modal_app = importlib.import_module("lilo.providers.modal.app")
     kv = InMemoryKeyValueStore()
     registry = InMemoryKeyValueStore()
@@ -294,9 +297,6 @@ def test_execute_sample_routes_lora_models_to_shared_pool(monkeypatch) -> None:
         return "https://gateway"
 
     exported_stats = {}
-
-    from contextlib import contextmanager
-    from lilo.telemetry import otlp
 
     @contextmanager
     def trace(task, stats):
@@ -476,9 +476,6 @@ def test_cleanup_redeploys_pool_touched_while_stopping(monkeypatch) -> None:
 
 
 def test_cleanup_stops_superseded_lora_pool(monkeypatch) -> None:
-    from lilo.control_plane.keys import model_key
-    from lilo.control_plane.records import ModelRecord
-
     modal_app = importlib.import_module("lilo.providers.modal.app")
     registry = InMemoryKeyValueStore()
     current = LoraPoolSpec(LORA_DEFINITION)
@@ -514,9 +511,6 @@ def test_cleanup_stops_superseded_lora_pool(monkeypatch) -> None:
 
 
 def test_cleaner_loses_models_on_removed_definitions(monkeypatch) -> None:
-    from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
-    from lilo.control_plane.records import ModelRecord
-
     modal_app = importlib.import_module("lilo.providers.modal.app")
     kv = InMemoryKeyValueStore()
     registry = InMemoryKeyValueStore()
@@ -663,10 +657,6 @@ def test_pool_cleanup_continues_after_failure_and_retries_entry(monkeypatch, cap
 
 
 def test_cleanup_removes_already_stopped_pool_from_registry(monkeypatch):
-    import subprocess
-
-    from lilo.providers.modal import fft_pool
-
     modal_app = importlib.import_module("lilo.providers.modal.app")
     registry = InMemoryKeyValueStore()
     spec = FFTPoolSpec("definition", "stopped", True, 0)

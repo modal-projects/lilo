@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 
 import modal
@@ -79,8 +80,6 @@ proxy_secret = modal.Secret.from_name(
     single_use_containers=True,
 )
 def qwen3_6_27b_full_64k(instance_id: str) -> None:
-    import json
-
     from huggingface_hub import snapshot_download
     from modal.config import config
 

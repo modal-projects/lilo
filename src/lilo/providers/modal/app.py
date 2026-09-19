@@ -9,6 +9,10 @@ from dataclasses import asdict
 import modal
 from stitch.pools.modal_flash import ModalFlashPool
 
+from lilo.control_plane import ControlPlane, create_control_plane_app
+from lilo.control_plane.keys import model_key, placement_key, trainer_demand_key
+from lilo.control_plane.records import ModelRecord
+from lilo.inference import sampling
 from lilo.providers.contracts import (
     Parameterization,
     SamplingTask,
@@ -66,6 +70,13 @@ from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
+from .trainer_reconciler import (
+    complete_reconcile,
+    pending_reconciliations,
+    reconcile_trainers,
+    release_reconcile_call,
+    request_reconcile,
+)
 
 APP_NAME = os.environ.get("LILO_APP_NAME", "lilo")
 ROUTING_REGION = "us-west"
@@ -239,16 +250,14 @@ async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
 )
 @modal.concurrent(max_inputs=128)
 async def execute_sample(task: dict) -> dict:
-    from lilo.telemetry.otlp import sample_trace
+    from lilo.telemetry import otlp
 
     stats: dict = {}
-    with sample_trace(task, stats):
+    with otlp.sample_trace(task, stats):
         return await _execute_sample(task, stats)
 
 
 async def _execute_sample(task: dict, stats: dict) -> dict:
-    from lilo.inference.sampling import sample_task
-
     definition_id = str(task["engine_definition_id"])
     parameterization = parameterization_for(definition_id)
     if parameterization not in {"full", "lora"}:
@@ -268,7 +277,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
             # is stable across redeployment of the same definition/revision.
             await _ready_lora_pool(spec)
 
-        return await sample_task(
+        return await sampling.sample_task(
             task,
             gateway,
             data_parallel_size=rollout_data_parallel_size,
@@ -288,7 +297,7 @@ async def _execute_sample(task: dict, stats: dict) -> dict:
         )
     )
     await _touch_fft_pool(spec)
-    return await sample_task(
+    return await sampling.sample_task(
         task,
         await pool_gateway(spec),
         data_parallel_size=rollout_data_parallel_size,
@@ -307,13 +316,6 @@ def _latest_pool(model) -> FFTPoolSpec:
         0,
         **(model.spec.get("rollout") or {}),
     )
-
-
-async def _model_record(kv, model_id: str):
-    from lilo.control_plane.keys import model_key
-    from lilo.control_plane.records import ModelRecord
-
-    return ModelRecord.model_validate(await kv.get(model_key(model_id)))
 
 
 def module_for(definition_id: str):
@@ -342,13 +344,6 @@ def trainer_autoscaling(definition_id: str) -> bool:
     retries=3,
 )
 async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
-    from .trainer_reconciler import (
-        complete_reconcile,
-        pending_reconciliations,
-        reconcile_trainers,
-        release_reconcile_call,
-    )
-
     if delay_seconds > 0:
         await asyncio.sleep(delay_seconds)
     call_id = modal.current_function_call_id()
@@ -395,7 +390,6 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
 async def kick_trainer_reconciler(definition_id: str) -> None:
     if parameterization_for(definition_id) is None:
         return
-    from .trainer_reconciler import request_reconcile
 
     async def spawn(delay_seconds: float) -> str:
         call = await trainer_reconciler.spawn.aio(delay_seconds)
@@ -411,8 +405,6 @@ async def _spawn_engine(definition_id: str, instance_id: str) -> str:
 
 
 def _plane():
-    from lilo.control_plane import ControlPlane
-
     kv = shared_kv()
     task_stores = ModalSessionKeyValueStores()
     engines = ModalEnginePlatform(kv, _spawn_engine)
@@ -459,7 +451,10 @@ def _plane():
             if session.model_id is None:
                 await prepare_model_assets.remote.aio(definition_id)
             if pool.latest:
-                pool = _latest_pool(await _model_record(kv, session.model_id))
+                model = ModelRecord.model_validate(
+                    await kv.get(model_key(session.model_id))
+                )
+                pool = _latest_pool(model)
             await ensure_fft_pool.remote.aio(pool.as_dict())
         else:
             await _touch_fft_pool(pool)
@@ -509,8 +504,6 @@ def _plane():
 @modal.concurrent(max_inputs=128)
 @modal.asgi_app(requires_proxy_auth=False)
 def server():
-    from lilo.control_plane import create_control_plane_app
-
     return create_control_plane_app(
         _plane(),
         DEFINITIONS,
@@ -520,9 +513,6 @@ def server():
 
 
 async def _lose_undefined_models() -> tuple[str, ...]:
-    from lilo.control_plane.keys import placement_key, trainer_demand_key
-    from lilo.control_plane.records import ModelRecord
-
     kv = shared_kv()
     lost = []
     for _, value in await kv.list_items("model:"):
@@ -536,8 +526,6 @@ async def _lose_undefined_models() -> tuple[str, ...]:
 
 
 async def _cleanup_fft_pools() -> tuple[str, ...]:
-    from lilo.control_plane.records import ModelRecord
-
     active_latest = {
         FFTPoolSpec(
             model.engine_definition_id,
@@ -586,8 +574,6 @@ async def _cleanup_fft_pools() -> tuple[str, ...]:
 
 
 async def _cleanup_lora_pools() -> tuple[str, ...]:
-    from lilo.control_plane.records import ModelRecord
-
     registry = shared_kv()
     active = {
         LoraPoolSpec(model.engine_definition_id).app_name
@@ -616,8 +602,6 @@ async def _cleanup_lora_pools() -> tuple[str, ...]:
 
 @app.function(image=image, env=TRAINER_DEPLOYMENT_ENV, schedule=SWEEP_PERIOD)
 def cleaner():
-    import asyncio
-
     async def run() -> None:
         plane = _plane()
         await plane.sweep_idle_sessions(SESSION_IDLE_TIMEOUT)

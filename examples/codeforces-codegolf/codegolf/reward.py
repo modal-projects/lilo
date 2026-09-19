@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 import re
 
+from tinker import types
+
 
 def extract_code(text: str, *, require_thinking_end: bool = False) -> str:
     # An unfinished thinking section is not a submitted solution.
@@ -89,8 +91,6 @@ def advantages(
 
 
 def datum(prompt, tokens, logprobs, advantage, sequence_weight=1.0):
-    from tinker import types
-
     if not prompt or not tokens or len(tokens) != len(logprobs):
         raise ValueError("Missing prompt/completion or misaligned sampling logprobs")
     prefix = len(prompt) - 1

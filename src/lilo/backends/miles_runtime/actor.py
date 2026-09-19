@@ -75,7 +75,6 @@ def _pad_local_shard(
 
 def _gather_tinker_logprobs_across_cp() -> None:
     """Reassemble full-response logprobs for Miles' Tinker loss path under CP>1."""
-
     original = logit_processors.get_log_probs_and_entropy
     if getattr(original, "__lilo_gathers_cp__", False):
         return
@@ -129,8 +128,7 @@ def _gather_tinker_logprobs_across_cp() -> None:
     get_log_probs_and_entropy.__lilo_gathers_cp__ = True
     logit_processors.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-    # Callers on the multi-LoRA path that bound the name at import time must
-    # be re-pointed. Miles' non-Tinker losses handle CP natively.
+    # Update modules that imported the original function by name.
     for module in (
         loss,
         tinker_losses,
@@ -141,10 +139,7 @@ def _gather_tinker_logprobs_across_cp() -> None:
         if getattr(module, "get_log_probs_and_entropy", None) is original:
             module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
-    # get_rollout_data slices rollout_log_probs/teacher_log_probs to the CP
-    # shard for the native (non-tinker) losses. The tinker loss path pairs
-    # them with full-response log_probs (gathered above) and full-length
-    # advantages/loss_weights, so the slice must be disabled on this path.
+    # Tinker losses use the full response tensors assembled above.
     original_slice = cp_utils.slice_log_prob_with_cp
     if getattr(original_slice, "__lilo_unslices_cp__", False):
         return
@@ -202,18 +197,21 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         return profiler.stop(output_dir, f"rank{dist.get_rank()}")
 
     def forward_backward(self, *args, **kwargs):
-        return self._profiled("forward_backward", *args, **kwargs)
+        with torch.profiler.record_function("lilo/forward_backward"):
+            result = super().forward_backward(*args, **kwargs)
+        self._log_peak_memory("forward_backward")
+        return result
 
     def optim_step(self, *args, **kwargs):
-        return self._profiled("optim_step", *args, **kwargs)
+        with torch.profiler.record_function("lilo/optim_step"):
+            result = super().optim_step(*args, **kwargs)
+        self._log_peak_memory("optim_step")
+        return result
 
     def forward_only(self, *args, **kwargs):
-        return self._profiled("forward_only", *args, **kwargs)
-
-    def _profiled(self, operation: str, *args, **kwargs):
-        with torch.profiler.record_function(f"lilo/{operation}"):
-            result = getattr(super(), operation)(*args, **kwargs)
-        self._log_peak_memory(operation)
+        with torch.profiler.record_function("lilo/forward_only"):
+            result = super().forward_only(*args, **kwargs)
+        self._log_peak_memory("forward_only")
         return result
 
     @staticmethod
@@ -251,9 +249,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
             )
 
     def save_slot_weights(self, slot: int, path: str) -> None:
-        self._save_slot_weights(slot, path)
-
-    def _save_slot_weights(self, slot: int, path: str) -> None:
         weights = checkpoint._slot_weights_sharded_state_dict(self.model, slot)
         sharded = {checkpoint._WEIGHTS_KEY: weights}
         checkpoint._canonicalize_slot_keys(sharded, slot)

@@ -717,18 +717,11 @@ class Engine:
             self._futures.pop(f"{model_id}:{oldest}", None)
             model.fingerprints.pop(oldest, None)
 
-    def _ready_lifecycle(
-        self,
-    ) -> Operation | _AcceptOperation | _UnloadOperation | None:
-        if self._lifecycle:
-            return self._lifecycle[0]
-
     def _ready_batch(
         self,
     ) -> tuple[Operation | _AcceptOperation | _UnloadOperation, ...] | None:
-        lifecycle = self._ready_lifecycle()
-        if lifecycle is not None:
-            return (lifecycle,)
+        if self._lifecycle:
+            return (self._lifecycle[0],)
         ready = []
         for model in self._models.values():
             if not model.ready.is_set() or model.unload is not None:

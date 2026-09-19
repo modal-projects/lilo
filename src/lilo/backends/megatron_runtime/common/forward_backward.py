@@ -7,6 +7,8 @@ import math
 from typing import Any
 
 import torch
+import torch.distributed as dist
+import torch.nn.functional as F
 from tinker import ForwardBackwardOutput, TensorData
 
 from lilo.telemetry import backend as telemetry
@@ -230,8 +232,6 @@ def pack_microbatches(
     pad_to_multiple: int,
     total_pad_to_multiple: int = 1,
 ) -> list[dict[str, Any]]:
-    import torch.nn.functional as F
-
     bins: list[tuple[int, list[dict[str, Any]]]] = []
     for batch in sorted(
         microbatches,
@@ -404,8 +404,12 @@ def _loss(
         elif loss_name == "dppo":
             threshold = batch["loss_config"].get("tv_threshold", 0.1)
             ratio = probability_ratio.detach()
-            divergence = (ratio * sampling_logprobs.exp() - sampling_logprobs.exp()).abs()
-            leaving = ((advantages > 0) & (ratio > 1)) | ((advantages < 0) & (ratio < 1))
+            divergence = (
+                ratio * sampling_logprobs.exp() - sampling_logprobs.exp()
+            ).abs()
+            leaving = ((advantages > 0) & (ratio > 1)) | (
+                (advantages < 0) & (ratio < 1)
+            )
             blocked = leaving & (divergence > threshold)
             objective = probability_ratio * advantages * (~blocked).to(logprobs.dtype)
         elif loss_name == "ppo":
@@ -627,7 +631,6 @@ def synchronize_collectors(
     output_collector,
     metric_collector,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, dict[str, float]]]:
-    import torch.distributed as dist
     from megatron.core import parallel_state
 
     if parallel_state.is_pipeline_last_stage(ignore_virtual=True):

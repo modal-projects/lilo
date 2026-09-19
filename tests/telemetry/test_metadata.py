@@ -1,6 +1,7 @@
 import asyncio
 
 from lilo.control_plane import ControlPlane
+from lilo.control_plane.keys import sampler_artifact_key
 from lilo.providers.local import InMemoryKeyValueStore, LocalEnginePlatform
 from lilo.telemetry.metadata import common_tags, experiment_tags
 from tests.control_plane.test_sampler_exports import (
@@ -60,9 +61,7 @@ def test_sampler_artifact_and_session_preserve_experiment_labels():
             model_path=artifact.model_path,
         )
         assert sampling.telemetry_tags == artifact.telemetry_tags
-        # Old records predate tagging. Adding labels must not change publication identity.
-        from lilo.control_plane.keys import sampler_artifact_key
-
+        # Adding labels must not change the identity of older publications.
         versioned_key = sampler_artifact_key(
             plane._latest_sampler_model_path(creation.model.model_id, 7)
         )

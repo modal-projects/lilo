@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import threading
 from contextlib import AsyncExitStack, asynccontextmanager
+
+import modal
 
 log = logging.getLogger(__name__)
 
@@ -93,10 +96,6 @@ class PinOwner:
 async def open_pinned_app(
     key, *, engine, name, image_id, registry_name, pool, proxy_secret
 ):
-    import hashlib
-
-    import modal
-
     from .scoped import register_sampler
 
     # SDK checkpoint-created models use IDs such as "<session>:train:1".

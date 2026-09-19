@@ -13,13 +13,15 @@ from contextvars import ContextVar
 from opentelemetry.context import Context
 from opentelemetry.trace import SpanKind, StatusCode, set_span_in_context
 
+from .metadata import METADATA_KEYS
+
 logger = logging.getLogger(__name__)
 _sample = ContextVar("lilo_otlp_sample", default=None)
 
 
 @functools.cache
 def provider():
-    """Use a private provider so embedding Lilo never reconfigures application tracing."""
+    """Create a private provider without changing application tracing."""
     if os.getenv("OTEL_SDK_DISABLED", "").lower() == "true" or not (
         os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
         or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -83,8 +85,6 @@ def sample_trace(task, stats):
         kind=SpanKind.SERVER,
         start_time=int(start * 1e9),
     )
-    from .metadata import METADATA_KEYS
-
     tags = {
         k: v
         for k, v in (task.get("telemetry_tags") or {}).items()

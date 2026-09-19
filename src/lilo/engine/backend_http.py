@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+import importlib
 import json
 import logging
+import os
+import sys
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
@@ -342,18 +347,12 @@ class HttpBackendClient:
 
 
 def main() -> None:
-    import asyncio
-    import importlib
-    import os
-    import sys
-
     reference, port = sys.argv[1], int(sys.argv[2])
     module_name, _, attr = reference.partition(":")
     executor = getattr(importlib.import_module(module_name), attr)()
     if int(os.environ.get("RANK", "0")) > 0:
         executor.run_follower_loop()
         return
-    import uvicorn
 
     app = create_backend_app(executor)
     try:

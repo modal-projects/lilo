@@ -62,7 +62,54 @@ class RunTelemetry:
 
     def observe(self, name, value):
         try:
-            self._observe(name, value)
+            identity = {"lilo.run_id": self.run_id}
+            if self.attempt_id:
+                identity["lilo.run_attempt_id"] = self.attempt_id
+            if name.startswith(("metrics/", "eval/")):
+                phase = "eval" if name.startswith("eval/") else "train"
+                values = {
+                    key: value.get(key)
+                    for key in (
+                        "step",
+                        "reward",
+                        "pass_rate",
+                        "passing_bytes",
+                        "completion_tokens",
+                        "sampled_entropy",
+                        "truncated",
+                        "samples",
+                        "seconds",
+                    )
+                }
+                values.update(value.get("pipeline", {}))
+                values["grad_norm"] = value.get("optimizer", {}).get("grad_norm:mean")
+                if self.meter:
+                    for key, number in values.items():
+                        if isinstance(number, (int, float)) and math.isfinite(number):
+                            if key not in self.gauges:
+                                self.gauges[key] = self.meter.create_gauge(
+                                    "codegolf." + key
+                                )
+                            self.gauges[key].set(
+                                number,
+                                {**identity, "phase": phase},
+                            )
+                return
+            if not name.startswith(("events/", "attempts/")) or not self.tracer:
+                return
+            kind = value.get("kind", "attempt")
+            attrs = dict(identity)
+            for key in ("step", "model_id", "recovery", "seconds"):
+                item = value.get(key)
+                if isinstance(item, (str, int, float)):
+                    attrs["codegolf." + key] = item
+            stamp = int(time.time() * 1e9)
+            span = self.tracer.start_span(
+                "codegolf." + kind,
+                attributes=attrs,
+                start_time=stamp,
+            )
+            span.end(end_time=stamp)
         except Exception:
             log.warning("Experiment telemetry export failed")
 
@@ -73,49 +120,3 @@ class RunTelemetry:
                     provider.shutdown()
                 except Exception:
                     log.warning("Experiment telemetry shutdown failed")
-
-    def _observe(self, name, value):
-        identity = {"lilo.run_id": self.run_id}
-        if self.attempt_id:
-            identity["lilo.run_attempt_id"] = self.attempt_id
-        if name.startswith(("metrics/", "eval/")):
-            phase = "eval" if name.startswith("eval/") else "train"
-            values = {
-                k: value.get(k)
-                for k in (
-                    "step",
-                    "reward",
-                    "pass_rate",
-                    "passing_bytes",
-                    "completion_tokens",
-                    "sampled_entropy",
-                    "truncated",
-                    "samples",
-                    "seconds",
-                )
-            }
-            values.update(value.get("pipeline", {}))
-            values["grad_norm"] = value.get("optimizer", {}).get("grad_norm:mean")
-            if self.meter:
-                for key, number in values.items():
-                    if isinstance(number, (int, float)) and math.isfinite(number):
-                        if key not in self.gauges:
-                            self.gauges[key] = self.meter.create_gauge(
-                                "codegolf." + key
-                            )
-                        self.gauges[key].set(number, {**identity, "phase": phase})
-            return
-        if not name.startswith(("events/", "attempts/")) or not self.tracer:
-            return
-        kind = value.get("kind", "attempt")
-        attrs = dict(identity)
-        for key in ("step", "model_id", "recovery", "seconds"):
-            v = value.get(key)
-            if isinstance(v, (str, int, float)):
-                attrs["codegolf." + key] = v
-        # Point events describe durable receipts, not invented operation durations.
-        stamp = int(time.time() * 1e9)
-        span = self.tracer.start_span(
-            "codegolf." + kind, attributes=attrs, start_time=stamp
-        )
-        span.end(end_time=stamp)

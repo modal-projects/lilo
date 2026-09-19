@@ -79,7 +79,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
     spec = {"config": dataclasses.asdict(cfg), "dataset_sha256": digest}
     await store.prepare(spec)
     all_problems = json.loads(data.read_text())["problems"]
-    semaphore = asyncio.Semaphore(getattr(cfg, "judge_concurrency", 16))
+    semaphore = asyncio.Semaphore(cfg.judge_concurrency)
 
     async def verify(code, problem):
         async with semaphore:
@@ -165,9 +165,9 @@ async def _train(root, data, app, cfg, commit, telemetry):
                             "role": "system",
                             "content": (
                                 THINKING_CODEGOLF_PROMPT
-                                if getattr(cfg, "enable_thinking", False)
+                                if cfg.enable_thinking
                                 else CODEGOLF_PROMPT
-                                if getattr(cfg, "explicit_codegolf_prompt", False)
+                                if cfg.explicit_codegolf_prompt
                                 else ORIGINAL_PROMPT
                             ),
                         },
@@ -176,7 +176,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     tokenize=True,
                     return_dict=False,
                     add_generation_prompt=True,
-                    enable_thinking=getattr(cfg, "enable_thinking", False),
+                    enable_thinking=cfg.enable_thinking,
                 )
 
                 async def sample():
@@ -204,7 +204,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                     text = tokenizer.decode(tokens, skip_special_tokens=True)  # noqa: B023
                     code = extract_code(
                         text,
-                        require_thinking_end=getattr(cfg, "enable_thinking", False),
+                        require_thinking_end=cfg.enable_thinking,
                     )
                     rows.append(
                         {
@@ -239,7 +239,10 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 await store.write_many(
                     {
                         **{
-                            f"rollouts/eval-{at:04d}/{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json": record
+                            (
+                                f"rollouts/eval-{at:04d}/"
+                                f"{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json"
+                            ): record
                             for record in records
                         },
                         f"eval/{at:04d}.json": {
@@ -262,7 +265,7 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 or step == store.read("lineage.json", {}).get("step")
             ) and store.read(f"eval/{step:04d}.json") is None:
                 await evaluate(step)
-            if getattr(cfg, "async_rollouts", False):
+            if cfg.async_rollouts:
 
                 async def produce(ticket, policy_step, sampler):
                     selected = random.Random(cfg.seed + ticket).sample(
@@ -313,7 +316,10 @@ async def _train(root, data, app, cfg, commit, telemetry):
                 persist_started = time.monotonic()
                 await store.write_many(
                     {
-                        f"rollouts/step-{next_step:04d}/{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json": record
+                        (
+                            f"rollouts/step-{next_step:04d}/"
+                            f"{hashlib.sha256(record['problem_id'].encode()).hexdigest()[:16]}.json"
+                        ): record
                         for record in records
                     }
                 )

@@ -1,4 +1,7 @@
 import asyncio
+import json
+import time
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -7,9 +10,11 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from lilo.engine import Engine
+from lilo.engine import Engine, FutureState, FutureStatus, OperationKind, backend_http
 from lilo.engine.http import HttpEngineClient, create_engine_app
-from lilo.telemetry import trainer
+from lilo.engine.operations import parse_operation_payload
+from lilo.telemetry import backend, trainer
+from tests.engine.test_server import forward_backward
 from tests.support import EchoExecutor
 
 
@@ -100,10 +105,6 @@ def test_state_one_hot_and_background_overlap(setup):
 
 
 def test_batch_links_all_commands_and_error_omits_payload(setup):
-    from types import SimpleNamespace
-
-    from lilo.engine import FutureState, FutureStatus, OperationKind
-
     telemetry, exporter, _ = setup
     ops = [
         SimpleNamespace(
@@ -114,8 +115,6 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
         )
         for m in ("a", "b")
     ]
-    from lilo.engine.operations import parse_operation_payload
-
     for index, op in enumerate(ops):
         telemetry.register_model(
             op.model_id, {"user_metadata": {"run_id": "run", "attempt_id": str(index)}}
@@ -141,10 +140,6 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
             },
         )
         telemetry.begin(op)
-    import time
-
-    from lilo.telemetry import backend
-
     backend.received.set(
         {
             "attributes": {
@@ -183,7 +178,7 @@ def test_batch_links_all_commands_and_error_omits_payload(setup):
     assert all("lilo.padded_tokens" not in s.attributes for s in roots)
     assert backend.received.get() is None
     assert sorted(s.attributes["lilo.input_tokens"] for s in roots) == [3, 8]
-    assert {l.context.span_id for l in batch.links} == {
+    assert {link.context.span_id for link in batch.links} == {
         s.context.span_id for s in roots
     }
     assert all("PRIVATE" not in str(s.attributes) and not s.events for s in spans)
@@ -262,8 +257,6 @@ def test_unload_ends_buffered_command_without_retaining_span(setup):
 
 
 def test_workload_counts_and_independent_execution_for_one_command(setup):
-    from tests.engine.test_server import forward_backward
-
     telemetry, exporter, _ = setup
 
     async def run():
@@ -328,10 +321,6 @@ def test_retried_http_submission_joins_original_completed_root(setup):
 
 
 def test_engine_combines_commands_once_with_aggregate_workload(setup):
-    import json
-
-    from lilo.engine import OperationKind
-
     telemetry, exporter, _ = setup
 
     async def run():
@@ -456,9 +445,6 @@ def test_only_scoped_metrics_promote_the_deployment_run_resource(monkeypatch):
 def test_backend_measurements_cross_http_without_changing_results(
     setup, monkeypatch, tmp_path
 ):
-    from lilo.engine import backend_http
-    from lilo.telemetry import backend
-
     telemetry, exporter, _ = setup
     monkeypatch.setattr(backend_http, "provider", trainer.provider)
 

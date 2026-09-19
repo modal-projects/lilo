@@ -6,19 +6,6 @@ from typing import Any
 
 MILES_REF = "main"
 
-_PEFT_TARGETS = {
-    "linear_qkv": ("q_proj", "k_proj", "v_proj"),
-    "linear_q": ("q_proj",),
-    "linear_k": ("k_proj",),
-    "linear_v": ("v_proj",),
-    "linear_proj": ("o_proj",),
-    "linear_fc1": ("gate_proj", "up_proj"),
-    "linear_fc1_gate": ("gate_proj",),
-    "linear_fc1_up": ("up_proj",),
-    "linear_fc2": ("down_proj",),
-    "output_layer": ("lm_head",),
-}
-
 
 @dataclass(frozen=True, slots=True)
 class MilesBackendConfig:
@@ -54,16 +41,6 @@ class MilesBackendConfig:
         return self.world_size // (
             self.tensor_model_parallel_size * self.context_parallel_size
         )
-
-    @property
-    def peft_target_modules(self) -> tuple[str, ...]:
-        targets: list[str] = []
-        for target in self.target_modules:
-            leaf = target.rsplit(".", 1)[-1]
-            for name in _PEFT_TARGETS.get(leaf, (leaf,)):
-                if name not in targets:
-                    targets.append(name)
-        return tuple(targets)
 
     def validate(self) -> None:
         positive = {
