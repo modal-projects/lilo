@@ -476,9 +476,9 @@ def _plane():
             for instance in await engines.list_instances()
             if instance.definition_id == definition_id and not instance.terminal
         ]
-        return any(instance.state == "starting" for instance in instances) or len(
-            instances
-        ) < int(maximum)
+        return any(
+            instance.state in {"starting", "draining"} for instance in instances
+        ) or len(instances) < int(maximum)
 
     return ControlPlane(
         kv,
