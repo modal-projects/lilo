@@ -13,14 +13,14 @@ from miles.backends.megatron_utils import actor as megatron_actor
 from miles.backends.megatron_utils import model as megatron_model
 from miles.backends.megatron_utils.lora import checkpoint
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
-from miles.backends.training_utils import cp_utils, data, loss, mm_data
-from miles.backends.training_utils.checkpoint_io import write_checkpoint_dir
+from miles.backends.training_utils import checkpoint_io, cp_utils, data, loss, mm_data
 from miles.backends.training_utils.loss_hub import (
     logit_processors,
     math_utils,
     tinker_losses,
 )
 from miles.backends.training_utils.parallel import get_parallel_state
+from miles.backends.training_utils.weight_update import snapshot_publisher
 
 from .profiling import RankProfiler, TorchProfileConfig
 
@@ -168,6 +168,35 @@ def _gather_tinker_logprobs_across_cp() -> None:
 _gather_tinker_logprobs_across_cp()
 
 
+def _publish_checkpoints_across_nodes() -> None:
+    """Let miles' rank-0 checkpoint publish see the shards every node wrote.
+
+    ``write_checkpoint_dir`` writes shards into a temporary directory that rank
+    0 then renames into place. Each Modal node writes into its own uncommitted
+    view of the checkpoint volume, so that rename captures only rank 0's node
+    and the published checkpoint is missing every other node's shards.
+    Committing all nodes and refreshing rank 0 before the rename publishes the
+    complete shard set.
+    """
+
+    original = checkpoint_io.write_checkpoint_dir
+    if getattr(original, "__lilo_syncs_volume__", False):
+        return
+
+    def write_checkpoint_dir(path, write_shards, *args, **kwargs):
+        def write_shards_then_sync(directory):
+            write_shards(directory)
+            _sync_checkpoint_volume("commit")
+
+        return original(path, write_shards_then_sync, *args, **kwargs)
+
+    write_checkpoint_dir.__lilo_syncs_volume__ = True
+    checkpoint_io.write_checkpoint_dir = write_checkpoint_dir
+    for module in (checkpoint, snapshot_publisher):
+        if getattr(module, "write_checkpoint_dir", None) is original:
+            module.write_checkpoint_dir = write_checkpoint_dir
+
+
 def _node_identity() -> str:
     """Identify the container a rank runs in.
 
@@ -206,6 +235,9 @@ def _volume_action(name: str, action: str) -> None:
         volume.commit()
     else:
         volume.reload()
+
+
+_publish_checkpoints_across_nodes()
 
 
 class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
@@ -317,6 +349,6 @@ class LiloMilesTrainRayActor(MultiLoRATrainRayActor):
         weights = checkpoint._slot_weights_sharded_state_dict(self.model, slot)
         sharded = {checkpoint._WEIGHTS_KEY: weights}
         checkpoint._canonicalize_slot_keys(sharded, slot)
-        write_checkpoint_dir(
+        checkpoint_io.write_checkpoint_dir(
             path, lambda temporary: dist_checkpointing.save(sharded, str(temporary))
         )

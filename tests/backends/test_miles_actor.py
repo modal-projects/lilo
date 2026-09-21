@@ -37,9 +37,13 @@ def _load_actor(monkeypatch):
     training_data = _module(monkeypatch, "miles.backends.training_utils.data")
     training_loss = _module(monkeypatch, "miles.backends.training_utils.loss")
     training_mm_data = _module(monkeypatch, "miles.backends.training_utils.mm_data")
-    _module(
-        monkeypatch, "miles.backends.training_utils.checkpoint_io"
-    ).write_checkpoint_dir = lambda *args: None
+    checkpoint_io = _module(monkeypatch, "miles.backends.training_utils.checkpoint_io")
+    checkpoint_io.write_checkpoint_dir = lambda *args, **kwargs: None
+    snapshot_publisher = _module(
+        monkeypatch, "miles.backends.training_utils.weight_update.snapshot_publisher"
+    )
+    snapshot_publisher.write_checkpoint_dir = checkpoint_io.write_checkpoint_dir
+    checkpoint.write_checkpoint_dir = checkpoint_io.write_checkpoint_dir
     loss_hub = _module(monkeypatch, "miles.backends.training_utils.loss_hub")
     loss_hub.logit_processors = types.SimpleNamespace(
         get_log_probs_and_entropy=lambda *args, **kwargs: None
@@ -59,6 +63,7 @@ def _load_actor(monkeypatch):
     ]
     sys.modules["miles.backends.megatron_utils.lora"].checkpoint = checkpoint
     sys.modules["miles.backends.megatron_utils.lora"].actor = lora_actor
+    sys.modules["miles.backends.training_utils"].checkpoint_io = checkpoint_io
     sys.modules["miles.backends.training_utils"].cp_utils = training_cp_utils
     sys.modules["miles.backends.training_utils"].data = training_data
     sys.modules["miles.backends.training_utils"].loss = training_loss
@@ -76,6 +81,31 @@ def _load_actor(monkeypatch):
     actor = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(actor)
     return actor
+
+
+def test_shards_are_committed_before_rank_zero_publishes(monkeypatch) -> None:
+    """Rank 0 renames the shard directory, so it must first see every node's shards."""
+    actor = _load_actor(monkeypatch)
+    events: list[str] = []
+
+    def original(path, write_shards, *args, **kwargs):
+        write_shards(path)
+        events.append("publish")
+
+    actor.checkpoint_io.write_checkpoint_dir = original
+    actor.checkpoint.write_checkpoint_dir = original
+    actor.snapshot_publisher.write_checkpoint_dir = original
+    actor._publish_checkpoints_across_nodes()
+    monkeypatch.setattr(
+        actor, "_sync_checkpoint_volume", lambda action: events.append(action)
+    )
+
+    for module in (actor.checkpoint_io, actor.checkpoint, actor.snapshot_publisher):
+        module.write_checkpoint_dir(
+            "/checkpoints/000000", lambda _: events.append("write")
+        )
+
+    assert events == ["write", "commit", "publish"] * 3
 
 
 def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> None:
