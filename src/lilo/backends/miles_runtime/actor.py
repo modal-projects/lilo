@@ -168,6 +168,16 @@ def _gather_tinker_logprobs_across_cp() -> None:
 _gather_tinker_logprobs_across_cp()
 
 
+def _node_identity() -> str:
+    """Identify the container a rank runs in.
+
+    Modal cluster containers all report ``socket.gethostname() == "modal"``, so
+    the hostname cannot separate nodes; ``MODAL_TASK_ID`` is per container and
+    is inherited by the Ray workers it spawns.
+    """
+    return os.environ.get("MODAL_TASK_ID") or socket.gethostname()
+
+
 def _sync_checkpoint_volume(action: str) -> None:
     """Commit checkpoint shards across nodes and refresh the committed view."""
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
@@ -179,7 +189,7 @@ def _sync_checkpoint_volume(action: str) -> None:
 
     dist.barrier()
     hosts: list[str] = [""] * dist.get_world_size()
-    dist.all_gather_object(hosts, socket.gethostname())
+    dist.all_gather_object(hosts, _node_identity())
     representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
     if representative:
         _volume_action(name, action)
