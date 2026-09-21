@@ -29,6 +29,9 @@ training loop with sandbox judging and checkpoints.
 
 ## LoRA training runs
 
+Supported Tinker SDK versions: `>=0.24.1,<0.26`. SDK 0.25 requires the updated
+Lilo server to be deployed because it requires protobuf training and sampling responses.
+
 The traditional Tinker path uses LoRA training, which is implemented via a multi-tenant Miles/Megatron backend in our system. Our LoRA path *is* Tinker-compatible out of the box on any of our supported models: 
 
 ```python

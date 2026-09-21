@@ -118,7 +118,7 @@ class TinkerStubExecutor(EchoExecutor):
         kind: OperationKind,
         payload: OperationPayload,
     ) -> object:
-        if kind == OperationKind.FORWARD_BACKWARD:
+        if kind in {OperationKind.FORWARD, OperationKind.FORWARD_BACKWARD}:
             assert isinstance(payload, ForwardBackwardInput)
             return {
                 "loss_fn_output_type": "scalar",
