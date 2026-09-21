@@ -1,10 +1,12 @@
 # Proposed YAML deployments for Lilo
 
-Status: design only. None of the YAML fields, CLI commands, URL layouts, or new Python APIs below are implemented by this document. It does not change existing deployments. Inspected Lilo main at `67f21ee` and upstream Miles at `12754e9507e64d5e537288da17793246e913c525` on September 21, 2026.
+Status: design only. None of the YAML fields, CLI commands, routing extensions, or new Python APIs below are implemented by this document. It does not change existing deployments. Inspected Lilo main at `67f21ee` and upstream Miles at `12754e9507e64d5e537288da17793246e913c525` on September 21, 2026.
 
 ## Decision
 
 Use one declarative specification per deployment. It identifies a real base model, training mode, context limit, trainer resources and backend options, and inference resources and backend options. The same specification builds shared and scoped deployments. Lilo ships editable presets for tested model/context combinations. A user-provided specification is sufficient to add a model; no model-specific Lilo Python module, central import, or catalog edit is required.
+
+All applied deployments register behind one model-agnostic Tinker frontend. Its URL selects the service, while `base_model` selects the model. The routing table is generated from applied YAML specifications, without a separate model-to-file map.
 
 A running deployment necessarily has a concrete configuration for a concrete model. It does not follow that Lilo must ship a configuration for every possible model. Templates reduce duplication, and the user selects which deployments to run.
 
@@ -36,7 +38,11 @@ model:
   parameterization: lora
   max_context_length: 16384
 
+routing:
+  default: true                      # Default for this model and training mode.
+
 deployment:
+  frontend: lilo-dev                 # Register with this shared frontend.
   mode: shared                       # Or scoped, tied to lilo.run lifetime.
   modal:
     environment: dev
@@ -144,24 +150,36 @@ A normalized `ResolvedDeploymentSpec` contains the pinned model revision, render
 
 ## Routing from Tinker's base_model
 
-The primary workflow uses the URL returned for that deployment:
+The service URL identifies the shared Tinker frontend, not a model or a deployment. A single ServiceClient can create training clients for different configured models:
 
 ```python
-service = tinker.ServiceClient(base_url=deployment_url, api_key=api_key)
+service = tinker.ServiceClient(base_url=lilo_url, api_key=api_key)
 training = service.create_lora_training_client(
     base_model="Qwen/Qwen3.5-9B-Base", rank=32,
 )
+other_training = service.create_lora_training_client(
+    base_model="organization/model-b", rank=16,
+)
 ```
 
-The URL selects `qwen35-9b-lora-16k`; `base_model` confirms the real model. Another URL can expose the same model with 64K context. This needs no SDK change and no synthetic Hugging Face model IDs. These URLs can be paths on one gateway, for example `/deployments/qwen35-9b-lora-16k`, mounted so SDK `/api/v1/...` requests work below that prefix; they need not each be a separate CPU service. Routing remains authenticated.
+Applying a YAML registers its deployment name, canonical `model.id`, parameterization, context limit, routing preference and generation with the frontend selected by `deployment.frontend`. Lilo generates the index `(canonical_model_id, parameterization) -> deployed configurations`. No hand-maintained Python catalog, separate model-to-YAML map, model-specific URL, or model-specific API path is required. Deployment names are namespaced by frontend.
 
-For an optional shared root URL, register deployments automatically on apply. Generate the index `(canonical_model_id, parameterization) -> deployed configurations`. One candidate routes directly. Multiple candidates require an explicit default for that model/mode; applying a second default is an error. Without a default, fail with the available deployment URLs rather than choosing the shortest context, newest deployment, or lowest GPU price.
+Route each creation request as follows:
 
-A shared gateway can configure defaults using deployment names. This is the only manual routing choice required for ambiguous variants. It is not a model allowlist and never requires a Python edit. The canonical model ID is read from each deployment spec, not repeated in that defaults file.
+1. Look up `base_model` and the requested training mode in the frontend's deployment registry.
+2. With one eligible deployment, select it automatically. With multiple eligible deployments, select the one with `routing.default: true`.
+3. Without an explicit default for an ambiguous model/mode, return an actionable ambiguity error listing deployment names and context limits. Unknown model IDs return an unconfigured-model error. Do not guess from rank, prompt length, context length, GPU price or registration order.
+4. Bind the created model ID to that deployment generation. All later training operations, futures and training-derived sampling use that binding, regardless of subsequent default changes.
 
-Initially, prefer deployment URLs over names such as `Qwen/model@64k` in `base_model`. Tinker and surrounding libraries can use model names for tokenizers and metadata. If aliases are later added, resolve them at the gateway and consistently return the canonical model in model/tokenizer metadata.
+`routing.default` defaults to false. At most one applied deployment per model/mode may declare true. Validate and publish registry changes atomically so concurrent applies cannot introduce two defaults. A default switch is an explicit registry transaction that clears the previous preference and sets the new one. Availability or a full trainer does not silently reroute clients to another configuration; capacity management operates within the selected deployment.
 
-At a deployment URL, capabilities reports its model and context length. The shared root advertises only unambiguous/default routes; a separate Lilo deployment-list endpoint reports every variant, its status and URL. Sampling-only requests follow the same selection rules. Training-derived sampling clients and checkpoint restores inherit the selected deployment generation; they must not be rerouted through the current default mid-run.
+This is the only routing preference users need for multiple variants. For example, both 16K and 64K YAMLs can contain `model.id: Qwen/Qwen3.5-9B-Base`; marking the 16K deployment as default makes ordinary Tinker calls select it. Deploying both does not change the frontend URL.
+
+An optional Lilo client extension can later add an explicit deployment selector to creation requests while retaining the same frontend URL and real `base_model`. The server must check that the selected deployment matches the requested model and training mode. Ordinary Tinker clients require no change and use the configured default. Do not introduce `Qwen/model@64k` names: model names can also be used for tokenizer lookup and metadata.
+
+The Tinker capabilities endpoint advertises canonical model names and the effective context limit of the selected default. If LoRA and FFT defaults for one model have different limits, advertise the minimum in a model-level field that cannot represent separate modes; expose the exact limits in Lilo's deployment-list endpoint. Models with ambiguous routing are not advertised as unambiguously creatable. The Lilo endpoint lists every configuration, generation, mode, context limit, default status and readiness state, without model-specific service URLs.
+
+Sampling-only creation also resolves `base_model` through the registry. With no training mode in that request, use the default configurations that expose sampling: select a unique one, or require an explicit `routing.sampling_default: true` across modes when more than one remains. This optional boolean defaults to false and is unique per canonical model in the frontend. Do not pick LoRA versus FFT arbitrarily. Training-derived sampling clients and checkpoint restores inherit their recorded configuration and compatibility requirements; they must not be rerouted through the current default mid-run.
 
 ## Backend option passthrough
 
@@ -190,7 +208,7 @@ The current `_PEFT_TARGETS` mapping is not a universal model compatibility solut
 
 ## Provisioning and validation
 
-`lilo deploy` compiles the YAML into generic trainer and sampler definitions, deploys/registers them, and returns the URL and generation ID. Model-specific Python source is not generated or imported. Modal resource declarations are built during application construction, when GPU and image choices are known. Passing a new `gpu` value to an already-deployed function invocation cannot change its allocation.
+`lilo deploy` compiles the YAML into generic trainer and sampler definitions, deploys/registers them, and returns the shared frontend URL, deployment name and generation ID. Creating or applying another model deployment leaves the frontend URL unchanged. Model-specific Python source is not generated or imported. Modal resource declarations are built during application construction, when GPU and image choices are known. Passing a new `gpu` value to an already-deployed function invocation cannot change its allocation.
 
 Use dedicated generated function/app identities per deployment generation. The current single-use trainer container behavior stays intact. A serving container is permanently associated with one resolved base/model configuration; a warm container cannot pick up another model because a registry pointer changed. A finite set of generic resource pools could be an optimization later, but is unnecessary for this design.
 
@@ -237,10 +255,10 @@ Multi-node, alternate trainer backends, multimodal training and different weight
 
 1. Introduce schema/resolver and a normalized specification. Translate existing definitions into presets with identical values, including warm minima, adapter targets and historical GPU layouts. Snapshot-test resolved settings.
 2. Introduce a deployment registry and generic builders. Keep old definition IDs as compatibility aliases while migrating references. Remove runtime Python-module imports and source-file hashing from pool resolution.
-3. Add CLI validate/resolve/deploy and deployment-specific URL routing. Implement explicit shared-gateway defaults and test ambiguity. Keep the ordinary Tinker call unchanged.
+3. Add CLI validate/resolve/deploy and shared-frontend routing generated from the deployment registry. Implement explicit defaults, atomic default switches, sampling-only selection and ambiguity errors. Keep the ordinary Tinker call and frontend URL unchanged across models.
 4. Add native backend parser adapters, managed-option collision checks, image-based preflight, and durable startup failure reporting. Replace the deleted-module cleanup assumption before allowing dynamic entries.
 5. Add startup compatibility checks, generation-aware update/drain behavior, and shared/scoped parity. Remove the old hand-maintained imports/catalog after migration coverage passes.
 
-Required tests: preset parity; merge/list/false override semantics; unknown options and protected aliases; backend parser errors; two contexts for one model; base versus instruct model IDs; sampling-only requests; tokenizer metadata; checkpoint restore after default changes; simultaneous cold creates; interrupted provisioning; failed trainer/sampler initialization; old-client draining; idle teardown and scoped owner loss. Run real GPU smoke tests on an existing dense LoRA preset and at least one backend-supported model absent from Lilo's old catalog, plus FFT and a supported MoE configuration before claiming those migrations complete.
+Required tests: preset parity; merge/list/false override semantics; unknown options and protected aliases; backend parser errors; one ServiceClient creating clients for multiple models; two contexts for one model; concurrent default changes; existing-client pinning after default changes; base versus instruct model IDs; sampling-only requests with LoRA/FFT ambiguity; tokenizer metadata; checkpoint restore after default changes; simultaneous cold creates; interrupted provisioning; failed trainer/sampler initialization; old-client draining; idle teardown and scoped owner loss. Run real GPU smoke tests on an existing dense LoRA preset and at least one backend-supported model absent from Lilo's old catalog, plus FFT and a supported MoE configuration before claiming those migrations complete.
 
 Success means a user can copy a YAML, set a new supported model and appropriate backend/hardware options, deploy it, and use an unchanged Tinker script. No edits to Lilo's Python catalog are required. Failures identify the exact unsupported setting or runtime operation instead of reporting merely that the model name is missing.
