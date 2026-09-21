@@ -165,28 +165,13 @@ def create_control_plane_app(
         definition for definition in all_definitions if definition.CATALOG_VISIBLE
     )
 
-    def definition_for(
-        model_name: str,
-        parameterization: Parameterization,
-    ) -> str | None:
-        explicit = [
-            d
-            for d in all_definitions
-            if d.DEFINITION_ID == model_name and d.PARAMETERIZATION == parameterization
-        ]
-        if explicit:
-            return explicit[0].DEFINITION_ID
-        matches = [
-            definition.DEFINITION_ID
-            for definition in definitions
-            if definition.MODEL_NAME == model_name
-            and definition.PARAMETERIZATION == parameterization
-        ]
-        if len(matches) > 1:
-            raise ValueError(
-                f"duplicate {parameterization} definition for {model_name}"
-            )
-        return matches[0] if matches else None
+    from .deployments import DeploymentRoutes
+
+    routes = DeploymentRoutes(all_definitions)
+
+    def definition_for(model_name, parameterization):
+        selected = routes.select(model_name, parameterization)
+        return selected.DEFINITION_ID if selected else None
 
     def supports_model(model_name: str) -> bool:
         return any(
@@ -283,20 +268,23 @@ def create_control_plane_app(
 
     @app.get("/api/v1/get_server_capabilities")
     async def get_server_capabilities() -> dict[str, object]:
+        return {"supported_models": routes.capabilities()}
+
+    @app.get("/api/v1/lilo/deployments")
+    async def list_deployments():
         return {
-            "supported_models": [
+            "deployments": [
                 {
-                    "model_name": name,
-                    "max_context_length": min(
-                        definition.MAX_CONTEXT_LENGTH
-                        for definition in definitions
-                        if definition.MODEL_NAME == name
-                    ),
+                    "name": getattr(d, "DEPLOYMENT_NAME", d.DEFINITION_ID),
+                    "generation": d.DEFINITION_ID,
+                    "base_model": d.MODEL_NAME,
+                    "parameterization": d.PARAMETERIZATION,
+                    "max_context_length": d.MAX_CONTEXT_LENGTH,
+                    "default": getattr(d, "ROUTING_DEFAULT", False),
+                    "sampling_default": getattr(d, "SAMPLING_DEFAULT", False),
                 }
-                for name in dict.fromkeys(
-                    definition.MODEL_NAME for definition in definitions
-                )
-            ],
+                for d in definitions
+            ]
         }
 
     @app.post("/api/v1/client/config")
@@ -395,12 +383,8 @@ def create_control_plane_app(
                 status_code=400,
                 detail="base_model or model_path is required",
             )
-        definition_id = (
-            definition_for(body.base_model, "full")
-            or definition_for(body.base_model, "lora")
-            if body.base_model
-            else None
-        )
+        selected = routes.sampling(body.base_model) if body.base_model else None
+        definition_id = selected.DEFINITION_ID if selected else None
         if body.model_path is None and definition_id is None:
             raise HTTPException(
                 status_code=400,

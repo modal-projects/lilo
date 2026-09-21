@@ -903,3 +903,28 @@ def test_fp32_lm_head_upcasts_output_projection() -> None:
     assert calls[0]["sequence_parallel"] is True
     assert model.output_layer.weight.grad is not None
     assert not hasattr(model.decoder, "_forward_impl")
+
+
+def test_native_resume_rejects_different_or_unknown_base_revision(
+    tmp_path, monkeypatch
+):
+    config = EngineModelConfig(hf_checkpoint="/model")
+    monkeypatch.setenv("LILO_BASE_MODEL_REVISION", "a" * 40)
+    metadata = fft_checkpoint.create_fft_checkpoint_metadata(
+        config,
+        checkpoint_id="snapshot",
+        base_model=BASE_MODEL,
+        include_optimizer=True,
+        world_size=1,
+    )
+    assert metadata.base_model_revision == "a" * 40
+    for revision in ("b" * 40, None):
+        saved = metadata.to_dict()
+        saved["base_model_revision"] = revision
+        (tmp_path / fft_checkpoint.CHECKPOINT_METADATA_FILENAME).write_text(
+            json.dumps(saved)
+        )
+        with pytest.raises(ValueError, match="base_model_revision"):
+            fft_checkpoint.load_fft_training_checkpoint(
+                str(tmp_path), config, base_model=BASE_MODEL, world_size=1
+            )

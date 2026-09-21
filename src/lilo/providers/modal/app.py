@@ -20,21 +20,6 @@ from .checkpoint_storage import (
     ModalCheckpointStorage,
     checkpoint_volume,
 )
-from .definitions import (
-    qwen3_5_4b_full_64k,
-    qwen3_5_9b_base_miles_lora_2k,
-    qwen3_5_9b_base_miles_lora_16k,
-    qwen3_5_9b_base_miles_lora_16k_single,
-    qwen3_5_9b_full_64k,
-    qwen3_5_9b_miles_lora_16k,
-    qwen3_5_9b_miles_lora_16k_dp2,
-    qwen3_5_35b_a3b_full_64k,
-    qwen3_6_27b_full_64k,
-    qwen3_6_35b_a3b_full_64k,
-    qwen3_8_27b_miles_lora_16k,
-    qwen3_8_27b_miles_lora_64k,
-    qwen3_8_27b_miles_lora_128k,
-)
 from .deployment import (
     trainer_deployment_env,
     trainer_max_containers,
@@ -47,7 +32,7 @@ from .fft_pool import (
     proxy_auth_headers,
     stop_pool,
 )
-from .image_dependencies import STITCH_PACKAGE
+from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
 from .kv import (
     ModalSessionKeyValueStores,
     fft_pool_kv,
@@ -66,6 +51,12 @@ from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
+from .yaml_apps import (
+    MANIFEST_ENV,
+    definition_from_spec,
+    frontend_settings,
+    manifest_from_env,
+)
 
 APP_NAME = os.environ.get("LILO_APP_NAME", "lilo")
 ROUTING_REGION = "us-west"
@@ -81,23 +72,58 @@ _pool_touches: dict[str, float] = {}
 _lora_pool_gateways: dict[str, tuple[float, str]] = {}
 _lora_pool_checks: dict[str, asyncio.Lock] = {}
 
-DEFINITIONS = (
-    qwen3_5_4b_full_64k,
-    qwen3_5_9b_full_64k,
-    qwen3_5_9b_base_miles_lora_2k,
-    qwen3_5_9b_base_miles_lora_16k,
-    qwen3_5_9b_base_miles_lora_16k_single,
-    qwen3_5_9b_miles_lora_16k,
-    qwen3_5_9b_miles_lora_16k_dp2,
-    qwen3_5_35b_a3b_full_64k,
-    qwen3_6_27b_full_64k,
-    qwen3_6_35b_a3b_full_64k,
-    qwen3_8_27b_miles_lora_16k,
-    qwen3_8_27b_miles_lora_64k,
-    qwen3_8_27b_miles_lora_128k,
-)
+
+YAML_SETTINGS = frontend_settings()
+if YAML_SETTINGS is not None:
+    APP_NAME = YAML_SETTINGS.deployment.frontend
+    ROUTING_REGION = YAML_SETTINGS.deployment.modal.region
+    SESSION_IDLE_TIMEOUT = YAML_SETTINGS.lifecycle.session_idle_timeout_s
+    FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = (
+        YAML_SETTINGS.lifecycle.pool_idle_timeout_s
+    )
+    SWEEP_PERIOD = modal.Period(seconds=YAML_SETTINGS.lifecycle.sweep_interval_s)
+    CHECKPOINT_VOLUME_NAME = YAML_SETTINGS.deployment.storage.checkpoints
+    checkpoint_volume = modal.Volume.from_name(
+        CHECKPOINT_VOLUME_NAME, create_if_missing=True, version=2
+    )
+    DEFINITIONS = tuple(definition_from_spec(row) for row in manifest_from_env())
+else:
+    from .definitions import (
+        qwen3_5_4b_full_64k,
+        qwen3_5_9b_base_miles_lora_2k,
+        qwen3_5_9b_base_miles_lora_16k,
+        qwen3_5_9b_base_miles_lora_16k_single,
+        qwen3_5_9b_full_64k,
+        qwen3_5_9b_miles_lora_16k,
+        qwen3_5_9b_miles_lora_16k_dp2,
+        qwen3_5_35b_a3b_full_64k,
+        qwen3_6_27b_full_64k,
+        qwen3_6_35b_a3b_full_64k,
+        qwen3_8_27b_miles_lora_16k,
+        qwen3_8_27b_miles_lora_64k,
+        qwen3_8_27b_miles_lora_128k,
+    )
+
+    DEFINITIONS = (
+        qwen3_5_4b_full_64k,
+        qwen3_5_9b_full_64k,
+        qwen3_5_9b_base_miles_lora_2k,
+        qwen3_5_9b_base_miles_lora_16k,
+        qwen3_5_9b_base_miles_lora_16k_single,
+        qwen3_5_9b_miles_lora_16k,
+        qwen3_5_9b_miles_lora_16k_dp2,
+        qwen3_5_35b_a3b_full_64k,
+        qwen3_6_27b_full_64k,
+        qwen3_6_35b_a3b_full_64k,
+        qwen3_8_27b_miles_lora_16k,
+        qwen3_8_27b_miles_lora_64k,
+        qwen3_8_27b_miles_lora_128k,
+    )
 TRAINER_MAX_CONTAINERS = trainer_max_containers()
 TRAINER_DEPLOYMENT_ENV = trainer_deployment_env()
+if YAML_SETTINGS is not None:
+    TRAINER_DEPLOYMENT_ENV[MANIFEST_ENV] = os.environ[MANIFEST_ENV]
+    TRAINER_DEPLOYMENT_ENV["LILO_APP_NAME"] = APP_NAME
 app = modal.App(APP_NAME)
 for definition in DEFINITIONS:
     app.include(definition.app)
@@ -124,13 +150,23 @@ async def _delete_checkpoint(uri: str) -> None:
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .apt_install("git")
-    .pip_install_from_pyproject("pyproject.toml")
+    .pip_install(*CORE_PACKAGES, TINKER_PACKAGE)
     .pip_install(STITCH_PACKAGE, "huggingface-hub")
     .add_local_python_source("lilo")
+    .env(TRAINER_DEPLOYMENT_ENV)
 )
-model_assets = modal.Volume.from_name("lilo-model-assets", create_if_missing=True)
+model_assets = modal.Volume.from_name(
+    YAML_SETTINGS.deployment.storage.assets if YAML_SETTINGS else "lilo-model-assets",
+    create_if_missing=True,
+)
+API_SECRET_NAME = YAML_SETTINGS.deployment.secrets.api if YAML_SETTINGS else "lilo-api"
+HF_SECRET_NAME = (
+    YAML_SETTINGS.deployment.secrets.huggingface
+    if YAML_SETTINGS
+    else "huggingface-secret"
+)
 proxy_secret = modal.Secret.from_name(
-    "lilo-proxy",
+    YAML_SETTINGS.deployment.secrets.sampler_proxy if YAML_SETTINGS else "lilo-proxy",
     required_keys=["MODAL_PROXY_TOKEN_ID", "MODAL_PROXY_TOKEN_SECRET"],
 )
 
@@ -138,7 +174,7 @@ proxy_secret = modal.Secret.from_name(
 @app.function(
     image=image,
     volumes={MODEL_ASSET_ROOT: model_assets},
-    secrets=[modal.Secret.from_name("huggingface-secret")],
+    secrets=[modal.Secret.from_name(HF_SECRET_NAME)] if HF_SECRET_NAME else [],
     timeout=4 * 60 * 60,
     max_containers=1,
     retries=2,
@@ -153,7 +189,10 @@ def prepare_model_assets(definition_id: str) -> None:
         or checkpoint == MODEL_ASSET_ROOT
     ):
         raise ValueError(f"invalid model asset path: {checkpoint}")
-    snapshot_download(repo_id=definition.MODEL_NAME, local_dir=checkpoint)
+    kwargs = {}
+    if hasattr(definition, "MODEL_REVISION"):
+        kwargs["revision"] = definition.MODEL_REVISION
+    snapshot_download(repo_id=definition.MODEL_NAME, local_dir=checkpoint, **kwargs)
     model_assets.commit()
 
 
@@ -235,7 +274,7 @@ async def _ready_lora_pool(spec: LoraPoolSpec) -> str:
     min_containers=0,
     timeout=60 * 60,
     retries=2,
-    secrets=[proxy_secret, modal.Secret.from_name("lilo-api")],
+    secrets=[proxy_secret, modal.Secret.from_name(API_SECRET_NAME)],
 )
 @modal.concurrent(max_inputs=128)
 async def execute_sample(task: dict) -> dict:
@@ -355,11 +394,13 @@ async def trainer_reconciler(delay_seconds: float = 0.0) -> None:
 
     async def run(definition_id: str, token: str) -> None:
         parameterization = parameterization_for(definition_id)
-        if parameterization is None:
+        if parameterization is None or await deployment_error(definition_id):
             await complete_reconcile(definition_id, token)
             return
         module = module_for(definition_id)
-        maximum_instances = TRAINER_MAX_CONTAINERS
+        maximum_instances = getattr(
+            module, "TRAINER_MAX_CONTAINERS", TRAINER_MAX_CONTAINERS
+        )
         try:
             await reconcile_trainers(
                 shared_kv(),
@@ -405,9 +446,27 @@ async def kick_trainer_reconciler(definition_id: str) -> None:
 
 
 async def _spawn_engine(definition_id: str, instance_id: str) -> str:
+    if error := await deployment_error(definition_id):
+        raise ValueError(error)
     engine = module_for(definition_id).ENGINE_FUNCTION
     call = await engine.spawn.aio(instance_id)
     return call.object_id
+
+
+async def deployment_error(definition_id: str) -> str | None:
+    if not definition_id.startswith("yaml_"):
+        return None
+    record = await shared_kv().get(f"deployment_failure:{definition_id}")
+    if record:
+        return f"Trainer startup failed for {definition_id}: {record['error']}. See Modal call logs for instance {record['instance_id']}; after correcting the cause, run lilo deployment retry."
+    return None
+
+
+@app.function(image=image)
+async def clear_deployment_failure(definition_id: str) -> None:
+    module_for(definition_id)
+    await shared_kv().delete(f"deployment_failure:{definition_id}")
+    await kick_trainer_reconciler(definition_id)
 
 
 def _plane():
@@ -437,6 +496,8 @@ def _plane():
         definition_id = session.engine_definition_id
         parameterization = parameterization_for(definition_id)
         if parameterization == "lora":
+            if definition_id.startswith("yaml_") and session.model_id is None:
+                await prepare_model_assets.remote.aio(definition_id)
             await _ready_lora_pool(LoraPoolSpec(definition_id))
             return
         if parameterization != "full":
@@ -468,7 +529,9 @@ def _plane():
         await kick_trainer_reconciler(definition_id)
         if not trainer_autoscaling(definition_id):
             return False
-        maximum = TRAINER_MAX_CONTAINERS
+        maximum = getattr(
+            module_for(definition_id), "TRAINER_MAX_CONTAINERS", TRAINER_MAX_CONTAINERS
+        )
         if maximum is None:
             return True
         instances = [
@@ -487,6 +550,7 @@ def _plane():
         session_idle_timeout=SESSION_IDLE_TIMEOUT,
         ensure_sampling_pool=ensure_pool,
         prepare_model=prepare_model,
+        creation_error=deployment_error,
         sampling_task_stores=task_stores,
         read_checkpoint_metadata=_read_checkpoint_metadata,
         list_checkpoints=_list_checkpoints,
@@ -504,7 +568,7 @@ def _plane():
     routing_region=ROUTING_REGION,
     timeout=20 * 60,
     volumes={CHECKPOINT_ROOT: checkpoint_volume},
-    secrets=[modal.Secret.from_name("lilo-api", required_keys=["TINKER_API_KEY"])],
+    secrets=[modal.Secret.from_name(API_SECRET_NAME, required_keys=["TINKER_API_KEY"])],
 )
 @modal.concurrent(max_inputs=128)
 @modal.asgi_app(requires_proxy_auth=False)

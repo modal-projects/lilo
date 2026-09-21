@@ -137,6 +137,7 @@ class ControlPlane:
         list_checkpoints: CheckpointListing | None = None,
         delete_checkpoint: Callable[[str], Awaitable[None]] | None = None,
         checkpoint_root: str = "/checkpoints",
+        creation_error: Callable[[str], Awaitable[str | None]] | None = None,
     ) -> None:
         self.kv = kv
         self.engines = engines
@@ -153,6 +154,7 @@ class ControlPlane:
         self.list_checkpoints = list_checkpoints
         self.delete_checkpoint = delete_checkpoint
         self.checkpoint_root = checkpoint_root
+        self.creation_error = creation_error
 
     async def create_session(
         self,
@@ -1140,6 +1142,10 @@ class ControlPlane:
     ) -> FutureResolution:
         try:
             placement = await self._place(model)
+            if placement is None and self.creation_error is not None:
+                error = await self.creation_error(model.engine_definition_id)
+                if error:
+                    raise ValueError(error)
         except ModelLost:
             return FutureResolution(
                 request_id,
@@ -1162,7 +1168,7 @@ class ControlPlane:
         if placement is None:
             return FutureResolution(request_id, FutureResolutionStatus.PENDING)
         try:
-            instance = await self._live_instance(placement)
+            await self._live_instance(placement)
         except ModelLost:
             return FutureResolution(
                 request_id,

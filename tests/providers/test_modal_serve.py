@@ -88,3 +88,31 @@ def test_backend_transport_failure_terminates_ranks_and_exits_engine(
     assert signals and all(sig == signal.SIGKILL for sig in signals)
     assert posted.count("/execute_forward_backward_batch") == 1
     assert closed == [True]
+
+
+def test_backend_startup_failure_is_reported_before_health_ready(monkeypatch):
+    class Backend:
+        pid = 12345
+        returncode = 1
+
+        def poll(self):
+            return self.returncode
+
+    backend = Backend()
+    errors = []
+    monkeypatch.setattr(serve.subprocess, "Popen", lambda *args, **kwargs: backend)
+    monkeypatch.setattr(serve.os, "killpg", lambda *args: None)
+
+    async def record(error):
+        errors.append(str(error))
+
+    with pytest.raises(RuntimeError, match="backend exited with code 1"):
+        serve.run_engine_with_backend(
+            None,
+            "unused:executor",
+            definition_id="test",
+            revision="test",
+            instance_id="test",
+            on_startup_error=record,
+        )
+    assert errors == ["backend exited with code 1"]

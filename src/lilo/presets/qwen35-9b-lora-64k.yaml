@@ -1,0 +1,13 @@
+extends: builtin:qwen35-9b-lora-16k
+name: qwen35-9b-lora-64k
+model:
+  max_context_length: 65536
+routing:
+  default: false
+trainer:
+  resources:
+    gpu: H200:8
+  miles:
+    options:
+      tensor_model_parallel_size: 8
+      max_tokens_per_gpu: 65536

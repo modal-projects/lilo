@@ -5,6 +5,7 @@ CORE_PACKAGES = (
     "opentelemetry-exporter-otlp-proto-http==1.43.0",
     "modal>=1.5.3",
     "protobuf>=5.29",
+    "pyyaml>=6.0.2",
     "pydantic>=2.13.4",
     "uvicorn>=0.52.0",
     "xxhash>=3.8.1",

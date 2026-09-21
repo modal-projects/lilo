@@ -48,6 +48,8 @@ training = service.create_lora_training_client(
 
 ## Shared deployment quick start
 
+For the draft YAML-based provider path, see [YAML deployments](docs/deployment-yaml-design.md).
+
 Install Lilo into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.
 

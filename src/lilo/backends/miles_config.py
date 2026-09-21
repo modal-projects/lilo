@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +44,7 @@ class MilesBackendConfig:
     )
     max_tokens_per_gpu: int = 8192
     extra_args: tuple[str, ...] = ()
+    native_options: dict[str, Any] = field(default_factory=dict)
 
     @property
     def world_size(self) -> int:
@@ -81,8 +82,10 @@ class MilesBackendConfig:
                 raise ValueError(f"{name} must be at least 1")
         if not self.hf_checkpoint:
             raise ValueError("hf_checkpoint is required")
-        if not self.model_type:
-            raise ValueError("model_type is required")
+        if not self.model_type and not self.native_options:
+            raise ValueError(
+                "model_type or explicit native architecture options are required"
+            )
         if not self.target_modules:
             raise ValueError("target_modules must not be empty")
         if (

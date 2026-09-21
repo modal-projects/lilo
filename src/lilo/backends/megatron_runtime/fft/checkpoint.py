@@ -56,9 +56,13 @@ class FFTCheckpointMetadata:
     optimizer_config: dict[str, Any]
     has_optimizer: bool
     optimizer_state_format: str | None
+    base_model_revision: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        value = asdict(self)
+        if self.base_model_revision is None:
+            value.pop("base_model_revision")
+        return value
 
     def identity(self) -> str:
         encoded = json.dumps(
@@ -82,6 +86,7 @@ def create_fft_checkpoint_metadata(
         version=CHECKPOINT_FORMAT_VERSION,
         checkpoint_id=checkpoint_id,
         base_model=base_model,
+        base_model_revision=os.environ.get("LILO_BASE_MODEL_REVISION"),
         world_size=world_size,
         tensor_model_parallel_size=config.tensor_model_parallel_size,
         pipeline_model_parallel_size=config.pipeline_model_parallel_size,
@@ -280,6 +285,7 @@ def load_fft_training_checkpoint(
         "format",
         "version",
         "base_model",
+        "base_model_revision",
         "world_size",
         "tensor_model_parallel_size",
         "pipeline_model_parallel_size",

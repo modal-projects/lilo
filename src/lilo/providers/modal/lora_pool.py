@@ -66,18 +66,23 @@ def deploy_pool(spec: LoraPoolSpec) -> str:
     modal_cli = shutil.which("modal")
     if modal_cli is None:
         raise RuntimeError("modal CLI is unavailable")
+    from .yaml_apps import pool_environment
+
+    recipe_env = pool_environment(spec.definition_id)
     command = [
         modal_cli,
         "deploy",
         "-m",
-        "lilo.providers.modal.lora_pool_app",
+        "lilo.providers.modal.yaml_pool_app"
+        if recipe_env
+        else "lilo.providers.modal.lora_pool_app",
         "--name",
         spec.app_name,
     ]
     environment = os.environ.get("MODAL_ENVIRONMENT")
     if environment:
         command.extend(["--env", environment])
-    subprocess.run(command, env={**os.environ, **spec.env()}, check=True)
+    subprocess.run(command, env={**os.environ, **spec.env(), **recipe_env}, check=True)
     return pool.gateway_url()
 
 
@@ -99,6 +104,8 @@ def stop_pool(spec: LoraPoolSpec) -> None:
 
 
 def _implementation_revision(definition_id: str) -> str:
+    if definition_id.startswith("yaml_"):
+        return definition_id.rsplit("_", 1)[-1]
     here = Path(__file__)
     files = (
         here,

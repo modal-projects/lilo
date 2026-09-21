@@ -709,3 +709,22 @@ def test_optimizer_worker_failure_is_fatal(tmp_path, outcome):
     runtime.optim_step = lambda parameters: {0: outcome}
     with pytest.raises(BackendFailed):
         backend.optim_step(("a",), AdamParams(learning_rate=1e-4))
+
+
+def test_checkpoint_rejects_different_or_unknown_pinned_base_revision(
+    tmp_path, monkeypatch
+):
+    backend = _backend(tmp_path)
+    backend.accept_model("model-a", _spec())
+    monkeypatch.setenv("LILO_BASE_MODEL_REVISION", "a" * 40)
+    backend.capture_checkpoint(
+        "model-a", "capture", destination="step-1", include_optimizer=False
+    )
+    uri = Path(backend.persist_checkpoint("capture", "step-1"))
+    metadata = json.loads((uri / "metadata.json").read_text())
+    assert metadata["base_model_revision"] == "a" * 40
+    backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
+    for revision in ("b" * 40, None):
+        metadata["base_model_revision"] = revision
+        with pytest.raises(ValueError, match="base model revision"):
+            backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)

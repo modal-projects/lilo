@@ -119,6 +119,7 @@ def run_engine_with_backend(
     startup_timeout: float = BACKEND_STARTUP_TIMEOUT,
     operation_timeout: float = BACKEND_OPERATION_TIMEOUT,
     notify_reconciler: bool = True,
+    on_startup_error: Callable[[Exception], Awaitable[None]] | None = None,
 ) -> None:
     if sampler_persistence_concurrency > 1 and nproc != 1:
         raise ValueError(
@@ -168,7 +169,10 @@ def run_engine_with_backend(
         on_transport_error=lambda: signal_backend(signal.SIGKILL),
     )
 
+    ready = False
+
     async def make_server() -> Engine:
+        nonlocal ready
         try:
             async with asyncio.timeout(startup_timeout):
                 while True:
@@ -178,6 +182,7 @@ def run_engine_with_backend(
                         )
                     try:
                         if (await executor.http.get("/healthz")).is_success:
+                            ready = True
                             return Engine(
                                 executor,
                                 max_models=max_models,
@@ -210,6 +215,10 @@ def run_engine_with_backend(
                 await serving
                 return
             raise RuntimeError(f"backend exited with code {backend.returncode}")
+        except Exception as exc:
+            if not ready and on_startup_error is not None:
+                await on_startup_error(exc)
+            raise
         finally:
             serving.cancel()
             await asyncio.gather(serving, return_exceptions=True)
