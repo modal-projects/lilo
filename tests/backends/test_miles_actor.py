@@ -112,6 +112,7 @@ def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> N
     actor.dist = FakeDist
     actor._volume_action = lambda name, action: actions.append((FakeDist.rank, action))
     monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "checkpoints")
+    monkeypatch.delenv("MODAL_TASK_ID", raising=False)
 
     for rank, hostname in enumerate(("head", "worker")):
         FakeDist.rank = rank
@@ -125,4 +126,55 @@ def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> N
         (0, "reload"),
         (1, "commit"),
         (1, "reload"),
+    ]
+
+
+def test_sync_checkpoint_volume_separates_modal_cluster_nodes(monkeypatch) -> None:
+    """Modal cluster containers share a hostname; the task id separates them."""
+    actor = _load_actor(monkeypatch)
+    actions: list[tuple[int, str]] = []
+    task_ids = ["ta-node0", "ta-node0", "ta-node1", "ta-node1"]
+
+    class FakeDist:
+        rank = 0
+
+        @staticmethod
+        def is_available() -> bool:
+            return True
+
+        @staticmethod
+        def is_initialized() -> bool:
+            return True
+
+        @classmethod
+        def get_rank(cls) -> int:
+            return cls.rank
+
+        @staticmethod
+        def get_world_size() -> int:
+            return len(task_ids)
+
+        @staticmethod
+        def barrier() -> None:
+            return None
+
+        @staticmethod
+        def all_gather_object(hosts, identity) -> None:
+            hosts[:] = list(task_ids)
+
+    actor.dist = FakeDist
+    actor._volume_action = lambda name, action: actions.append((FakeDist.rank, action))
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "checkpoints")
+    monkeypatch.setattr(actor.socket, "gethostname", lambda: "modal")
+
+    for rank, task_id in enumerate(task_ids):
+        FakeDist.rank = rank
+        monkeypatch.setenv("MODAL_TASK_ID", task_id)
+        actor._sync_checkpoint_volume("commit")
+
+    assert actions == [
+        (0, "commit"),
+        (0, "reload"),
+        (2, "commit"),
+        (2, "reload"),
     ]
