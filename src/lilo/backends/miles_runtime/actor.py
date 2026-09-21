@@ -220,13 +220,36 @@ def _sync_checkpoint_volume(action: str) -> None:
     hosts: list[str] = [""] * dist.get_world_size()
     dist.all_gather_object(hosts, _node_identity())
     representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
-    if representative:
-        _volume_action(name, action)
-    dist.barrier()
+    _volume_action_on_representatives(name, action, representative)
     if action == "commit":
-        if representative:
-            _volume_action(name, "reload")
-        dist.barrier()
+        _volume_action_on_representatives(name, "reload", representative)
+
+
+def _volume_action_on_representatives(
+    name: str, action: str, representative: bool
+) -> None:
+    """Run ``action`` on one rank per node and fail on every rank or none.
+
+    Every rank reaches the same collectives regardless of the outcome: a
+    representative whose volume call raises would otherwise leave the rest of
+    the world waiting in a collective it never enters, which hangs the job
+    until the distributed timeout rather than surfacing the error.
+    """
+    failure: str | None = None
+    if representative:
+        try:
+            _volume_action(name, action)
+        except Exception as exc:  # re-raised on every rank below
+            failure = f"rank {dist.get_rank()}: {type(exc).__name__}: {exc}"
+
+    failures: list[str | None] = [None] * dist.get_world_size()
+    dist.all_gather_object(failures, failure)
+    reported = [f for f in failures if f is not None]
+    if reported:
+        raise RuntimeError(
+            f"checkpoint volume {action} failed on {len(reported)} node(s): "
+            + "; ".join(reported)
+        )
 
 
 def _volume_action(name: str, action: str) -> None:

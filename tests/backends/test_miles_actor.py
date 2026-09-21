@@ -1,7 +1,61 @@
 import importlib.util
 import sys
+import threading
 import types
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+
+class FakeDist:
+    """``torch.distributed`` stand-in whose collectives really synchronize ranks.
+
+    Ranks run concurrently and every collective waits for the whole world, so a
+    rank that takes a different path through ``_sync_checkpoint_volume`` breaks
+    the barrier instead of quietly passing a sequential simulation.
+    """
+
+    timeout = 5.0
+
+    def __init__(self, identities: list[str]) -> None:
+        self.identities = identities
+        self.world_size = len(identities)
+        self._ranks = threading.local()
+        self._barrier = threading.Barrier(self.world_size, timeout=self.timeout)
+        self._gathered: dict[int, object] = {}
+
+    def run_ranks(self, target) -> list:
+        """Run ``target`` on every rank at once and return one future per rank."""
+
+        def run(rank):
+            self._ranks.rank = rank
+            return target(rank)
+
+        with ThreadPoolExecutor(max_workers=self.world_size) as pool:
+            return [pool.submit(run, rank) for rank in range(self.world_size)]
+
+    def identity(self) -> str:
+        return self.identities[self.get_rank()]
+
+    def is_available(self) -> bool:
+        return True
+
+    def is_initialized(self) -> bool:
+        return True
+
+    def get_rank(self) -> int:
+        return self._ranks.rank
+
+    def get_world_size(self) -> int:
+        return self.world_size
+
+    def barrier(self) -> None:
+        self._barrier.wait()
+
+    def all_gather_object(self, output: list, obj) -> None:
+        self._gathered[self.get_rank()] = obj
+        self._barrier.wait()
+        output[:] = [self._gathered[rank] for rank in range(self.world_size)]
+        self._barrier.wait()
 
 
 def _module(monkeypatch, name: str) -> types.ModuleType:
@@ -12,6 +66,34 @@ def _module(monkeypatch, name: str) -> types.ModuleType:
         parent = sys.modules.get(parent_name) or _module(monkeypatch, parent_name)
         setattr(parent, child_name, module)
     return module
+
+
+def _distributed_actor(monkeypatch, identities: list[str], via_task_id: bool = True):
+    """Load the actor against a concurrent fake world of node ``identities``.
+
+    Ranks share a process, so the per-rank ``MODAL_TASK_ID`` and hostname are
+    resolved from the calling thread's rank rather than from the environment.
+    """
+    actor = _load_actor(monkeypatch)
+    fake_dist = FakeDist(identities)
+    actor.dist = fake_dist
+
+    class Environ:
+        @staticmethod
+        def get(key, default=None):
+            if key == "LILO_CHECKPOINT_VOLUME":
+                return "ckpt"
+            if key == "MODAL_TASK_ID" and via_task_id:
+                return fake_dist.identity()
+            return default
+
+    monkeypatch.setattr(actor, "os", types.SimpleNamespace(environ=Environ))
+    monkeypatch.setattr(
+        actor.socket,
+        "gethostname",
+        (lambda: "modal") if via_task_id else fake_dist.identity,
+    )
+    return actor, fake_dist
 
 
 def _load_actor(monkeypatch):
@@ -109,49 +191,47 @@ def test_shards_are_committed_before_rank_zero_publishes(monkeypatch) -> None:
 
 
 def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> None:
-    actor = _load_actor(monkeypatch)
+    """Modal cluster containers share a hostname; the task id separates them."""
+    actor, fake_dist = _distributed_actor(
+        monkeypatch, ["ta-node0", "ta-node0", "ta-node1", "ta-node1"]
+    )
     actions: list[tuple[int, str]] = []
+    lock = threading.Lock()
 
-    class FakeDist:
-        rank = 0
+    def volume_action(name, action):
+        with lock:
+            actions.append((fake_dist.get_rank(), action))
 
-        @staticmethod
-        def is_available() -> bool:
-            return True
+    actor._volume_action = volume_action
 
-        @staticmethod
-        def is_initialized() -> bool:
-            return True
+    futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
-        @classmethod
-        def get_rank(cls) -> int:
-            return cls.rank
+    assert [future.exception() for future in futures] == [None] * 4
+    assert sorted(actions) == [
+        (0, "commit"),
+        (0, "reload"),
+        (2, "commit"),
+        (2, "reload"),
+    ]
 
-        @staticmethod
-        def get_world_size() -> int:
-            return 2
 
-        @staticmethod
-        def barrier() -> None:
-            return None
+def test_sync_checkpoint_volume_falls_back_to_hostnames(monkeypatch) -> None:
+    actor, fake_dist = _distributed_actor(
+        monkeypatch, ["head", "worker"], via_task_id=False
+    )
+    actions: list[tuple[int, str]] = []
+    lock = threading.Lock()
 
-        @staticmethod
-        def all_gather_object(hosts, hostname) -> None:
-            hosts[:] = ["head", "worker"]
+    def volume_action(name, action):
+        with lock:
+            actions.append((fake_dist.get_rank(), action))
 
-    actor.dist = FakeDist
-    actor._volume_action = lambda name, action: actions.append((FakeDist.rank, action))
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "checkpoints")
-    monkeypatch.delenv("MODAL_TASK_ID", raising=False)
+    actor._volume_action = volume_action
 
-    for rank, hostname in enumerate(("head", "worker")):
-        FakeDist.rank = rank
-        monkeypatch.setattr(
-            actor.socket, "gethostname", lambda hostname=hostname: hostname
-        )
-        actor._sync_checkpoint_volume("commit")
+    futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
-    assert actions == [
+    assert [future.exception() for future in futures] == [None] * 2
+    assert sorted(actions) == [
         (0, "commit"),
         (0, "reload"),
         (1, "commit"),
@@ -159,52 +239,20 @@ def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> N
     ]
 
 
-def test_sync_checkpoint_volume_separates_modal_cluster_nodes(monkeypatch) -> None:
-    """Modal cluster containers share a hostname; the task id separates them."""
-    actor = _load_actor(monkeypatch)
-    actions: list[tuple[int, str]] = []
-    task_ids = ["ta-node0", "ta-node0", "ta-node1", "ta-node1"]
+def test_sync_checkpoint_volume_fails_on_every_rank(monkeypatch) -> None:
+    """A representative that raises must not strand the other ranks in a barrier."""
+    actor, fake_dist = _distributed_actor(
+        monkeypatch, ["ta-node0", "ta-node0", "ta-node1"]
+    )
 
-    class FakeDist:
-        rank = 0
+    def volume_action(name, action):
+        if fake_dist.get_rank() == 2:
+            raise OSError("volume commit failed")
 
-        @staticmethod
-        def is_available() -> bool:
-            return True
+    actor._volume_action = volume_action
 
-        @staticmethod
-        def is_initialized() -> bool:
-            return True
+    futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
-        @classmethod
-        def get_rank(cls) -> int:
-            return cls.rank
-
-        @staticmethod
-        def get_world_size() -> int:
-            return len(task_ids)
-
-        @staticmethod
-        def barrier() -> None:
-            return None
-
-        @staticmethod
-        def all_gather_object(hosts, identity) -> None:
-            hosts[:] = list(task_ids)
-
-    actor.dist = FakeDist
-    actor._volume_action = lambda name, action: actions.append((FakeDist.rank, action))
-    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "checkpoints")
-    monkeypatch.setattr(actor.socket, "gethostname", lambda: "modal")
-
-    for rank, task_id in enumerate(task_ids):
-        FakeDist.rank = rank
-        monkeypatch.setenv("MODAL_TASK_ID", task_id)
-        actor._sync_checkpoint_volume("commit")
-
-    assert actions == [
-        (0, "commit"),
-        (0, "reload"),
-        (2, "commit"),
-        (2, "reload"),
-    ]
+    errors = [future.exception() for future in futures]
+    assert all(isinstance(error, RuntimeError) for error in errors)
+    assert all("volume commit failed" in str(error) for error in errors)
