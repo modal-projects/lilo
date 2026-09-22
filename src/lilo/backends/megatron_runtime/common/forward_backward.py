@@ -390,9 +390,10 @@ def _vocab_parallel_logprobs(
 def _loss(
     logprobs: torch.Tensor,
     batch: dict[str, Any],
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     mask = batch["loss_mask"].to(logprobs.device).reshape(-1)
     loss_name = batch["loss_name"]
+    clipped_tokens = torch.zeros((), device=logprobs.device)
     if loss_name == "cross_entropy":
         loss = -(logprobs * mask).sum()
     elif loss_name in RL_LOSSES:
@@ -412,17 +413,23 @@ def _loss(
             low = batch["loss_config"].get("clip_low_threshold", 0.8)
             high = batch["loss_config"].get("clip_high_threshold", 1.2)
             clipped = torch.clamp(probability_ratio, low, high)
-            objective = torch.minimum(
-                probability_ratio * advantages,
-                clipped * advantages,
+            unclipped_objective = probability_ratio * advantages
+            clipped_objective = clipped * advantages
+            objective = torch.minimum(unclipped_objective, clipped_objective)
+            # a token counts as clipped only where the clamped branch wins,
+            # which is where the ratio's gradient is cut
+            clipped_tokens = _clipped_tokens(
+                clipped_objective < unclipped_objective,
+                mask,
             )
         elif loss_name == "cispo":
             low = batch["loss_config"].get("clip_low_threshold", 0.0)
             high = batch["loss_config"].get("clip_high_threshold", 4.0)
-            objective = (
-                torch.clamp(probability_ratio, low, high).detach()
-                * logprobs
-                * advantages
+            coefficient = torch.clamp(probability_ratio, low, high).detach()
+            objective = coefficient * logprobs * advantages
+            clipped_tokens = _clipped_tokens(
+                coefficient != probability_ratio.detach(),
+                mask,
             )
         else:
             beta = batch["loss_config"].get("beta", 0.05)
@@ -431,7 +438,12 @@ def _loss(
                 - 0.5 * beta * (logprobs - sampling_logprobs).square()
             )
         loss = -(objective * mask).sum()
-    return loss, mask.count_nonzero()
+    return loss, mask.count_nonzero(), clipped_tokens
+
+
+def _clipped_tokens(clipped: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Clipped token count over the loss mask, for a clip-fraction diagnostic."""
+    return (clipped & (mask != 0)).count_nonzero().float()
 
 
 def make_forward_step(
@@ -522,7 +534,7 @@ def make_forward_step(
 
         def loss_func(output):
             logprobs = _vocab_parallel_logprobs(output, batch["labels"])
-            loss, token_count = _loss(logprobs, batch)
+            loss, token_count, _ = _loss(logprobs, batch)
             positions = batch["token_indices"].reshape(-1)
             for job_id, output_index, start, length, is_dummy in zip(
                 batch["job_ids"],
@@ -548,7 +560,7 @@ def make_forward_step(
                     "sampling_logprobs": batch["sampling_logprobs"][selected],
                     "advantages": batch["advantages"][selected],
                 }
-                sequence_loss, sequence_tokens = _loss(
+                sequence_loss, sequence_tokens, sequence_clipped = _loss(
                     logprobs[selected],
                     sequence_batch,
                 )
@@ -558,11 +570,13 @@ def make_forward_step(
                         "loss": torch.zeros((), device=loss.device),
                         "tokens": torch.zeros((), device=loss.device),
                         "sequences": torch.zeros((), device=loss.device),
+                        "clipped_tokens": torch.zeros((), device=loss.device),
                     },
                 )
                 metrics["loss"] += sequence_loss.detach()
                 metrics["tokens"] += sequence_tokens.detach()
                 metrics["sequences"] += 1
+                metrics["clipped_tokens"] += sequence_clipped.detach()
 
             report = torch.stack([token_count.detach().float(), loss.detach().float()])
             return (
@@ -608,10 +622,11 @@ def _merge_payloads(
         for job_id, metrics in payload["metrics"].items():
             target = merged["metrics"].setdefault(
                 job_id,
-                {"loss": 0.0, "tokens": 0.0, "sequences": 0.0},
+                {"loss": 0.0, "tokens": 0.0, "sequences": 0.0, "clipped_tokens": 0.0},
             )
             target["loss"] += metrics["loss"]
             target["tokens"] += metrics["tokens"]
+            target["clipped_tokens"] += metrics["clipped_tokens"]
             if context_parallel:
                 target["sequences"] = max(
                     target["sequences"],
@@ -731,10 +746,24 @@ def build_outputs(
                     "tokens:sum": tokens,
                     "n_sequences:sum": sequences,
                     "response_length:mean": tokens / max(sequences, 1.0),
+                    **_clip_metrics(str(batch.loss_fn), metrics),
                 },
             )
         )
     return tuple(outputs)
+
+
+def _clip_metrics(loss_fn: str, metrics: dict[str, float]) -> dict[str, float]:
+    """Clip fraction over this job's masked tokens; empty unless the loss clips."""
+    if loss_fn not in ("ppo", "cispo"):
+        return {}
+    tokens = metrics["tokens"]
+    clipped = metrics["clipped_tokens"]
+    return {
+        "clipped_tokens:sum": clipped,
+        "loss_tokens:sum": tokens,
+        "clip_fraction:mean": clipped / tokens if tokens else 0.0,
+    }
 
 
 @telemetry.measured("prepare")
