@@ -1,4 +1,4 @@
-"""Ray bring-up for Lilo trainers that span several Modal cluster nodes.
+"""Bring up a multi-node trainer cluster in Lilo.
 
 Rank 0 runs the Lilo engine (HTTP backend, Miles driver, sampler publication)
 and owns the Ray head; every other rank only joins the head with its GPUs and
@@ -15,8 +15,6 @@ from collections.abc import Callable
 
 RAY_PORT = 6379
 
-# Modal containers are preempted less eagerly than Ray's defaults assume, and a
-# cross-node GCS round trip during a 256k step can exceed the stock timeouts.
 _GCS_HEALTH_CHECK_ENV = {
     "RAY_health_check_period_ms": "10000",
     "RAY_health_check_timeout_ms": "20000",
