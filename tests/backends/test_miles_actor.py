@@ -207,7 +207,7 @@ def test_checkpoint_is_published_from_committed_state(monkeypatch, tmp_path) -> 
     monkeypatch.setattr(
         actor,
         "_sync_checkpoint_volume",
-        lambda action, reload=True: events.append((action, reload)),
+        lambda action: events.append(("sync", action)),
     )
 
     path = tmp_path / "000000" / "miles"
@@ -218,7 +218,7 @@ def test_checkpoint_is_published_from_committed_state(monkeypatch, tmp_path) -> 
     )
 
     assert events == [
-        ("commit", False),
+        ("sync", "commit"),
         "commit",
         (
             "copy",
@@ -226,7 +226,7 @@ def test_checkpoint_is_published_from_committed_state(monkeypatch, tmp_path) -> 
             "000000/miles",
             True,
         ),
-        ("commit", False),
+        ("sync", "commit"),
     ]
     assert not (tmp_path / "000000" / "_tmp_miles").exists()
 
@@ -251,7 +251,7 @@ def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:
     assert events == ["miles-publish"] * 3
 
 
-def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> None:
+def test_sync_checkpoint_volume_commits_once_per_node(monkeypatch) -> None:
     """Modal cluster containers share a hostname; the task id separates them."""
     actor, fake_dist = _distributed_actor(
         monkeypatch, ["ta-node0", "ta-node0", "ta-node1", "ta-node1"]
@@ -268,29 +268,24 @@ def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> N
     futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
     assert [future.exception() for future in futures] == [None] * 4
-    assert sorted(actions) == [
-        (0, "commit"),
-        (0, "reload"),
-        (2, "commit"),
-        (2, "reload"),
-    ]
+    assert sorted(actions) == [(0, "commit"), (2, "commit")]
 
 
-def test_sync_checkpoint_volume_can_skip_the_reload(monkeypatch) -> None:
+def test_committing_never_reloads_the_committing_node(monkeypatch) -> None:
     """Reloading fails outright while the colocated engine holds a capture open."""
     actor, fake_dist = _distributed_actor(monkeypatch, ["ta-node0", "ta-node1"])
-    actions: list[tuple[int, str]] = []
     lock = threading.Lock()
+    actions: list[tuple[int, str]] = []
 
     def volume_action(name, action):
+        if action == "reload":
+            raise RuntimeError("there are open files preventing the operation")
         with lock:
             actions.append((fake_dist.get_rank(), action))
 
     actor._volume_action = volume_action
 
-    futures = fake_dist.run_ranks(
-        lambda rank: actor._sync_checkpoint_volume("commit", reload=False)
-    )
+    futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
     assert [future.exception() for future in futures] == [None] * 2
     assert sorted(actions) == [(0, "commit"), (1, "commit")]
@@ -312,12 +307,7 @@ def test_sync_checkpoint_volume_falls_back_to_hostnames(monkeypatch) -> None:
     futures = fake_dist.run_ranks(lambda rank: actor._sync_checkpoint_volume("commit"))
 
     assert [future.exception() for future in futures] == [None] * 2
-    assert sorted(actions) == [
-        (0, "commit"),
-        (0, "reload"),
-        (1, "commit"),
-        (1, "reload"),
-    ]
+    assert sorted(actions) == [(0, "commit"), (1, "commit")]
 
 
 def test_sync_checkpoint_volume_fails_on_every_rank(monkeypatch) -> None:

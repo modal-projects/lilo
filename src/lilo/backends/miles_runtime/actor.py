@@ -203,7 +203,7 @@ def _write_checkpoint_dir_on_volume(
     write_shards(tmp)
     if _rank() == 0 and metadata is not None:
         (tmp / "META.json").write_text(json.dumps(metadata, indent=2))
-    _sync_checkpoint_volume("commit", reload=False)
+    _sync_checkpoint_volume("commit")
 
     def publish() -> None:
         volume = modal.Volume.from_name(volume_name)
@@ -218,7 +218,7 @@ def _write_checkpoint_dir_on_volume(
 
     _on_rank_zero(publish)
     shutil.rmtree(tmp, ignore_errors=True)
-    _sync_checkpoint_volume("commit", reload=False)
+    _sync_checkpoint_volume("commit")
 
 
 def _publish_checkpoints_across_nodes() -> None:
@@ -261,8 +261,14 @@ def _node_identity() -> str:
     return os.environ.get("MODAL_TASK_ID") or socket.gethostname()
 
 
-def _sync_checkpoint_volume(action: str, *, reload: bool = True) -> None:
-    """Commit checkpoint shards across nodes and refresh the committed view."""
+def _sync_checkpoint_volume(action: str) -> None:
+    """Run a volume action once per node, from one rank of each.
+
+    A commit never refreshes the committing node afterwards: writers need no
+    view of what their peers wrote, and a refresh fails outright on the node
+    whose colocated engine holds a capture file open on the same volume.
+    Readers refresh themselves through the ``reload`` action instead.
+    """
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
     if name is None:
         if "MODAL_TASK_ID" in os.environ:
@@ -280,8 +286,6 @@ def _sync_checkpoint_volume(action: str, *, reload: bool = True) -> None:
     dist.all_gather_object(hosts, _node_identity())
     representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
     _volume_action_on_representatives(name, action, representative)
-    if action == "commit" and reload:
-        _volume_action_on_representatives(name, "reload", representative)
 
 
 def _rank() -> int:
