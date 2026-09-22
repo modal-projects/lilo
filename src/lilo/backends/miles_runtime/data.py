@@ -77,13 +77,8 @@ def prepare_batch(
 
 
 def _align_row(row: dict[str, Any], multiple: int) -> None:
-    """Pad one sequence so Megatron's THD context-parallel chunks tile a TP rank.
-
-    Megatron splits each packed sequence into ``2 * cp`` chunks and then shards
-    every chunk across the tensor-parallel ranks; with a multiple of
-    ``2 * cp * tp`` tokens that split is exact for every sequence rather than
-    only for the concatenated stream.
-    """
+    """Pad each sequence to a multiple of ``2 * cp * tp`` so context-parallel
+    chunking and tensor-parallel sharding both divide it evenly."""
 
     pad = -len(row["tokens"]) % multiple
     if pad == 0:
