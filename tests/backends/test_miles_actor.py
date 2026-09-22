@@ -157,6 +157,11 @@ def _load_actor(monkeypatch):
     sys.modules["miles.backends.megatron_utils"].actor = megatron_actor
     sys.modules["miles.backends.megatron_utils"].model = megatron_model
 
+    # Replay hook behavior is covered separately with its Miles interfaces.
+    _module(
+        monkeypatch, "lilo.backends.miles_runtime.replay"
+    ).install_replay_hooks = lambda: None
+
     path = Path(__file__).parents[2] / "src/lilo/backends/miles_runtime/actor.py"
     spec = importlib.util.spec_from_file_location(
         "lilo.backends.miles_runtime._test_actor", path
