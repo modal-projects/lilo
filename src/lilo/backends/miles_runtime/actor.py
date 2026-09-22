@@ -209,10 +209,19 @@ def _write_checkpoint_dir_on_volume(
         volume = modal.Volume.from_name(volume_name)
         path.mkdir(parents=True, exist_ok=True)
         volume.commit()
-        shards = [entry.path for entry in volume.listdir(tmp_relative)]
-        volume.copy_files(shards, relative, recursive=True)
+        local = {shard.name: shard for shard in tmp.iterdir()}
+        remote = [
+            entry.path
+            for entry in volume.listdir(tmp_relative)
+            if entry.path.rsplit("/", 1)[-1] not in local
+        ]
+        if remote:
+            volume.copy_files(remote, relative, recursive=True)
+        for name, shard in local.items():
+            shutil.copy2(shard, path / name)
         print(
-            f"lilo_checkpoint_publish path={relative} shards={len(shards)}",
+            f"lilo_checkpoint_publish path={relative} "
+            f"local={len(local)} remote={len(remote)}",
             flush=True,
         )
 

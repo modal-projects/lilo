@@ -222,13 +222,35 @@ def test_checkpoint_is_published_from_committed_state(monkeypatch, tmp_path) -> 
         "commit",
         (
             "copy",
-            ("000000/_tmp_miles/__0_0.distcp", "000000/_tmp_miles/__8_0.distcp"),
+            ("000000/_tmp_miles/__8_0.distcp",),
             "000000/miles",
             True,
         ),
         ("sync", "commit"),
     ]
     assert not (tmp_path / "000000" / "_tmp_miles").exists()
+
+
+def test_publishing_leaves_rank_zero_its_own_files(monkeypatch, tmp_path) -> None:
+    """A sampler snapshot is read back locally the moment it is published."""
+    actor = _load_actor(monkeypatch)
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
+    actor.modal.Volume = types.SimpleNamespace(from_name=lambda name: _FakeVolume([]))
+    actor.dist.is_available = lambda: False
+    actor.dist.is_initialized = lambda: False
+    actor.checkpoint_io.write_checkpoint_dir = lambda *args, **kwargs: None
+    actor._publish_checkpoints_across_nodes()
+    monkeypatch.setattr(actor, "_sync_checkpoint_volume", lambda action: None)
+
+    path = tmp_path / "sampler" / "snapshot"
+    actor.checkpoint_io.write_checkpoint_dir(
+        path,
+        lambda directory: (directory / "adapter_model.safetensors").write_text("w"),
+        None,
+    )
+
+    assert (path / "adapter_model.safetensors").read_text() == "w"
 
 
 def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:
