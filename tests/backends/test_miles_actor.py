@@ -5,6 +5,8 @@ import types
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pytest
+
 
 class FakeDist:
     """``torch.distributed`` stand-in whose collectives really synchronize ranks.
@@ -251,6 +253,34 @@ def test_publishing_leaves_rank_zero_its_own_files(monkeypatch, tmp_path) -> Non
     )
 
     assert (path / "adapter_model.safetensors").read_text() == "w"
+
+
+def test_a_checkpoint_missing_a_peer_shard_is_not_published(
+    monkeypatch, tmp_path
+) -> None:
+    """A short checkpoint only fails on the resume that needs it, far too late."""
+    actor = _load_actor(monkeypatch)
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
+    actor.modal.Volume = types.SimpleNamespace(from_name=lambda name: _FakeVolume([]))
+    actor.dist.is_available = lambda: False
+    actor.dist.is_initialized = lambda: False
+    actor.checkpoint_io.write_checkpoint_dir = lambda *args, **kwargs: None
+    actor._publish_checkpoints_across_nodes()
+    monkeypatch.setattr(actor, "_sync_checkpoint_volume", lambda action: None)
+    monkeypatch.setattr(
+        actor, "_written_shard_names", lambda tmp: {"__0_0.distcp", "__8_0.distcp"}
+    )
+    monkeypatch.setattr(
+        _FakeVolume, "listdir", lambda self, path: []
+    )  # the peer's commit never landed
+
+    with pytest.raises(RuntimeError, match="__8_0.distcp"):
+        actor.checkpoint_io.write_checkpoint_dir(
+            tmp_path / "000000" / "miles",
+            lambda directory: (directory / "__0_0.distcp").write_text("shard"),
+            None,
+        )
 
 
 def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:

@@ -203,6 +203,7 @@ def _write_checkpoint_dir_on_volume(
     write_shards(tmp)
     if _rank() == 0 and metadata is not None:
         (tmp / "META.json").write_text(json.dumps(metadata, indent=2))
+    written = _written_shard_names(tmp)
     _sync_checkpoint_volume("commit")
 
     def publish() -> None:
@@ -215,6 +216,12 @@ def _write_checkpoint_dir_on_volume(
             for entry in volume.listdir(tmp_relative)
             if entry.path.rsplit("/", 1)[-1] not in local
         ]
+        missing = written - set(local) - {p.rsplit("/", 1)[-1] for p in remote}
+        if missing:
+            raise RuntimeError(
+                f"checkpoint {relative} is missing {len(missing)} shard(s) "
+                f"written by peers: {', '.join(sorted(missing))}"
+            )
         if remote:
             volume.copy_files(remote, relative, recursive=True)
         for name, shard in local.items():
@@ -295,6 +302,21 @@ def _sync_checkpoint_volume(action: str) -> None:
     dist.all_gather_object(hosts, _node_identity())
     representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
     _volume_action_on_representatives(name, action, representative)
+
+
+def _written_shard_names(tmp: Path) -> set[str]:
+    """Collect the file names every node wrote, as seen from its own view.
+
+    A checkpoint short of a peer's shards loads no better than no checkpoint
+    at all, and it is only discovered on the resume that needs it, so rank 0
+    compares what it is about to publish against this.
+    """
+    mine = sorted(shard.name for shard in tmp.iterdir())
+    if not _distributed():
+        return set(mine)
+    gathered: list[list[str]] = [[]] * dist.get_world_size()
+    dist.all_gather_object(gathered, mine)
+    return {name for names in gathered for name in names}
 
 
 def _rank() -> int:
