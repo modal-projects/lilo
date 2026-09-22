@@ -119,11 +119,14 @@ class Engine:
         result_retention_s: float = 900.0,
         observer: Observer | None = None,
         sampler_persistence_concurrency: int = 1,
+        max_forward_backward_batch: int | None = None,
     ) -> None:
         if sampler_persistence_concurrency < 1:
             raise ValueError("sampler_persistence_concurrency must be positive")
         if result_retention_s < 0:
             raise ValueError("result_retention_s must not be negative")
+        if max_forward_backward_batch is not None and max_forward_backward_batch < 1:
+            raise ValueError("max_forward_backward_batch must be positive")
         self.executor = executor
         self.observer = observer
         self._persistence_active: dict[str, int] = {}
@@ -132,6 +135,7 @@ class Engine:
         self.max_results = max_results
         self.result_retention_s = result_retention_s
         self.sampler_persistence_concurrency = sampler_persistence_concurrency
+        self.max_forward_backward_batch = max_forward_backward_batch
         self._sampler_inflight: set[str] = set()
         self._serial_persistence_inflight: set[OperationKind] = set()
         self.draining = False
@@ -755,18 +759,22 @@ class Engine:
 
         selected = [ready[0]]
         if ready[0].kind == OperationKind.FORWARD_BACKWARD:
+            limit = self.max_forward_backward_batch
             key = self._forward_backward_batch_key(ready[0])
-            selected.extend(
-                operation
-                for operation in ready[1:]
-                if operation.kind == OperationKind.FORWARD_BACKWARD
-                and self._forward_backward_batch_key(operation) == key
-            )
+            for operation in ready[1:]:
+                if limit is not None and len(selected) >= limit:
+                    break
+                if (
+                    operation.kind == OperationKind.FORWARD_BACKWARD
+                    and self._forward_backward_batch_key(operation) == key
+                ):
+                    selected.append(operation)
             for operation in tuple(selected):
                 buffered = self._models[operation.model_id].buffered
                 seq_id = operation.seq_id + 1
                 while (
-                    (queued := buffered.get(seq_id)) is not None
+                    (limit is None or len(selected) < limit)
+                    and (queued := buffered.get(seq_id)) is not None
                     and queued.kind == OperationKind.FORWARD_BACKWARD
                     and self._forward_backward_batch_key(queued) == key
                 ):

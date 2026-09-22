@@ -171,7 +171,11 @@ class MilesCommandBackend(Backend):
         ):
             self._stop_profiling()
         with self._timer.phase("prepare_batch", step, model_id=batch.items[0].model_id):
-            prepared = prepare_batch(batch, self.job_to_slot)
+            prepared = prepare_batch(
+                batch,
+                self.job_to_slot,
+                sequence_alignment=self.config.sequence_alignment,
+            )
         phase_name = "forward_only" if batch.forward_only else "forward_backward"
         with (
             self._timer.phase(phase_name, step, model_id=batch.items[0].model_id),
@@ -332,7 +336,12 @@ class MilesCommandBackend(Backend):
                     ),
                     self._record("lilo/persist_checkpoint"),
                 ):
-                    _install_directory(capture["path"], target, overwrite=overwrite)
+                    _install_capture(
+                        capture["path"],
+                        target,
+                        overwrite=overwrite,
+                        world_size=self.config.world_size,
+                    )
                     _commit_volume(os.environ.get("LILO_CHECKPOINT_VOLUME"))
                 return str(target)
             finally:
@@ -641,6 +650,53 @@ def _adam_parameters(adam: AdamParams) -> dict[str, float]:
     if values["weight_decay"] < 0 or values["grad_clip_norm"] < 0:
         raise ValueError("weight_decay and grad_clip_norm must be non-negative")
     return values
+
+
+def _install_capture(
+    source: Path, target: Path, *, overwrite: bool, world_size: int
+) -> None:
+    """Install a capture whose shards were written across several nodes.
+
+    Each trainer node writes its shards into its own view of the checkpoint
+    volume, so copying the capture out of this container's filesystem would
+    install only the shards of the node it shares — a checkpoint that loads
+    on no rank but the ones that wrote it. The committed volume state holds
+    every node's shards, and a server-side copy from it needs no local view.
+    """
+    volume_name = os.environ.get("LILO_CHECKPOINT_VOLUME")
+    root = Path(os.environ.get("LILO_CHECKPOINT_ROOT") or "/checkpoints")
+    try:
+        relative = (str(source.relative_to(root)), str(target.relative_to(root)))
+    except ValueError:
+        relative = None
+    if volume_name is None or relative is None:
+        _install_directory(source, target, overwrite=overwrite)
+        return
+
+    import modal
+
+    volume = modal.Volume.from_name(volume_name)
+    volume.commit()
+    entries = [entry.path for entry in volume.listdir(relative[0])]
+    shards = [path for path in entries if path.endswith(".distcp")]
+    if shards and len(shards) < world_size:
+        raise RuntimeError(
+            f"capture {relative[0]} holds {len(shards)} of {world_size} shards; "
+            "a checkpoint short of a node's shards fails only on the resume "
+            "that needs it"
+        )
+    if target.exists():
+        if not overwrite:
+            raise FileExistsError(f"checkpoint already exists: {target}")
+        shutil.rmtree(target)
+    target.mkdir(parents=True, exist_ok=True)
+    volume.commit()
+    volume.copy_files(entries, relative[1], recursive=True)
+    print(
+        f"lilo_checkpoint_install path={relative[1]} files={len(entries)} "
+        f"shards={len(shards)}",
+        flush=True,
+    )
 
 
 def _install_directory(source: Path, target: Path, *, overwrite: bool) -> None:
