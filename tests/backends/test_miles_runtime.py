@@ -3,14 +3,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from lilo.errors import BackendFailed
-
+from lilo.backends.miles_runtime import runtime as miles_runtime
 from lilo.backends.miles_runtime.runtime import (
     MilesRuntime,
     _configure_actor_spec,
     _materialize_capture,
+    _require_cluster_nodes,
     _worker_env,
 )
+from lilo.errors import BackendFailed
 
 
 def test_worker_env_carries_volume_names_to_other_nodes(monkeypatch):
@@ -65,6 +66,70 @@ def test_actor_override_preserves_non_multilora_workers():
     assert once(
         "miles.backends.megatron_utils.lora.actor.MultiLoRATrainRayActor"
     ).worker_class == ("lilo.backends.miles_runtime.actor.LiloMilesTrainRayActor")
+
+
+class _FakeRay:
+    def __init__(self, node_states):
+        self._node_states = iter(node_states)
+
+    def nodes(self):
+        return next(self._node_states)
+
+
+class _FakeTime:
+    def __init__(self):
+        self.current = 0.0
+
+    def monotonic(self):
+        self.current += 1.0
+        return self.current
+
+    def sleep(self, _seconds):
+        pass
+
+
+def test_require_cluster_nodes_waits_for_nodes_to_register(monkeypatch):
+    monkeypatch.setattr(miles_runtime, "time", _FakeTime())
+    ray = _FakeRay(
+        [
+            [{"Alive": True, "Resources": {"GPU": 8}}],
+            [
+                {"Alive": True, "Resources": {"GPU": 8}},
+                {"Alive": True, "Resources": {"GPU": 8}},
+            ],
+        ]
+    )
+
+    _require_cluster_nodes(ray, nodes=2, world_size=16, timeout=10.0)
+
+
+def test_require_cluster_nodes_rejects_gpus_on_one_node(monkeypatch):
+    monkeypatch.setattr(miles_runtime, "time", _FakeTime())
+    ray = _FakeRay([[{"Alive": True, "Resources": {"GPU": 16}}]])
+
+    with pytest.raises(
+        BackendFailed,
+        match="Ray cluster exposes 16 GPUs on 1 nodes, trainer needs 16 GPUs on 2 nodes",
+    ):
+        _require_cluster_nodes(ray, nodes=2, world_size=16, timeout=0.0)
+
+
+def test_require_cluster_nodes_rejects_short_gpu_total(monkeypatch):
+    monkeypatch.setattr(miles_runtime, "time", _FakeTime())
+    ray = _FakeRay(
+        [
+            [
+                {"Alive": True, "Resources": {"GPU": 8}},
+                {"Alive": True, "Resources": {"GPU": 4}},
+            ]
+        ]
+    )
+
+    with pytest.raises(
+        BackendFailed,
+        match="Ray cluster exposes 12 GPUs on 2 nodes, trainer needs 16 GPUs on 2 nodes",
+    ):
+        _require_cluster_nodes(ray, nodes=2, world_size=16, timeout=0.0)
 
 
 def test_upstream_error_result_invalidates_runtime():

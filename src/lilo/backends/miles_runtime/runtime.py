@@ -204,8 +204,7 @@ class MilesRuntime:
             raise RuntimeError("MilesRuntime requires exclusive ownership of Ray")
         address = os.environ.get("LILO_RAY_ADDRESS")
         if address:
-            # A multi-node cluster was brought up outside the backend process;
-            # its head already owns the GPU resources of every node.
+            # A multi-node training cluster already exists.
             ray.init(
                 address=address,
                 ignore_reinit_error=False,
@@ -221,7 +220,11 @@ class MilesRuntime:
                 num_gpus=self.config.world_size,
             )
         self._owns_ray = True
-        _require_cluster_gpus(ray, self.config.world_size)
+        _require_cluster_nodes(
+            ray,
+            nodes=self.config.actor_num_nodes,
+            world_size=self.config.world_size,
+        )
 
         self._worker_manager = launch_worker_manager(args)
         object_store.init_instance(args, contribute_segment=False)
@@ -273,26 +276,29 @@ _WORKER_ENV_VARS = (
 
 
 def _worker_env() -> dict[str, str]:
-    """Settings the trainer actors need that a pre-existing Ray cluster lacks.
-
-    Actors inherit the environment of the raylet that spawns them. A cluster
-    started inside the backend process passes the backend's environment on, but
-    a multi-node cluster is started by the container entrypoint before the
-    backend exists, so its workers see none of these.
-    """
+    """Settings the trainer actors need that a pre-existing Ray cluster lacks."""
     return {name: os.environ[name] for name in _WORKER_ENV_VARS if name in os.environ}
 
 
-def _require_cluster_gpus(ray, world_size: int, *, timeout: float = 120.0) -> None:
-    """Worker nodes register their GPUs shortly after joining the head."""
+def _require_cluster_nodes(
+    ray, *, nodes: int, world_size: int, timeout: float = 120.0
+) -> None:
+    """Fail fast if the cluster never exposes every node's GPUs, instead of hanging in actor placement."""
     deadline = time.monotonic() + timeout
     while True:
-        available = int(ray.cluster_resources().get("GPU", 0))
-        if available >= world_size:
+        gpu_nodes = [
+            node
+            for node in ray.nodes()
+            if node["Alive"] and node["Resources"].get("GPU", 0) > 0
+        ]
+        alive_gpu_nodes = len(gpu_nodes)
+        total_gpus = sum(node["Resources"].get("GPU", 0) for node in gpu_nodes)
+        if alive_gpu_nodes >= nodes and total_gpus >= world_size:
             return
         if time.monotonic() >= deadline:
             raise BackendFailed(
-                f"Ray cluster exposes {available} GPUs, trainer needs {world_size}"
+                f"Ray cluster exposes {total_gpus} GPUs on {alive_gpu_nodes} nodes, "
+                f"trainer needs {world_size} GPUs on {nodes} nodes"
             )
         time.sleep(2.0)
 
