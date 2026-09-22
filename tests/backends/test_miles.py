@@ -2,6 +2,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from stitch.types import VersionRef
@@ -790,3 +791,77 @@ def test_optimizer_worker_failure_is_fatal(tmp_path, outcome):
     runtime.optim_step = lambda parameters: {0: outcome}
     with pytest.raises(BackendFailed):
         backend.optim_step(("a",), AdamParams(learning_rate=1e-4))
+
+
+class _FakeCheckpointVolume:
+    """A volume whose committed state holds shards this container never wrote."""
+
+    def __init__(self, entries: list[str], copies: list) -> None:
+        self.entries = entries
+        self.copies = copies
+
+    def commit(self) -> None:
+        pass
+
+    def reload(self) -> None:
+        raise AssertionError("a colocated engine keeps a capture file open")
+
+    def listdir(self, path):
+        return [SimpleNamespace(path=f"{path}/{name}") for name in self.entries]
+
+    def copy_files(self, src_paths, dst_path, recursive=False) -> None:
+        self.copies.append((tuple(src_paths), dst_path, recursive))
+
+
+def _install_environment(monkeypatch, tmp_path, entries, copies) -> None:
+    import modal
+
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        modal.Volume,
+        "from_name",
+        staticmethod(lambda *args, **kwargs: _FakeCheckpointVolume(entries, copies)),
+    )
+
+
+def test_installing_a_capture_copies_the_shards_of_every_node(monkeypatch, tmp_path):
+    from lilo.backends.miles_lora import _install_capture
+
+    entries = ["__0_0.distcp", "__1_0.distcp", "metadata.json"]
+    copies: list = []
+    _install_environment(monkeypatch, tmp_path, entries, copies)
+    source = tmp_path / ".captures" / "engine" / "capture-a"
+    source.mkdir(parents=True)
+    (source / "__0_0.distcp").write_text("mine")
+
+    _install_capture(
+        source, tmp_path / "000000" / "model-a", overwrite=False, world_size=2
+    )
+
+    assert copies == [
+        (
+            (
+                ".captures/engine/capture-a/__0_0.distcp",
+                ".captures/engine/capture-a/__1_0.distcp",
+                ".captures/engine/capture-a/metadata.json",
+            ),
+            "000000/model-a",
+            True,
+        )
+    ]
+
+
+def test_a_capture_short_of_a_nodes_shards_is_refused(monkeypatch, tmp_path):
+    from lilo.backends.miles_lora import _install_capture
+
+    copies: list = []
+    _install_environment(monkeypatch, tmp_path, ["__0_0.distcp"], copies)
+    source = tmp_path / ".captures" / "engine" / "capture-a"
+    source.mkdir(parents=True)
+
+    with pytest.raises(RuntimeError, match="1 of 2 shards"):
+        _install_capture(
+            source, tmp_path / "000000" / "model-a", overwrite=False, world_size=2
+        )
+    assert copies == []
