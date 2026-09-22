@@ -191,6 +191,9 @@ class MilesRuntime:
         from miles.utils.external_utils.model_args_utils import load_model_args
         from miles.utils.logging_utils import configure_logger
 
+        from .replay_data import install_bridge_replay
+
+        install_bridge_replay()
         _configure_actor_spec(train_specs)
         _allow_context_parallel_multi_lora()
         architecture = shlex.split(load_model_args(self.config.model_type))

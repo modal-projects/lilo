@@ -29,6 +29,7 @@ def start_sglang(
     trust_remote_code: bool = False,
     lora_target_modules: Sequence[str] = ("all",),
     enable_lora: bool = True,
+    enable_return_routed_experts: bool = False,
     enable_cpu_weight_cache: bool = False,
     cpu_weight_cache_max_compile_group_gb: float | None = None,
     memory_fraction: float = 0.85,
@@ -112,6 +113,8 @@ def start_sglang(
             "--weight-loader-disable-mmap",
         ]
     )
+    if enable_return_routed_experts:
+        command.append("--enable-return-routed-experts")
     if enable_lora:
         command.extend(
             [

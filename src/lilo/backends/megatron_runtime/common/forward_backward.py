@@ -9,6 +9,7 @@ from typing import Any
 import torch
 from tinker import ForwardBackwardOutput, TensorData
 
+from lilo.replay import REPLAY_FIELDS
 from lilo.telemetry import backend as telemetry
 
 from ...contract import ForwardBatch
@@ -140,6 +141,10 @@ def build_sequence_batches(
         if not item.data:
             raise ValueError(f"forward_backward has no data for job {item.model_id}")
         for output_index, datum in enumerate(item.data):
+            if REPLAY_FIELDS & datum.loss_fn_inputs.keys():
+                raise ValueError(
+                    "sampler replay is currently supported only by the Miles LoRA backend"
+                )
             input_ids = list(datum.model_input.to_ints())
             if not input_ids:
                 raise ValueError("input_ids cannot be empty")

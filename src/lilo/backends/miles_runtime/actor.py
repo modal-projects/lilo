@@ -26,6 +26,7 @@ from miles.backends.training_utils.parallel import get_parallel_state
 from miles.backends.training_utils.weight_update import snapshot_publisher
 
 from .profiling import RankProfiler, TorchProfileConfig
+from .replay import install_replay_hooks
 
 
 def _pad_local_shard(
@@ -169,6 +170,8 @@ def _gather_tinker_logprobs_across_cp() -> None:
 
 
 _gather_tinker_logprobs_across_cp()
+
+install_replay_hooks()
 
 
 def _checkpoint_volume_path(path: Path) -> str | None:

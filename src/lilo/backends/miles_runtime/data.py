@@ -6,6 +6,7 @@ from typing import Any
 from tinker import ForwardBackwardOutput, TensorData
 
 from lilo.backends.contract import ForwardBatch
+from .replay_data import replay_row
 
 SUPPORTED_LOSSES = frozenset(
     {"cross_entropy", "importance_sampling", "ppo", "cispo", "dro"}
@@ -39,6 +40,16 @@ def pad_slot_rows(
         pad["advantages"] = [0.0]
     if "sampling_logprobs" in last:
         pad["sampling_logprobs"] = [0.0]
+    if "routed_experts" in last:
+        route = last["routed_experts"]
+        width = route["shape"][1] * route["shape"][2]
+        pad["routed_experts"] = {
+            "values": route["values"][:width],
+            "shape": [1, *route["shape"][1:]],
+        }
+    if "sampling_mask_ids" in last:
+        pad["sampling_mask_ids"] = []
+        pad["sampling_mask_offsets"] = [0, 0]
     n_pad = -len(slot_rows) % multiple
     return (*slot_rows, *((slot, dict(pad)) for _ in range(n_pad)))
 
@@ -91,6 +102,14 @@ def _align_row(row: dict[str, Any], multiple: int) -> None:
         values = row.get(key)
         if values is not None:
             row[key] = [*values, *([0.0] * pad)]
+    if "routed_experts" in row:
+        route = row["routed_experts"]
+        width = route["shape"][1] * route["shape"][2]
+        route["values"] = [*route["values"], *([-1] * pad * width)]
+        route["shape"][0] += pad
+    if "sampling_mask_offsets" in row:
+        offsets = row["sampling_mask_offsets"]
+        row["sampling_mask_offsets"] = [*offsets, *([offsets[-1]] * pad)]
 
 
 def build_outputs(
@@ -206,6 +225,7 @@ def _datum_row(datum, loss_fn: str, datum_index: int) -> dict[str, Any]:
             raise ValueError(
                 f"datum {datum_index}: {', '.join(missing)} required for {loss_fn}"
             )
+    row.update(replay_row(inputs, targets))
     return row
 
 

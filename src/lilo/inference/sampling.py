@@ -13,6 +13,7 @@ from stitch.publish import constrain_request
 
 from lilo.telemetry.sample_stats import SampleAttempt, event_sink, timing_metadata
 from lilo.telemetry.http_trace import HTTPTrace
+from lilo.replay import capture_replay
 
 RETRY_INITIAL_DELAY_SECONDS = 1.0
 RETRY_MAX_DELAY_SECONDS = 5.0
@@ -57,6 +58,12 @@ async def sample_task(
             else None
         ),
     )
+    replay_flags = {}
+    for key in ("return_routed_experts", "return_sampling_mask"):
+        value = request.get(key, False)
+        if type(value) is not bool:
+            raise ValueError(f"{key} must be a boolean")
+        replay_flags[key] = value
     model_id = task.get("model_id")
     version = task.get("publish_version")
     latest = bool(task.get("latest"))
@@ -117,6 +124,7 @@ async def sample_task(
                     routing_session_id=routing_session_id,
                     cache_affinity_id=cache_affinity_id,
                     routed_dp_rank=routed_dp_rank,
+                    replay_flags=replay_flags,
                     prompt_logprobs=prompt_logprobs and index == 0,
                     topk_prompt_logprobs=(topk_prompt_logprobs if index == 0 else 0),
                     retry_timeout=retry_timeout,
@@ -133,6 +141,16 @@ async def sample_task(
         )
 
     sequences = [_sequence(output) for output in outputs]
+    if any(replay_flags.values()):
+        for sequence, output in zip(sequences, outputs, strict=True):
+            sequence["replay"] = capture_replay(
+                output.get("meta_info") or {},
+                sequence["tokens"],
+                prompt_tokens=len(prompt),
+                temperature=params.get("temperature", 1.0),
+                routes=replay_flags["return_routed_experts"],
+                mask=replay_flags["return_sampling_mask"],
+            )
     if stats is not None:
         meta = outputs[0].get("meta_info") or {}
         stats.update(sequence_stats[0])
@@ -173,6 +191,7 @@ async def _sample_one(
     routing_session_id: str,
     cache_affinity_id: str | None,
     routed_dp_rank: int,
+    replay_flags: dict[str, bool],
     prompt_logprobs: bool,
     topk_prompt_logprobs: int,
     retry_timeout: float,
@@ -190,6 +209,9 @@ async def _sample_one(
         "return_logprob": True,
         "routed_dp_rank": routed_dp_rank,
     }
+    body.update({key: value for key, value in replay_flags.items() if value})
+    if replay_flags["return_routed_experts"]:
+        body["routed_experts_start_len"] = 0
     if cache_affinity_id is not None:
         body["session_id"] = cache_affinity_id
     if prompt_logprobs or topk_prompt_logprobs:
