@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
+import shutil
 import socket
+from pathlib import Path
 
 import modal
 import torch
@@ -168,29 +171,80 @@ def _gather_tinker_logprobs_across_cp() -> None:
 _gather_tinker_logprobs_across_cp()
 
 
-def _publish_checkpoints_across_nodes() -> None:
-    """Let miles' rank-0 checkpoint publish see the shards every node wrote.
+def _checkpoint_volume_path(path: Path) -> str | None:
+    """Locate ``path`` inside the checkpoint volume, or ``None`` if outside."""
+    root = Path(os.environ.get("LILO_CHECKPOINT_ROOT") or "/checkpoints")
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return None
 
-    ``write_checkpoint_dir`` writes shards into a temporary directory that rank
-    0 then renames into place. Each Modal node writes into its own uncommitted
-    view of the checkpoint volume, so that rename captures only rank 0's node
-    and the published checkpoint is missing every other node's shards.
-    Committing all nodes and refreshing rank 0 before the rename publishes the
-    complete shard set.
+
+def _write_checkpoint_dir_on_volume(
+    volume_name: str,
+    path: Path,
+    relative: str,
+    write_shards,
+    metadata: dict | None,
+) -> None:
+    """Publish a checkpoint whose shards are spread over several nodes.
+
+    Every node writes into its own view of the volume, so neither a rename nor
+    a copy performed on one node's filesystem can see the other nodes' shards.
+    Each node commits what it wrote and rank 0 then assembles the checkpoint
+    from the committed state with a server-side copy, which needs no local
+    view of the shards at all. Refreshing rank 0 instead would fail whenever
+    the colocated engine holds a capture file open on the same volume.
+    """
+    tmp = path.parent / f"_tmp_{path.name}"
+    tmp.mkdir(parents=True, exist_ok=True)
+    tmp_relative = str(Path(relative).parent / tmp.name)
+    _barrier()
+    write_shards(tmp)
+    if _rank() == 0 and metadata is not None:
+        (tmp / "META.json").write_text(json.dumps(metadata, indent=2))
+    _sync_checkpoint_volume("commit", reload=False)
+
+    def publish() -> None:
+        volume = modal.Volume.from_name(volume_name)
+        path.mkdir(parents=True, exist_ok=True)
+        volume.commit()
+        shards = [entry.path for entry in volume.listdir(tmp_relative)]
+        volume.copy_files(shards, relative, recursive=True)
+        print(
+            f"lilo_checkpoint_publish path={relative} shards={len(shards)}",
+            flush=True,
+        )
+
+    _on_rank_zero(publish)
+    shutil.rmtree(tmp, ignore_errors=True)
+    _sync_checkpoint_volume("commit", reload=False)
+
+
+def _publish_checkpoints_across_nodes() -> None:
+    """Let a checkpoint publish include the shards every node wrote.
+
+    ``write_checkpoint_dir`` has every rank write shards into a temporary
+    directory that rank 0 renames into place. Each Modal node writes into its
+    own uncommitted view of the checkpoint volume, so that rename captures only
+    rank 0's node and the published checkpoint is missing every other node's
+    shards.
     """
 
     original = checkpoint_io.write_checkpoint_dir
-    if getattr(original, "__lilo_syncs_volume__", False):
+    if getattr(original, "__lilo_publishes_across_nodes__", False):
         return
 
-    def write_checkpoint_dir(path, write_shards, *args, **kwargs):
-        def write_shards_then_sync(directory):
-            write_shards(directory)
-            _sync_checkpoint_volume("commit")
+    def write_checkpoint_dir(path, write_shards, metadata=None, **kwargs):
+        name = os.environ.get("LILO_CHECKPOINT_VOLUME")
+        relative = _checkpoint_volume_path(Path(path))
+        if name is None or relative is None:
+            return original(path, write_shards, metadata, **kwargs)
+        return _write_checkpoint_dir_on_volume(
+            name, Path(path), relative, write_shards, metadata
+        )
 
-        return original(path, write_shards_then_sync, *args, **kwargs)
-
-    write_checkpoint_dir.__lilo_syncs_volume__ = True
+    write_checkpoint_dir.__lilo_publishes_across_nodes__ = True
     checkpoint_io.write_checkpoint_dir = write_checkpoint_dir
     for module in (checkpoint, snapshot_publisher):
         if getattr(module, "write_checkpoint_dir", None) is original:
@@ -207,7 +261,7 @@ def _node_identity() -> str:
     return os.environ.get("MODAL_TASK_ID") or socket.gethostname()
 
 
-def _sync_checkpoint_volume(action: str) -> None:
+def _sync_checkpoint_volume(action: str, *, reload: bool = True) -> None:
     """Commit checkpoint shards across nodes and refresh the committed view."""
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
     if name is None:
@@ -226,8 +280,42 @@ def _sync_checkpoint_volume(action: str) -> None:
     dist.all_gather_object(hosts, _node_identity())
     representative = hosts.index(hosts[dist.get_rank()]) == dist.get_rank()
     _volume_action_on_representatives(name, action, representative)
-    if action == "commit":
+    if action == "commit" and reload:
         _volume_action_on_representatives(name, "reload", representative)
+
+
+def _rank() -> int:
+    return dist.get_rank() if _distributed() else 0
+
+
+def _distributed() -> bool:
+    return dist.is_available() and dist.is_initialized()
+
+
+def _barrier() -> None:
+    if _distributed():
+        dist.barrier()
+
+
+def _on_rank_zero(work) -> None:
+    """Run ``work`` on rank 0 and raise its failure on every rank.
+
+    Ranks that skipped a failed step would otherwise carry on into the next
+    collective and hang the job until the distributed timeout instead of
+    surfacing the error.
+    """
+    failure: str | None = None
+    if _rank() == 0:
+        try:
+            work()
+        except Exception as exc:  # re-raised on every rank below
+            failure = f"{type(exc).__name__}: {exc}"
+    if _distributed():
+        payload: list[str | None] = [failure]
+        dist.broadcast_object_list(payload, src=0)
+        failure = payload[0]
+    if failure is not None:
+        raise RuntimeError(f"checkpoint publish failed on rank 0: {failure}")
 
 
 def _volume_action_on_representatives(

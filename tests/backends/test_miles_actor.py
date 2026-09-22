@@ -165,29 +165,90 @@ def _load_actor(monkeypatch):
     return actor
 
 
-def test_shards_are_committed_before_rank_zero_publishes(monkeypatch) -> None:
-    """Rank 0 renames the shard directory, so it must first see every node's shards."""
+class _FakeVolume:
+    """A volume whose committed state holds shards rank 0 cannot see locally."""
+
+    def __init__(self, events: list) -> None:
+        self.events = events
+
+    def commit(self) -> None:
+        self.events.append("commit")
+
+    def reload(self) -> None:
+        raise AssertionError("a colocated engine keeps a capture file open")
+
+    def listdir(self, path):
+        return [
+            types.SimpleNamespace(path=f"{path}/__0_0.distcp"),
+            types.SimpleNamespace(path=f"{path}/__8_0.distcp"),
+        ]
+
+    def copy_files(self, src_paths, dst_path, recursive=False) -> None:
+        self.events.append(("copy", tuple(src_paths), dst_path, recursive))
+
+
+def test_checkpoint_is_published_from_committed_state(monkeypatch, tmp_path) -> None:
+    """Only the committed state holds every node's shards, so publish from there."""
     actor = _load_actor(monkeypatch)
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
+    events: list = []
+    actor.modal.Volume = types.SimpleNamespace(
+        from_name=lambda name: _FakeVolume(events)
+    )
+    actor.dist.is_available = lambda: False
+    actor.dist.is_initialized = lambda: False
+
+    def original(path, write_shards, *args, **kwargs):
+        raise AssertionError("miles' rank-0 rename cannot see other nodes' shards")
+
+    actor.checkpoint_io.write_checkpoint_dir = original
+    actor._publish_checkpoints_across_nodes()
+    monkeypatch.setattr(
+        actor,
+        "_sync_checkpoint_volume",
+        lambda action, reload=True: events.append((action, reload)),
+    )
+
+    path = tmp_path / "000000" / "miles"
+    actor.checkpoint_io.write_checkpoint_dir(
+        path,
+        lambda directory: (directory / "__0_0.distcp").write_text("shard"),
+        {"step": 0},
+    )
+
+    assert events == [
+        ("commit", False),
+        "commit",
+        (
+            "copy",
+            ("000000/_tmp_miles/__0_0.distcp", "000000/_tmp_miles/__8_0.distcp"),
+            "000000/miles",
+            True,
+        ),
+        ("commit", False),
+    ]
+    assert not (tmp_path / "000000" / "_tmp_miles").exists()
+
+
+def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:
+    actor = _load_actor(monkeypatch)
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", "/checkpoints")
     events: list[str] = []
 
     def original(path, write_shards, *args, **kwargs):
-        write_shards(path)
-        events.append("publish")
+        events.append("miles-publish")
 
     actor.checkpoint_io.write_checkpoint_dir = original
     actor.checkpoint.write_checkpoint_dir = original
     actor.snapshot_publisher.write_checkpoint_dir = original
     actor._publish_checkpoints_across_nodes()
-    monkeypatch.setattr(
-        actor, "_sync_checkpoint_volume", lambda action: events.append(action)
-    )
 
     for module in (actor.checkpoint_io, actor.checkpoint, actor.snapshot_publisher):
-        module.write_checkpoint_dir(
-            "/checkpoints/000000", lambda _: events.append("write")
-        )
+        module.write_checkpoint_dir("/tmp/scratch/000000", lambda _: None)
 
-    assert events == ["write", "commit", "publish"] * 3
+    assert events == ["miles-publish"] * 3
 
 
 def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> None:
@@ -213,6 +274,26 @@ def test_sync_checkpoint_volume_commits_then_reloads_each_node(monkeypatch) -> N
         (2, "commit"),
         (2, "reload"),
     ]
+
+
+def test_sync_checkpoint_volume_can_skip_the_reload(monkeypatch) -> None:
+    """Reloading fails outright while the colocated engine holds a capture open."""
+    actor, fake_dist = _distributed_actor(monkeypatch, ["ta-node0", "ta-node1"])
+    actions: list[tuple[int, str]] = []
+    lock = threading.Lock()
+
+    def volume_action(name, action):
+        with lock:
+            actions.append((fake_dist.get_rank(), action))
+
+    actor._volume_action = volume_action
+
+    futures = fake_dist.run_ranks(
+        lambda rank: actor._sync_checkpoint_volume("commit", reload=False)
+    )
+
+    assert [future.exception() for future in futures] == [None] * 2
+    assert sorted(actions) == [(0, "commit"), (1, "commit")]
 
 
 def test_sync_checkpoint_volume_falls_back_to_hostnames(monkeypatch) -> None:
