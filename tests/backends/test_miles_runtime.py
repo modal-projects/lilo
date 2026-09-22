@@ -9,7 +9,20 @@ from lilo.backends.miles_runtime.runtime import (
     MilesRuntime,
     _configure_actor_spec,
     _materialize_capture,
+    _worker_env,
 )
+
+
+def test_worker_env_carries_volume_names_to_other_nodes(monkeypatch):
+    """Actors on worker nodes only see what the pre-existing cluster was given."""
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_BULLETIN_VOLUME", "lilo-bulletin")
+    monkeypatch.delenv("LILO_BULLETIN_ROOT", raising=False)
+    monkeypatch.setenv("LILO_BACKEND_CONFIG", "{}")
+    assert _worker_env() == {
+        "LILO_CHECKPOINT_VOLUME": "lilo-checkpoints",
+        "LILO_BULLETIN_VOLUME": "lilo-bulletin",
+    }
 
 
 def test_capture_detaches_upstream_version_directory(tmp_path):

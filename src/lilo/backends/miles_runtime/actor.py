@@ -211,6 +211,11 @@ def _sync_checkpoint_volume(action: str) -> None:
     """Commit checkpoint shards across nodes and refresh the committed view."""
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
     if name is None:
+        if "MODAL_TASK_ID" in os.environ:
+            print(
+                "lilo_checkpoint_volume action=skipped reason=unset",
+                flush=True,
+            )
         return
     if not dist.is_available() or not dist.is_initialized():
         _volume_action(name, action)
@@ -258,6 +263,7 @@ def _volume_action(name: str, action: str) -> None:
         volume.commit()
     else:
         volume.reload()
+    print(f"lilo_checkpoint_volume action={action} volume={name}", flush=True)
 
 
 _publish_checkpoints_across_nodes()

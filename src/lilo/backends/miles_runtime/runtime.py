@@ -210,6 +210,7 @@ class MilesRuntime:
                 address=address,
                 ignore_reinit_error=False,
                 log_to_driver=True,
+                runtime_env={"env_vars": _worker_env()},
             )
         else:
             ray.init(
@@ -262,6 +263,24 @@ class MilesRuntime:
             self._bridge = None
             self._trainer = None
             self._worker_manager = None
+
+
+_WORKER_ENV_VARS = (
+    "LILO_CHECKPOINT_VOLUME",
+    "LILO_BULLETIN_VOLUME",
+    "LILO_BULLETIN_ROOT",
+)
+
+
+def _worker_env() -> dict[str, str]:
+    """Settings the trainer actors need that a pre-existing Ray cluster lacks.
+
+    Actors inherit the environment of the raylet that spawns them. A cluster
+    started inside the backend process passes the backend's environment on, but
+    a multi-node cluster is started by the container entrypoint before the
+    backend exists, so its workers see none of these.
+    """
+    return {name: os.environ[name] for name in _WORKER_ENV_VARS if name in os.environ}
 
 
 def _require_cluster_gpus(ray, world_size: int, *, timeout: float = 120.0) -> None:
