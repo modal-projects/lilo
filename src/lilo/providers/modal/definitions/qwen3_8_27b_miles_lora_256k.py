@@ -14,7 +14,7 @@ from ..deployment import trainer_deployment_env, trainer_max_containers
 
 MODEL_NAME = "Qwen/Qwen3.8-27B"
 HF_CHECKPOINT = "/assets/Qwen3.8-27B"
-DEFINITION_ID = "qwen3_8_27b_miles_lora_256k_2n"
+DEFINITION_ID = "qwen3_8_27b_miles_lora_256k"
 PARAMETERIZATION = "lora"
 CATALOG_VISIBLE = False
 MAX_CONTEXT_LENGTH = 262_144
@@ -127,7 +127,7 @@ def ensure_assets() -> None:
     experimental_options={"efa_enabled": True},
 )
 @modal.experimental.clustered(TRAINER_NODES, rdma=True)
-def qwen3_8_27b_miles_lora_256k_2n(instance_id: str) -> None:
+def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
     from lilo.providers.modal.ray_cluster import start_trainer_cluster
 
     ray_address = start_trainer_cluster(
@@ -226,4 +226,4 @@ def run_trainer(
     )
 
 
-ENGINE_FUNCTION = qwen3_8_27b_miles_lora_256k_2n
+ENGINE_FUNCTION = qwen3_8_27b_miles_lora_256k
