@@ -314,6 +314,11 @@ def create_control_plane_app(
     async def telemetry() -> dict[str, str]:
         return {"status": "accepted"}
 
+    @app.get("/api/v1/timing")
+    async def timing(model_id: str, reset: bool = False) -> dict[str, object]:
+        engine = await control_plane.engine_for(model_id)
+        return await engine.timing(model_id=model_id, reset=reset)
+
     @app.post("/api/v1/create_session")
     async def create_session(body: CreateSessionBody) -> dict[str, object]:
         session = await control_plane.create_session(

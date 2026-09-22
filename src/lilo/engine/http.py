@@ -107,6 +107,13 @@ def create_engine_app(server: EngineApi, *, token: str | None = None) -> FastAPI
     async def models() -> dict[str, tuple[str, ...]]:
         return {"model_ids": await server.model_ids()}
 
+    @app.get("/api/v1/timing")
+    async def timing(
+        model_id: str | None = None,
+        reset: bool = False,
+    ) -> dict[str, object]:
+        return await server.timing(model_id=model_id, reset=reset)
+
     @app.post("/api/v1/forward_backward")
     async def forward_backward(request: Request) -> dict[str, str]:
         body = await request.body()
@@ -228,6 +235,18 @@ class HttpEngineClient:
         response = await self.http.get("/api/v1/models")
         _raise_mapped(response)
         return tuple(response.json()["model_ids"])
+
+    async def timing(
+        self,
+        model_id: str | None = None,
+        reset: bool = False,
+    ) -> dict[str, object]:
+        params: dict[str, str] = {"reset": "true" if reset else "false"}
+        if model_id is not None:
+            params["model_id"] = model_id
+        response = await self.http.get("/api/v1/timing", params=params)
+        _raise_mapped(response)
+        return response.json()
 
     async def forward_backward(self, body: bytes, content_type: str) -> str:
         response = await self.http.post(

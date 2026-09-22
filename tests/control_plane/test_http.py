@@ -490,3 +490,39 @@ def test_explicit_hidden_deployment_keeps_canonical_model_name() -> None:
             assert record.base_model == BASE_MODEL
             assert record.engine_definition_id == "isolated"
     asyncio.run(run())
+
+
+def test_timing_reaches_the_trainer_holding_the_model() -> None:
+    async def run() -> None:
+        client = http_client()
+        _, model_id = await created_model(client)
+
+        submitted = await client.post(
+            "/api/v1/forward_backward",
+            json={
+                "model_id": model_id,
+                "seq_id": 1,
+                "forward_backward_input": {
+                    "data": [
+                        {
+                            "model_input": {"chunks": [{"tokens": [1, 2]}]},
+                            "loss_fn_inputs": {},
+                        }
+                    ],
+                    "loss_fn": "cross_entropy",
+                },
+            },
+        )
+        await client.post(
+            "/api/v1/retrieve_future",
+            json={"request_id": submitted.json()["request_id"]},
+        )
+
+        response = await client.get("/api/v1/timing", params={"model_id": model_id})
+        assert response.status_code == 200
+        snapshot = response.json()
+        assert snapshot["model_id"] == model_id
+        assert snapshot["phases"]["forward_backward.execute"]["count"] == 1
+        assert snapshot["phases"]["forward_backward.queue_wait"]["count"] == 1
+
+    asyncio.run(run())

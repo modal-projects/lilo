@@ -17,6 +17,8 @@ import modal
 from lilo.engine import Engine
 from lilo.engine.backend_http import HttpBackendClient
 from lilo.engine.http import create_engine_app
+from lilo.telemetry.critical_path import current as critical_path
+from lilo.telemetry.critical_path import uptime_s
 
 from .engines import EngineInstanceRecord, instance_key
 from .kv import ModalKeyValueStore
@@ -82,6 +84,7 @@ async def serve_engine(
                 update={"state": "running", "url": tunnel.url, "token": token}
             )
             await kv.put(instance_key(instance_id), record.model_dump(mode="json"))
+            critical_path.gauge("trainer.serving_ready_s", uptime_s(), once=True)
             try:
                 if notify_reconciler:
                     await _kick_trainer_reconciler(definition_id)
@@ -178,6 +181,11 @@ def run_engine_with_backend(
                         )
                     try:
                         if (await executor.http.get("/healthz")).is_success:
+                            critical_path.gauge(
+                                "trainer.backend_ready_s",
+                                uptime_s(),
+                                once=True,
+                            )
                             return Engine(
                                 executor,
                                 max_models=max_models,

@@ -13,6 +13,8 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 from lilo.encoding import fingerprint
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
 from lilo.request_timing import mark
+from lilo.telemetry.critical_path import CriticalPath, uptime_s
+from lilo.telemetry.critical_path import current as critical_path
 
 from .api import Command, Executor, FutureState, FutureStatus, OperationKind
 from .ingress import decode_forward_backward, decode_json_operation
@@ -71,6 +73,7 @@ class Operation:
     seq_id: int
     kind: OperationKind
     payload: OperationPayload
+    submitted_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,7 @@ class _AcceptOperation:
     model_id: str
     spec: object
     done: asyncio.Future[bool]
+    submitted_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,8 @@ class Engine:
         result_retention_s: float = 900.0,
         observer: Observer | None = None,
         sampler_persistence_concurrency: int = 1,
+        timings: CriticalPath | None = None,
+        timing_report_interval_s: float = 300.0,
     ) -> None:
         if sampler_persistence_concurrency < 1:
             raise ValueError("sampler_persistence_concurrency must be positive")
@@ -126,6 +132,7 @@ class Engine:
             raise ValueError("result_retention_s must not be negative")
         self.executor = executor
         self.observer = observer
+        self.timings = timings if timings is not None else critical_path
         self._persistence_active: dict[str, int] = {}
         self.max_models = max_models
         self.max_buffered = max_buffered
@@ -145,6 +152,8 @@ class Engine:
         self._sampler_persistence: asyncio.Queue[_PersistJob] = asyncio.Queue()
         self._tasks: tuple[asyncio.Task[None], ...] = ()
         self._closing = False
+        self._timing_polled = 0.0
+        self.timing_report_interval_s = timing_report_interval_s
 
     async def accept_model(self, model_id: str, spec: object) -> bool:
         async with self._lock:
@@ -172,6 +181,14 @@ class Engine:
     async def model_ids(self) -> tuple[str, ...]:
         async with self._lock:
             return tuple(self._models)
+
+    async def timing(
+        self,
+        model_id: str | None = None,
+        reset: bool = False,
+    ) -> dict[str, object]:
+        self._timing_polled = time.monotonic()
+        return self.timings.snapshot(model_id=model_id, reset=reset)
 
     @property
     def loaded(self) -> tuple[str, ...]:
@@ -401,7 +418,21 @@ class Engine:
                 asyncio.create_task(self._persistence_loop(self._sampler_persistence))
                 for _ in range(self.sampler_persistence_concurrency)
             ),
+            asyncio.create_task(self._timing_loop()),
         )
+
+    async def _timing_loop(self) -> None:
+        """Print the critical path while nobody is reading it over HTTP."""
+        interval = self.timing_report_interval_s
+        if interval <= 0:
+            return
+        while True:
+            await asyncio.sleep(interval)
+            if self._closing:
+                return
+            if time.monotonic() - self._timing_polled < interval:
+                continue
+            self.timings.emit(**self.timings.snapshot())
 
     def _observe_state(self, models: tuple[str, ...] | list[str], state: str) -> None:
         if self.observer is not None:
@@ -459,6 +490,13 @@ class Engine:
                 request_ids=[item.request_id for item in operations],
             )
             started = time.time()
+            started_mono = time.monotonic()
+            for item in operations:
+                self.timings.record(
+                    f"{item.kind.value}.queue_wait",
+                    started_mono - item.submitted_at,
+                    model_id=item.model_id,
+                )
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
                     results = await self.executor.execute_forward_backward_batch(
@@ -498,6 +536,14 @@ class Engine:
                     request_ids=[item.request_id for item in operations],
                     ok=False,
                 )
+            elapsed = time.monotonic() - started_mono
+            for model_id in models:
+                self.timings.record(
+                    f"{operation.kind.value}.execute",
+                    elapsed,
+                    model_id=model_id,
+                    batch=len(operations),
+                )
             self._observe_span(
                 models,
                 operation.kind.value,
@@ -519,6 +565,12 @@ class Engine:
     async def _run_accept(self, operation: _AcceptOperation) -> None:
         error = None
         started = time.time()
+        started_mono = time.monotonic()
+        self.timings.record(
+            "accept.queue_wait",
+            started_mono - operation.submitted_at,
+            model_id=operation.model_id,
+        )
         self._observe_state((operation.model_id,), "executing:accept")
         try:
             await self._join_persistence()
@@ -538,6 +590,13 @@ class Engine:
                 await self.executor.unload_model(operation.model_id)
             except Exception:
                 logging.getLogger(__name__).exception("executor unload_model")
+        self.timings.record(
+            "accept.execute",
+            time.monotonic() - started_mono,
+            model_id=operation.model_id,
+        )
+        if error is None:
+            self.timings.gauge("trainer.first_model_ready_s", uptime_s(), once=True)
         self._observe_span(
             (operation.model_id,),
             "accept",
@@ -603,6 +662,7 @@ class Engine:
         name = f"capture:{operation.kind.value}"
         self._observe_state((operation.model_id,), f"executing:{name}")
         started = time.time()
+        started_mono = time.monotonic()
         try:
             capture = await self.executor.capture_snapshot(
                 operation.model_id,
@@ -610,6 +670,11 @@ class Engine:
                 operation.payload,
             )
         except Exception as exc:  # noqa: BLE001
+            self.timings.record(
+                f"{operation.kind.value}.capture",
+                time.monotonic() - started_mono,
+                model_id=operation.model_id,
+            )
             self._observe_span(
                 (operation.model_id,),
                 name,
@@ -629,6 +694,11 @@ class Engine:
                     FutureState(FutureStatus.FAILED, error=_failure(exc, name)),
                 )
             return
+        self.timings.record(
+            f"{operation.kind.value}.capture",
+            time.monotonic() - started_mono,
+            model_id=operation.model_id,
+        )
         self._observe_span(
             (operation.model_id,),
             name,
@@ -643,6 +713,7 @@ class Engine:
         while True:
             job = await queue.get()
             started = time.time()
+            started_mono = time.monotonic()
             lane = PERSIST_LANES[job.operation.kind]
             self._persistence_active[lane] = self._persistence_active.get(lane, 0) + 1
             if self.observer is not None and self._persistence_active[lane] == 1:
@@ -661,6 +732,11 @@ class Engine:
                         FutureStatus.FAILED,
                         error=_failure(exc, f"persist:{job.operation.kind.value}"),
                     )
+                self.timings.record(
+                    f"{job.operation.kind.value}.persist",
+                    time.monotonic() - started_mono,
+                    model_id=job.operation.model_id,
+                )
                 self._observe_span(
                     (job.operation.model_id,),
                     f"persist:{job.operation.kind.value}",

@@ -15,6 +15,7 @@ from lilo.engine import (
     create_engine_app,
 )
 from lilo.errors import RecordNotFound, SequenceConflict
+from lilo.telemetry.critical_path import CriticalPath
 from tests.support import EchoExecutor
 
 
@@ -174,5 +175,28 @@ def test_bad_token_is_rejected() -> None:
         with pytest.raises(httpx.HTTPStatusError):
             await client.accept_model("model-a", {})
         await client.close()
+
+    asyncio.run(run())
+
+
+def test_timing_is_served_per_model() -> None:
+    async def run() -> None:
+        timings = CriticalPath()
+        server = Engine(EchoExecutor(), timings=timings)
+        client = http_client(server)
+
+        assert await client.accept_model("model-a", {})
+        request_id = await client.forward_backward(
+            forward_backward_json(1),
+            "application/json",
+        )
+        state = await client.retrieve_future(request_id, timeout=1)
+        assert state is not None and state.status == FutureStatus.COMPLETE
+
+        snapshot = await client.timing(model_id="model-a", reset=True)
+        assert snapshot["model_id"] == "model-a"
+        assert snapshot["phases"]["forward_backward.execute"]["count"] == 1
+        assert (await client.timing(model_id="model-a"))["phases"] == {}
+        await server.close()
 
     asyncio.run(run())

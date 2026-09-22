@@ -14,6 +14,51 @@ of measurements:
 
 Lilo sends these measurements via OTLP (export off by default), from which Datadog or another compatible service can be used to receive and display these traces.
 
+## Critical path without a tracing backend
+
+Every trainer keeps a running breakdown of its critical path in memory, with no
+exporter and no configuration. It separates the two things a step time conflates:
+`*.queue_wait`, the interval between a request arriving and the trainer starting it
+(fair sharing across LoRA slots, serialized persistence, other tenants), and
+`*.execute`, the GPU work itself. Persistence adds `*.capture` and `*.persist`, and
+model admission adds `accept.queue_wait` / `accept.execute`.
+
+Read it from a training loop and log it next to the rest of your step metrics:
+
+```python
+from lilo.timing import log_critical_path
+
+for step in range(steps):
+    ...  # forward_backward, optim_step, publish weights
+    log_critical_path(model_id, step=step)
+```
+
+`log_critical_path` reads `TINKER_BASE_URL` / `TINKER_API_KEY`, logs to the active
+W&B run when there is one, prints a JSON line otherwise, and never raises into the
+step. It resets the counters by default, so each call reports the interval since the
+last one. Use `critical_path_metrics` to get the same flat `lilo/...` scalars without
+logging them.
+
+The snapshot is also available directly at `GET /api/v1/timing?model_id=...`, and a
+trainer nobody is polling prints one `lilo_critical_path` JSON line every five
+minutes, so container logs still show where the time went.
+
+Gauges cover startup, measured from trainer-process start:
+`trainer.backend_ready_s` (Megatron up and answering), `trainer.serving_ready_s`
+(engine serving requests), and `trainer.first_model_ready_s` (first model admitted).
+
+| Metric | Meaning |
+| --- | --- |
+| `lilo/forward_backward.queue_wait.mean_s` | Wait between submission and execution |
+| `lilo/forward_backward.execute.mean_s` | Backend execution of the batch |
+| `lilo/forward_backward.execute.mean_batch` | Commands coalesced into one execution |
+| `lilo/save_weights_for_sampler.persist.total_s` | Publishing weights for sampling |
+| `lilo/trainer.first_model_ready_s` | Cold start to first admitted model |
+
+Phase totals are per model when a `model_id` is given and across every model on the
+trainer otherwise, which is how a slot's own execution time is separated from the
+time the trainer spends on its neighbors.
+
 ## Setup
 
 ### Modal to Datadog
