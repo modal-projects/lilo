@@ -283,7 +283,7 @@ def test_a_checkpoint_missing_a_peer_shard_is_not_published(
         )
 
 
-def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:
+def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch, capsys) -> None:
     actor = _load_actor(monkeypatch)
     monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
     monkeypatch.setenv("LILO_CHECKPOINT_ROOT", "/checkpoints")
@@ -301,6 +301,7 @@ def test_checkpoints_outside_the_volume_keep_miles_publish(monkeypatch) -> None:
         module.write_checkpoint_dir("/tmp/scratch/000000", lambda _: None)
 
     assert events == ["miles-publish"] * 3
+    assert "reason=outside_checkpoint_root" in capsys.readouterr().out
 
 
 def test_sync_checkpoint_volume_commits_once_per_node(monkeypatch) -> None:

@@ -173,11 +173,15 @@ _gather_tinker_logprobs_across_cp()
 
 def _checkpoint_volume_path(path: Path) -> str | None:
     """Locate ``path`` inside the checkpoint volume, or ``None`` if outside."""
-    root = Path(os.environ.get("LILO_CHECKPOINT_ROOT") or "/checkpoints")
+    root = _checkpoint_root()
     try:
         return str(path.relative_to(root))
     except ValueError:
         return None
+
+
+def _checkpoint_root() -> Path:
+    return Path(os.environ.get("LILO_CHECKPOINT_ROOT") or "/checkpoints")
 
 
 def _write_checkpoint_dir_on_volume(
@@ -187,15 +191,7 @@ def _write_checkpoint_dir_on_volume(
     write_shards,
     metadata: dict | None,
 ) -> None:
-    """Publish a checkpoint whose shards are spread over several nodes.
-
-    Every node writes into its own view of the volume, so neither a rename nor
-    a copy performed on one node's filesystem can see the other nodes' shards.
-    Each node commits what it wrote and rank 0 then assembles the checkpoint
-    from the committed state with a server-side copy, which needs no local
-    view of the shards at all. Refreshing rank 0 instead would fail whenever
-    the colocated engine holds a capture file open on the same volume.
-    """
+    """Assemble a checkpoint from every node's committed shards."""
     tmp = path.parent / f"_tmp_{path.name}"
     tmp.mkdir(parents=True, exist_ok=True)
     tmp_relative = str(Path(relative).parent / tmp.name)
@@ -238,13 +234,11 @@ def _write_checkpoint_dir_on_volume(
 
 
 def _publish_checkpoints_across_nodes() -> None:
-    """Let a checkpoint publish include the shards every node wrote.
+    """Publish checkpoint shards that are spread across nodes.
 
-    ``write_checkpoint_dir`` has every rank write shards into a temporary
-    directory that rank 0 renames into place. Each Modal node writes into its
-    own uncommitted view of the checkpoint volume, so that rename captures only
-    rank 0's node and the published checkpoint is missing every other node's
-    shards.
+    Miles writes shards to a temp dir and has rank 0 rename it into place. On a
+    Modal Volume each container sees only its own uncommitted writes, so that
+    rename publishes rank 0's node and silently drops every other node's shards.
     """
 
     original = checkpoint_io.write_checkpoint_dir
@@ -253,11 +247,18 @@ def _publish_checkpoints_across_nodes() -> None:
 
     def write_checkpoint_dir(path, write_shards, metadata=None, **kwargs):
         name = os.environ.get("LILO_CHECKPOINT_VOLUME")
-        relative = _checkpoint_volume_path(Path(path))
+        checkpoint_path = Path(path)
+        relative = _checkpoint_volume_path(checkpoint_path)
+        if name is not None and relative is None:
+            print(
+                f"lilo_checkpoint_publish path={path} volume={name} "
+                f"reason=outside_checkpoint_root root={_checkpoint_root()}",
+                flush=True,
+            )
         if name is None or relative is None:
             return original(path, write_shards, metadata, **kwargs)
         return _write_checkpoint_dir_on_volume(
-            name, Path(path), relative, write_shards, metadata
+            name, checkpoint_path, relative, write_shards, metadata
         )
 
     write_checkpoint_dir.__lilo_publishes_across_nodes__ = True
@@ -268,23 +269,12 @@ def _publish_checkpoints_across_nodes() -> None:
 
 
 def _node_identity() -> str:
-    """Identify the container a rank runs in.
-
-    Modal cluster containers all report ``socket.gethostname() == "modal"``, so
-    the hostname cannot separate nodes; ``MODAL_TASK_ID`` is per container and
-    is inherited by the Ray workers it spawns.
-    """
+    """Identify the container a rank runs in."""
     return os.environ.get("MODAL_TASK_ID") or socket.gethostname()
 
 
 def _sync_checkpoint_volume(action: str) -> None:
-    """Run a volume action once per node, from one rank of each.
-
-    A commit never refreshes the committing node afterwards: writers need no
-    view of what their peers wrote, and a refresh fails outright on the node
-    whose colocated engine holds a capture file open on the same volume.
-    Readers refresh themselves through the ``reload`` action instead.
-    """
+    """Commit or reload the checkpoint volume once per node."""
     name = os.environ.get("LILO_CHECKPOINT_VOLUME")
     if name is None:
         if "MODAL_TASK_ID" in os.environ:
@@ -305,12 +295,7 @@ def _sync_checkpoint_volume(action: str) -> None:
 
 
 def _written_shard_names(tmp: Path) -> set[str]:
-    """Collect the file names every node wrote, as seen from its own view.
-
-    A checkpoint short of a peer's shards loads no better than no checkpoint
-    at all, and it is only discovered on the resume that needs it, so rank 0
-    compares what it is about to publish against this.
-    """
+    """All-gather the shard names each rank wrote."""
     mine = sorted(shard.name for shard in tmp.iterdir())
     if not _distributed():
         return set(mine)
@@ -356,13 +341,7 @@ def _on_rank_zero(work) -> None:
 def _volume_action_on_representatives(
     name: str, action: str, representative: bool
 ) -> None:
-    """Run ``action`` on one rank per node and fail on every rank or none.
-
-    Every rank reaches the same collectives regardless of the outcome: a
-    representative whose volume call raises would otherwise leave the rest of
-    the world waiting in a collective it never enters, which hangs the job
-    until the distributed timeout rather than surfacing the error.
-    """
+    """Run ``action`` on one rank per node and fail on every rank or none."""
     failure: str | None = None
     if representative:
         try:

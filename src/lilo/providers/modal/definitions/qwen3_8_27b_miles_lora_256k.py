@@ -14,21 +14,21 @@ from ..deployment import trainer_deployment_env, trainer_max_containers
 
 MODEL_NAME = "Qwen/Qwen3.8-27B"
 HF_CHECKPOINT = "/assets/Qwen3.8-27B"
-DEFINITION_ID = "qwen3_8_27b_miles_lora_256k"
+DEFINITION_ID = "qwen3_8_27b_miles_lora_256k_2n"
 PARAMETERIZATION = "lora"
 CATALOG_VISIBLE = False
 MAX_CONTEXT_LENGTH = 262_144
 
 GPU_TYPE = "H200"
 GPUS = 8
-TRAINER_NODES = 3
-# 24 = TP8 x CP3 x DP1. TP is the only axis that shards the 27B base weights
-# (~54 GB bf16 -> ~7 GB/GPU) and stays inside one node's NVLink domain; CP3
-# then spans nodes, where ring P2P only moves K/V blocks.
-TENSOR_MODEL_PARALLEL_SIZE = 8
-CONTEXT_PARALLEL_SIZE = 3
-# Megatron wants the sequence divisible by 2 * cp (zigzag chunks) and by tp
-# (sequence parallelism), which 262_144 is not for cp=3.
+TRAINER_NODES = 2
+# 16 = TP2 x CP8 x DP1, the topology raw Miles runs 256k on. TP2 keeps the 27B
+# base weights at ~27 GB/GPU of the 141 GB H200, and spending the rest of the
+# world size on CP is what shrinks the activation working set: 32k tokens per
+# rank instead of 87k under TP8 x CP3.
+TENSOR_MODEL_PARALLEL_SIZE = 2
+CONTEXT_PARALLEL_SIZE = 8
+# Divisible by 2 * cp (zigzag chunks) and by tp (sequence parallelism).
 _SEQ_ALIGNMENT = 2 * CONTEXT_PARALLEL_SIZE * TENSOR_MODEL_PARALLEL_SIZE
 SEQ_LENGTH = -(-MAX_CONTEXT_LENGTH // _SEQ_ALIGNMENT) * _SEQ_ALIGNMENT
 MAX_TOKENS_PER_GPU = SEQ_LENGTH // CONTEXT_PARALLEL_SIZE
@@ -48,7 +48,7 @@ TRAINER_MODELS_PER_INSTANCE = MAX_LORA_SLOTS
 # collective far longer than ten minutes without anything being wrong.
 DISTRIBUTED_TIMEOUT_MINUTES = 120
 # Coalescing a whole rollout's datums into one Miles call turns a step into a
-# single multi-thousand-collective forward_backward across three nodes, where
+# single multi-thousand-collective forward_backward across both nodes, where
 # one desynchronized rank wedges every process group. One datum per call keeps
 # the collective chains short; gradients still accumulate until optim_step.
 MAX_FORWARD_BACKWARD_BATCH = 1
@@ -127,7 +127,7 @@ def ensure_assets() -> None:
     experimental_options={"efa_enabled": True},
 )
 @modal.experimental.clustered(TRAINER_NODES, rdma=True)
-def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
+def qwen3_8_27b_miles_lora_256k_2n(instance_id: str) -> None:
     from lilo.providers.modal.ray_cluster import start_trainer_cluster
 
     ray_address = start_trainer_cluster(
@@ -158,12 +158,6 @@ def backend_config(
             "default_lora_alpha": DEFAULT_LORA_ALPHA,
             "target_modules": TARGET_MODULES,
             "max_tokens_per_gpu": MAX_TOKENS_PER_GPU,
-            # Miles pads each packed sequence to a multiple of 2 * cp and the
-            # concatenated stream to tp * 128, so with TP8 an individual
-            # sequence's context-parallel chunks need not tile a tensor-parallel
-            # rank. TP2 rungs are immune (chunks are even by construction); TP8
-            # is not, and the THD layout fallback routes such a batch per rank.
-            "align_sequences_to_parallel_layout": True,
             "extra_args": (
                 "--seq-length",
                 str(SEQ_LENGTH),
@@ -232,4 +226,4 @@ def run_trainer(
     )
 
 
-ENGINE_FUNCTION = qwen3_8_27b_miles_lora_256k
+ENGINE_FUNCTION = qwen3_8_27b_miles_lora_256k_2n
