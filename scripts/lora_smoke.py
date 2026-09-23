@@ -79,7 +79,7 @@ def _rl_datum(
     return types.Datum(
         model_input=types.ModelInput.from_ints(prompt + response[:-1]),
         loss_fn_inputs={
-            "target_tokens": [0] * prompt_targets + response,
+            "target_tokens": prompt[1:] + response,
             "logprobs": [0.0] * prompt_targets + logprobs,
             "advantages": [0.0] * prompt_targets + [reward] * len(response),
         },
