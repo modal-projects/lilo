@@ -231,6 +231,18 @@ YAML loading validates document fields and inheritance only; it does not call ba
 
 Local validation cannot establish memory fit or prove that an unfamiliar model works. Native parser validation occurs inside the runtime images on startup. This draft does not implement a separate image-preflight command or a GPU export/load/generation probe.
 
+## From YAML to a saved deployment
+
+`load()` returns a `DeploymentSpec`: the merged YAML fields. It does not interpret backend options.
+
+`deployment_cli.compile_configs()` resolves a model branch or tag to a Hugging Face commit. A revision that is already a commit needs no lookup. It also identifies the Lilo code and Miles revision being deployed.
+
+`DeploymentRecord.create()` copies the specification, sets that pinned revision, and hashes the code identity and configuration. It does not serialize and reparse the specification or call backend readers. The standalone `resolve()` function is gone.
+
+The separate record holds information used by the deployment manifest: the specification, code identity, Miles revision, configuration hash, and whether new clients can select it. These fields are not user YAML options. The hash keeps jobs attached to the configuration that created them; the active flag lets an older configuration keep serving existing jobs after it is removed from the deployment list. `definition_id` and the model asset path are derived properties. Stored JSON is decoded when crossing a registry or worker-process boundary.
+
+The class is named `DeploymentRecord` to describe that role. Its serialized fields and hash format are unchanged from the earlier `ResolvedDeployment` name.
+
 ## Saved configurations, failures and updates
 
 The CLI stores configurations in the Modal Dict `<frontend>-yaml-deployments`, scoped to the chosen Modal environment. A single apply lock serializes registry changes. A pending manifest is written before deployment; only successful deployment replaces the committed manifest. The next attempt retains pending configurations too, covering an interruption after Modal accepted a deployment but before the CLI saved its result.

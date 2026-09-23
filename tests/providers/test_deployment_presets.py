@@ -1,6 +1,6 @@
 import pytest
 
-from lilo.deployments import load, preset_path, resolve
+from lilo.deployments import load, preset_path, DeploymentRecord
 from lilo.backends.deployment import backend_config, serving_options
 from lilo.providers.modal.yaml_apps import (
     definition_from_spec,
@@ -36,7 +36,7 @@ def test_moe_rollout_preserves_attention_data_parallelism():
     assert options["tp_size"] == options["dp_size"] == options["ep_size"] == 4
     assert options["enable_dp_attention"] is True
     definition = definition_from_spec(
-        resolve(spec, revision="a" * 40, implementation="test"), register_trainer=False
+        DeploymentRecord.create(spec, revision="a" * 40, implementation="test"), register_trainer=False
     )
     assert definition.ROLLOUT_GPUS == 4
     assert definition.ROLLOUT_TENSOR_PARALLEL_SIZE == 1

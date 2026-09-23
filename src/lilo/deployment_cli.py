@@ -15,10 +15,9 @@ import uuid
 import yaml
 
 from lilo.deployments import (
-    ResolvedDeployment,
+    DeploymentRecord,
     load,
     preset_path,
-    resolve,
     validate_frontend,
 )
 
@@ -43,22 +42,26 @@ def compile_configs(paths):
 
     miles_commit = resolve_miles_commit()
     implementation = implementation_fingerprint(miles_commit)
-    resolved = []
+    records = []
     for spec in specs:
         revision = spec.model.revision
-        if not re.fullmatch(r"[0-9a-f]{40,64}", revision):
+        if not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
             from huggingface_hub import HfApi
 
             revision = HfApi().model_info(spec.model.id, revision=revision).sha
-        resolved.append(
-            resolve(
+            if not revision or not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
+                raise ValueError(
+                    f"Hugging Face did not return a commit for {spec.model.id}"
+                )
+        records.append(
+            DeploymentRecord.create(
                 spec,
                 revision=revision,
                 implementation=implementation,
                 miles_commit=miles_commit,
             )
         )
-    return resolved
+    return records
 
 
 def retain_generations(previous, desired):
@@ -124,7 +127,7 @@ def deploy(desired):
         # A killed deploy may already have updated Modal. Keep its functions on retry.
         rows = {r["generation"]: r for r in [*rows, *registry.get("pending", [])]}
         manifest = retain_generations(
-            [ResolvedDeployment.model_validate(row) for row in rows.values()], desired
+            [DeploymentRecord.model_validate(row) for row in rows.values()], desired
         )
         data = [row.model_dump(mode="json") for row in manifest]
         env = {

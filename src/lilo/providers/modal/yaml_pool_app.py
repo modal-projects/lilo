@@ -2,12 +2,12 @@
 
 import os
 
-from lilo.deployments import ResolvedDeployment
+from lilo.deployments import DeploymentRecord
 from .fft_pool import FFTPoolSpec
 from .lora_pool import LoraPoolSpec
 from .yaml_apps import POOL_CONFIG_ENV, build_rollout_app
 
-resolved = ResolvedDeployment.model_validate_json(os.environ[POOL_CONFIG_ENV])
+resolved = DeploymentRecord.model_validate_json(os.environ[POOL_CONFIG_ENV])
 if resolved.spec.model.parameterization == "lora":
     pool = LoraPoolSpec(resolved.definition_id, revision=resolved.generation[:16])
 else:

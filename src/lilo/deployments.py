@@ -126,12 +126,43 @@ class DeploymentSpec(StrictModel):
     lifecycle: Lifecycle = Field(default_factory=Lifecycle)
 
 
-class ResolvedDeployment(StrictModel):
+class DeploymentRecord(StrictModel):
+    """Saved deployment metadata around a YAML specification.
+
+    The CLI resolves the model revision before creating this record. Its hash
+    binds jobs to their original code and configuration across later deploys;
+    active controls whether new clients can select it.
+    """
+
     spec: DeploymentSpec
     implementation: str
     miles_commit: str | None = None
     generation: str
     active: bool = True
+
+    @classmethod
+    def create(
+        cls,
+        spec: DeploymentSpec,
+        *,
+        revision: str,
+        implementation: str,
+        miles_commit: str | None = None,
+    ) -> DeploymentRecord:
+        """Record an already-resolved revision without reparsing the YAML."""
+        pinned = spec.model_copy(deep=True)
+        pinned.model.revision = revision
+        # Changing routing defaults should not restart an existing trainer.
+        identity = pinned.model_dump(exclude={"routing"})
+        generation = hashlib.sha256(
+            json.dumps([implementation, identity], sort_keys=True).encode()
+        ).hexdigest()
+        return cls(
+            spec=pinned,
+            implementation=implementation,
+            generation=generation,
+            miles_commit=miles_commit,
+        )
 
     @property
     def definition_id(self) -> str:
@@ -143,32 +174,6 @@ class ResolvedDeployment(StrictModel):
             f"{self.spec.model.id}@{self.spec.model.revision}".encode()
         ).hexdigest()
         return f"/assets/{digest}"
-
-
-def resolve(
-    spec: DeploymentSpec,
-    *,
-    revision: str,
-    implementation: str,
-    miles_commit: str | None = None,
-) -> ResolvedDeployment:
-    if not re.fullmatch(r"[a-fA-F0-9]{40,64}", revision):
-        raise ValueError("model revision must resolve to an exact commit")
-    value = spec.model_dump()
-    value["model"]["revision"] = revision
-    pinned = DeploymentSpec.model_validate(value)
-    # Include resource and lifecycle policy: each applied version remains self-contained.
-    # Checkpoint compatibility uses model/topology metadata, not this generation hash.
-    identity = pinned.model_dump(exclude={"routing"})
-    digest = hashlib.sha256(
-        json.dumps([implementation, identity], sort_keys=True).encode()
-    ).hexdigest()
-    return ResolvedDeployment(
-        spec=pinned,
-        implementation=implementation,
-        generation=digest,
-        miles_commit=miles_commit,
-    )
 
 
 class UniqueLoader(yaml.SafeLoader):

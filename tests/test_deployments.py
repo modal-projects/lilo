@@ -7,10 +7,10 @@ import pytest
 import yaml
 
 from lilo.deployments import (
+    DeploymentRecord,
     DeploymentSpec,
     load,
     preset_path,
-    resolve,
     validate_frontend,
 )
 from lilo.deployment_cli import retain_generations
@@ -32,7 +32,7 @@ def recipe(preset="qwen35-9b-lora-16k", **changes):
 
 
 def resolved(spec=None, **changes):
-    return resolve(
+    return DeploymentRecord.create(
         spec or recipe(**changes), revision="a" * 40, implementation="test-runtime"
     )
 
@@ -136,10 +136,10 @@ def test_generation_and_asset_paths_include_exact_base():
     assert a.asset_path != b.asset_path
     assert (
         a.asset_path
-        != resolve(a.spec, revision="b" * 40, implementation="test-runtime").asset_path
+        != DeploymentRecord.create(
+            a.spec, revision="b" * 40, implementation="test-runtime"
+        ).asset_path
     )
-    with pytest.raises(ValueError, match="exact commit"):
-        resolve(a.spec, revision="main", implementation="test-runtime")
 
 
 def test_frontend_defaults_and_retained_generations():
@@ -364,7 +364,9 @@ def test_load_merges_partial_parents_before_constructing_spec(tmp_path):
     parent = tmp_path / "parent.yaml"
     parent.write_text("trainer:\n  config:\n    options:\n      custom_option: 1\n")
     middle = tmp_path / "middle.yaml"
-    middle.write_text("extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom_option: 2\n")
+    middle.write_text(
+        "extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom_option: 2\n"
+    )
     data = recipe().model_dump()
     data["extends"] = "middle.yaml"
     data["trainer"]["config"]["options"]["other_option"] = False
@@ -388,7 +390,9 @@ def test_loading_and_resolving_do_not_interpret_backend_config(tmp_path, monkeyp
     path = tmp_path / "deployment.yaml"
     path.write_text(yaml.safe_dump(data))
     spec = load(path)
-    assert resolve(spec, revision="a" * 40, implementation="test").spec == spec.model_copy(
+    assert DeploymentRecord.create(
+        spec, revision="a" * 40, implementation="test"
+    ).spec == spec.model_copy(
         update={"model": spec.model.model_copy(update={"revision": "a" * 40})}
     )
 
@@ -420,3 +424,31 @@ def test_inheritance_keeps_intermediate_replacements(tmp_path):
         "extends: middle.yaml\ntrainer:\n  config:\n    options:\n      custom:\n        new: 2\n"
     )
     assert load(child).trainer.config["options"]["custom"] == {"new": 2}
+
+
+def test_record_creation_copies_without_reparsing(monkeypatch):
+    import hashlib
+    import json
+
+    spec = recipe()
+    original = spec.model_dump()
+    # Creating a record must not reconstruct an already-parsed specification.
+    monkeypatch.setattr(
+        DeploymentSpec, "model_validate", lambda *a, **k: pytest.fail("reparse")
+    )
+    row = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
+    assert spec.model_dump() == original
+    assert row.spec.model.revision == "a" * 40
+    # Keep the existing manifest fields and hash format stable.
+    expected = original | {"model": original["model"] | {"revision": "a" * 40}}
+    expected.pop("routing")
+    assert (
+        row.generation
+        == hashlib.sha256(
+            json.dumps(["test", expected], sort_keys=True).encode()
+        ).hexdigest()
+    )
+    row.spec.trainer.config["options"]["lora_rank"] = 64
+    assert spec.trainer.config["options"]["lora_rank"] == 32
+    saved = row.model_dump_json()
+    assert DeploymentRecord.model_validate_json(saved) == row

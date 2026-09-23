@@ -5,7 +5,7 @@ import modal
 import pytest
 
 from lilo import deployment_cli as cli
-from lilo.deployments import load, preset_path, resolve
+from lilo.deployments import load, preset_path, DeploymentRecord
 from lilo.providers.modal.yaml_apps import MANIFEST_ENV
 
 
@@ -18,7 +18,7 @@ class Registry(dict):
 
 
 def deployment():
-    return resolve(
+    return DeploymentRecord.create(
         load(preset_path("qwen35-9b-lora-16k")),
         revision="a" * 40,
         implementation="test",
@@ -71,7 +71,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
     assert "manifest" not in registry and "apply_lock" not in registry
     new_spec = row.spec.model_copy(deep=True)
     new_spec.trainer.scaling.max_instances = 2
-    new = resolve(new_spec, revision="a" * 40, implementation="test")
+    new = DeploymentRecord.create(new_spec, revision="a" * 40, implementation="test")
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
     cli.deploy([new])
     assert [(r["generation"], r["active"]) for r in registry["manifest"]] == [
@@ -107,3 +107,30 @@ def test_deploy_rejects_python_mismatch_before_remote_changes(monkeypatch):
     )
     with pytest.raises(ValueError, match="requires Python 3.12"):
         cli.deploy([deployment()])
+
+
+@pytest.mark.parametrize("revision,lookups", [("main", 1), ("a" * 40, 0)])
+def test_compile_pins_revision_at_external_boundary(
+    tmp_path, monkeypatch, revision, lookups
+):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    import huggingface_hub
+    import yaml
+    from lilo.providers.modal import miles_revision
+
+    data = load(preset_path("qwen35-9b-lora-16k")).model_dump()
+    data["model"]["revision"] = revision
+    path = tmp_path / "model.yaml"
+    path.write_text(yaml.safe_dump(data))
+    lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
+    monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)
+    monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
+    monkeypatch.setattr(cli, "implementation_fingerprint", lambda _: "runtime")
+    (row,) = cli.compile_configs([path])
+    assert row.spec.model.revision == "a" * 40
+    assert lookup.call_count == lookups
+    if lookups:
+        lookup.return_value.sha = None
+        with pytest.raises(ValueError, match="did not return a commit"):
+            cli.compile_configs([path])

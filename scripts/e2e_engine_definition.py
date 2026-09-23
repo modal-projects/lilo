@@ -16,7 +16,7 @@ import modal
 import tinker
 from tinker import types
 
-from lilo.deployments import ResolvedDeployment
+from lilo.deployments import DeploymentRecord
 from lilo.backends.deployment import backend_config
 
 TIMEOUT = 3 * 60 * 60
@@ -25,7 +25,7 @@ TIMEOUT = 3 * 60 * 60
 def _definition(frontend: str, name: str) -> tuple[Any, str]:
     rows = modal.Dict.from_name(f"{frontend}-yaml-deployments").get("manifest", [])
     matches = [
-        ResolvedDeployment.model_validate(row)
+        DeploymentRecord.model_validate(row)
         for row in rows
         if row["active"] and row["spec"]["name"] == name
     ]

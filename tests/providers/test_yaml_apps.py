@@ -5,14 +5,14 @@ from types import SimpleNamespace
 import modal
 import pytest
 
-from lilo.deployments import load, preset_path, resolve
+from lilo.deployments import load, preset_path, DeploymentRecord
 from lilo.providers.modal import yaml_apps
 from lilo.providers.modal.fft_pool import FFTPoolSpec
 from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 
 def deployment(preset="qwen35-9b-lora-16k"):
-    return resolve(
+    return DeploymentRecord.create(
         load(preset_path(preset)), revision="a" * 40, implementation="runtime"
     )
 

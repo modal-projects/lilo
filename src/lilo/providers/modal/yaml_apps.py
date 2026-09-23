@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import modal
 
-from lilo.deployments import ResolvedDeployment, Routing, validate_frontend
+from lilo.deployments import DeploymentRecord, Routing, validate_frontend
 from lilo.backends.deployment import backend_config, serving_options
 
 MANIFEST_ENV = "LILO_DEPLOYMENT_MANIFEST"
@@ -28,7 +28,7 @@ def manifest_from_env():
     rows = json.loads(data)
     if not isinstance(rows, list) or not rows:
         raise ValueError("Deployment manifest must be a nonempty list")
-    return [ResolvedDeployment.model_validate(row) for row in rows]
+    return [DeploymentRecord.model_validate(row) for row in rows]
 
 
 def frontend_settings():
@@ -92,7 +92,7 @@ def deployment_env(values):
     return dict(values)
 
 
-def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
+def build_trainer_app(resolved: DeploymentRecord, *, image=None):
     # Admission metadata must not change the serialized function for a running
     # configuration when a default switches or an older configuration drains.
     resolved = resolved.model_copy(deep=True)
@@ -129,7 +129,7 @@ def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
         env=env,
     )
     def trainer(instance_id: str):
-        run_trainer(ResolvedDeployment.model_validate_json(config_json), instance_id)
+        run_trainer(DeploymentRecord.model_validate_json(config_json), instance_id)
 
     return app, trainer
 

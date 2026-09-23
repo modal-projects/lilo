@@ -2,6 +2,12 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## Deployment record simplification
+
+The saved manifest wrapper is now named `DeploymentRecord`. Its factory copies the parsed specification and computes the configuration hash without a dictionary-to-model round trip. Model tag resolution and validation of the Hugging Face result stay in the CLI. The standalone `resolve()` function was removed. Serialized record fields and hash format are unchanged.
+
+Validation: **595 CPU tests passed, 1 skipped**; Ruff passed for changed Python files and whitespace checks passed. Added coverage verifies model tag pinning, no lookup for an existing commit, record isolation from subsequent mutations, JSON round trips, and unchanged configuration hashes. No apps were redeployed.
+
 ## YAML loader simplification
 
 `DeploymentSpec.compatible()` and `_load()` were removed. `load()` reads the inheritance chain, merges parent to child, and constructs the deployment fields once. Loading, deserializing and resolving a specification do not call backend readers. Backend integration checks run when building backend settings; the Modal provider checks reserved environment variables when configuring apps.
