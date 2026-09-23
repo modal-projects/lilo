@@ -30,13 +30,6 @@ def pool_deployment(definition_id):
     return None
 
 
-def pool_environment(definition_id):
-    resolved = pool_deployment(definition_id)
-    if resolved is None:
-        raise ValueError(f"missing recorded deployment: {definition_id}")
-    return {POOL_CONFIG_ENV: resolved.model_dump_json()}
-
-
 def provision_pool(record, pool):
     """Ask the saved inference app to create a pool using its original code."""
     provision = modal.Function.from_name(

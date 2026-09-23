@@ -158,18 +158,12 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     assert stops == [process, process]
 
 
-def test_pool_subprocess_receives_recorded_generation(monkeypatch):
+def test_pool_lookup_uses_recorded_generation(monkeypatch):
     row = deployment()
     monkeypatch.setenv(deployment_records.MANIFEST_ENV, json.dumps([row.model_dump()]))
-    env = deployment_records.pool_environment(row.definition_id)
-    assert (
-        json.loads(env[deployment_records.POOL_CONFIG_ENV])["generation"]
-        == row.generation
-    )
-    with pytest.raises(ValueError, match="missing recorded"):
-        deployment_records.pool_environment("yaml_missing_123")
-    with pytest.raises(ValueError, match="missing recorded"):
-        deployment_records.pool_environment("unconfigured-python-definition")
+    saved = deployment_records.pool_deployment(row.definition_id)
+    assert saved.generation == row.generation
+    assert deployment_records.pool_deployment("yaml_missing_123") is None
 
 
 def test_startup_failure_is_visible_and_blocks_new_spawns(monkeypatch):

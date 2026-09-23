@@ -1,46 +1,22 @@
-from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
+from dataclasses import replace
 
-config = Deployment(
+from lilo.configs.qwen35_4b_fft_64k import config as base
+
+config = replace(
+    base,
     name="qwen35-9b-fft-64k",
-    model=Model(
-        parameterization="full", id="Qwen/Qwen3.5-9B", max_context_length=65536
-    ),
-    trainer=Trainer(
-        compute=Compute(gpu="H200", gpus_per_node=4),
-        backend="megatron",
-        config={
-            "tensor_model_parallel_size": 2,
-            "context_parallel_size": 2,
-            "sequence_parallel": True,
-            "micro_batch_size": 1,
-            "max_tokens_per_microbatch": 65536,
-            "defer_fp32_logits": True,
-            "fp32_lm_head": True,
-            "use_distributed_optimizer": True,
-            "provider_overrides": {
-                "mtp_num_layers": 0,
-                "recompute_granularity": "full",
-                "recompute_method": "uniform",
-                "recompute_num_layers": 1,
-            },
-            "optimizer": {"lr": 0.0001, "min_lr": 0.0001, "loss_scale": 1.0},
-        },
+    model=replace(base.model, id="Qwen/Qwen3.5-9B"),
+    trainer=replace(
+        base.trainer,
+        compute=replace(base.trainer.compute, gpu="H200"),
         env={
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
-        sampler_persistence_concurrency=1,
     ),
-    inference=Inference(
-        compute=Compute(gpu="H200"),
-        config={
-            "tp_size": 1,
-            "ep_size": 1,
-            "mem_fraction_static": 0.85,
-            "max_running_requests": 32,
-            "max_queued_requests": 4,
-            "cpu_weight_cache_max_compile_group_gb": 16,
-        },
+    inference=replace(
+        base.inference,
+        compute=replace(base.inference.compute, gpu="H200"),
+        config={**base.inference.config, "ep_size": 1},
     ),
-    routing=Routing(default=True),
 )

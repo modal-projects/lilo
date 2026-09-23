@@ -12,6 +12,8 @@ Trainer timeout, CPU, memory, inference startup timeout, and replica scaling are
 
 Validation: **651 CPU tests passed, 1 skipped**. Regression coverage includes misspelled orchestration fields, unsupported settings, optimizer/provider/distributed override collisions, all 15 example configs, saved-record round trips, direct SGLang construction, compute-setting propagation, independent worker updates, and multi-node launcher wiring. No apps were redeployed. GPU backend startup and the new multi-node config have not been live-tested in this revision.
 
+The follow-up reduction removes three adapter modules and their dispatch wrappers, the unused pool-environment helper, and duplicated preset definitions. The two composed presets were compared field-for-field with their previous values. The CPU suite remains at **651 passed, 1 skipped**.
+
 ## Historical validation
 
 The sections below describe earlier revisions, including APIs that have since been removed. Their live results do not validate the current implementation.
