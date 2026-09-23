@@ -14,6 +14,7 @@ Examples:
     uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 16 --steps 1
     uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 64 --steps 5 --cp 2
     uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 5 --actor-nodes 2 --tp 2 --cp 8 --pad-to-tokens 250000
+    uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 10 --actor-nodes 2 --tp 2 --cp 4 --pad-to-tokens 120000 --use-rollout-logprobs
 """
 
 from __future__ import annotations
@@ -546,6 +547,7 @@ def build_config(
     run_suffix: str = "",
     wandb_group: str = WANDB_GROUP,
     run_name: str | None = None,
+    use_rollout_logprobs: bool = False,
 ) -> TrainConfig:
     max_prompt_tokens = context_length - MAX_GENERATION_TOKENS
     min_prompt_tokens = int(min_prompt_fraction * max_prompt_tokens)
@@ -562,6 +564,19 @@ def build_config(
     # budget only has to hold context_length / cp tokens.
     max_tokens_per_gpu = topology.max_tokens_per_gpu or context_length // topology.cp
     run_name = run_name or f"miles-27b-{ctx_k}k-{steps}{run_suffix}"
+    extra_config: dict[str, Any] = {
+        "fully_async": True,
+        "max_seq_len": context_length,
+        "max_weight_staleness": 1,
+        "pause_generation_mode": "in_place",
+        "update_weight_transfer_mode": "broadcast",
+        "rollout_max_context_len": context_length,
+        "rollout_max_prompt_len": max_prompt_tokens,
+        "log_probs_chunk_size": 4_096,
+        "sglang_max_lora_rank": 32,
+    }
+    if use_rollout_logprobs:
+        extra_config["use_rollout_logprobs"] = True
     recipe = MilesRecipe(
         name=f"miles-longrlvr-qwen38-27b-lora-{ctx_k}k",
         gpu_type=topology.gpu_type,
@@ -599,7 +614,7 @@ def build_config(
         adam_beta1=0.9,
         adam_beta2=0.95,
         optimizer="adam",
-        use_tis=True,
+        use_tis=not use_rollout_logprobs,
         advantage_estimator="grpo",
         use_kl_loss=False,
         kl_loss_coef=0.0,
@@ -639,17 +654,7 @@ def build_config(
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
             "PYTHONFAULTHANDLER": "1",
         },
-        extra_config={
-            "fully_async": True,
-            "max_seq_len": context_length,
-            "max_weight_staleness": 1,
-            "pause_generation_mode": "in_place",
-            "update_weight_transfer_mode": "broadcast",
-            "rollout_max_context_len": context_length,
-            "rollout_max_prompt_len": max_prompt_tokens,
-            "log_probs_chunk_size": 4_096,
-            "sglang_max_lora_rank": 32,
-        },
+        extra_config=extra_config,
         metrics=WandbConfig(
             project=WANDB_PROJECT,
             entity="modal-labs",
@@ -699,6 +704,12 @@ def main() -> None:
         help="Drop prompts shorter than this fraction of the prompt cap "
         "(default 0 at 16k, 0.5 at >=64k, or 0.9 when padding).",
     )
+    parser.add_argument(
+        "--use-rollout-logprobs",
+        action="store_true",
+        help="Use the rollout engine's log-probs as the PPO ratio denominator instead of "
+        "TIS (skips the trainer's old-policy log-prob recompute pass).",
+    )
     parser.add_argument("--run-suffix", default="")
     parser.add_argument("--wandb-group", default=WANDB_GROUP)
     parser.add_argument("--run-name", default=None, help="Override the W&B run name.")
@@ -747,6 +758,7 @@ def main() -> None:
         run_suffix=args.run_suffix,
         wandb_group=args.wandb_group,
         run_name=args.run_name,
+        use_rollout_logprobs=args.use_rollout_logprobs,
     )
     print(
         f"Context {context_length} (prompt cap {context_length - MAX_GENERATION_TOKENS}, "
