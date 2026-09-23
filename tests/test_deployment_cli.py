@@ -123,12 +123,9 @@ def test_compile_pins_revision_at_external_boundary(
 
     path = tmp_path / "model.py"
     path.write_text(
-        "from dataclasses import dataclass\n"
         "from lilo.configs.qwen35_9b_lora_16k import Config as ParentConfig\n"
-        "@dataclass(kw_only=True)\n"
         "class Config(ParentConfig):\n"
-        "    def __post_init__(self):\n"
-        f"        self.model.revision = {revision!r}\n"
+        f"    overrides = {{'model.revision': {revision!r}}}\n"
     )
     lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
     monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field
+from dataclasses import MISSING, asdict, dataclass, field, fields
 import hashlib
 from importlib.resources import files
 import json
@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import runpy
 import sys
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -123,9 +123,9 @@ class Lifecycle:
     sweep_interval_s: int = 300
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, init=False)
 class BaseConfig:
-    """Subclass in a config file and override defaults or use __post_init__."""
+    """Declare class defaults and dotted overrides; each instance owns its values."""
 
     name: str
     model: Model
@@ -135,6 +135,50 @@ class BaseConfig:
     routing: Routing = field(default_factory=Routing)
     deployment: Deployment = field(default_factory=Deployment)
     lifecycle: Lifecycle = field(default_factory=Lifecycle)
+
+    overrides: ClassVar[dict[str, Any]] = {}
+
+    def __init__(self, **kwargs):
+        definitions = {item.name: item for item in fields(BaseConfig)}
+        unknown = kwargs.keys() - definitions.keys()
+        if unknown:
+            raise TypeError(f"unknown config fields: {sorted(unknown)}")
+        values = {}
+        for name, item in definitions.items():
+            if item.default_factory is not MISSING:
+                values[name] = item.default_factory()
+            elif item.default is not MISSING:
+                values[name] = deepcopy(item.default)
+        # Apply each parent's defaults and overrides before its child's. Copy at
+        # every assignment so instances never mutate class defaults or parents.
+        for cls in reversed(type(self).__mro__):
+            for name in definitions.keys() & vars(cls).keys():
+                values[name] = deepcopy(vars(cls)[name])
+            for path, value in vars(cls).get("overrides", {}).items():
+                parts = path.split(".")
+                target = values
+                try:
+                    for part in parts[:-1]:
+                        target = (
+                            target[part]
+                            if isinstance(target, dict)
+                            else getattr(target, part)
+                        )
+                    if isinstance(target, dict):
+                        if len(parts) == 1 and parts[0] not in definitions:
+                            raise KeyError(parts[0])
+                        target[parts[-1]] = deepcopy(value)
+                    else:
+                        # Reject misspelled dataclass fields.
+                        getattr(target, parts[-1])
+                        setattr(target, parts[-1], deepcopy(value))
+                except (KeyError, AttributeError) as exc:
+                    raise ValueError(f"unknown config override: {path}") from exc
+        values.update(deepcopy(kwargs))
+        missing = definitions.keys() - values.keys()
+        if missing:
+            raise TypeError(f"missing config fields: {sorted(missing)}")
+        self.__dict__.update(values)
 
 
 class DeploymentRecord(BaseModel):

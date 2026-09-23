@@ -170,7 +170,8 @@ def parser():
         if name == "resolve":
             cmd.add_argument("--output")
     apply = commands.add_parser(
-        "deploy", help="Deploy the complete active Python config set behind one frontend"
+        "deploy",
+        help="Deploy the complete active Python config set behind one frontend",
     )
     apply.add_argument("files", nargs="+")
     management = commands.add_parser("deployment").add_subparsers(
@@ -195,12 +196,9 @@ def main(argv=None):
                 if not config_path(args.preset).is_file():
                     raise ValueError(f"unknown example config: {args.preset}")
                 print(
-                    "from dataclasses import dataclass\n"
                     f"from lilo.configs.{module} import Config as ParentConfig\n\n\n"
-                    "@dataclass(kw_only=True)\n"
                     "class Config(ParentConfig):\n"
-                    "    # Override fields or customize nested settings in __post_init__.\n"
-                    "    pass"
+                    "    overrides = {}"
                 )
             elif args.action == "validate":
                 specs = [load(path) for path in args.files]

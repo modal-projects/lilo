@@ -378,14 +378,10 @@ def test_python_config_inheritance_and_independent_defaults(tmp_path):
 
     path = tmp_path / "model.py"
     path.write_text(
-        "from dataclasses import dataclass\n"
         "from lilo.configs.qwen35_9b_lora_64k import Config as ParentConfig\n"
-        "@dataclass(kw_only=True)\n"
         "class Config(ParentConfig):\n"
-        "    name: str = 'custom'\n"
-        "    def __post_init__(self):\n"
-        "        super().__post_init__()\n"
-        "        self.trainer.config['options']['new_backend_option'] = False\n"
+        "    name = 'custom'\n"
+        "    overrides = {'trainer.config.options.new_backend_option': False}\n"
     )
     first, second = load(path), load(path)
     assert is_dataclass(first)
@@ -440,3 +436,52 @@ def test_config_import_error_preserves_traceback_and_restores_path(tmp_path):
 def test_no_yaml_config_ingestion(tmp_path):
     with pytest.raises(ValueError, match="Python .py"):
         load(tmp_path / "old.yaml")
+
+
+def test_overrides_inherit_replace_and_copy_values():
+    from lilo.configs.qwen35_9b_lora_16k import Config as Example
+    from lilo.deployments import Trainer, Resources
+
+    class Parent(Example):
+        overrides = {
+            "trainer.config.options.target_modules": ["parent"],
+            "trainer.config.options.future_option": {"enabled": True},
+            "inference.config.max_running_requests": 24,
+        }
+
+    class Child(Parent):
+        name = "child"
+        overrides = {
+            "trainer.config.options.target_modules": ["child"],
+            "trainer.config.options.future_option": {"enabled": False},
+        }
+
+    child = Child()
+    assert child.inference.config["max_running_requests"] == 24
+    assert child.trainer.config["options"]["target_modules"] == ["child"]
+    assert child.trainer.config["options"]["future_option"] == {"enabled": False}
+    child.trainer.config["options"]["target_modules"].append("changed")
+    child.trainer.config["options"]["future_option"]["enabled"] = True
+    assert Child.overrides["trainer.config.options.target_modules"] == ["child"]
+    assert Child().trainer.config["options"]["future_option"] == {"enabled": False}
+    assert Parent().trainer.config["options"]["target_modules"] == ["parent"]
+    assert "overrides" not in asdict(child)
+    assert Child(name="keyword").name == "keyword"
+
+    class Replacement(Parent):
+        trainer = Trainer(resources=Resources(gpu="H200:8"), config={"options": {}})
+        overrides = {"trainer.config.options.new_option": 1}
+
+    # A child's complete field replacement wins over its parent's dotted edits.
+    assert Replacement().trainer.config == {"options": {"new_option": 1}}
+
+
+@pytest.mark.parametrize("path", ["model.typo", "trainer.missing.value", "typo"])
+def test_override_typos_fail_with_the_path(path):
+    from lilo.configs.qwen35_9b_lora_16k import Config as Example
+
+    class Config(Example):
+        overrides = {path: 1}
+
+    with pytest.raises(ValueError, match=path):
+        Config()

@@ -1,8 +1,8 @@
 # Python deployment configs
 
-Each deployment is a Python file exporting a `Config` dataclass that inherits from `BaseConfig`. The class contains the model, trainer, inference and Modal settings. There is no YAML loader or model catalog.
+Each deployment is a Python file exporting a `Config` class that inherits from `BaseConfig`. The class contains the model, trainer, inference and Modal settings. There is no YAML loader or model catalog.
 
-The layout follows the Python recipe approach used by [training-gym](https://github.com/modal-labs/training-gym) and the [multinode training guide](https://github.com/modal-labs/multinode-training-guide/blob/main/nemo-rl/configs/llama3_1_8b_math_2node.py). Lilo's config classes use standard-library dataclasses; importing either project is not required.
+The layout follows the Python recipe approach used by [training-gym](https://github.com/modal-labs/training-gym) and the [multinode training guide](https://github.com/modal-labs/multinode-training-guide/blob/main/nemo-rl/configs/llama3_1_8b_math_2node.py). Lilo uses dataclasses for the resulting settings, but config files need no decorators or default factories. Importing either project is not required.
 
 ## Define a deployment
 
@@ -15,25 +15,27 @@ lilo config init --preset qwen35-9b-lora-16k > src/lilo/configs/my_model.py
 The generated file imports a packaged config and subclasses it. Customize it using ordinary Python:
 
 ```python
-from dataclasses import dataclass
 from lilo.configs.qwen35_9b_lora_16k import Config as ParentConfig
 
 
-@dataclass(kw_only=True)
 class Config(ParentConfig):
-    name: str = "my-9b-64k"
-
-    def __post_init__(self):
-        self.model.max_context_length = 65536
-        self.trainer.resources.gpu = "H200:8"
-        self.trainer.config["options"]["tensor_model_parallel_size"] = 8
-        self.trainer.config["options"]["max_tokens_per_gpu"] = 65536
-        self.inference.scaling.max_replicas = 6
+    name = "my-9b-64k"
+    overrides = {
+        "model.max_context_length": 65536,
+        "trainer.resources.gpu": "H200:8",
+        "trainer.config.options.tensor_model_parallel_size": 8,
+        "trainer.config.options.max_tokens_per_gpu": 65536,
+        "inference.scaling.max_replicas": 6,
+    }
 ```
 
-When a parent defines `__post_init__`, call `super().__post_init__()` before your changes. Mutable defaults use `field(default_factory=...)`, so modifying one instance does not change another config. New deployments can also inherit directly from `BaseConfig` and supply `Model`, `Trainer` and `Inference` fields; the packaged [16K example](../src/lilo/configs/qwen35_9b_lora_16k.py) shows the complete structure.
+New deployments can inherit directly from `BaseConfig` and declare ordinary class defaults such as `model = Model(...)` and `trainer = Trainer(...)`. The [16K example](../src/lilo/configs/qwen35_9b_lora_16k.py) shows the complete structure. No `@dataclass`, `field(default_factory=...)`, or `__post_init__` is needed in config files.
 
-Python imports provide reuse. There is no `extends` key or implicit dictionary merge. Backend dictionaries support normal Python operations such as `update()` or `|`. Config files execute as Python when loaded; keep provisioning and training calls outside them. Sibling imports are available while loading a file.
+`BaseConfig` copies defaults for each instance, then applies each parent's overrides before its child's. Dotted paths traverse dataclass fields and dictionary keys. A value replaces the selected field/key, including whole lists and dictionaries; other keys remain unchanged. Native backend dictionaries can receive new option names. Misspelled dataclass fields and missing intermediate paths raise an error naming the override. Constructor keywords, when supplied, replace top-level fields last.
+
+Copying happens inside the base class, so edits to a config's nested lists or dictionaries do not change its parent, another instance, or the class's override dictionary. Only the resulting settings enter the saved deployment record; workers do not apply inheritance again.
+
+Python imports provide reuse. There is no YAML loader or `extends` key. Config files execute as Python when loaded; keep provisioning and training calls outside them. Sibling imports are available while loading a file.
 
 All 14 previous presets are available under [`src/lilo/configs/`](../src/lilo/configs), with the same model, resource and backend settings. The [64K config](../src/lilo/configs/qwen35_9b_lora_64k.py) inherits from the 16K config. The 9B LoRA and 4B FFT configs directly pin the model revisions used in the earlier GPU checks; derived configs inherit them. There is no separate `deployments/` wrapper directory.
 

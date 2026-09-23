@@ -2,6 +2,12 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## Simple class defaults and inherited overrides
+
+Config files now declare ordinary class defaults and dotted `overrides` dictionaries. They contain no dataclass decorators, default factories or `__post_init__` methods. `BaseConfig` copies values per instance and applies parent defaults/overrides before child defaults/overrides. The resulting settings and saved-record format are unchanged for all 14 configs.
+
+Validation: **603 CPU tests passed, 1 skipped**. Added tests cover inherited overrides, child field replacement, false values, list/dictionary replacement, independent mutable values and override typo errors. All 14 computed configs were compared with the previous version and round-tripped through saved JSON. The CLI generated and validated the simplified config. Ruff and whitespace checks passed. No apps were redeployed.
+
 ## One config directory
 
 Removed the three `deployments/` wrappers. The deployment script now lists `src/lilo/configs/` directly, and the validated model revisions live in the 9B LoRA and 4B FFT configs. Derived configs inherit those revisions. Authoring configs are excluded from runtime source fingerprints and shared-app/trainer/inference source mounts; workers receive computed settings as JSON.
