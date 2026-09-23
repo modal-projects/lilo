@@ -85,6 +85,13 @@ def secrets_for(spec, *, training=False):
     return result
 
 
+def deployment_env(values):
+    """Keep user environment overrides separate from Lilo's deployment wiring."""
+    if any(key.startswith("LILO_") for key in values):
+        raise ValueError("LILO_ environment variables are managed by Lilo")
+    return dict(values)
+
+
 def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
     # Admission metadata must not change the serialized function for a running
     # configuration when a default switches or an older configuration drains.
@@ -101,7 +108,7 @@ def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
 
     env = {
         **trainer_deployment_env(),
-        **spec.trainer.env,
+        **deployment_env(spec.trainer.env),
         "LILO_APP_NAME": spec.deployment.frontend,
     }
 
@@ -138,7 +145,7 @@ def run_trainer(resolved, instance_id):
     # on startup to see the committed exact snapshot; never race a trainer download.
     volumes_for(spec)["/assets"].reload()
     env = {
-        **spec.trainer.env,
+        **deployment_env(spec.trainer.env),
         "LILO_APP_NAME": spec.deployment.frontend,
         "LILO_BACKEND_CONFIG": json.dumps(settings),
         "LILO_BASE_MODEL": spec.model.id,
@@ -262,7 +269,7 @@ def build_rollout_app(resolved, pool, *, image=None):
         memory=resources.memory_mib,
         volumes=volumes_for(spec),
         secrets=secrets_for(spec),
-        env=spec.inference.env,
+        env=deployment_env(spec.inference.env),
         min_containers=scaling.min_replicas if minimum is None else minimum,
         max_containers=scaling.max_replicas if maximum is None else maximum,
         target_concurrency=scaling.target_concurrency,

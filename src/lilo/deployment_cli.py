@@ -197,7 +197,7 @@ def main(argv=None):
                 specs = [load(path) for path in args.files]
                 validate_frontend(specs)
                 print(
-                    f"Validated {len(specs)} deployment(s). Native backend options are checked at startup in their runtime images."
+                    f"Validated {len(specs)} deployment(s). Backend integration settings are checked when preparing trainers and pools; native options are checked at worker startup."
                 )
             else:
                 output = (

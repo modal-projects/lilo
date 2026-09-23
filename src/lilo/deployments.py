@@ -125,26 +125,6 @@ class DeploymentSpec(StrictModel):
     inference: Inference
     lifecycle: Lifecycle = Field(default_factory=Lifecycle)
 
-    @model_validator(mode="after")
-    def compatible(self):
-        from lilo.backends.deployment import backend_config, serving_options
-
-        for role in (self.trainer, self.inference):
-            role.resources.gpu_count
-            if any(k.startswith("LILO_") for k in role.env):
-                raise ValueError("LILO_ environment variables are managed by Lilo")
-        if (
-            self.model.parameterization == "full"
-            and self.trainer.engine.max_clients_per_instance != 1
-        ):
-            raise ValueError("FFT trainers admit one client per instance")
-        try:
-            backend_config(self)
-            serving_options(self)
-        except TypeError as exc:
-            raise ValueError(f"invalid backend option types: {exc}") from exc
-        return self
-
 
 class ResolvedDeployment(StrictModel):
     spec: DeploymentSpec
@@ -223,28 +203,37 @@ def preset_path(name: str) -> Path:
     return Path(str(files("lilo").joinpath("presets", name + ".yaml")))
 
 
-def load(path: str | Path, _seen: tuple[Path, ...] = ()) -> DeploymentSpec:
-    return DeploymentSpec.model_validate(_load(Path(path), _seen))
+def load(path: str | Path) -> DeploymentSpec:
+    """Read and merge YAML inheritance, then construct the deployment fields.
 
-
-def _load(path: Path, seen: tuple[Path, ...]) -> dict:
-    path = path.resolve()
-    if path in seen:
-        raise ValueError(f"cyclic extends: {path}")
-    data = yaml.load(path.read_text(), Loader=UniqueLoader)
-    if not isinstance(data, dict):
-        raise ValueError("deployment YAML must be a mapping")
-    parent = data.pop("extends", None)
-    if parent is not None:
+    Backend configuration is interpreted when preparing its trainer or pool.
+    Parent files may be partial; only the fully merged document is constructed.
+    """
+    path = Path(path).resolve()
+    seen = set()
+    documents = []
+    while True:
+        if path in seen:
+            raise ValueError(f"cyclic extends: {path}")
+        seen.add(path)
+        data = yaml.load(path.read_text(), Loader=UniqueLoader)
+        if not isinstance(data, dict):
+            raise ValueError("deployment YAML must be a mapping")
+        parent = data.pop("extends", None)
+        documents.append(data)
+        if parent is None:
+            break
         if not isinstance(parent, str):
             raise ValueError("extends must be a path or builtin:preset")
-        parent_path = (
+        path = (
             preset_path(parent[8:])
             if parent.startswith("builtin:")
             else path.parent / parent
-        )
-        data = merge(_load(parent_path, (*seen, path)), data)
-    return data
+        ).resolve()
+    merged = {}
+    for document in reversed(documents):
+        merged = merge(merged, document)
+    return DeploymentSpec(**merged)
 
 
 def validate_frontend(specs: list[DeploymentSpec]) -> None:

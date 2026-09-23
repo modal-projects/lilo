@@ -2,6 +2,12 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## YAML loader simplification
+
+`DeploymentSpec.compatible()` and `_load()` were removed. `load()` reads the inheritance chain, merges parent to child, and constructs the deployment fields once. Loading, deserializing and resolving a specification do not call backend readers. Backend integration checks run when building backend settings; the Modal provider checks reserved environment variables when configuring apps.
+
+Validation: **592 CPU tests passed, 1 skipped**; Ruff passed for changed Python files and whitespace checks passed. Coverage includes partial parents, inheritance cycles, intermediate replacements, and ensuring loading/resolution never calls backend parsers. No apps were redeployed.
+
 ## Backend configuration passthrough
 
 The deployment schema now uses `trainer.backend` / `trainer.config` and `inference.backend` / `inference.config`. Backend readers interpret those mappings outside the Modal provider. Megatron exposes native provider, optimizer and distributed-training settings alongside its Lilo runtime settings.

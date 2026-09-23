@@ -108,7 +108,6 @@ def test_duplicate_keys_and_cycles(tmp_path):
         ({"inference__config": {"model_path": "other"}}, "managed"),
         ({"inference__config": {"tp_size": 2}}, "replica GPU"),
         ({"trainer__engine__max_clients_per_instance": 7}, "multi_lora_n_adapters"),
-        ({"trainer__env": {"LILO_BACKEND_CONFIG": "oops"}}, "managed"),
         (
             {
                 "inference__config": {
@@ -120,9 +119,13 @@ def test_duplicate_keys_and_cycles(tmp_path):
         ),
     ],
 )
-def test_invalid_integrations_fail_locally(changes, match):
+def test_invalid_integrations_fail_when_building_backend_settings(changes, match):
+    from lilo.backends.deployment import serving_options
+
+    spec = recipe(**changes)
     with pytest.raises(ValueError, match=match):
-        recipe(**changes)
+        backend_config(spec)
+        serving_options(spec)
 
 
 def test_generation_and_asset_paths_include_exact_base():
@@ -332,13 +335,15 @@ def test_native_sections_survive_serialization_without_allowlist():
     ],
 )
 def test_megatron_native_options_preserve_integration_contract(section, options, match):
+    spec = recipe("qwen35-4b-fft-64k", **{f"trainer__config__{section}": options})
     with pytest.raises(ValueError, match=match):
-        recipe("qwen35-4b-fft-64k", **{f"trainer__config__{section}": options})
+        backend_config(spec)
 
 
 def test_backend_dispatch_rejects_unknown_backend():
+    spec = recipe(trainer__backend="missing")
     with pytest.raises(ValueError, match="unknown deployment backend"):
-        recipe(trainer__backend="missing")
+        backend_config(spec)
 
 
 def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
@@ -353,3 +358,65 @@ def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
         2,
     ]
     assert serving_options(spec)["future_sglang_option"] is False
+
+
+def test_load_merges_partial_parents_before_constructing_spec(tmp_path):
+    parent = tmp_path / "parent.yaml"
+    parent.write_text("trainer:\n  config:\n    options:\n      custom_option: 1\n")
+    middle = tmp_path / "middle.yaml"
+    middle.write_text("extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom_option: 2\n")
+    data = recipe().model_dump()
+    data["extends"] = "middle.yaml"
+    data["trainer"]["config"]["options"]["other_option"] = False
+    child = tmp_path / "child.yaml"
+    child.write_text(yaml.safe_dump(data))
+    spec = load(child)
+    assert spec.trainer.config["options"]["custom_option"] == 2
+    assert spec.trainer.config["options"]["other_option"] is False
+
+
+def test_loading_and_resolving_do_not_interpret_backend_config(tmp_path, monkeypatch):
+    import lilo.backends.deployment as backends
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("YAML construction must not interpret backend configuration")
+
+    monkeypatch.setattr(backends, "backend_config", unexpected)
+    monkeypatch.setattr(backends, "serving_options", unexpected)
+    data = recipe().model_dump()
+    data["trainer"]["backend"] = "unknown-until-startup"
+    path = tmp_path / "deployment.yaml"
+    path.write_text(yaml.safe_dump(data))
+    spec = load(path)
+    assert resolve(spec, revision="a" * 40, implementation="test").spec == spec.model_copy(
+        update={"model": spec.model.model_copy(update={"revision": "a" * 40})}
+    )
+
+
+def test_fft_capacity_is_checked_by_backend_setup():
+    spec = recipe("qwen35-4b-fft-64k", trainer__engine__max_clients_per_instance=2)
+    with pytest.raises(ValueError, match="FFT trainers admit one client"):
+        backend_config(spec)
+
+
+def test_reserved_environment_is_checked_by_modal_setup():
+    from lilo.providers.modal.yaml_apps import deployment_env
+
+    spec = recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
+    with pytest.raises(ValueError, match="managed"):
+        deployment_env(spec.trainer.env)
+    assert deployment_env({"MY_SETTING": "value"}) == {"MY_SETTING": "value"}
+
+
+def test_inheritance_keeps_intermediate_replacements(tmp_path):
+    parent = recipe().model_dump()
+    parent["trainer"]["config"]["options"]["custom"] = {"old": 1}
+    (tmp_path / "parent.yaml").write_text(yaml.safe_dump(parent))
+    (tmp_path / "middle.yaml").write_text(
+        "extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom: null\n"
+    )
+    child = tmp_path / "child.yaml"
+    child.write_text(
+        "extends: middle.yaml\ntrainer:\n  config:\n    options:\n      custom:\n        new: 2\n"
+    )
+    assert load(child).trainer.config["options"]["custom"] == {"new": 2}

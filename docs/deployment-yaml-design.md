@@ -221,11 +221,13 @@ inference:
 
 Miles and SGLang use their real argument parsers before initialization. Boolean flags, scalar values and ordinary list arguments are supported. Both spellings of opposing boolean flags are replaced when they share a destination. Unknown options and custom/repeated argparse actions fail explicitly. These are parser-backed options, so arbitrary Python objects and custom actions are not supported.
 
-Lilo still checks settings that affect its integration locally: GPU counts and parallelism, maximum clients versus adapter slots, managed model paths, context/rank configuration, communication endpoints and trainer-only mode. The backend readers reject conflicting values. For Megatron, set parallelism and shared distributed-optimizer controls under `runtime` so both Lilo and Megatron receive the same values. Tinker training requires an Adam optimizer. Native passthrough does not make other training protocols or unsupported process layouts work automatically.
+When preparing a trainer or inference pool, its backend reader checks settings that affect the integration: GPU counts and parallelism, maximum clients versus adapter slots, managed model paths, context/rank configuration, communication endpoints and trainer-only mode. The backend readers reject conflicting values. For Megatron, set parallelism and shared distributed-optimizer controls under `runtime` so both Lilo and Megatron receive the same values. Tinker training requires an Adam optimizer. Native passthrough does not make other training protocols or unsupported process layouts work automatically.
 
 All built-in YAMLs use this structure. The earlier draft's `trainer.miles`, `trainer.megatron` and `inference.sglang` sections have been removed; user YAMLs overriding those sections must move them under `config` as shown above. This schema change is part of the draft and has not been deployed. Existing source-fingerprint checks continue to prevent applying a different runtime implementation over running trainers.
 
 Inference adapter targets are derived from the existing Miles-to-PEFT mapping unless `lora_target_modules` is explicitly supplied. This mapping does not establish support for every architecture. A model still needs compatible training, adapter export and SGLang loading implementations in the selected images.
+
+YAML loading validates document fields and inheritance only; it does not call backend readers. Backend errors surface when their trainer or pool settings are built, without a Pydantic wrapper. The loader walks the inheritance chain and merges it from parent to child before constructing `DeploymentSpec`; partial parent files are supported.
 
 Local validation cannot establish memory fit or prove that an unfamiliar model works. Native parser validation occurs inside the runtime images on startup. This draft does not implement a separate image-preflight command or a GPU export/load/generation probe.
 

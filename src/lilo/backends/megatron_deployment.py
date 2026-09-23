@@ -38,6 +38,8 @@ def build_config(spec, asset_path):
     trainer = spec.trainer
     if spec.model.parameterization != "full":
         raise ValueError("Megatron YAML deployments require full parameterization")
+    if trainer.engine.max_clients_per_instance != 1:
+        raise ValueError("FFT trainers admit one client per instance")
     if trainer.engine.sampler_persistence_concurrency != 1:
         raise ValueError("Megatron requires sampler_persistence_concurrency: 1")
     sections = native_options(trainer.config, set())
