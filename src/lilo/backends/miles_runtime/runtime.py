@@ -5,6 +5,7 @@ import os
 import shlex
 import sys
 import threading
+import time
 from collections.abc import Coroutine
 from contextlib import contextmanager, suppress
 from functools import wraps
@@ -214,14 +215,29 @@ class MilesRuntime:
 
         if ray.is_initialized():
             raise RuntimeError("MilesRuntime requires exclusive ownership of Ray")
-        ray.init(
-            ignore_reinit_error=False,
-            include_dashboard=False,
-            log_to_driver=True,
-            num_cpus=max(4, self.config.world_size * 2),
-            num_gpus=self.config.world_size,
-        )
+        address = os.environ.get("LILO_RAY_ADDRESS")
+        if address:
+            # A multi-node training cluster already exists.
+            ray.init(
+                address=address,
+                ignore_reinit_error=False,
+                log_to_driver=True,
+                runtime_env={"env_vars": _worker_env()},
+            )
+        else:
+            ray.init(
+                ignore_reinit_error=False,
+                include_dashboard=False,
+                log_to_driver=True,
+                num_cpus=max(4, self.config.world_size * 2),
+                num_gpus=self.config.world_size,
+            )
         self._owns_ray = True
+        _require_cluster_nodes(
+            ray,
+            nodes=self.config.actor_num_nodes,
+            world_size=self.config.world_size,
+        )
 
         self._worker_manager = launch_worker_manager(args)
         object_store.init_instance(args, contribute_segment=False)
@@ -263,6 +279,41 @@ class MilesRuntime:
             self._bridge = None
             self._trainer = None
             self._worker_manager = None
+
+
+_WORKER_ENV_VARS = (
+    "LILO_CHECKPOINT_VOLUME",
+    "LILO_BULLETIN_VOLUME",
+    "LILO_BULLETIN_ROOT",
+)
+
+
+def _worker_env() -> dict[str, str]:
+    """Settings the trainer actors need that a pre-existing Ray cluster lacks."""
+    return {name: os.environ[name] for name in _WORKER_ENV_VARS if name in os.environ}
+
+
+def _require_cluster_nodes(
+    ray, *, nodes: int, world_size: int, timeout: float = 120.0
+) -> None:
+    """Fail fast if the cluster never exposes every node's GPUs, instead of hanging in actor placement."""
+    deadline = time.monotonic() + timeout
+    while True:
+        gpu_nodes = [
+            node
+            for node in ray.nodes()
+            if node["Alive"] and node["Resources"].get("GPU", 0) > 0
+        ]
+        alive_gpu_nodes = len(gpu_nodes)
+        total_gpus = sum(node["Resources"].get("GPU", 0) for node in gpu_nodes)
+        if alive_gpu_nodes >= nodes and total_gpus >= world_size:
+            return
+        if time.monotonic() >= deadline:
+            raise BackendFailed(
+                f"Ray cluster exposes {total_gpus} GPUs on {alive_gpu_nodes} nodes, "
+                f"trainer needs {world_size} GPUs on {nodes} nodes"
+            )
+        time.sleep(2.0)
 
 
 @contextmanager

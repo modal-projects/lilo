@@ -18,6 +18,23 @@ _PEFT_TARGETS = {
     "linear_fc2": ("down_proj",),
     "output_layer": ("lm_head",),
 }
+_ATTN_LEAVES = frozenset(
+    {"linear_qkv", "linear_q", "linear_k", "linear_v", "linear_proj"}
+)
+_MLP_LEAVES = frozenset(
+    {"linear_fc1", "linear_fc1_gate", "linear_fc1_up", "linear_fc2"}
+)
+_UNEMBED_LEAVES = frozenset({"output_layer"})
+
+
+def lora_target_flags(target_modules: tuple[str, ...]) -> tuple[bool, bool, bool]:
+    """Return ``(train_attn, train_mlp, train_unembed)`` implied by target modules."""
+    leaves = {module.rsplit(".", 1)[-1] for module in target_modules}
+    return (
+        bool(leaves & _ATTN_LEAVES),
+        bool(leaves & _MLP_LEAVES),
+        bool(leaves & _UNEMBED_LEAVES),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +44,7 @@ class MilesBackendConfig:
     hf_checkpoint: str
     model_type: str
     actor_num_gpus_per_node: int
+    actor_num_nodes: int = 1
     tensor_model_parallel_size: int = 1
     context_parallel_size: int = 1
     expert_model_parallel_size: int = 1
@@ -43,18 +61,25 @@ class MilesBackendConfig:
         "output_layer",
     )
     max_tokens_per_gpu: int = 8192
+    align_sequences_to_parallel_layout: bool = False
     extra_args: tuple[str, ...] = ()
     cli_options: dict[str, Any] = field(default_factory=dict)
 
     @property
     def world_size(self) -> int:
-        return self.actor_num_gpus_per_node
+        return self.actor_num_nodes * self.actor_num_gpus_per_node
 
     @property
     def data_parallel_size(self) -> int:
         return self.world_size // (
             self.tensor_model_parallel_size * self.context_parallel_size
         )
+
+    @property
+    def sequence_alignment(self) -> int:
+        if not self.align_sequences_to_parallel_layout:
+            return 1
+        return 2 * self.context_parallel_size * self.tensor_model_parallel_size
 
     @property
     def peft_target_modules(self) -> tuple[str, ...]:
@@ -69,6 +94,7 @@ class MilesBackendConfig:
     def validate(self) -> None:
         positive = {
             "actor_num_gpus_per_node": self.actor_num_gpus_per_node,
+            "actor_num_nodes": self.actor_num_nodes,
             "tensor_model_parallel_size": self.tensor_model_parallel_size,
             "context_parallel_size": self.context_parallel_size,
             "expert_model_parallel_size": self.expert_model_parallel_size,
@@ -105,8 +131,16 @@ class MilesBackendConfig:
             != 0
         ):
             raise ValueError(
-                "actor_num_gpus_per_node must be a multiple of "
+                "actor_num_nodes * actor_num_gpus_per_node must be a multiple of "
                 "tensor_model_parallel_size * context_parallel_size"
+            )
+        if (
+            self.actor_num_nodes > 1
+            and self.actor_num_gpus_per_node % self.tensor_model_parallel_size != 0
+        ):
+            raise ValueError(
+                "tensor_model_parallel_size must evenly divide "
+                "actor_num_gpus_per_node on each node"
             )
 
     def miles_arguments(self) -> list[str]:
@@ -127,7 +161,7 @@ class MilesBackendConfig:
             "--rollout-num-gpus",
             "0",
             "--actor-num-nodes",
-            "1",
+            str(self.actor_num_nodes),
             "--actor-num-gpus-per-node",
             str(self.actor_num_gpus_per_node),
             "--multi-lora-n-adapters",

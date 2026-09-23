@@ -2,6 +2,7 @@ import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from stitch.types import VersionRef
@@ -189,6 +190,42 @@ def test_config_context_parallel_topology() -> None:
     assert config.data_parallel_size == 1
     arguments = config.miles_arguments()
     assert arguments[arguments.index("--context-parallel-size") + 1] == "2"
+
+
+def test_config_multi_node_topology() -> None:
+    config = _config(
+        actor_num_gpus_per_node=8,
+        actor_num_nodes=3,
+        tensor_model_parallel_size=8,
+        context_parallel_size=3,
+    )
+
+    assert config.world_size == 24
+    assert config.data_parallel_size == 1
+    arguments = config.miles_arguments()
+    assert arguments[arguments.index("--actor-num-nodes") + 1] == "3"
+    assert arguments[arguments.index("--actor-num-gpus-per-node") + 1] == "8"
+
+
+def test_config_rejects_tensor_parallel_spanning_nodes() -> None:
+    config = _config(
+        actor_num_gpus_per_node=8,
+        actor_num_nodes=2,
+        tensor_model_parallel_size=16,
+    )
+
+    with pytest.raises(ValueError, match="must evenly divide"):
+        config.validate()
+
+    config = _config(
+        actor_num_gpus_per_node=8,
+        actor_num_nodes=3,
+        tensor_model_parallel_size=6,
+        context_parallel_size=2,
+    )
+
+    with pytest.raises(ValueError, match="must evenly divide"):
+        config.validate()
 
 
 def test_config_rejects_non_divisible_context_parallel_topology() -> None:
@@ -676,6 +713,51 @@ def test_mixed_clients_only_forward_fields_consumed_by_loss(tmp_path, loss_fn):
     assert ("sampling_logprobs" in rows[0]) == (loss_fn != "cross_entropy")
 
 
+def test_sequence_alignment_pads_rows_and_trims_returned_logprobs(tmp_path) -> None:
+    runtime = FakeMilesRuntime()
+    backend = MilesCommandBackend(
+        _config(
+            actor_num_gpus_per_node=8,
+            tensor_model_parallel_size=8,
+            context_parallel_size=3,
+            actor_num_nodes=3,
+            align_sequences_to_parallel_layout=True,
+        ),
+        checkpoint_dir=tmp_path / "checkpoints",
+        capture_dir=tmp_path / "captures",
+        base_model="Qwen/Qwen3-4B",
+        runtime=runtime,
+    )
+    backend.accept_model("a", _spec())
+    datum = _datum(list(range(1, 11)), 11)
+    outputs = backend.forward_backward(
+        ForwardBatch(
+            items=(ForwardItem("a", (datum,)),),
+            loss_fn="cross_entropy",
+            loss_fn_config={},
+        )
+    )
+
+    (_, row), *_ = runtime.last_slot_rows
+    assert len(row["tokens"]) == 48
+    assert row["target_len"] == 47
+    assert row["weights"][10:] == [0.0] * 37
+    assert len(outputs[0].loss_fn_outputs[0]["logprobs"].data) == 10
+
+
+def test_sequence_alignment_is_off_by_default() -> None:
+    from lilo.backends.miles_runtime.data import prepare_batch
+
+    assert _config().sequence_alignment == 1
+    batch = ForwardBatch(
+        items=(ForwardItem("a", (_datum([1, 2, 3], 4),)),),
+        loss_fn="cross_entropy",
+        loss_fn_config={},
+    )
+    (_, row), *_ = prepare_batch(batch, {"a": 0}).slot_rows
+    assert row["target_len"] == 3
+
+
 @pytest.mark.parametrize(
     "name", ["learning_rate", "beta1", "beta2", "eps", "weight_decay", "grad_clip_norm"]
 )
@@ -728,3 +810,77 @@ def test_checkpoint_rejects_different_or_unknown_pinned_base_revision(
         metadata["base_model_revision"] = revision
         with pytest.raises(ValueError, match="base model revision"):
             backend._validate_checkpoint(metadata, backend.jobs["model-a"], False)
+
+
+class _FakeCheckpointVolume:
+    """A volume whose committed state holds shards this container never wrote."""
+
+    def __init__(self, entries: list[str], copies: list) -> None:
+        self.entries = entries
+        self.copies = copies
+
+    def commit(self) -> None:
+        pass
+
+    def reload(self) -> None:
+        raise AssertionError("a colocated engine keeps a capture file open")
+
+    def listdir(self, path):
+        return [SimpleNamespace(path=f"{path}/{name}") for name in self.entries]
+
+    def copy_files(self, src_paths, dst_path, recursive=False) -> None:
+        self.copies.append((tuple(src_paths), dst_path, recursive))
+
+
+def _install_environment(monkeypatch, tmp_path, entries, copies) -> None:
+    import modal
+
+    monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
+    monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        modal.Volume,
+        "from_name",
+        staticmethod(lambda *args, **kwargs: _FakeCheckpointVolume(entries, copies)),
+    )
+
+
+def test_installing_a_capture_copies_the_shards_of_every_node(monkeypatch, tmp_path):
+    from lilo.backends.miles_lora import _install_capture
+
+    entries = ["__0_0.distcp", "__1_0.distcp", "metadata.json"]
+    copies: list = []
+    _install_environment(monkeypatch, tmp_path, entries, copies)
+    source = tmp_path / ".captures" / "engine" / "capture-a"
+    source.mkdir(parents=True)
+    (source / "__0_0.distcp").write_text("mine")
+
+    _install_capture(
+        source, tmp_path / "000000" / "model-a", overwrite=False, world_size=2
+    )
+
+    assert copies == [
+        (
+            (
+                ".captures/engine/capture-a/__0_0.distcp",
+                ".captures/engine/capture-a/__1_0.distcp",
+                ".captures/engine/capture-a/metadata.json",
+            ),
+            "000000/model-a",
+            True,
+        )
+    ]
+
+
+def test_a_capture_short_of_a_nodes_shards_is_refused(monkeypatch, tmp_path):
+    from lilo.backends.miles_lora import _install_capture
+
+    copies: list = []
+    _install_environment(monkeypatch, tmp_path, ["__0_0.distcp"], copies)
+    source = tmp_path / ".captures" / "engine" / "capture-a"
+    source.mkdir(parents=True)
+
+    with pytest.raises(RuntimeError, match="1 of 2 shards"):
+        _install_capture(
+            source, tmp_path / "000000" / "model-a", overwrite=False, world_size=2
+        )
+    assert copies == []

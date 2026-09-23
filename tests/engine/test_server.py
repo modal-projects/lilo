@@ -629,6 +629,46 @@ def test_batches_consecutive_forward_backward_for_one_model() -> None:
     asyncio.run(run())
 
 
+def test_forward_backward_batch_limit_splits_coalesced_work() -> None:
+    async def run() -> None:
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        batches = []
+
+        class RecordingExecutor(EchoExecutor):
+            async def execute_forward_backward_batch(self, executions):
+                batches.append([(item.model_id, *item.payload.data[0].model_input.to_ints()) for item in executions])
+                if len(batches) == 1:
+                    first_started.set()
+                    await release_first.wait()
+                return await super().execute_forward_backward_batch(executions)
+
+        server = Engine(RecordingExecutor(), max_forward_backward_batch=2)
+        await server.accept_model("model-a", {})
+        await server.accept_model("model-b", {})
+
+        await forward_backward(server, 1)
+        await first_started.wait()
+        await forward_backward(server, 2)
+        await forward_backward(server, 3)
+        await forward_backward(server, 1, model_id="model-b")
+
+        release_first.set()
+        for request_id in ("model-a:3", "model-b:1"):
+            state = await server.retrieve_future(request_id, timeout=1.0)
+            assert state.status == FutureStatus.COMPLETE
+        assert [len(batch) for batch in batches] == [1, 2, 1]
+        assert batches[1] == [("model-a", 2), ("model-b", 1)]
+        await server.close()
+
+    asyncio.run(run())
+
+
+def test_forward_backward_batch_limit_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="max_forward_backward_batch"):
+        Engine(EchoExecutor(), max_forward_backward_batch=0)
+
+
 def test_batches_forward_backward_buffered_during_previous_batch() -> None:
     async def run() -> None:
         first_started = asyncio.Event()
