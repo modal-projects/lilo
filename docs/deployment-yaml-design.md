@@ -114,6 +114,15 @@ When ready to deploy, supply the **complete active set** of files for one fronte
 lilo deploy model-a.yaml model-b.yaml model-a-64k.yaml
 ```
 
+For a checked-in deployment list, use [`scripts/deploy_models.sh`](../scripts/deploy_models.sh). Its `deployment_files` array lists the editable YAMLs under [`deployments/`](../deployments), initially covering the three presets above with the model revisions used in GPU validation. These inherit the `lilo-yaml` frontend and the presets' shared settings.
+
+```bash
+./scripts/deploy_models.sh --check  # Validate the full list locally.
+./scripts/deploy_models.sh          # Deploy the full list.
+```
+
+To add a model, create its YAML in `deployments/`, add its path to `deployment_files`, then run the script. The YAMLs must agree on the frontend and shared settings. Keep existing entries to keep those configurations available to new clients; removing an entry retires it from new-client selection on the next deployment. The script works from any working directory and uses `lilo` from your active Python 3.12 environment. Keep the same pinned `LILO_MILES_COMMIT` across applies, as with the direct CLI.
+
 This command builds/deploys the shared app; it is not a validation command. All files must agree on frontend, Modal environment/region, secrets, storage and shared lifecycle settings. The preset frontend name is `lilo-yaml`. The CLI refuses to overwrite a pre-existing application without a YAML registry, so migration of a legacy frontend must be handled separately.
 
 Trainer minimum capacity is zero. Rollout apps are created on first demand, and their configured inference minimum applies once the pool exists. A pool with a nonzero minimum will keep that many workers warm until it is stopped by the existing idle cleanup.

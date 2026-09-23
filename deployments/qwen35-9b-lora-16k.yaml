@@ -1,0 +1,3 @@
+extends: builtin:qwen35-9b-lora-16k
+model:
+  revision: 68c46c4b3498877f3ef123c856ecfde50c39f404
