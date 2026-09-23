@@ -90,21 +90,24 @@ def _rl_datum(
 
 def _step(training, data: list[types.Datum], loss_fn: str, lr: float) -> dict:
     started = time.perf_counter()
-    forward = training.forward_backward(data, loss_fn)
-    optimizer = training.optim_step(types.AdamParams(learning_rate=lr))
-    forward_result = forward.result(timeout=TIMEOUT)
+    forward_result = training.forward_backward(data, loss_fn).result(timeout=TIMEOUT)
     forward_done = time.perf_counter()
-    optimizer_result = optimizer.result(timeout=TIMEOUT)
-    finished = time.perf_counter()
     if len(forward_result.loss_fn_outputs) != len(data):
         raise RuntimeError(
             f"expected {len(data)} loss outputs, got "
             f"{len(forward_result.loss_fn_outputs)}"
         )
+    optimizer_result = training.optim_step(types.AdamParams(learning_rate=lr)).result(
+        timeout=TIMEOUT
+    )
+    finished = time.perf_counter()
+    optimizer_metrics = _finite_metrics(optimizer_result.metrics)
+    if optimizer_metrics.get("update_successful:mean") != 1.0:
+        raise RuntimeError(f"optimizer step skipped the update: {optimizer_metrics}")
     return {
         "loss_fn": loss_fn,
         "metrics": _finite_metrics(forward_result.metrics),
-        "optimizer_metrics": _finite_metrics(optimizer_result.metrics),
+        "optimizer_metrics": optimizer_metrics,
         "forward_backward_seconds": forward_done - started,
         "optimizer_seconds": finished - forward_done,
     }
@@ -260,10 +263,10 @@ def _run_definition(
                 _unload(base_url, api_key, str(training.model_id))
                 report["cleanup"] = {"model_unloaded": True}
             except (httpx.HTTPError, RuntimeError, TimeoutError, ValueError) as exc:
-                report["cleanup"] = {
-                    "model_unloaded": False,
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
+                error = f"{type(exc).__name__}: {exc}"
+                report["cleanup"] = {"model_unloaded": False, "error": error}
+                report["status"] = "failed"
+                report.setdefault("error", f"cleanup failed: {error}")
     return report
 
 
@@ -326,7 +329,7 @@ def main() -> None:
     else:
         reports = [run(definition_id) for definition_id in definition_ids]
 
-    stamp = time.strftime("%Y%m%d%H%M%S")
+    stamp = f"{time.strftime('%Y%m%d%H%M%S')}.{os.getpid()}"
     output = args.output.with_name(f"{args.output.stem}.{stamp}{args.output.suffix}")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
