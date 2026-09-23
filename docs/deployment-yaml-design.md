@@ -2,7 +2,7 @@
 
 This draft implements an opt-in YAML path for shared Modal deployments. A file specifies the base model, trainer backend, resources, context length, adapter capacity, and inference settings. Adding a backend-supported model does not require a new Python definition or a catalog entry.
 
-The implementation has CPU tests. No applications have been redeployed and no GPU compatibility or capacity tests have been run for this change. The existing Python deployment and scoped-run paths remain available.
+The implementation has CPU tests and live training/sampling checks; see the [validation report](deployment-yaml-validation.md) for tested configurations and shared-app redeploy results. The existing Python deployment and scoped-run paths remain available.
 
 ## The provider and Modal app structure
 
@@ -70,7 +70,7 @@ The packaged presets are:
 - [`qwen35-9b-lora-64k.yaml`](../src/lilo/presets/qwen35-9b-lora-64k.yaml): a larger-context example using H200:8 training.
 - [`qwen35-4b-fft-64k.yaml`](../src/lilo/presets/qwen35-4b-fft-64k.yaml): the existing 4B FFT topology expressed as YAML.
 
-These are starting configurations. The 16K and FFT backend settings are based on the existing definitions; inference minima are explicitly zero and the trainer maximum is one. The new 64K example has not been GPU-validated.
+These are starting configurations. The 16K and FFT backend settings are based on the existing definitions; inference minima are explicitly zero and the trainer maximum is one. All three presets passed short GPU training/sampling checks; see the [validation report](deployment-yaml-validation.md). Full-context memory capacity was not tested.
 
 You can instead keep a small override file:
 
@@ -105,6 +105,8 @@ inference:
 ```
 
 A local `extends: ./base.yaml` also works. Maps merge recursively, lists replace, and `false` overrides `true`. Duplicate YAML keys, unknown Lilo fields and inheritance cycles are rejected. YAML contains secret names; credentials stay in Modal secrets. The API and proxy secret contents are the same as in the [shared deployment setup](../README.md#2-configure-modal-and-secrets-once).
+
+Run `lilo deploy` with Python 3.12, matching the serialized trainer and rollout images. The YAML frontend image also uses Python 3.12 because it launches rollout deployment subprocesses.
 
 When ready to deploy, supply the **complete active set** of files for one frontend:
 
@@ -154,7 +156,7 @@ Local validation cannot establish memory fit or prove that an unfamiliar model w
 
 The CLI stores configurations in the Modal Dict `<frontend>-yaml-deployments`, scoped to the chosen Modal environment. A single apply lock serializes registry changes. A pending manifest is written before deployment; only successful deployment replaces the committed manifest. The next attempt retains pending configurations too, covering an interruption after Modal accepted a deployment but before the CLI saved its result.
 
-Applying a changed YAML produces a new definition identifier. The hash includes the pinned model revision, normalized settings and implementation fingerprint. Routing preferences are excluded, so switching a default does not change trainer identity. Old configurations are retained as inactive entries. Scaling changes currently also create a new identifier; a separate scaling-policy revision is future work.
+Applying a changed YAML produces a new definition identifier. The hash includes the pinned model revision, normalized settings and implementation fingerprint. Routing preferences are excluded, so switching a default does not change trainer identity. Old configurations are retained as inactive entries. Trainer functions capture their settings as consistently ordered JSON. The captured copy uses fixed admission and routing flags, so retiring a configuration or changing a default does not change its trainer function. Scaling changes currently also create a new identifier; a separate scaling-policy revision is future work.
 
 The implementation fingerprint includes shipped Lilo source, declared dependencies and the selected Miles commit. The existing image recipes supply the other backend source revisions. This is not a fully pinned Python/container dependency lock. This draft rejects applies that would rebuild retained configurations with a different implementation fingerprint or different shared storage/lifecycle settings; use a separate frontend for those upgrades. Automatic pruning of historical configurations and migration across code/image versions are not implemented.
 
@@ -174,4 +176,4 @@ A killed CLI can leave its apply lock behind. Confirm that the original apply ha
 
 The implemented YAML path supports shared, single-node Miles LoRA and Megatron FFT deployments with the existing runtime images. The inference GPU allocation must match tensor parallelism. Scoped `lilo.run(config=...)`, DP-attention layouts, custom image selection, automatic provisioning of unknown `base_model` values, automatic runtime upgrades, and GPU compatibility probes remain follow-up work. Unsupported schema choices are rejected rather than treated as implemented features.
 
-CPU coverage exercises configuration loading and validation, typed native overrides, routing several models through one HTTP service, ambiguity handling, preserved client definitions, interrupted/concurrent applies, trainer resources and executor settings, LoRA/FFT pool startup and shutdown, and startup-error handling. Existing backend, provider, HTTP and scoped-run tests also run. GPU smoke tests are still required before recommending this draft for production deployments.
+CPU coverage exercises configuration loading and validation, typed native overrides, routing several models through one HTTP service, ambiguity handling, preserved client definitions, interrupted/concurrent applies, trainer resources and executor settings, LoRA/FFT pool startup and shutdown, and startup-error handling. Existing backend, provider, HTTP and scoped-run tests also run. The [GPU validation report](deployment-yaml-validation.md) covers short training/sampling requests and shared-app redeploy continuity. Maximum-context capacity and sustained-load testing remain separate checks.
