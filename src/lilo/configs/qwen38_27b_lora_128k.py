@@ -6,9 +6,9 @@ class Config(ParentConfig):
     overrides = {
         "model.max_context_length": 131072,
         "routing.default": False,
-        "trainer.config.options.tensor_model_parallel_size": 2,
-        "trainer.config.options.context_parallel_size": 4,
-        "trainer.config.options.max_tokens_per_gpu": 32768,
+        "trainer.config.tensor_model_parallel_size": 2,
+        "trainer.config.context_parallel_size": 4,
+        "trainer.config.max_tokens_per_gpu": 32768,
         "inference.resources.gpu": "H200:2",
         "inference.scaling.max_replicas": 4,
         "inference.scaling.target_concurrency": 4,

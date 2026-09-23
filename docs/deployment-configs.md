@@ -23,8 +23,8 @@ class Config(ParentConfig):
     overrides = {
         "model.max_context_length": 65536,
         "trainer.resources.gpu": "H200:8",
-        "trainer.config.options.tensor_model_parallel_size": 8,
-        "trainer.config.options.max_tokens_per_gpu": 65536,
+        "trainer.config.tensor_model_parallel_size": 8,
+        "trainer.config.max_tokens_per_gpu": 65536,
         "inference.scaling.max_replicas": 6,
     }
 ```
@@ -103,37 +103,55 @@ lilo deploy config.py
 
 Inference pools are separate apps created on demand by a deployed `provision` function. That function keeps the source used when its inference app was deployed, including when an idle pool needs to be recreated after a frontend upgrade. `build_rollout_app()` constructs a server from the saved configuration. Startup launches SGLang with native options, waits for its health endpoint, then starts the LoRA or FFT sidecar.
 
-## Backend options
+## Backend config path
 
-`trainer.config` and `inference.config` remain open dictionaries. Adding an upstream option does not require adding a deployment dataclass field. Backend readers check values used by Lilo's integration, while installed backend libraries check native options at worker startup.
+Each backend already has a config class used by its trainer. `trainer.config` uses that class's field names directly. The deployment code supplies the downloaded model path, GPU count and context length; it does not rename user fields.
 
-For Miles, `trainer.config` contains:
+| Backend | Config consumer | Additional backend options |
+| --- | --- | --- |
+| Miles | `MilesBackendConfig` in `backends/miles_config.py` | `cli_options` goes to Miles's argparse parser |
+| Megatron | `EngineModelConfig` in `backends/megatron_runtime/common/config.py` | `provider_overrides`, `optimizer_overrides`, `distributed_overrides` go to their respective Megatron constructors |
+| SGLang | Its own `ServerArgs` parser | The entire `inference.config` dictionary |
+
+For Miles:
 
 ```python
-{
-    "model_args": "qwen3.5-9B",
-    "options": {
-        "tensor_model_parallel_size": 4,
-        "multi_lora_n_adapters": 6,
+"config": {
+    "model_type": "qwen3.5-9B",
+    "tensor_model_parallel_size": 4,
+    "max_lora_slots": 6,
+    "max_lora_rank": 32,
+    "cli_options": {
         "recompute_granularity": "full",
+        "recompute_method": "uniform",
+        "recompute_num_layers": 1,
     },
 }
 ```
 
-`model_args` selects a Miles architecture preset; it can be omitted when explicit architecture options are provided. Miles's actual argument parser validates native options. Lilo also reads parallelism, adapter slots/rank and targets for admission and adapter export.
+The path is `trainer.config → MilesBackendConfig(**settings) → miles_arguments() → Miles parser`. The existing `miles_arguments()` method translates Lilo's backend settings into Miles flags once. `cli_options` contains additional upstream flags using their argparse destination names. For a model without a Miles architecture preset, set `model_type=""` and supply its architecture options there.
 
-For Megatron, the [FFT example](../src/lilo/configs/qwen35_4b_fft_64k.py) separates:
+For Megatron:
 
-- `runtime`: Lilo's training loop, packing and parallelism settings.
-- `provider`: attributes assigned to the actual Megatron Bridge model provider.
-- `optimizer`: optimizer settings, including additional native Megatron constructor options.
-- `distributed`: additional `DistributedDataParallelConfig` constructor options.
+```python
+"config": {
+    "tensor_model_parallel_size": 2,
+    "context_parallel_size": 2,
+    "micro_batch_size": 1,
+    "max_tokens_per_microbatch": 65536,
+    "provider_overrides": {"recompute_granularity": "full"},
+    "optimizer": {"lr": 0.0001, "min_lr": 0.0001},
+    "optimizer_overrides": {"adam_eps": 1e-8},
+}
+```
 
-These section names are owned by Lilo. Native provider/optimizer/distributed fields do not need a Lilo allowlist. Shared precision and parallelism controls remain protected so Lilo's packing and collectives agree with Megatron. Tinker optimizer steps use Adam parameters supplied by the client. Native optimizer/distributed settings are recorded and checked for exact FFT checkpoint resume.
+The path is `trainer.config → parse_backend_config() → EngineModelConfig`. The existing reader constructs the nested `OptimizerConfig` from `optimizer`. There is no `runtime` section or deployment-specific field map. `optimizer_overrides` explicitly supplies additional Megatron constructor options; the deployment code does not split optimizer fields by name. Tinker optimizer steps still apply the client's Adam parameters.
 
-`inference.config` contains SGLang options directly, such as `tp_size`, `mem_fraction_static` and `max_running_requests`. The real SGLang parser checks them during startup. Miles and SGLang support ordinary scalar, boolean and list arguments; unsupported custom/repeated argparse actions fail explicitly.
+“Training loop” refers to the code that performs forward/backward passes and optimizer steps. It is not a separate config category.
 
-Backend readers still check managed paths, GPU topology, adapter capacity and communication settings. Python configs do not bypass backend compatibility, adapter export/load requirements or available GPU memory.
+[`argparse_config.py`](../src/lilo/argparse_config.py) is used only at the Miles/SGLang process boundary. It appends configured values after preset arguments, leaving type conversion, choices and argument counts to the backend's parser. Boolean flags need special treatment: a `store_true` flag cannot express `False`, so the helper removes that preset flag and sets its default explicitly. Unsupported custom/repeated actions fail with an error.
+
+[`config_validation.py`](../src/lilo/config_validation.py) only rejects options that would overwrite settings Lilo manages, such as checkpoint paths or parallelism already used by its collectives. Backend-specific modules retain those checks and resource/admission checks. They do not define another configuration schema. Backend support and memory capacity are still checked by the backend when workers start.
 
 ## Routing and updates
 

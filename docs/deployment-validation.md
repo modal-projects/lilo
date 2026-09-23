@@ -2,6 +2,14 @@
 
 These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Earlier sections record validation of the previous shared-app implementation.
 
+## Direct backend configuration
+
+Removed the deployment-specific Miles field-renaming table and Megatron `runtime/provider/optimizer/distributed` schema. Configs now use the existing `MilesBackendConfig` and `EngineModelConfig` field names. Megatron's existing config reader constructs its nested optimizer; extra Megatron constructor settings are explicit `*_overrides` dictionaries instead of being split by field name.
+
+Replaced `native_options.py` with `argparse_config.py`: configured values become arguments and the actual backend parser validates types/choices. Explicit false boolean flags use defaults after removing the preset flag. Renamed the Miles passthrough dictionary to `cli_options`. Replaced `backend_options.py` with a small `reject_managed_options` check.
+
+Validation: **619 CPU tests passed, 1 skipped**. All 14 examples produce the same effective trainer and inference settings as before (with the passthrough field renamed). CPU coverage includes Megatron constructor forwarding, Miles/SGLang overrides, boolean false, list/alias overrides, custom type converters and backend rejection of invalid types/choices. Ruff and whitespace checks passed. No apps were redeployed.
+
 ## Model configs contain infrastructure settings only
 
 Removed the `deployment` section from `BaseConfig` and removed explicit model commits from the built-in examples. Frontend app/environment/region selection belongs to `lilo deploy`; platform metadata and automatically generated worker-release IDs live in saved records. Config authors do not need revision or runtime-version fields. The CLI resolves omitted model revisions from Hugging Face `main`.

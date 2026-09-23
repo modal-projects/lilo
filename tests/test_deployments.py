@@ -18,7 +18,7 @@ from lilo.deployment_cli import retain_generations
 from lilo.control_plane.deployments import DeploymentRoutes
 from lilo.backends.deployment import backend_config
 from lilo.providers.modal.deployment_apps import definition_from_spec
-from lilo.native_options import apply_defaults
+from lilo.argparse_config import apply_config_overrides
 
 
 def recipe(preset="qwen35-9b-lora-16k", **changes):
@@ -48,7 +48,7 @@ def test_presets_context_topology_and_backend_options():
         config["tensor_model_parallel_size"],
         config["max_lora_slots"],
     ) == (4, 4, 6)
-    assert config["native_options"]["recompute_num_layers"] == 1
+    assert config["cli_options"]["recompute_num_layers"] == 1
     assert config["extra_args"] == ("--seq-length", "16384")
     large = recipe("qwen35-9b-lora-64k")
     assert large.model["max_context_length"] == 65536
@@ -61,8 +61,8 @@ def test_presets_context_topology_and_backend_options():
 def test_no_model_catalog_required():
     spec = recipe(
         model__id="my-org/new-model",
-        trainer__config__model_args=None,
-        trainer__config__options={
+        trainer__config__model_type="",
+        trainer__config__cli_options={
             "num_layers": 12,
             "hidden_size": 768,
             "num_attention_heads": 12,
@@ -75,11 +75,14 @@ def test_no_model_catalog_required():
 @pytest.mark.parametrize(
     "changes,match",
     [
-        ({"trainer__config__options": {"hf_checkpoint": "other"}}, "managed"),
-        ({"trainer__config__options": {"pipeline_model_parallel_size": 2}}, "managed"),
+        ({"trainer__config__cli_options": {"hf_checkpoint": "other"}}, "managed"),
+        (
+            {"trainer__config__cli_options": {"pipeline_model_parallel_size": 2}},
+            "managed",
+        ),
         ({"inference__config": {"model_path": "other"}}, "managed"),
         ({"inference__config": {"tp_size": 2}}, "replica GPU"),
-        ({"trainer__engine__max_clients_per_instance": 7}, "multi_lora_n_adapters"),
+        ({"trainer__engine__max_clients_per_instance": 7}, "max_lora_slots"),
         (
             {
                 "inference__config": {
@@ -169,7 +172,9 @@ def test_native_false_list_aliases_and_scalar_overrides():
     parser.add_argument("--tp", "--tensor-parallel-size", dest="tp_size", type=int)
     parser.add_argument("--unchanged")
     argv = ["--use-feature", "--layers", "1", "2", "--tp=4", "--unchanged", "keep"]
-    apply_defaults(parser, {"use_feature": False, "layers": [3], "tp_size": 8}, argv)
+    apply_config_overrides(
+        parser, {"use_feature": False, "layers": [3], "tp_size": 8}, argv
+    )
     parsed = parser.parse_args(argv)
     assert vars(parsed) == {
         "use_feature": False,
@@ -178,11 +183,11 @@ def test_native_false_list_aliases_and_scalar_overrides():
         "unchanged": "keep",
     }
     with pytest.raises(ValueError, match="unknown backend option"):
-        apply_defaults(parser, {"typo": 1}, [])
+        apply_config_overrides(parser, {"typo": 1}, [])
     with pytest.raises(ValueError, match="boolean"):
-        apply_defaults(parser, {"use_feature": "false"}, [])
+        apply_config_overrides(parser, {"use_feature": "false"}, [])
     with pytest.raises(ValueError, match="list"):
-        apply_defaults(parser, {"layers": "1,2"}, [])
+        apply_config_overrides(parser, {"layers": "1,2"}, [])
 
 
 def test_multiple_models_same_http_service_and_old_binding_survives_switch():
@@ -234,7 +239,7 @@ def test_native_boolean_opposite_flags_and_optional_value():
     parser.add_argument("--optional", nargs="?")
     parser.add_argument("--keep", action="store_true")
     argv = ["--bias", "--optional", "--keep"]
-    apply_defaults(parser, {"bias": False, "optional": "supplied"}, argv)
+    apply_config_overrides(parser, {"bias": False, "optional": "supplied"}, argv)
     assert vars(parser.parse_args(argv)) == {
         "bias": False,
         "optional": "supplied",
@@ -242,7 +247,7 @@ def test_native_boolean_opposite_flags_and_optional_value():
     }
     parser.add_argument("--custom", action="append")
     with pytest.raises(ValueError, match="unsupported argparse action"):
-        apply_defaults(parser, {"custom": [1]}, [])
+        apply_config_overrides(parser, {"custom": [1]}, [])
 
 
 def test_native_type_callbacks_receive_text():
@@ -254,8 +259,9 @@ def test_native_type_callbacks_receive_text():
     parser = argparse.ArgumentParser()
     parser.add_argument("--context-length", type=readable_int)
     parser.add_argument("--sizes", nargs="+", type=readable_int)
-    apply_defaults(parser, {"context_length": 65536, "sizes": [32, "2k"]}, [])
-    args = parser.parse_args([])
+    argv = []
+    apply_config_overrides(parser, {"context_length": 65536, "sizes": [32, "2k"]}, argv)
+    args = parser.parse_args(argv)
     assert args.context_length == 65536
     assert args.sizes == [32, 2000]
 
@@ -266,12 +272,14 @@ def test_native_sections_survive_serialization_without_allowlist():
 
     spec = recipe("qwen35-4b-fft-64k")
     data = asdict(spec)
-    data["trainer"]["config"]["provider"]["future_provider_option"] = {
+    data["trainer"]["config"]["provider_overrides"]["future_provider_option"] = {
         "layers": [1, 4],
         "enabled": False,
     }
-    data["trainer"]["config"]["optimizer"]["future_optimizer_option"] = 0.125
-    data["trainer"]["config"]["distributed"] = {"future_ddp_option": False}
+    data["trainer"]["config"]["optimizer_overrides"] = {
+        "future_optimizer_option": 0.125
+    }
+    data["trainer"]["config"]["distributed_overrides"] = {"future_ddp_option": False}
     spec = TypeAdapter(BaseConfig).validate_python(data)
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
@@ -284,22 +292,20 @@ def test_native_sections_survive_serialization_without_allowlist():
     assert config.optimizer_overrides == {"future_optimizer_option": 0.125}
     assert config.distributed_overrides == {"future_ddp_option": False}
     assert config.optimizer.lr == 0.0001
-    assert asdict(spec) == data  # Building does not consume or mutate YAML.
+    assert asdict(spec) == data  # Building does not consume or mutate the config.
 
 
 @pytest.mark.parametrize(
     "section,options,match",
     [
-        ("provider", {"context_parallel_size": 4}, "managed"),
-        ("optimizer", {"bf16": False}, "managed"),
-        ("distributed", {"use_distributed_optimizer": False}, "managed"),
-        ("runtime", {"optimizer_overrides": {}}, "managed"),
-        ("runtime", {"misspelled_loop_option": 1}, "runtime options"),
-        ("provider", [], "mapping"),
+        ("provider_overrides", {"context_parallel_size": 4}, "managed"),
+        ("optimizer_overrides", {"bf16": False}, "managed"),
+        ("distributed_overrides", {"use_distributed_optimizer": False}, "managed"),
+        ("provider_overrides", [], "mapping"),
         ("optimizer", {"optimizer": "sgd"}, "Adam"),
     ],
 )
-def test_megatron_native_options_preserve_integration_contract(section, options, match):
+def test_megatron_cli_options_preserve_integration_contract(section, options, match):
     spec = recipe("qwen35-4b-fft-64k", **{f"trainer__config__{section}": options})
     with pytest.raises(ValueError, match=match):
         backend_config(spec)
@@ -315,10 +321,10 @@ def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
     from lilo.backends.deployment import serving_options
 
     spec = recipe(
-        trainer__config__options__future_miles_option=[1, 2],
+        trainer__config__cli_options__future_miles_option=[1, 2],
         inference__config__future_sglang_option=False,
     )
-    assert backend_config(spec)["miles"]["native_options"]["future_miles_option"] == [
+    assert backend_config(spec)["miles"]["cli_options"]["future_miles_option"] == [
         1,
         2,
     ]
@@ -367,8 +373,8 @@ def test_record_creation_copies_without_reparsing():
             ).encode()
         ).hexdigest()
     )
-    row.spec.trainer["config"]["options"]["lora_rank"] = 64
-    assert spec.trainer["config"]["options"]["lora_rank"] == 32
+    row.spec.trainer["config"]["max_lora_rank"] = 64
+    assert spec.trainer["config"]["max_lora_rank"] == 32
     saved = row.model_dump_json()
     assert DeploymentRecord.model_validate_json(saved) == row
 
@@ -381,18 +387,18 @@ def test_python_config_inheritance_and_independent_defaults(tmp_path):
         "from lilo.configs.qwen35_9b_lora_64k import Config as ParentConfig\n"
         "class Config(ParentConfig):\n"
         "    name = 'custom'\n"
-        "    overrides = {'trainer.config.options.new_backend_option': False}\n"
+        "    overrides = {'trainer.config.cli_options.new_backend_option': False}\n"
     )
     first, second = load(path), load(path)
     assert is_dataclass(first)
     assert first.name == "custom"
     assert first.model["max_context_length"] == 65536
-    assert first.trainer["config"]["options"]["new_backend_option"] is False
-    first.trainer["config"]["options"]["target_modules"].append("extra")
-    assert "extra" not in second.trainer["config"]["options"]["target_modules"]
+    assert first.trainer["config"]["cli_options"]["new_backend_option"] is False
+    first.trainer["config"]["target_modules"].append("extra")
+    assert "extra" not in second.trainer["config"]["target_modules"]
     assert (
         "extra"
-        not in load(config_path("qwen35-9b-lora-16k")).trainer["config"]["options"][
+        not in load(config_path("qwen35-9b-lora-16k")).trainer["config"][
             "target_modules"
         ]
     )
@@ -443,36 +449,38 @@ def test_overrides_inherit_replace_and_copy_values():
 
     class Parent(Example):
         overrides = {
-            "trainer.config.options.target_modules": ["parent"],
-            "trainer.config.options.future_option": {"enabled": True},
+            "trainer.config.target_modules": ["parent"],
+            "trainer.config.cli_options.future_option": {"enabled": True},
             "inference.config.max_running_requests": 24,
         }
 
     class Child(Parent):
         name = "child"
         overrides = {
-            "trainer.config.options.target_modules": ["child"],
-            "trainer.config.options.future_option": {"enabled": False},
+            "trainer.config.target_modules": ["child"],
+            "trainer.config.cli_options.future_option": {"enabled": False},
         }
 
     child = Child()
     assert child.inference["config"]["max_running_requests"] == 24
-    assert child.trainer["config"]["options"]["target_modules"] == ["child"]
-    assert child.trainer["config"]["options"]["future_option"] == {"enabled": False}
-    child.trainer["config"]["options"]["target_modules"].append("changed")
-    child.trainer["config"]["options"]["future_option"]["enabled"] = True
-    assert Child.overrides["trainer.config.options.target_modules"] == ["child"]
-    assert Child().trainer["config"]["options"]["future_option"] == {"enabled": False}
-    assert Parent().trainer["config"]["options"]["target_modules"] == ["parent"]
+    assert child.trainer["config"]["target_modules"] == ["child"]
+    assert child.trainer["config"]["cli_options"]["future_option"] == {"enabled": False}
+    child.trainer["config"]["target_modules"].append("changed")
+    child.trainer["config"]["cli_options"]["future_option"]["enabled"] = True
+    assert Child.overrides["trainer.config.target_modules"] == ["child"]
+    assert Child().trainer["config"]["cli_options"]["future_option"] == {
+        "enabled": False
+    }
+    assert Parent().trainer["config"]["target_modules"] == ["parent"]
     assert "overrides" not in asdict(child)
     assert Child(name="keyword").name == "keyword"
 
     class Replacement(Parent):
-        trainer = {"resources": {"gpu": "H200:8"}, "config": {"options": {}}}
-        overrides = {"trainer.config.options.new_option": 1}
+        trainer = {"resources": {"gpu": "H200:8"}, "config": {"cli_options": {}}}
+        overrides = {"trainer.config.cli_options.new_option": 1}
 
     # A child's complete field replacement wins over its parent's dotted edits.
-    assert Replacement().trainer["config"] == {"options": {"new_option": 1}}
+    assert Replacement().trainer["config"] == {"cli_options": {"new_option": 1}}
 
 
 @pytest.mark.parametrize(
@@ -513,11 +521,11 @@ def test_worker_hashes_cover_only_their_settings():
     assert inference.trainer_hash == base.trainer_hash
     assert inference.inference_hash != base.inference_hash
 
-    trainer = resolved(recipe(trainer__config__options__max_tokens_per_gpu=8192))
+    trainer = resolved(recipe(trainer__config__max_tokens_per_gpu=8192))
     assert trainer.trainer_hash != base.trainer_hash
     assert trainer.inference_hash == base.inference_hash
 
-    adapter = resolved(recipe(trainer__config__options__lora_rank=64))
+    adapter = resolved(recipe(trainer__config__max_lora_rank=64))
     assert adapter.trainer_hash != base.trainer_hash
     assert adapter.inference_hash != base.inference_hash
 
@@ -543,3 +551,13 @@ def test_examples_only_contain_model_infrastructure():
         assert "revision" not in config.model
         assert "runtime_version" not in config.trainer
         assert "runtime_version" not in config.inference
+
+
+@pytest.mark.parametrize("value", ["invalid", 7])
+def test_backend_parser_validates_configured_types_and_choices(value):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--count", type=int, choices=[1, 2], required=True)
+    argv = ["--count", "1"]
+    apply_config_overrides(parser, {"count": value}, argv)
+    with pytest.raises(SystemExit):
+        parser.parse_args(argv)

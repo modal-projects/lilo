@@ -7,6 +7,6 @@ class Config(ParentConfig):
         "model.max_context_length": 65536,
         "routing.default": False,
         "trainer.resources.gpu": "H200:8",
-        "trainer.config.options.tensor_model_parallel_size": 8,
-        "trainer.config.options.max_tokens_per_gpu": 65536,
+        "trainer.config.tensor_model_parallel_size": 8,
+        "trainer.config.max_tokens_per_gpu": 65536,
     }

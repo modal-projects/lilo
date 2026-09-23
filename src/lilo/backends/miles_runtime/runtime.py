@@ -198,11 +198,11 @@ class MilesRuntime:
             else []
         )
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
-            if self.config.native_options:
-                from lilo.native_options import apply_defaults
+            if self.config.cli_options:
+                from lilo.argparse_config import apply_config_overrides
 
                 def configure(parser):
-                    apply_defaults(parser, self.config.native_options, sys.argv)
+                    apply_config_overrides(parser, self.config.cli_options, sys.argv)
                     return parser
 
                 args = parse_args(add_custom_arguments=configure, entry="serve")

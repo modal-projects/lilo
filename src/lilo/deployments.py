@@ -202,9 +202,9 @@ class DeploymentRecord(BaseModel):
         """Identify inference settings, including the adapter shape it must load."""
         adapter = {}
         if self.spec.model["parameterization"] == "lora":
-            options = self.spec.trainer["config"].get("options", {})
+            options = self.spec.trainer["config"]
             adapter = {
-                "lora_rank": options.get("lora_rank"),
+                "max_lora_rank": options.get("max_lora_rank"),
                 "target_modules": options.get("target_modules"),
             }
         return settings_hash(

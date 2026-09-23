@@ -6,8 +6,8 @@ class Config(ParentConfig):
     overrides = {
         "model.max_context_length": 65536,
         "routing.default": False,
-        "trainer.config.options.context_parallel_size": 2,
-        "trainer.config.options.max_tokens_per_gpu": 32768,
+        "trainer.config.context_parallel_size": 2,
+        "trainer.config.max_tokens_per_gpu": 32768,
         "inference.scaling.target_concurrency": 8,
         "inference.config.max_running_requests": 16,
     }

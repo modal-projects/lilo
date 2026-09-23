@@ -18,22 +18,17 @@ class Config(BaseConfig):
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
         "config": {
-            "model_args": "qwen3.8-27B",
-            "options": {
-                "tensor_model_parallel_size": 4,
-                "target_modules": [
-                    "linear_qkv",
-                    "linear_proj",
-                    "linear_fc1",
-                    "linear_fc2",
-                ],
-                "max_tokens_per_gpu": 16384,
+            "model_type": "qwen3.8-27B",
+            "tensor_model_parallel_size": 4,
+            "target_modules": ["linear_qkv", "linear_proj", "linear_fc1", "linear_fc2"],
+            "max_tokens_per_gpu": 16384,
+            "max_lora_slots": 6,
+            "max_lora_rank": 32,
+            "default_lora_alpha": 32,
+            "cli_options": {
                 "recompute_granularity": "full",
                 "recompute_method": "uniform",
                 "recompute_num_layers": 1,
-                "multi_lora_n_adapters": 6,
-                "lora_rank": 32,
-                "lora_alpha": 32,
             },
         },
     }

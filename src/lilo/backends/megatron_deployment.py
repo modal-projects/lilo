@@ -1,14 +1,13 @@
-"""Build Lilo loop settings while preserving native Megatron configuration."""
+"""Construct the existing Megatron training config without a second schema."""
 
-
-from dataclasses import asdict, fields
+from dataclasses import asdict
 
 from lilo.deployments import gpu_count
-from lilo.backend_options import native_options
-from .megatron_runtime.common.config import EngineModelConfig, OptimizerConfig
+from lilo.config_validation import reject_managed_options
+from .megatron_config import parse_backend_config
 
 # These values also control packing, collectives, and checkpoint metadata in Lilo.
-# Configure them once under runtime so the provider and training loop agree.
+# Configure them once on EngineModelConfig so packing and the provider agree.
 PROVIDER_MANAGED = {
     "tensor_model_parallel_size",
     "pipeline_model_parallel_size",
@@ -44,48 +43,25 @@ def build_config(spec, asset_path):
         raise ValueError("FFT trainers admit one client per instance")
     if trainer["engine"]["sampler_persistence_concurrency"] != 1:
         raise ValueError("Megatron requires sampler_persistence_concurrency: 1")
-    sections = native_options(trainer["config"], set())
-    unknown = sections.keys() - {"runtime", "provider", "optimizer", "distributed"}
-    if unknown:
-        raise ValueError(f"unknown Megatron config sections: {sorted(unknown)}")
-    runtime = native_options(
-        sections.get("runtime", {}),
-        {
-            "hf_checkpoint",
-            "seq_length",
-            "max_lora_slots",
-            "max_lora_rank",
-            "optimizer",
-            "provider_overrides",
-            "optimizer_overrides",
-            "distributed_overrides",
-        },
+    settings = trainer["config"]
+    reject_managed_options(settings, {"hf_checkpoint", "seq_length"})
+    reject_managed_options(settings.get("provider_overrides", {}), PROVIDER_MANAGED)
+    reject_managed_options(
+        settings.get("optimizer_overrides", {}), OPTIMIZER_MANAGED | {"optimizer"}
     )
-    provider = native_options(sections.get("provider", {}), PROVIDER_MANAGED)
-    optimizer = native_options(sections.get("optimizer", {}), OPTIMIZER_MANAGED)
-    distributed = native_options(sections.get("distributed", {}), DISTRIBUTED_MANAGED)
-    if optimizer.get("optimizer", "adam") != "adam":
+    reject_managed_options(
+        settings.get("distributed_overrides", {}), DISTRIBUTED_MANAGED
+    )
+    config, _ = parse_backend_config(
+        {
+            "megatron": {
+                **settings,
+                "hf_checkpoint": asset_path,
+                "seq_length": spec.model["max_context_length"],
+            }
+        }
+    )
+    if config.optimizer.optimizer != "adam":
         raise ValueError("Tinker optim_step requires an Adam optimizer")
-    # Keep scheduling and per-request optimizer settings available to Lilo. Every
-    # other optimizer field goes to the installed Megatron constructor unchanged.
-    loop_fields = {field.name for field in fields(OptimizerConfig)}
-    loop_optimizer = {
-        key: value for key, value in optimizer.items() if key in loop_fields
-    }
-    native_optimizer = {
-        key: value for key, value in optimizer.items() if key not in loop_fields
-    }
-    try:
-        config = EngineModelConfig(
-            hf_checkpoint=asset_path,
-            seq_length=spec.model["max_context_length"],
-            optimizer=OptimizerConfig(**loop_optimizer),
-            provider_overrides=provider,
-            optimizer_overrides=native_optimizer,
-            distributed_overrides=distributed,
-            **runtime,
-        )
-    except TypeError as exc:
-        raise ValueError(f"invalid Megatron runtime options: {exc}") from exc
     config.validate(gpu_count(trainer["resources"]))
     return {"megatron": asdict(config), "checkpoint_dir": "/checkpoints"}

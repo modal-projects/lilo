@@ -1,8 +1,7 @@
 """SGLang settings that must agree with Lilo replica orchestration."""
 
-
 from lilo.deployments import gpu_count
-from lilo.backend_options import native_options
+from lilo.config_validation import reject_managed_options
 
 SGLANG_MANAGED = {
     "model_path",
@@ -32,7 +31,8 @@ SGLANG_MANAGED = {
 
 
 def build_config(spec):
-    options = native_options(spec.inference["config"], SGLANG_MANAGED)
+    options = dict(spec.inference["config"])
+    reject_managed_options(options, SGLANG_MANAGED)
     tp = options.get("tp_size", gpu_count(spec.inference["resources"]))
     ep = options.get("ep_size", 1)
     if not isinstance(tp, int) or tp != gpu_count(spec.inference["resources"]):

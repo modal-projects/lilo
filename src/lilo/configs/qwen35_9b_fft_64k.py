@@ -18,17 +18,15 @@ class Config(BaseConfig):
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
         "config": {
-            "runtime": {
-                "tensor_model_parallel_size": 2,
-                "context_parallel_size": 2,
-                "sequence_parallel": True,
-                "micro_batch_size": 1,
-                "max_tokens_per_microbatch": 65536,
-                "defer_fp32_logits": True,
-                "fp32_lm_head": True,
-                "use_distributed_optimizer": True,
-            },
-            "provider": {
+            "tensor_model_parallel_size": 2,
+            "context_parallel_size": 2,
+            "sequence_parallel": True,
+            "micro_batch_size": 1,
+            "max_tokens_per_microbatch": 65536,
+            "defer_fp32_logits": True,
+            "fp32_lm_head": True,
+            "use_distributed_optimizer": True,
+            "provider_overrides": {
                 "mtp_num_layers": 0,
                 "recompute_granularity": "full",
                 "recompute_method": "uniform",

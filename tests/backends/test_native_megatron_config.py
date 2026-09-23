@@ -17,11 +17,13 @@ with backend_runtime_imports():
     from lilo.backends.megatron_runtime.common import modeling
 
 
-def test_yaml_native_values_reach_megatron(monkeypatch):
+def test_config_overrides_reach_megatron(monkeypatch):
     data = asdict(load(config_path("qwen35-4b-fft-64k")))
-    data["trainer"]["config"]["optimizer"]["native_optimizer_setting"] = False
-    data["trainer"]["config"]["distributed"] = {"native_ddp_setting": 123}
-    data["trainer"]["config"]["provider"]["native_provider_setting"] = [1, 2]
+    data["trainer"]["config"]["optimizer_overrides"] = {
+        "native_optimizer_setting": False
+    }
+    data["trainer"]["config"]["distributed_overrides"] = {"native_ddp_setting": 123}
+    data["trainer"]["config"]["provider_overrides"]["native_provider_setting"] = [1, 2]
     config, _ = parse_backend_config(
         backend_config(TypeAdapter(BaseConfig).validate_python(data))
     )
