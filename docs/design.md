@@ -122,51 +122,34 @@ sampling scales according to rollout traffic. We best-effort sticky-route groups
 - [`providers/modal/fft_pool.py`](../src/lilo/providers/modal/fft_pool.py):
   creates, finds, wakes, and stops each FFT model's sampling service using Modal flash proxy
 
-## Adding a new model deployment 
+## Adding a new model deployment
 
-"Model deployment" in this context refers to a particular training configuration for a base model, defined by its parameterization (full parameter, LoRA, etc.), desired context/sampling length, parallelism, quantization, and so forth. To add a new deployment that can be spun up by the control plane: 
+A deployment YAML specifies the base model, training mode, context length, GPUs, parallelism, and inference settings. Shared deployments are defined only through these files.
 
-1. Existing model definitions are in [`providers/modal/definitions`](../src/lilo/providers/modal/definitions) (one per file). Create a new file with the desired configuration details (model, checkpoint, context-length, GPU, and parallelism settings). 
-2. Keep the module filename, `DEFINITION_ID`, and engine function name the same.
-3. Import the module in
-   [`providers/modal/app.py`](../src/lilo/providers/modal/app.py) and append it
-   to `DEFINITIONS`.
+1. Create a YAML under `deployments/`, optionally extending a packaged preset.
+2. Add its path to the list in [`scripts/deploy_models.sh`](../scripts/deploy_models.sh).
+3. Run the script to apply the complete list to the shared frontend.
 
-Every definition exports:
+There is no model-specific Python module or catalog registration to update. The generic builders in [`yaml_apps.py`](../src/lilo/providers/modal/yaml_apps.py) construct trainer functions and inference apps from the resolved YAML. See [YAML deployments](deployment-yaml-design.md) for the configuration schema and app structure.
 
-- `DEFINITION_ID`, `MODEL_NAME`, `PARAMETERIZATION`, and `CATALOG_VISIBLE`;
-- `TRAINER_MODELS_PER_INSTANCE`;
-- the model asset Volume and backend configuration;
-- a Modal `app` and engine function that calls
-  [`run_engine_with_backend`](../src/lilo/providers/modal/serve.py); and
-- `ENGINE_FUNCTION`, referencing that engine function.
+Set each configuration's trainer limit with `trainer.scaling.max_instances` and its inference limits with `inference.scaling`. Trainer limits are read from YAML; `LILO_TRAINER_MAX_CONTAINERS` is no longer used.
 
-The existing model definitions show the complete template for parameterization-specific settings. FOr example, FFT definitions include rollout resources + Stitch bulletin volume, whereas LoRA definitions include adapter rank, slot capacity, and adapter storage. Our FFT engines are currently only capable of hosting one model (but if multiple FFT experiments are submitted to the control plane, it will spin up as many engine replicas as necessary to support these concurrently). LoRA engines are multi-lora and so can host multiple adapters. 
-
-Adding the module to `DEFINITIONS` automatically includes its Modal
-sub-application and makes it available to model lookup, trainer provisioning,
-parameterization lookup, and the public catalog. The registry tests also cover
-the new definition automatically. To run the tests before deploying: 
+To check training, publication, and sampling against a deployed configuration:
 
 ```bash
-uv run pytest tests/providers/test_definition_registry.py
-uv run modal deploy -m lilo.providers.modal.app
+uv run python scripts/yaml_deployment_smoke.py \
+  --frontend lilo-yaml --name qwen35-9b-lora-16k \
+  --output /tmp/lilo-smoke.json
 ```
 
-Trainer container limits are deployment-specific. Set
-`LILO_TRAINER_MAX_CONTAINERS` to a positive integer when deploying to apply the
-same limit to every definition. Leaving it unset makes trainer containers
-unlimited.
-
-The following script tests e2e deployment for one model definition, launching the Modal app, creating the particular model, running forward_backward + optim_step operations, and sampler weight publication/rollouts: 
+For the longer FFT checkpoint and sampler-recovery checks:
 
 ```bash
 uv run python scripts/e2e_engine_definition.py \
-  --definition-id <definition_id>
+  --frontend lilo-yaml --name qwen35-4b-fft-64k --checkpoint-only
 ```
 
-This validates all steps of the training cycle for the particular model definition. For an FFT checkpoint round trip, add
-`--checkpoint-only`.
+Both scripts read the deployed configuration rather than importing model-specific Python definitions.
 
 ## Adding a new backend
 

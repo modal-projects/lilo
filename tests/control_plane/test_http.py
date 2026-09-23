@@ -283,13 +283,14 @@ def test_model_info_and_unload() -> None:
     asyncio.run(run())
 
 
-def test_base_sampling_session_prefers_full_definition() -> None:
+def test_base_sampling_session_uses_explicit_sampling_default() -> None:
     async def run() -> None:
         plane = ControlPlane(
             InMemoryKeyValueStore(),
             LocalEnginePlatform(DEFINITION, EchoExecutor),
         )
-        app = create_control_plane_app(plane, DEFINITIONS, api_key=None)
+        definitions = [SimpleNamespace(**vars(d), SAMPLING_DEFAULT=d.PARAMETERIZATION == "full") for d in DEFINITIONS]
+        app = create_control_plane_app(plane, definitions, api_key=None)
         client = httpx.AsyncClient(
             base_url="http://control-plane",
             transport=httpx.ASGITransport(app=app),

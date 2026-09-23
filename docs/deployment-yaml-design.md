@@ -1,8 +1,8 @@
 # YAML deployments
 
-This draft implements an opt-in YAML path for shared Modal deployments. A file specifies the base model, trainer backend, resources, context length, adapter capacity, and inference settings. Adding a backend-supported model does not require a new Python definition or a catalog entry.
+Shared Modal deployments are defined through YAML. A file specifies the base model, trainer backend, resources, context length, adapter capacity, and inference settings. Adding a backend-supported model does not require a new Python definition or a catalog entry.
 
-The implementation has CPU tests and live training/sampling checks; see the [validation report](deployment-yaml-validation.md) for tested configurations and shared-app redeploy results. The existing Python deployment and scoped-run paths remain available.
+The implementation has CPU tests and live training/sampling checks; see the [validation report](deployment-yaml-validation.md) for tested configurations and shared-app redeploy results. The separate scoped `lilo.run(...)` API remains available.
 
 ## The provider and Modal app structure
 
@@ -33,7 +33,7 @@ flowchart TD
     Sidecar --> SGLang[SGLang on port 8001]
 ```
 
-`app.py` reads a resolved manifest from `LILO_DEPLOYMENT_MANIFEST`. For each configuration it calls `definition_from_spec`, which constructs the routing metadata and a trainer app. `app.include` places those trainer functions inside the shared frontend app. With no manifest, `app.py` uses the existing Python definitions.
+`app.py` reads a resolved manifest from `LILO_DEPLOYMENT_MANIFEST`. For each configuration it calls `definition_from_spec`, which constructs the routing metadata and a trainer app. `app.include` places those trainer functions inside the shared frontend app. A missing manifest is an error with instructions to use `lilo deploy`; there is no Python model-catalog fallback.
 
 The trainer function's GPU type/count, CPU, RAM, timeout, maximum instances, secrets and mounted volumes come from YAML. Containers remain single-use. `run_trainer` reloads the prepared asset volume, constructs the backend configuration, and calls the existing `run_engine_with_backend` launcher. Miles uses one controller process that manages its GPU workers; FFT launches one process per allocated GPU. Client admission and sampler-persistence concurrency are configured separately.
 
@@ -69,6 +69,8 @@ The packaged presets are:
 - [`qwen35-9b-lora-16k.yaml`](../src/lilo/presets/qwen35-9b-lora-16k.yaml): Qwen3.5-9B-Base, rank 32, six clients per H100:4 trainer, H200:1 inference replicas.
 - [`qwen35-9b-lora-64k.yaml`](../src/lilo/presets/qwen35-9b-lora-64k.yaml): a larger-context example using H200:8 training.
 - [`qwen35-4b-fft-64k.yaml`](../src/lilo/presets/qwen35-4b-fft-64k.yaml): the existing 4B FFT topology expressed as YAML.
+
+Additional packaged YAML presets preserve the earlier Python recipes for 2K and single-client LoRA, the 9B instruct model, Qwen3.5/3.6 FFT variants, and Qwen3.8 LoRA at 16K/64K/128K. They are optional templates, not automatically deployed models. The deployment script still lists only the three configurations above. Migrated presets use the YAML defaults of at most one trainer and zero-to-eight inference replicas; raise these limits in your YAML when needed. Their model/context/parallelism settings are covered by CPU tests, not new GPU validation.
 
 These are starting configurations. The 16K and FFT backend settings are based on the existing definitions; inference minima are explicitly zero and the trainer maximum is one. All three presets passed short GPU training/sampling checks; see the [validation report](deployment-yaml-validation.md). Full-context memory capacity was not tested.
 
@@ -122,7 +124,7 @@ For a checked-in deployment list, use [`scripts/deploy_models.sh`](../scripts/de
 
 To add a model, create its YAML in `deployments/`, add its path to `deployment_files`, then run the script. The YAMLs must agree on the frontend and shared settings. Keep existing entries to keep those configurations available to new clients; removing an entry retires it from new-client selection on the next deployment. The script works from any working directory and uses `lilo` from your active Python 3.12 environment. Keep the same pinned `LILO_MILES_COMMIT` across applies, as with the direct CLI.
 
-This command builds/deploys the shared app; it is not a validation command. All files must agree on frontend, Modal environment/region, secrets, storage and shared lifecycle settings. The preset frontend name is `lilo-yaml`. The CLI refuses to overwrite a pre-existing application without a YAML registry, so migration of a legacy frontend must be handled separately.
+This command builds/deploys the shared app; it is not a validation command. All files must agree on frontend, Modal environment/region, secrets, storage and shared lifecycle settings. The preset frontend name is `lilo-yaml`. The CLI refuses to overwrite a pre-existing application without a YAML registry, so it cannot accidentally replace an unrelated app.
 
 Trainer minimum capacity is zero. Rollout apps are created on first demand, and their configured inference minimum applies once the pool exists. A pool with a nonzero minimum will keep that many workers warm until it is stopped by the existing idle cleanup.
 
@@ -182,6 +184,6 @@ A killed CLI can leave its apply lock behind. Confirm that the original apply ha
 
 ## Current scope and validation
 
-The implemented YAML path supports shared, single-node Miles LoRA and Megatron FFT deployments with the existing runtime images. The inference GPU allocation must match tensor parallelism. Scoped `lilo.run(config=...)`, DP-attention layouts, custom image selection, automatic provisioning of unknown `base_model` values, automatic runtime upgrades, and GPU compatibility probes remain follow-up work. Unsupported schema choices are rejected rather than treated as implemented features.
+The implemented YAML path supports shared, single-node Miles LoRA and Megatron FFT deployments with the existing runtime images. The inference GPU allocation must match SGLang’s total `tp_size`. Data-parallel attention uses explicit `dp_size` and `enable_dp_attention` options, with `dp_size` dividing the allocation. Scoped `lilo.run(config=...)`, custom image selection, automatic provisioning of unknown `base_model` values, automatic runtime upgrades, and GPU compatibility probes remain follow-up work. Unsupported schema choices are rejected rather than treated as implemented features.
 
 CPU coverage exercises configuration loading and validation, typed native overrides, routing several models through one HTTP service, ambiguity handling, preserved client definitions, interrupted/concurrent applies, trainer resources and executor settings, LoRA/FFT pool startup and shutdown, and startup-error handling. Existing backend, provider, HTTP and scoped-run tests also run. The [GPU validation report](deployment-yaml-validation.md) covers short training/sampling requests and shared-app redeploy continuity. Maximum-context capacity and sustained-load testing remain separate checks.

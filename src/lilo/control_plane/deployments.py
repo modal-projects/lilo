@@ -1,4 +1,4 @@
-"""Model-name routing for legacy definitions and YAML deployment generations."""
+"""Model-name routing for shared YAML deployments and scoped engines."""
 
 
 class DeploymentRoutes:
@@ -43,9 +43,10 @@ class DeploymentRoutes:
         )
 
     def sampling(self, model):
+        requested = [d for d in self.all if d.DEFINITION_ID == model]
+        if len(requested) == 1:
+            return requested[0]
         matches = [d for d in self.visible if d.MODEL_NAME == model]
-        if not any(hasattr(d, "ROUTING_DEFAULT") for d in matches):
-            return self.select(model, "full") or self.select(model, "lora")
         explicit = [d for d in matches if getattr(d, "SAMPLING_DEFAULT", False)]
         if len(explicit) == 1:
             return explicit[0]

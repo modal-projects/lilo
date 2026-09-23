@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import ast
 import hashlib
 import os
 import shutil
@@ -73,9 +72,7 @@ def deploy_pool(spec: LoraPoolSpec) -> str:
         modal_cli,
         "deploy",
         "-m",
-        "lilo.providers.modal.yaml_pool_app"
-        if recipe_env
-        else "lilo.providers.modal.lora_pool_app",
+        "lilo.providers.modal.yaml_pool_app",
         "--name",
         spec.app_name,
     ]
@@ -104,42 +101,6 @@ def stop_pool(spec: LoraPoolSpec) -> None:
 
 
 def _implementation_revision(definition_id: str) -> str:
-    if definition_id.startswith("yaml_"):
-        return definition_id.rsplit("_", 1)[-1]
-    here = Path(__file__)
-    files = (
-        here,
-        here.with_name("lora_pool_app.py"),
-        here.with_name("rollout_image.py"),
-        here.with_name("image_dependencies.py"),
-        *_definition_sources(here.with_name("definitions") / f"{definition_id}.py"),
-        here.parents[2] / "inference" / "bulletin.py",
-        here.parents[2] / "inference" / "lora_sidecar.py",
-        here.parents[2] / "inference" / "serving.py",
-    )
-    digest = hashlib.sha256()
-    for path in files:
-        digest.update(path.name.encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
-
-
-def _definition_sources(path: Path):
-    """Include inherited sibling definitions without importing deployment code."""
-    pending, seen = [path], set()
-    while pending:
-        source = pending.pop()
-        if source in seen:
-            continue
-        seen.add(source)
-        yield source
-        for node in ast.walk(ast.parse(source.read_text())):
-            if not isinstance(node, ast.ImportFrom) or node.level != 1:
-                continue
-            modules = (
-                [node.module] if node.module else [alias.name for alias in node.names]
-            )
-            for module in modules:
-                sibling = source.parent / (module.replace(".", "/") + ".py")
-                if sibling.is_file():
-                    pending.append(sibling)
+    if not definition_id.startswith("yaml_"):
+        raise ValueError(f"expected a YAML deployment id: {definition_id}")
+    return definition_id.rsplit("_", 1)[-1]

@@ -45,8 +45,18 @@ def builders(monkeypatch):
     monkeypatch.setattr(modal, "exit", lambda: lambda fn: fn)
 
 
-def test_trainer_declaration_and_executor_configuration(builders, monkeypatch):
-    row = deployment()
+@pytest.mark.parametrize(
+    "preset,backend,clients,nproc",
+    [
+        ("qwen35-9b-lora-16k", "miles_lora", 6, 1),
+        ("qwen35-4b-fft-64k", "megatron_fft", 1, 4),
+    ],
+)
+def test_trainer_declaration_and_executor_configuration(
+    builders, monkeypatch, preset, backend, clients, nproc
+):
+    row = deployment(preset)
+    row.spec.deployment.storage.checkpoints = "test-custom-checkpoints"
     image = object()
     app, trainer = yaml_apps.build_trainer_app(row, image=image)
     declaration, _ = app.functions[row.definition_id]
@@ -72,12 +82,14 @@ def test_trainer_declaration_and_executor_configuration(builders, monkeypatch):
     )
     trainer("instance-a")
     args, kwargs = calls[0]
-    assert args == ("store", "lilo.backends.miles_lora:build_executor")
-    assert kwargs["max_models"] == 6
-    assert kwargs["nproc"] == 1
+    assert args == ("store", f"lilo.backends.{backend}:build_executor")
+    assert kwargs["max_models"] == clients
+    assert kwargs["nproc"] == nproc
+    assert kwargs["backend_env"]["LILO_CHECKPOINT_VOLUME"] == "test-custom-checkpoints"
     assert kwargs["backend_env"]["LILO_BASE_MODEL_REVISION"] == "a" * 40
     config = json.loads(kwargs["backend_env"]["LILO_BACKEND_CONFIG"])
-    assert config["miles"]["hf_checkpoint"] == row.asset_path
+    assert config[row.spec.trainer.backend]["hf_checkpoint"] == row.asset_path
+    assert config["checkpoint_dir"] == "/checkpoints"
     assert reloaded == [True]
 
 
@@ -156,7 +168,8 @@ def test_pool_subprocess_receives_recorded_generation(monkeypatch):
     assert json.loads(env[yaml_apps.POOL_CONFIG_ENV])["generation"] == row.generation
     with pytest.raises(ValueError, match="missing recorded"):
         yaml_apps.pool_environment("yaml_missing_123")
-    assert yaml_apps.pool_environment("legacy") == {}
+    with pytest.raises(ValueError, match="missing recorded"):
+        yaml_apps.pool_environment("unconfigured-python-definition")
 
 
 def test_startup_failure_is_visible_and_blocks_new_spawns(monkeypatch):
@@ -226,3 +239,43 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     assert first.active is True and first.spec.routing.default is True
     changed.spec.trainer.resources.gpu = "H200:4"
     assert serialize(yaml_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
+
+
+@pytest.mark.parametrize("kind", ["lora", "full"])
+def test_pool_launch_uses_only_generic_yaml_app(monkeypatch, kind):
+    from lilo.providers.modal import fft_pool, lora_pool
+
+    row = deployment("qwen35-9b-lora-16k" if kind == "lora" else "qwen35-4b-fft-64k")
+    monkeypatch.setenv(yaml_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
+    module = lora_pool if kind == "lora" else fft_pool
+    spec = (
+        LoraPoolSpec(row.definition_id)
+        if kind == "lora"
+        else FFTPoolSpec(row.definition_id, "model", True, 0)
+    )
+    calls = []
+
+    class Pool:
+        def __init__(self, *args):
+            self.lookups = 0
+
+        def gateway_url(self):
+            self.lookups += 1
+            if self.lookups == 1:
+                raise modal.exception.NotFoundError("not deployed")
+            return "https://pool"
+
+    monkeypatch.setattr(module, "ModalFlashPool", Pool)
+    monkeypatch.setattr(module.shutil, "which", lambda _: "/bin/modal")
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda command, **kwargs: calls.append((command, kwargs)),
+    )
+    assert module.deploy_pool(spec) == "https://pool"
+    command, kwargs = calls[0]
+    assert command[command.index("-m") + 1] == "lilo.providers.modal.yaml_pool_app"
+    assert (
+        json.loads(kwargs["env"][yaml_apps.POOL_CONFIG_ENV])["generation"]
+        == row.generation
+    )

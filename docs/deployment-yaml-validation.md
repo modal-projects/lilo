@@ -2,6 +2,14 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## YAML-only deployment cleanup
+
+After the live checks below, the shared deployment's Python-catalog fallback and model-specific trainer/pool modules were removed. Existing recipes are available as YAML presets. The deployment script still selects only its three listed configurations; additional presets are opt-in.
+
+Validation of this cleanup: **575 CPU tests passed, 1 skipped**; Ruff and whitespace checks passed. A wheel built with all 14 YAML presets and none of the removed Python definition modules or pool launchers. Coverage includes required manifests, configuration-ID sampling, both generic executors, custom checkpoint storage, generic pool deployment, migrated parallelism settings, and the deployed-configuration E2E helper.
+
+No apps were redeployed for this cleanup. The GPU results below apply to the earlier source commit `13d2a31`; the additional migrated presets and DP-attention settings have CPU coverage only.
+
 ## GPU results
 
 All checks passed on 2026-09-23. A step includes forward/backward, an optimizer update, publication of sampling weights, and a sample with a 16-token cap.

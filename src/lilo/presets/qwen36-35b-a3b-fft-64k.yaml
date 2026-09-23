@@ -1,0 +1,9 @@
+extends: builtin:qwen35-35b-a3b-fft-64k
+name: qwen36-35b-a3b-fft-64k
+model:
+  id: Qwen/Qwen3.6-35B-A3B
+inference:
+  sglang:
+    options:
+      dp_size: 1
+      enable_dp_attention: false

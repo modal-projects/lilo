@@ -139,9 +139,7 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
         modal_cli,
         "deploy",
         "-m",
-        "lilo.providers.modal.yaml_pool_app"
-        if recipe_env
-        else "lilo.providers.modal.fft_pool_app",
+        "lilo.providers.modal.yaml_pool_app",
         "--name",
         spec.app_name,
     ]

@@ -21,17 +21,18 @@ POOL_CONFIG_ENV = "LILO_POOL_DEPLOYMENT"
 
 def manifest_from_env():
     data = os.environ.get(MANIFEST_ENV)
-    return (
-        [ResolvedDeployment.model_validate(row) for row in json.loads(data)]
-        if data
-        else []
-    )
+    if not data:
+        raise ValueError(
+            "Missing deployment manifest. Use lilo deploy with your YAML files."
+        )
+    rows = json.loads(data)
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("Deployment manifest must be a nonempty list")
+    return [ResolvedDeployment.model_validate(row) for row in rows]
 
 
 def frontend_settings():
     deployments = manifest_from_env()
-    if not deployments:
-        return None
     active = [row.spec for row in deployments if row.active]
     validate_frontend(active)
     if len({row.definition_id for row in deployments}) != len(deployments):
@@ -196,7 +197,8 @@ def definition_from_spec(resolved, *, register_trainer=True, image=None):
         ROLLOUT_GPUS=spec.inference.resources.gpu_count,
         ROLLOUT_TENSOR_PARALLEL_SIZE=native.get(
             "tp_size", spec.inference.resources.gpu_count
-        ),
+        )
+        // (native.get("dp_size", 1) if native.get("enable_dp_attention") else 1),
     )
     if register_trainer:
         definition.app, definition.ENGINE_FUNCTION = build_trainer_app(
@@ -215,9 +217,7 @@ def pool_deployment(definition_id):
 def pool_environment(definition_id):
     resolved = pool_deployment(definition_id)
     if resolved is None:
-        if definition_id.startswith("yaml_"):
-            raise ValueError(f"missing recorded deployment: {definition_id}")
-        return {}
+        raise ValueError(f"missing recorded deployment: {definition_id}")
     return {POOL_CONFIG_ENV: resolved.model_dump_json()}
 
 

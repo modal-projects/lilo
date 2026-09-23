@@ -119,7 +119,7 @@ def deploy(desired):
                 pass
             else:
                 raise ValueError(
-                    "The frontend already exists without a YAML registry. Choose a new frontend name; automatic migration of legacy deployments is not implemented."
+                    "The frontend already exists without a YAML registry. Choose a new frontend name; an app with no deployment registry cannot be safely updated."
                 )
         # A killed deploy may already have updated Modal. Keep its functions on retry.
         rows = {r["generation"]: r for r in [*rows, *registry.get("pending", [])]}

@@ -43,10 +43,8 @@ SGLANG_MANAGED = {
     "max_lora_rank",
     "enable_cpu_weight_cache",
     "api_key",
-    "dp_size",
     "pp_size",
     "lora_paths",
-    "enable_dp_attention",
     "dist_init_addr",
     "nnodes",
     "node_rank",
@@ -173,11 +171,17 @@ def serving_options(spec):
     tp = options.get("tp_size", spec.inference.resources.gpu_count)
     ep = options.get("ep_size", 1)
     if not isinstance(tp, int) or tp != spec.inference.resources.gpu_count:
-        raise ValueError(
-            "sglang.tp_size must equal the replica GPU allocation; DP-attention is not yet supported in YAML"
-        )
+        raise ValueError("sglang.tp_size must equal the replica GPU allocation")
     if not isinstance(ep, int) or ep < 1 or tp % ep:
         raise ValueError("sglang.ep_size must divide the replica GPU allocation")
+    dp = options.get("dp_size", 1)
+    dp_attention = options.get("enable_dp_attention", False)
+    if type(dp) is not int or dp < 1 or tp % dp:
+        raise ValueError("sglang.dp_size must divide the replica GPU allocation")
+    if not isinstance(dp_attention, bool):
+        raise ValueError("sglang.enable_dp_attention must be a boolean")
+    if dp > 1 and not dp_attention:
+        raise ValueError("sglang.dp_size > 1 requires enable_dp_attention")
     for key in (
         "max_loaded_loras",
         "max_loras_per_batch",
