@@ -135,6 +135,7 @@ def build_app(
     from .engines import ModalEnginePlatform
     from .checkpoint_storage import ModalCheckpointStorage
     from .fft_pool import proxy_auth_headers
+    from .kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
@@ -196,7 +197,12 @@ def build_app(
         max_containers=max_trainers,
         single_use_containers=True,
         retries=0,
-        volumes={"/assets": assets, "/bulletin": bulletin, "/checkpoints": checkpoints},
+        volumes={
+            "/assets": assets,
+            "/bulletin": bulletin,
+            "/checkpoints": checkpoints,
+            KERNEL_CACHE_ROOT: kernel_cache_volume,
+        },
         secrets=[*telemetry_secrets, api_secret, proxy_secret],
     )
     def trainer(instance_id):
@@ -218,6 +224,7 @@ def build_app(
             max_models=1,
             notify_reconciler=False,
             backend_env={
+                **KERNEL_CACHE_ENV,
                 **engine.backend_env,
                 "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
                 "TORCHINDUCTOR_COMPILE_THREADS": "1",
