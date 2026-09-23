@@ -416,9 +416,7 @@ def test_distributed_optimizer_capture_includes_detached_parameter_state(
             "metadata": {"distrib_optim_sharding_type": "dp_reshardable"},
         }
     ]
-    assert captured["format"] == (
-        fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT
-    )
+    assert captured["format"] == (fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT)
     tensors = captured["state_dict"]["param_state"][0]["float32"][0][0]
     assert tensors["param"].tolist() == [1.25]
     assert tensors["exp_avg"].tolist() == [2.5]
@@ -618,6 +616,19 @@ def test_fft_backend_hf_load_never_reads_native(monkeypatch) -> None:
                 optimizer_config={**metadata.optimizer_config, "lr": 0.5},
             ),
             "optimizer_config",
+        ),
+        (
+            lambda metadata: replace(
+                metadata,
+                native_optimizer_config={"use_precision_aware_optimizer": True},
+            ),
+            "native_optimizer_config",
+        ),
+        (
+            lambda metadata: replace(
+                metadata, native_distributed_config={"grad_reduce_in_fp32": True}
+            ),
+            "native_distributed_config",
         ),
     ],
 )
@@ -903,3 +914,28 @@ def test_fp32_lm_head_upcasts_output_projection() -> None:
     assert calls[0]["sequence_parallel"] is True
     assert model.output_layer.weight.grad is not None
     assert not hasattr(model.decoder, "_forward_impl")
+
+
+def test_native_resume_rejects_different_or_unknown_base_revision(
+    tmp_path, monkeypatch
+):
+    config = EngineModelConfig(hf_checkpoint="/model")
+    monkeypatch.setenv("LILO_BASE_MODEL_REVISION", "a" * 40)
+    metadata = fft_checkpoint.create_fft_checkpoint_metadata(
+        config,
+        checkpoint_id="snapshot",
+        base_model=BASE_MODEL,
+        include_optimizer=True,
+        world_size=1,
+    )
+    assert metadata.base_model_revision == "a" * 40
+    for revision in ("b" * 40, None):
+        saved = metadata.to_dict()
+        saved["base_model_revision"] = revision
+        (tmp_path / fft_checkpoint.CHECKPOINT_METADATA_FILENAME).write_text(
+            json.dumps(saved)
+        )
+        with pytest.raises(ValueError, match="base_model_revision"):
+            fft_checkpoint.load_fft_training_checkpoint(
+                str(tmp_path), config, base_model=BASE_MODEL, world_size=1
+            )

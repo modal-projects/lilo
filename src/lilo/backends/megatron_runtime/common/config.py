@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from .settings import provider_settings, optimizer_settings, distributed_settings
+
 
 @dataclass(frozen=True, slots=True)
 class OptimizerConfig:
@@ -61,6 +63,8 @@ class EngineModelConfig:
     defer_fp32_logits: bool = False
     fp32_lm_head: bool = False
     provider_overrides: dict[str, object] = field(default_factory=dict)
+    optimizer_overrides: dict[str, object] = field(default_factory=dict)
+    distributed_overrides: dict[str, object] = field(default_factory=dict)
 
     overlap_grad_reduce: bool = False
     align_grad_reduce: bool = True
@@ -107,6 +111,9 @@ class EngineModelConfig:
         )
 
     def validate(self, world_size: int) -> None:
+        provider_settings(self, None)
+        optimizer_settings(self, None, self.use_distributed_optimizer)
+        distributed_settings(self, self.use_distributed_optimizer)
         parallel_sizes = {
             "tensor_model_parallel_size": self.tensor_model_parallel_size,
             "pipeline_model_parallel_size": self.pipeline_model_parallel_size,

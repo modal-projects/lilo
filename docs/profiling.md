@@ -14,7 +14,7 @@ Pick the step you want to trace and set one environment variable in the shell
 you deploy from. The trainer inherits it:
 
 ```bash
-LILO_TORCH_PROFILE_STEP=2 uv run modal deploy -m lilo.providers.modal.app
+LILO_TORCH_PROFILE_STEP=2 uv run lilo deploy deployment.py
 ```
 
 Then run your training loop as usual. Steps are counted from 0, so `2` traces

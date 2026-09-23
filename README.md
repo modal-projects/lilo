@@ -48,6 +48,8 @@ training = service.create_lora_training_client(
 
 ## Shared deployment quick start
 
+Shared deployments use Python dataclasses. See [Python deployment configs](docs/deployment-configs.md). Keep the active Python config list in [scripts/deploy_models.sh](scripts/deploy_models.sh); run it to deploy the complete list.
+
 Install Lilo into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.
 
@@ -60,7 +62,7 @@ clients do not need Modal deployment credentials or sampler proxy tokens.
 With [uv](https://docs.astral.sh/uv/) installed:
 
 ```bash
-uv init my-lilo-project
+uv init --python 3.12 my-lilo-project
 cd my-lilo-project
 uv add 'lilo @ git+https://github.com/modal-projects/lilo.git'
 ```
@@ -129,15 +131,17 @@ uv run modal secret create lilo-proxy \
 
 ### 3. Deploy the installed package
 
-Deploying the entire Tinker server can be done with a single modal deploy command: 
+Create a configuration from a preset, validate it, and deploy it with Python 3.12:
 
 ```bash
-uv run modal deploy -m lilo.providers.modal.app
+uv run lilo config init --preset qwen35-9b-lora-16k > deployment.py
+uv run lilo config validate deployment.py
+uv run lilo deploy deployment.py
 ```
 
-This deploys the control plane and bundled model definitions, then prints the
-`server` URL to use in step 4. Reuse the deployment across training runs and
-redeploy after updating Lilo.
+This deploys the shared app and prints its `server` URL. Add more Python config files to the same command to serve more configurations. Always supply the complete active set. Pin model revisions and `LILO_MILES_COMMIT` for repeatable applies; see [Python deployment configs](docs/deployment-configs.md).
+
+From a repository checkout, maintain the list in `scripts/deploy_models.sh` and run that script. `lilo deploy` supplies the saved configuration to Modal; importing the shared app directly without a manifest is no longer a deployment entrypoint.
 
 Deploying the server doesn't allocate any GPUs; rather, this allocation for both the training and sampling sides are done on demand. See [cold starts and capacity configuration](docs/full-fine-tunes.md#performance-and-behavior-considerations)
 before running a larger workload.
@@ -152,8 +156,8 @@ has finished in the Modal dashboard or list apps with:
 uv run modal app list
 ```
 
-To tear down the deployment, stop its `lilo-fft-...` sampler apps, then `lilo`,
-using `uv run modal app stop <app-id>`. Stopping `lilo` does not stop sampler apps.
+To tear down the deployment, stop its `lilo-fft-...` sampler apps, then the frontend named in your config (`lilo-yaml` by default),
+using `uv run modal app stop <app-id>`. Stopping the frontend does not stop sampler apps.
 
 ## Next steps
 

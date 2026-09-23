@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import ast
 import hashlib
 import os
+import modal
+
+from .deployment_records import POOL_CONFIG_ENV, pool_deployment, provision_pool
 import shutil
 import subprocess
 from dataclasses import asdict, dataclass
@@ -23,7 +25,7 @@ class LoraPoolSpec:
             object.__setattr__(
                 self,
                 "revision",
-                _implementation_revision(self.definition_id),
+                _definition_revision(self.definition_id),
             )
 
     @classmethod
@@ -54,30 +56,35 @@ async def pool_gateway(spec: LoraPoolSpec) -> str:
     return await ModalFlashPool(spec.app_name, "Server").gateway_url_async()
 
 
-def deploy_pool(spec: LoraPoolSpec) -> str:
+def deploy_pool(spec: LoraPoolSpec, *, record=None) -> str:
     pool = ModalFlashPool(spec.app_name, "Server")
     try:
         return pool.gateway_url()
     except Exception as exc:
-        import modal
-
         if not isinstance(exc, modal.exception.NotFoundError):
             raise
+    if record is None:
+        saved = pool_deployment(spec.definition_id)
+        if saved is None:
+            raise ValueError(f"missing recorded deployment: {spec.definition_id}")
+        return provision_pool(saved, spec)
     modal_cli = shutil.which("modal")
     if modal_cli is None:
         raise RuntimeError("modal CLI is unavailable")
+
+    recipe_env = {POOL_CONFIG_ENV: record.model_dump_json()}
     command = [
         modal_cli,
         "deploy",
         "-m",
-        "lilo.providers.modal.lora_pool_app",
+        "lilo.providers.modal.deployment_pool_app",
         "--name",
         spec.app_name,
     ]
-    environment = os.environ.get("MODAL_ENVIRONMENT")
+    environment = record.platform["modal"]["environment"]
     if environment:
         command.extend(["--env", environment])
-    subprocess.run(command, env={**os.environ, **spec.env()}, check=True)
+    subprocess.run(command, env={**os.environ, **spec.env(), **recipe_env}, check=True)
     return pool.gateway_url()
 
 
@@ -98,41 +105,7 @@ def stop_pool(spec: LoraPoolSpec) -> None:
         result.check_returncode()
 
 
-def _implementation_revision(definition_id: str) -> str:
-    here = Path(__file__)
-    files = (
-        here,
-        here.with_name("lora_pool_app.py"),
-        here.with_name("rollout_image.py"),
-        here.with_name("image_dependencies.py"),
-        *_definition_sources(here.with_name("definitions") / f"{definition_id}.py"),
-        here.parents[2] / "inference" / "bulletin.py",
-        here.parents[2] / "inference" / "lora_sidecar.py",
-        here.parents[2] / "inference" / "serving.py",
-    )
-    digest = hashlib.sha256()
-    for path in files:
-        digest.update(path.name.encode())
-        digest.update(path.read_bytes())
-    return digest.hexdigest()
-
-
-def _definition_sources(path: Path):
-    """Include inherited sibling definitions without importing deployment code."""
-    pending, seen = [path], set()
-    while pending:
-        source = pending.pop()
-        if source in seen:
-            continue
-        seen.add(source)
-        yield source
-        for node in ast.walk(ast.parse(source.read_text())):
-            if not isinstance(node, ast.ImportFrom) or node.level != 1:
-                continue
-            modules = (
-                [node.module] if node.module else [alias.name for alias in node.names]
-            )
-            for module in modules:
-                sibling = source.parent / (module.replace(".", "/") + ".py")
-                if sibling.is_file():
-                    pending.append(sibling)
+def _definition_revision(definition_id: str) -> str:
+    if not definition_id.startswith("yaml_"):
+        raise ValueError(f"expected a configured deployment id: {definition_id}")
+    return definition_id.rsplit("_", 1)[-1]

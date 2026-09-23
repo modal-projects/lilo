@@ -45,7 +45,7 @@ Deploy Lilo after updating the secret:
 
 ```bash
 MODAL_PROFILE=your-workspace MODAL_ENVIRONMENT=your-environment \
-  uv run modal deploy -m lilo.providers.modal.app
+  uv run lilo deploy deployment.py
 ```
 
 The configuration applies to the control plane, sampling workers, and new

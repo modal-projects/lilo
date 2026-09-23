@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +63,7 @@ class MilesBackendConfig:
     max_tokens_per_gpu: int = 8192
     align_sequences_to_parallel_layout: bool = False
     extra_args: tuple[str, ...] = ()
+    cli_options: dict[str, Any] = field(default_factory=dict)
 
     @property
     def world_size(self) -> int:
@@ -103,14 +104,20 @@ class MilesBackendConfig:
             "max_tokens_per_gpu": self.max_tokens_per_gpu,
         }
         for name, value in positive.items():
-            if value < 1:
-                raise ValueError(f"{name} must be at least 1")
+            if type(value) is not int or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
         if not self.hf_checkpoint:
             raise ValueError("hf_checkpoint is required")
-        if not self.model_type:
-            raise ValueError("model_type is required")
-        if not self.target_modules:
-            raise ValueError("target_modules must not be empty")
+        if not self.model_type and not self.cli_options:
+            raise ValueError(
+                "model_type or explicit native architecture options are required"
+            )
+        if (
+            not isinstance(self.target_modules, (list, tuple))
+            or not self.target_modules
+            or not all(isinstance(name, str) and name for name in self.target_modules)
+        ):
+            raise ValueError("target_modules must be a nonempty list of module names")
         if (
             self.default_lora_alpha <= 0
             or not float(self.default_lora_alpha).is_integer()

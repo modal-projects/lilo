@@ -7,26 +7,49 @@ import os
 import random
 import time
 import uuid
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
+from types import SimpleNamespace
 
 import httpx
 import modal
 import tinker
 from tinker import types
 
-from lilo.providers.modal.app import app, cleaner, module_for, server
+from lilo.deployments import DeploymentRecord
+from lilo.backends.deployment import backend_config
 
-DEFAULT_DEFINITION = "qwen3_5_4b_full_64k"
 TIMEOUT = 3 * 60 * 60
 
 
-def _definition(definition_id: str) -> tuple[Any, str]:
-    module = module_for(definition_id)
-    if not module.CATALOG_VISIBLE:
-        raise ValueError(f"definition is not cataloged: {definition_id}")
-    return module, module.PARAMETERIZATION
+def _definition(frontend: str, name: str) -> tuple[Any, str]:
+    rows = modal.Dict.from_name(f"{frontend}-yaml-deployments").get("manifest", [])
+    matches = [
+        DeploymentRecord.model_validate(row)
+        for row in rows
+        if row["active"] and row["spec"]["name"] == name
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            f"expected one active YAML configuration named {name} in {frontend}"
+        )
+    resolved = matches[0]
+    spec = resolved.spec
+    settings = backend_config(spec)[spec.trainer.backend]
+    definition = SimpleNamespace(
+        DEFINITION_ID=resolved.definition_id,
+        MODEL_NAME=spec.model.id,
+        PARAMETERIZATION=spec.model.parameterization,
+        MAX_CONTEXT_LENGTH=spec.model.max_context_length,
+        MAX_TOKENS_PER_MICROBATCH=settings.get(
+            "max_tokens_per_microbatch", settings.get("max_tokens_per_gpu")
+        ),
+        MICRO_BATCH_SIZE=settings.get("micro_batch_size", 1),
+        GPU_TYPE=spec.trainer.compute.modal_gpu.split(":")[0],
+        GPUS=spec.trainer.compute.gpus_per_node,
+        LORA_RANK=settings.get("max_lora_rank"),
+    )
+    return definition, definition.PARAMETERIZATION
 
 
 def _timestamped(path: Path) -> Path:
@@ -205,9 +228,7 @@ def _checkpoint_roundtrip(
         load_finished = time.perf_counter()
         restore_error = _max_error(restored, before)
         if restore_error > 1e-5:
-            raise RuntimeError(
-                f"checkpoint restore max logprob error: {restore_error}"
-            )
+            raise RuntimeError(f"checkpoint restore max logprob error: {restore_error}")
 
         resumed_step = _forward_step(resumed, [datum], [length], trained_tokens)
         continued = _forward_logprobs(resumed, datum, trained_tokens)
@@ -417,9 +438,9 @@ def _create_training(service, module, parameterization: str):
     if parameterization == "full":
         from lilo.client import create_full_training_client
 
-        return create_full_training_client(service, module.MODEL_NAME)
+        return create_full_training_client(service, module.DEFINITION_ID)
     return service.create_lora_training_client(
-        base_model=module.MODEL_NAME,
+        base_model=module.DEFINITION_ID,
         rank=module.LORA_RANK,
     )
 
@@ -595,14 +616,14 @@ def _correctness(
 
 
 def _run(args: argparse.Namespace, base_url: str, output: Path) -> dict:
-    module, parameterization = _definition(args.definition_id)
+    module, parameterization = _definition(args.frontend, args.name)
     api_key = os.environ["TINKER_API_KEY"]
     context_length = int(module.MAX_CONTEXT_LENGTH)
     packed_capacity = int(module.MAX_TOKENS_PER_MICROBATCH)
     report: dict[str, Any] = {
         "status": "running",
         "definition": {
-            "definition_id": args.definition_id,
+            "definition_id": module.DEFINITION_ID,
             "base_model": module.MODEL_NAME,
             "parameterization": parameterization,
             "context_length": context_length,
@@ -668,7 +689,7 @@ def _run(args: argparse.Namespace, base_url: str, output: Path) -> dict:
         sampling, warmup = _warm(
             training,
             tokenizer,
-            args.definition_id,
+            module.DEFINITION_ID,
         )
         report["phases"]["warmup"] = warmup
         _write(output, report)
@@ -705,7 +726,8 @@ def _run(args: argparse.Namespace, base_url: str, output: Path) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--definition-id", default=DEFAULT_DEFINITION)
+    parser.add_argument("--frontend", required=True)
+    parser.add_argument("--name", required=True)
     parser.add_argument("--base-url")
     parser.add_argument("--skip-max-context", action="store_true")
     parser.add_argument("--checkpoint-only", action="store_true")
@@ -717,30 +739,30 @@ def main() -> None:
         default=Path("scripts/results/engine_definition_e2e.json"),
     )
     args = parser.parse_args()
-    if sum(
-        (
-            args.checkpoint_only,
-            args.hf_roundtrip_only,
-            args.sampler_recovery_only,
+    if (
+        sum(
+            (
+                args.checkpoint_only,
+                args.hf_roundtrip_only,
+                args.sampler_recovery_only,
+            )
         )
-    ) > 1:
+        > 1
+    ):
         parser.error(
             "--checkpoint-only, --hf-roundtrip-only, and "
             "--sampler-recovery-only are exclusive"
         )
 
     output = _timestamped(args.output)
-    context = nullcontext(args.base_url)
-    if args.base_url is None:
-        context = app.run(name=f"tinker-e2e-{uuid.uuid4().hex[:12]}")
     try:
-        with modal.enable_output(), context:
-            base_url = args.base_url or server.get_web_url()
-            if not base_url:
-                raise RuntimeError("Modal did not provide a control-plane URL")
-            report = _run(args, base_url, output)
-            if args.base_url is None:
-                cleaner.remote()
+        base_url = (
+            args.base_url
+            or modal.Function.from_name(args.frontend, "server").get_web_url()
+        )
+        if not base_url:
+            raise RuntimeError("Modal did not provide a control-plane URL")
+        report = _run(args, base_url, output)
     finally:
         print(output)
     summary = {

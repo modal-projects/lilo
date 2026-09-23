@@ -10,8 +10,17 @@ from lilo.providers.local import InMemoryKeyValueStore
 from lilo.providers.modal.fft_pool import FFTPoolSpec
 from lilo.providers.modal.lora_pool import LoraPoolSpec
 
-FULL_DEFINITION = "qwen3_5_9b_full_64k"
-LORA_DEFINITION = "qwen3_5_9b_base_miles_lora_2k"
+from lilo.deployments import load, config_path, DeploymentRecord
+
+
+def definition_id(preset):
+    return DeploymentRecord.create(
+        load(config_path(preset)), revision="a" * 40
+    ).definition_id
+
+
+FULL_DEFINITION = definition_id("qwen35-9b-fft-64k")
+LORA_DEFINITION = definition_id("qwen35-9b-lora-16k")
 
 
 @pytest.fixture(autouse=True)
@@ -21,10 +30,11 @@ def reset_lora_pool_cache(monkeypatch):
     monkeypatch.setattr(modal_app, "_lora_pool_checks", {})
 
 
-def test_definitions_exclude_stale_128k_definition() -> None:
+def test_definitions_come_only_from_the_configured_manifest() -> None:
     modal_app = importlib.import_module("lilo.providers.modal.app")
-    assert "qwen3_5_9b_full_128k" not in {
-        definition.DEFINITION_ID for definition in modal_app.DEFINITIONS
+    assert {definition.DEFINITION_ID for definition in modal_app.DEFINITIONS} == {
+        FULL_DEFINITION,
+        LORA_DEFINITION,
     }
 
 
@@ -60,7 +70,9 @@ def test_transitional_trainer_at_cap_keeps_capacity_pending(
     monkeypatch.setattr(modal_app, "ModalSessionKeyValueStores", SimpleNamespace)
     monkeypatch.setattr(modal_app, "ModalEnginePlatform", lambda *args: engines)
     monkeypatch.setattr(modal_app, "kick_trainer_reconciler", kick)
-    monkeypatch.setattr(modal_app, "TRAINER_MAX_CONTAINERS", "1")
+    monkeypatch.setattr(
+        modal_app.module_for(LORA_DEFINITION), "TRAINER_MAX_CONTAINERS", 1
+    )
 
     plane = modal_app._plane()
     assert asyncio.run(plane.reconcile_trainers(LORA_DEFINITION)) is available
@@ -174,8 +186,8 @@ def test_prepare_model_assets_validates_snapshot_before_commit(monkeypatch) -> N
     modal_app = importlib.import_module("lilo.providers.modal.app")
     events = []
 
-    def download(*, repo_id: str, local_dir: str) -> None:
-        events.append(("download", repo_id, local_dir))
+    def download(*, repo_id: str, local_dir: str, revision: str) -> None:
+        events.append(("download", repo_id, local_dir, revision))
 
     monkeypatch.setattr("huggingface_hub.snapshot_download", download)
     monkeypatch.setattr(
@@ -188,7 +200,12 @@ def test_prepare_model_assets_validates_snapshot_before_commit(monkeypatch) -> N
 
     definition = modal_app.module_for(FULL_DEFINITION)
     assert events == [
-        ("download", definition.MODEL_NAME, definition.HF_CHECKPOINT),
+        (
+            "download",
+            definition.MODEL_NAME,
+            definition.HF_CHECKPOINT,
+            definition.MODEL_REVISION,
+        ),
         ("commit",),
     ]
 
@@ -834,7 +851,9 @@ def test_sampling_session_readiness_reuses_cached_pool(monkeypatch):
         "ensure_lora_pool",
         SimpleNamespace(remote=SimpleNamespace(aio=deploy)),
     )
-    session = SimpleNamespace(engine_definition_id=LORA_DEFINITION)
+    session = SimpleNamespace(
+        engine_definition_id=LORA_DEFINITION, model_id="existing-model"
+    )
 
     async def run():
         plane = modal_app._plane()

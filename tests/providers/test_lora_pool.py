@@ -2,7 +2,7 @@ from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 
 def test_lora_pool_is_shared_by_every_adapter_for_definition() -> None:
-    first = LoraPoolSpec("qwen3_5_9b_base_miles_lora_2k")
+    first = LoraPoolSpec("yaml_example_0123456789abcdef")
     second = LoraPoolSpec.from_dict(first.as_dict())
 
     assert first == second
@@ -34,30 +34,15 @@ def test_stop_already_stopped_lora_pool_succeeds_but_real_failure_propagates(
         lora_pool.stop_pool(spec)
 
 
-def test_pool_revision_tracks_inherited_settings_and_bulletin(monkeypatch):
-    from pathlib import Path
-
-    original = Path.read_bytes
-    changed = None
-
-    def read(path):
-        value = original(path)
-        return value + b"\n# changed\n" if path.name == changed else value
-
-    monkeypatch.setattr(Path, "read_bytes", read)
-    name = "qwen3_5_9b_base_miles_lora_16k_single"
-    original_pool = LoraPoolSpec(name).app_name
-    for changed in ("qwen3_5_9b_base_miles_lora_16k.py", "bulletin.py"):
-        assert LoraPoolSpec(name).app_name != original_pool
-    changed = "qwen3_5_4b_full_64k.py"
-    assert LoraPoolSpec(name).app_name == original_pool
+def test_pool_revision_comes_from_resolved_generation():
+    first = LoraPoolSpec("yaml_example_0123456789abcdef")
+    changed = LoraPoolSpec("yaml_example_fedcba9876543210")
+    assert first.revision == "0123456789abcdef"
+    assert first.app_name != changed.app_name
 
 
-def test_definition_dependency_scan_handles_cycles_and_relative_imports(tmp_path):
-    from lilo.providers.modal.lora_pool import _definition_sources
+def test_python_definition_cannot_choose_a_pool_revision():
+    import pytest
 
-    (tmp_path / "child.py").write_text("from .parent import CONFIG\n")
-    (tmp_path / "parent.py").write_text("from . import shared\n")
-    (tmp_path / "shared.py").write_text("from .child import CONFIG\n")
-    sources = list(_definition_sources(tmp_path / "child.py"))
-    assert [path.name for path in sources] == ["child.py", "parent.py", "shared.py"]
+    with pytest.raises(ValueError, match="configured deployment id"):
+        LoraPoolSpec("qwen3_5_9b_base_miles_lora_16k")

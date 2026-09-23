@@ -284,6 +284,7 @@ class MilesCommandBackend(Backend):
             "backend": "miles",
             "miles_revision": self.runtime.revision,
             "base_model": self.base_model,
+            "base_model_revision": os.environ.get("LILO_BASE_MODEL_REVISION"),
             "engine_definition_id": os.environ.get("LILO_DEFINITION_ID"),
             "parameterization": {"type": "lora"},
             "lora_config": {
@@ -592,6 +593,12 @@ class MilesCommandBackend(Backend):
             raise ValueError("unsupported Miles checkpoint format")
         if metadata.get("base_model") != self.base_model:
             raise ValueError("checkpoint base model does not match the deployment")
+        if metadata.get("base_model_revision") != os.environ.get(
+            "LILO_BASE_MODEL_REVISION"
+        ):
+            raise ValueError(
+                "checkpoint base model revision does not match the deployment"
+            )
         lora = metadata.get("lora_config") or {}
         if (
             int(lora.get("rank", 0)) != state.rank

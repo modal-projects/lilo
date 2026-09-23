@@ -15,11 +15,8 @@ Usage::
         --definition-id qwen3_5_9b_miles_lora_16k \
         --definition-id qwen3_5_4b_full_64k
 
-Any id from ``lilo.providers.modal.definitions`` works; the client type
-(full or LoRA) and the LoRA target flags are read from the definition module so
-the request matches what the deployment accepts. The definition id is passed as
-``base_model`` so non-cataloged definitions can be targeted directly.
-Definitions run sequentially unless ``--parallel`` is set.
+IDs come from the deployed manifest selected by --app / --env. Use --list to
+see active configurations. No local model catalog or GPU worker imports are needed.
 """
 
 from __future__ import annotations
@@ -34,15 +31,16 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+import modal
 import httpx
 import tinker
 from tinker import types
 
 from lilo.backends.miles_config import lora_target_flags
 from lilo.client import create_full_training_client
-from lilo.providers.modal.app import DEFINITIONS, module_for
+from lilo.deployments import DeploymentRecord
+from lilo.providers.modal.deployment_apps import definition_from_spec
 
-DEFAULT_DEFINITION = "qwen3_8_27b_miles_lora_64k"
 TIMEOUT = 60 * 60
 PROMPT = "Question: What is two plus two?\nAnswer:"
 
@@ -172,9 +170,11 @@ def _create_training_client(
     if definition.PARAMETERIZATION == "full":
         training = create_full_training_client(service, definition_id)
         return training, {"parameterization": "full"}
-    train_attn, train_mlp, train_unembed = lora_target_flags(definition.TARGET_MODULES)
+    train_attn, train_mlp, train_unembed = lora_target_flags(
+        definition.RESOLVED.trainer_settings["miles"]["target_modules"]
+    )
     if rank is None:
-        rank = min(16, definition.MAX_LORA_RANK)
+        rank = min(16, definition.RESOLVED.trainer_settings["miles"]["max_lora_rank"])
     training = service.create_lora_training_client(
         base_model=definition_id,
         rank=rank,
@@ -192,13 +192,14 @@ def _create_training_client(
 
 
 def _run_definition(
-    definition_id: str,
+    definition: Any,
     *,
     base_url: str,
     api_key: str,
     rank: int | None,
     max_tokens: int,
 ) -> dict:
+    definition_id = definition.DEFINITION_ID
     report: dict[str, Any] = {
         "definition_id": definition_id,
         "status": "running",
@@ -207,7 +208,6 @@ def _run_definition(
     }
     training = None
     try:
-        definition = module_for(definition_id)
         service = tinker.ServiceClient(base_url=base_url, api_key=api_key)
         started = time.perf_counter()
         training, spec = _create_training_client(service, definition, rank)
@@ -272,14 +272,12 @@ def _run_definition(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    known = [definition.DEFINITION_ID for definition in DEFINITIONS]
     parser.add_argument(
         "--definition-id",
         action="append",
         dest="definition_ids",
-        choices=known,
         metavar="ID",
-        help=f"engine definition id (repeatable); default {DEFAULT_DEFINITION}",
+        help="engine definition id (repeatable); defaults to the first active deployment",
     )
     parser.add_argument(
         "--list", action="store_true", help="print known definitions and exit"
@@ -297,12 +295,26 @@ def main() -> None:
         type=Path,
         default=Path("scripts/results/definition_smoke.json"),
     )
+    parser.add_argument("--app", default="lilo-yaml")
+    parser.add_argument("--env")
     args = parser.parse_args()
+    rows = modal.Dict.from_name(
+        f"{args.app}-yaml-deployments", environment_name=args.env
+    ).get("manifest", [])
+    definitions = {
+        row.definition_id: definition_from_spec(row, register_trainer=False)
+        for data in rows
+        if (row := DeploymentRecord.model_validate(data)).active
+    }
+    if not definitions:
+        parser.error("no active deployments in the saved manifest")
+    if set(args.definition_ids or []) - definitions.keys():
+        parser.error("unknown deployment ID; use --list to see deployed configurations")
     if args.list:
-        for definition in DEFINITIONS:
+        for definition in definitions.values():
             print(
                 f"{definition.DEFINITION_ID:40} {definition.PARAMETERIZATION:5} "
-                f"{definition.GPUS}x{definition.GPU_TYPE} "
+                f"{definition.RESOLVED.spec.trainer.compute.nodes} nodes x {definition.RESOLVED.spec.trainer.compute.modal_gpu} "
                 f"ctx={definition.MAX_CONTEXT_LENGTH}"
                 + ("" if definition.CATALOG_VISIBLE else "  (not cataloged)")
             )
@@ -312,11 +324,11 @@ def main() -> None:
     api_key = os.environ.get("TINKER_API_KEY")
     if not api_key:
         parser.error("TINKER_API_KEY is required")
-    definition_ids = args.definition_ids or [DEFAULT_DEFINITION]
+    definition_ids = args.definition_ids or [next(iter(definitions))]
 
     def run(definition_id: str) -> dict:
         return _run_definition(
-            definition_id,
+            definitions[definition_id],
             base_url=args.base_url,
             api_key=api_key,
             rank=args.rank,

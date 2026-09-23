@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from lilo.backends.miles_config import MilesBackendConfig
+from lilo.backends.miles_arguments import apply_config_overrides
 from lilo.errors import BackendFailed
 
 
@@ -193,9 +194,21 @@ class MilesRuntime:
 
         _configure_actor_spec(train_specs)
         _allow_context_parallel_multi_lora()
-        architecture = shlex.split(load_model_args(self.config.model_type))
+        architecture = (
+            shlex.split(load_model_args(self.config.model_type))
+            if self.config.model_type
+            else []
+        )
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
-            args = parse_args(entry="serve")
+            if self.config.cli_options:
+
+                def configure(parser):
+                    apply_config_overrides(parser, self.config.cli_options, sys.argv)
+                    return parser
+
+                args = parse_args(add_custom_arguments=configure, entry="serve")
+            else:
+                args = parse_args(entry="serve")
         args.use_dynamic_global_batch_size = True
         args.delay_split_train_data_by_dp = True
         configure_logger(args, source=MainProcessIdentity())
