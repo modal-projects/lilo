@@ -81,11 +81,14 @@ class CriticalPath:
     ) -> None:
         if seconds < 0:
             return
+        keys = [(ALL_MODELS, phase)]
+        if model_id != ALL_MODELS:
+            keys.append((model_id, phase))
         with self.lock:
-            for key in {(ALL_MODELS, phase), (model_id, phase)}:
+            for key in keys:
                 entry = self.series.get(key)
                 if entry is None:
-                    if len(self.series) >= MAX_SERIES:
+                    if key[0] != ALL_MODELS and len(self.series) >= MAX_SERIES:
                         continue
                     entry = self.series[key] = Series()
                 entry.add(seconds, batch)

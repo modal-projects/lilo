@@ -91,6 +91,11 @@ def test_series_are_bounded() -> None:
     for index in range(MAX_SERIES * 2):
         timings.record("optim_step.execute", 1.0, model_id=f"model-{index}")
     assert len(timings.series) <= MAX_SERIES
+    timings.record("forward_backward.execute", 1.0, model_id="late")
+    aggregate = timings.snapshot()["phases"]
+    assert aggregate["optim_step.execute"]["count"] == MAX_SERIES * 2
+    assert aggregate["forward_backward.execute"]["count"] == 1
+    assert timings.snapshot(model_id="late")["phases"] == {}
 
 
 def test_emit_prints_one_json_line(capsys) -> None:

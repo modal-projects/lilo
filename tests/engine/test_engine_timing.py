@@ -1,7 +1,6 @@
 import asyncio
 
 from lilo.engine import Engine, FutureStatus
-from lilo.engine.server import Observers
 from lilo.telemetry.critical_path import CriticalPath
 from tests.engine.test_server import forward_backward
 from tests.support import EchoExecutor
@@ -102,7 +101,7 @@ def test_unload_evicts_model_series_but_keeps_aggregate() -> None:
     asyncio.run(run())
 
 
-def test_composite_observer_feeds_timings_and_other_observer() -> None:
+def test_custom_observer_is_composed_with_timings() -> None:
     async def run():
         seen: list[str] = []
 
@@ -132,8 +131,7 @@ def test_composite_observer_feeds_timings_and_other_observer() -> None:
                 seen.append(f"state:{state}")
 
         timings = CriticalPath()
-        server = Engine(EchoExecutor(), timings=timings)
-        server.observer = Observers(Recorder(), timings)
+        server = Engine(EchoExecutor(), observer=Recorder(), timings=timings)
         await server.accept_model("model-a", {})
         request = await forward_backward(server, 1)
         assert (

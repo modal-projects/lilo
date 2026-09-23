@@ -39,12 +39,20 @@ for step in range(steps):
 `log_critical_path` reads `TINKER_BASE_URL` / `TINKER_API_KEY`, logs to the active
 W&B run when there is one, prints a JSON line otherwise, and never raises into the
 step. It resets the counters by default, so each call reports the interval since the
-last one. Use `critical_path_metrics` to get the same flat `lilo/...` scalars without
-logging them.
+last one. The fetch and log run on a background thread, so the step never waits on
+the control plane; a call made while the previous one is still in flight is dropped
+(the next one then covers both intervals). Call `flush_critical_path()` before
+`wandb.finish()` to wait for the last report, or pass `background=False` to block
+and get the metrics back. Use `critical_path_metrics` to get the same flat
+`lilo/...` scalars without logging them.
+
+In W&B the values are logged with `commit=False` against their own `lilo/step`
+x-axis (via `define_metric`), so a report that lands after the loop has moved on
+neither advances nor collides with the run's global step.
 
 The snapshot is also available directly at `GET /api/v1/timing?model_id=...`, and a
-trainer nobody is polling prints one `lilo_critical_path` JSON line every five
-minutes, so container logs still show where the time went.
+trainer whose aggregate nobody is polling prints one `lilo_critical_path` JSON line
+every five minutes, so container logs still show where the time went.
 
 Gauges cover startup, measured from trainer-process start:
 `trainer.backend_ready_s` (Megatron up and answering), `trainer.serving_ready_s`

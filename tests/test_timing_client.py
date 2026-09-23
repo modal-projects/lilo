@@ -1,10 +1,15 @@
 import json
 import sys
+import threading
 import types
 
 import httpx
 
-from lilo.timing import critical_path_metrics, log_critical_path
+from lilo.timing import (
+    critical_path_metrics,
+    flush_critical_path,
+    log_critical_path,
+)
 
 SNAPSHOT = {
     "model_id": "model-a",
@@ -57,6 +62,7 @@ def test_logging_falls_back_to_stdout_without_wandb(capsys) -> None:
         base_url="https://lilo.invalid",
         api_key="tml-test",
         transport=_transport(lambda request: httpx.Response(200, json=SNAPSHOT)),
+        background=False,
     )
 
     payload = json.loads(capsys.readouterr().out.strip())
@@ -64,12 +70,20 @@ def test_logging_falls_back_to_stdout_without_wandb(capsys) -> None:
     assert payload["metrics"] == metrics
 
 
-def test_logging_uses_the_active_wandb_run(monkeypatch, capsys) -> None:
-    logged = {}
+class FakeRun:
+    def __init__(self) -> None:
+        self.logged: list[tuple[dict, int | None, bool | None]] = []
+        self.defined: list[tuple[str, dict]] = []
 
-    run = types.SimpleNamespace(
-        log=lambda metrics, step=None: logged.update(metrics=metrics, step=step)
-    )
+    def log(self, data, step=None, commit=None):
+        self.logged.append((data, step, commit))
+
+    def define_metric(self, name, **kwargs):
+        self.defined.append((name, kwargs))
+
+
+def test_logging_uses_the_active_wandb_run(monkeypatch, capsys) -> None:
+    run = FakeRun()
     monkeypatch.setitem(sys.modules, "wandb", types.SimpleNamespace(run=run))
 
     log_critical_path(
@@ -78,14 +92,19 @@ def test_logging_uses_the_active_wandb_run(monkeypatch, capsys) -> None:
         base_url="https://lilo.invalid",
         api_key="tml-test",
         transport=_transport(lambda request: httpx.Response(200, json=SNAPSHOT)),
+        background=False,
     )
 
-    assert logged["step"] == 3
-    assert logged["metrics"]["lilo/forward_backward.execute.count"] == 2.0
+    [(data, step, commit)] = run.logged
+    assert step is None
+    assert commit is False
+    assert data["lilo/step"] == 3
+    assert data["lilo/forward_backward.execute.count"] == 2.0
+    assert ("lilo/*", {"step_metric": "lilo/step"}) in run.defined
     assert capsys.readouterr().out == ""
 
 
-def test_logging_never_raises_into_the_training_step() -> None:
+def test_logging_never_raises_into_the_training_step(monkeypatch) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"error": "unavailable"})
 
@@ -95,6 +114,55 @@ def test_logging_never_raises_into_the_training_step() -> None:
             base_url="https://lilo.invalid",
             api_key="tml-test",
             transport=_transport(handler),
+            background=False,
         )
         == {}
     )
+
+    def explode(*args, **kwargs):
+        raise RuntimeError("wandb is unhappy")
+
+    run = types.SimpleNamespace(log=explode, define_metric=explode)
+    monkeypatch.setitem(sys.modules, "wandb", types.SimpleNamespace(run=run))
+    log_critical_path(
+        "model-a",
+        step=1,
+        base_url="https://lilo.invalid",
+        api_key="tml-test",
+        transport=_transport(lambda request: httpx.Response(200, json=SNAPSHOT)),
+        background=False,
+    )
+
+
+def test_background_logging_does_not_block_and_drops_overlapping_calls(
+    monkeypatch, capsys
+) -> None:
+    release = threading.Event()
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        release.wait(timeout=5)
+        return httpx.Response(200, json=SNAPSHOT)
+
+    run = FakeRun()
+    monkeypatch.setitem(sys.modules, "wandb", types.SimpleNamespace(run=run))
+    kwargs = {
+        "base_url": "https://lilo.invalid",
+        "api_key": "tml-test",
+        "transport": _transport(handler),
+    }
+
+    assert log_critical_path("model-a", step=1, **kwargs) is None
+    assert log_critical_path("model-a", step=2, **kwargs) is None
+    assert run.logged == []
+    release.set()
+    assert flush_critical_path(timeout=5)
+
+    assert len(calls) == 1
+    [(data, _, commit)] = run.logged
+    assert data["lilo/step"] == 1
+    assert commit is False
+    assert log_critical_path("model-a", step=3, **kwargs) is None
+    assert flush_critical_path(timeout=5)
+    assert [data["lilo/step"] for data, _, _ in run.logged] == [1, 3]

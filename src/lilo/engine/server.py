@@ -186,7 +186,9 @@ class Engine:
         self.executor = executor
         self.timings = timings if timings is not None else critical_path
         self.observer: Observer | None = (
-            observer if observer is not None else self.timings
+            self.timings
+            if observer is None or observer is self.timings
+            else Observers(observer, self.timings)
         )
         self._persistence_active: dict[str, int] = {}
         self.max_models = max_models
