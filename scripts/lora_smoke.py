@@ -15,6 +15,10 @@ Usage::
 
 The definition id is passed as ``base_model`` so non-cataloged definitions can
 be targeted directly. Definitions run sequentially unless ``--parallel`` is set.
+
+Miles LoRA deployments fix their target modules (attention + MLP) at deploy
+time and reject models whose ``train_unembed`` does not match, so the client is
+created with ``train_unembed=False`` unless ``--train-unembed`` is given.
 """
 
 from __future__ import annotations
@@ -162,6 +166,7 @@ def _run_definition(
     base_url: str,
     api_key: str,
     rank: int,
+    train_unembed: bool,
     max_tokens: int,
 ) -> dict:
     report: dict[str, Any] = {
@@ -175,7 +180,7 @@ def _run_definition(
         service = tinker.ServiceClient(base_url=base_url, api_key=api_key)
         started = time.perf_counter()
         training = service.create_lora_training_client(
-            base_model=definition_id, rank=rank
+            base_model=definition_id, rank=rank, train_unembed=train_unembed
         )
         info = training.get_info()
         if not info.is_lora:
@@ -216,7 +221,7 @@ def _run_definition(
         print(json.dumps({"definition": definition_id, "sample_2": sample["text"]}))
 
         report["status"] = "passed"
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - report every failure per definition
         report["status"] = "failed"
         report["error"] = f"{type(exc).__name__}: {exc}"
         report["traceback"] = traceback.format_exc()
@@ -246,6 +251,7 @@ def main() -> None:
     )
     parser.add_argument("--base-url", default=os.environ.get("TINKER_BASE_URL"))
     parser.add_argument("--rank", type=int, default=16)
+    parser.add_argument("--train-unembed", action="store_true")
     parser.add_argument("--max-tokens", type=int, default=32)
     parser.add_argument("--parallel", action="store_true")
     parser.add_argument(
@@ -267,6 +273,7 @@ def main() -> None:
             base_url=args.base_url,
             api_key=api_key,
             rank=args.rank,
+            train_unembed=args.train_unembed,
             max_tokens=args.max_tokens,
         )
 
