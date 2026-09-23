@@ -17,6 +17,7 @@ import modal
 from lilo.engine import Engine
 from lilo.engine.backend_http import HttpBackendClient
 from lilo.engine.http import create_engine_app
+from lilo.engine.server import Observers
 from lilo.telemetry.critical_path import current as critical_path
 from lilo.telemetry.critical_path import uptime_s
 
@@ -76,7 +77,7 @@ async def serve_engine(
             record.boot_id,
             scoped=bool(os.environ.get("LILO_SCOPED_REGISTRY")),
         )
-        engine.observer = trainer_telemetry
+        engine.observer = Observers(trainer_telemetry, engine.timings)
         token = secrets.token_urlsafe(16)
         engine_app = create_engine_app(engine, token=token)
         with modal.forward(ENGINE_PORT) as tunnel:

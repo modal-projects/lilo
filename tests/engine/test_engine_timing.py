@@ -1,6 +1,7 @@
 import asyncio
 
 from lilo.engine import Engine, FutureStatus
+from lilo.engine.server import Observers
 from lilo.telemetry.critical_path import CriticalPath
 from tests.engine.test_server import forward_backward
 from tests.support import EchoExecutor
@@ -79,6 +80,73 @@ def test_sampler_publication_separates_capture_from_persist() -> None:
         phases = timings.snapshot(model_id="model-a")["phases"]
         assert phases["save_weights_for_sampler.capture"]["count"] == 1
         assert phases["save_weights_for_sampler.persist"]["count"] == 1
+
+    asyncio.run(run())
+
+
+def test_unload_evicts_model_series_but_keeps_aggregate() -> None:
+    async def run():
+        timings = CriticalPath()
+        server = Engine(EchoExecutor(), timings=timings)
+        await server.accept_model("model-a", {})
+        request = await forward_backward(server, 1)
+        assert (
+            await server.retrieve_future(request, timeout=1)
+        ).status == FutureStatus.COMPLETE
+        await server.unload_model("model-a")
+        await server.close()
+
+        assert timings.snapshot(model_id="model-a")["phases"] == {}
+        assert timings.snapshot()["phases"]["forward_backward.execute"]["count"] == 1
+
+    asyncio.run(run())
+
+
+def test_composite_observer_feeds_timings_and_other_observer() -> None:
+    async def run():
+        seen: list[str] = []
+
+        class Recorder:
+            def register_model(self, model_id, spec):
+                seen.append(f"register:{model_id}")
+
+            def forget_model(self, model_id):
+                seen.append(f"forget:{model_id}")
+
+            def begin(self, operation):
+                seen.append(f"begin:{operation.request_id}")
+
+            def reuse(self, request_id):
+                seen.append(f"reuse:{request_id}")
+
+            def finish(self, operation, state):
+                seen.append(f"finish:{operation.request_id}")
+
+            def set_activity(self, lane, operation):
+                seen.append(f"activity:{lane}")
+
+            def span(self, model, name, lane, t0, t1=None, **attrs):
+                seen.append(f"span:{name}")
+
+            def state(self, model, state, **detail):
+                seen.append(f"state:{state}")
+
+        timings = CriticalPath()
+        server = Engine(EchoExecutor(), timings=timings)
+        server.observer = Observers(Recorder(), timings)
+        await server.accept_model("model-a", {})
+        request = await forward_backward(server, 1)
+        assert (
+            await server.retrieve_future(request, timeout=1)
+        ).status == FutureStatus.COMPLETE
+        await server.close()
+
+        assert "register:model-a" in seen
+        assert "span:accept" in seen
+        assert "span:forward_backward" in seen
+        phases = timings.snapshot(model_id="model-a")["phases"]
+        assert phases["forward_backward.queue_wait"]["count"] == 1
+        assert phases["forward_backward.execute"]["count"] == 1
 
     asyncio.run(run())
 

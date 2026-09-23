@@ -17,11 +17,14 @@ Lilo sends these measurements via OTLP (export off by default), from which Datad
 ## Critical path without a tracing backend
 
 Every trainer keeps a running breakdown of its critical path in memory, with no
-exporter and no configuration. It separates the two things a step time conflates:
-`*.queue_wait`, the interval between a request arriving and the trainer starting it
-(fair sharing across LoRA slots, serialized persistence, other tenants), and
-`*.execute`, the GPU work itself. Persistence adds `*.capture` and `*.persist`, and
-model admission adds `accept.queue_wait` / `accept.execute`.
+exporter and no configuration. It is fed by the same engine `Observer` callbacks
+that produce the OTLP spans above (`CriticalPath` is an observer composed alongside
+`TrainerTelemetry`), so there is one set of measurement points. It separates the
+two things a step time conflates: `*.queue_wait`, the interval between a request
+arriving and the trainer starting it (fair sharing across LoRA slots, serialized
+persistence, other tenants), and `*.execute`, the GPU work itself. Persistence
+adds `*.capture` and `*.persist`, and model admission adds `accept.queue_wait` /
+`accept.execute`.
 
 Read it from a training loop and log it next to the rest of your step metrics:
 
@@ -56,8 +59,12 @@ Gauges cover startup, measured from trainer-process start:
 | `lilo/trainer.first_model_ready_s` | Cold start to first admitted model |
 
 Phase totals are per model when a `model_id` is given and across every model on the
-trainer otherwise, which is how a slot's own execution time is separated from the
-time the trainer spends on its neighbors.
+trainer otherwise. The control-plane route requires a `model_id`; the trainer-wide
+aggregate is what the engine route returns without one and what the periodic
+`lilo_critical_path` log line reports. A model's series are dropped when it is
+unloaded; the aggregate keeps them. Note that `queue_wait` is submit-to-start, so a
+pipelined client's own backlog counts toward it, and `execute` for a coalesced batch
+is the batch's wall time credited to every model in it.
 
 ## Setup
 

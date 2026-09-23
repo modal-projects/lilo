@@ -1,6 +1,11 @@
 import json
 
-from lilo.telemetry.critical_path import MAX_SERIES, CriticalPath, flatten
+from lilo.telemetry.critical_path import (
+    ALL_MODELS,
+    MAX_SERIES,
+    CriticalPath,
+    flatten,
+)
 
 
 def test_series_aggregate_per_model_and_across_models() -> None:
@@ -22,6 +27,24 @@ def test_series_aggregate_per_model_and_across_models() -> None:
     assert combined["count"] == 2
     assert combined["total_s"] == 6.0
     assert combined["max_s"] == 4.0
+
+
+def test_aggregate_record_counts_once() -> None:
+    timings = CriticalPath()
+    timings.record("forward_backward.execute", 2.0, model_id=ALL_MODELS)
+    assert timings.snapshot()["phases"]["forward_backward.execute"]["count"] == 1
+
+
+def test_forget_model_evicts_series_and_pending() -> None:
+    timings = CriticalPath()
+    timings.register_model("a", {})
+    timings.record("optim_step.execute", 1.0, model_id="a")
+    timings.record("optim_step.execute", 1.0, model_id="b")
+    timings.forget_model("a")
+    assert timings.snapshot(model_id="a")["phases"] == {}
+    assert timings.snapshot(model_id="b")["phases"]["optim_step.execute"]["count"] == 1
+    assert timings.snapshot()["phases"]["optim_step.execute"]["count"] == 2
+    assert timings.pending == {}
 
 
 def test_queue_wait_and_execute_stay_separate() -> None:

@@ -13,7 +13,7 @@ from tinker.types.forward_backward_input import ForwardBackwardInput
 from lilo.encoding import fingerprint
 from lilo.errors import EngineSaturated, RecordNotFound, SequenceConflict
 from lilo.request_timing import mark
-from lilo.telemetry.critical_path import CriticalPath, uptime_s
+from lilo.telemetry.critical_path import CriticalPath
 from lilo.telemetry.critical_path import current as critical_path
 
 from .api import Command, Executor, FutureState, FutureStatus, OperationKind
@@ -61,6 +61,58 @@ class Observer(Protocol):
     ) -> None: ...
 
 
+class Observers:
+    """Fan one engine's callbacks out to several observers."""
+
+    def __init__(self, *observers: Observer) -> None:
+        self.observers = observers
+
+    def register_model(self, model_id: str, spec: object) -> None:
+        for observer in self.observers:
+            observer.register_model(model_id, spec)
+
+    def forget_model(self, model_id: str) -> None:
+        for observer in self.observers:
+            observer.forget_model(model_id)
+
+    def begin(self, operation: Operation) -> None:
+        for observer in self.observers:
+            observer.begin(operation)
+
+    def reuse(self, request_id: str) -> None:
+        for observer in self.observers:
+            observer.reuse(request_id)
+
+    def finish(self, operation: Operation, state: FutureState) -> None:
+        for observer in self.observers:
+            observer.finish(operation, state)
+
+    def set_activity(self, lane: str, operation: str) -> None:
+        for observer in self.observers:
+            observer.set_activity(lane, operation)
+
+    def span(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        name: str,
+        lane: str,
+        t0: float,
+        t1: float | None = None,
+        **attrs,
+    ) -> None:
+        for observer in self.observers:
+            observer.span(model, name, lane, t0, t1, **attrs)
+
+    def state(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        state: str,
+        **detail,
+    ) -> None:
+        for observer in self.observers:
+            observer.state(model, state, **detail)
+
+
 def _failure(exc: BaseException, what: str) -> str:
     logging.getLogger(__name__).exception("engine %s failed", what)
     return f"{type(exc).__name__}: {exc}"
@@ -73,7 +125,6 @@ class Operation:
     seq_id: int
     kind: OperationKind
     payload: OperationPayload
-    submitted_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass(frozen=True)
@@ -87,7 +138,6 @@ class _AcceptOperation:
     model_id: str
     spec: object
     done: asyncio.Future[bool]
-    submitted_at: float = field(default_factory=time.monotonic)
 
 
 @dataclass(frozen=True)
@@ -134,8 +184,10 @@ class Engine:
         if max_forward_backward_batch is not None and max_forward_backward_batch < 1:
             raise ValueError("max_forward_backward_batch must be positive")
         self.executor = executor
-        self.observer = observer
         self.timings = timings if timings is not None else critical_path
+        self.observer: Observer | None = (
+            observer if observer is not None else self.timings
+        )
         self._persistence_active: dict[str, int] = {}
         self.max_models = max_models
         self.max_buffered = max_buffered
@@ -191,7 +243,8 @@ class Engine:
         model_id: str | None = None,
         reset: bool = False,
     ) -> dict[str, object]:
-        self._timing_polled = time.monotonic()
+        if model_id is None:
+            self._timing_polled = time.monotonic()
         return self.timings.snapshot(model_id=model_id, reset=reset)
 
     @property
@@ -494,13 +547,6 @@ class Engine:
                 request_ids=[item.request_id for item in operations],
             )
             started = time.time()
-            started_mono = time.monotonic()
-            for item in operations:
-                self.timings.record(
-                    f"{item.kind.value}.queue_wait",
-                    started_mono - item.submitted_at,
-                    model_id=item.model_id,
-                )
             try:
                 if operation.kind == OperationKind.FORWARD_BACKWARD:
                     results = await self.executor.execute_forward_backward_batch(
@@ -540,20 +586,13 @@ class Engine:
                     request_ids=[item.request_id for item in operations],
                     ok=False,
                 )
-            elapsed = time.monotonic() - started_mono
-            for model_id in models:
-                self.timings.record(
-                    f"{operation.kind.value}.execute",
-                    elapsed,
-                    model_id=model_id,
-                    batch=len(operations),
-                )
             self._observe_span(
                 models,
                 operation.kind.value,
                 "gpu",
                 started,
                 seq_ids=[item.seq_id for item in operations],
+                request_ids=[item.request_id for item in operations],
                 n=len(operations),
                 ok=all(state.status == FutureStatus.COMPLETE for state in states),
             )
@@ -569,12 +608,6 @@ class Engine:
     async def _run_accept(self, operation: _AcceptOperation) -> None:
         error = None
         started = time.time()
-        started_mono = time.monotonic()
-        self.timings.record(
-            "accept.queue_wait",
-            started_mono - operation.submitted_at,
-            model_id=operation.model_id,
-        )
         self._observe_state((operation.model_id,), "executing:accept")
         try:
             await self._join_persistence()
@@ -594,13 +627,6 @@ class Engine:
                 await self.executor.unload_model(operation.model_id)
             except Exception:
                 logging.getLogger(__name__).exception("executor unload_model")
-        self.timings.record(
-            "accept.execute",
-            time.monotonic() - started_mono,
-            model_id=operation.model_id,
-        )
-        if error is None:
-            self.timings.gauge("trainer.first_model_ready_s", uptime_s(), once=True)
         self._observe_span(
             (operation.model_id,),
             "accept",
@@ -608,6 +634,8 @@ class Engine:
             started,
             ok=error is None,
         )
+        if error is not None and self.observer is not None:
+            self.observer.forget_model(operation.model_id)
         async with self._lock:
             model = self._models.get(operation.model_id)
             if model is not None and model.registration is operation.done:
@@ -666,7 +694,6 @@ class Engine:
         name = f"capture:{operation.kind.value}"
         self._observe_state((operation.model_id,), f"executing:{name}")
         started = time.time()
-        started_mono = time.monotonic()
         try:
             capture = await self.executor.capture_snapshot(
                 operation.model_id,
@@ -674,11 +701,6 @@ class Engine:
                 operation.payload,
             )
         except Exception as exc:  # noqa: BLE001
-            self.timings.record(
-                f"{operation.kind.value}.capture",
-                time.monotonic() - started_mono,
-                model_id=operation.model_id,
-            )
             self._observe_span(
                 (operation.model_id,),
                 name,
@@ -698,11 +720,6 @@ class Engine:
                     FutureState(FutureStatus.FAILED, error=_failure(exc, name)),
                 )
             return
-        self.timings.record(
-            f"{operation.kind.value}.capture",
-            time.monotonic() - started_mono,
-            model_id=operation.model_id,
-        )
         self._observe_span(
             (operation.model_id,),
             name,
@@ -717,7 +734,6 @@ class Engine:
         while True:
             job = await queue.get()
             started = time.time()
-            started_mono = time.monotonic()
             lane = PERSIST_LANES[job.operation.kind]
             self._persistence_active[lane] = self._persistence_active.get(lane, 0) + 1
             if self.observer is not None and self._persistence_active[lane] == 1:
@@ -736,11 +752,6 @@ class Engine:
                         FutureStatus.FAILED,
                         error=_failure(exc, f"persist:{job.operation.kind.value}"),
                     )
-                self.timings.record(
-                    f"{job.operation.kind.value}.persist",
-                    time.monotonic() - started_mono,
-                    model_id=job.operation.model_id,
-                )
                 self._observe_span(
                     (job.operation.model_id,),
                     f"persist:{job.operation.kind.value}",

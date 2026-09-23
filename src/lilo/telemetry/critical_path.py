@@ -1,9 +1,11 @@
 """Always-on critical-path accounting for the trainer process.
 
-Phases are recorded in memory by the engine, read over HTTP by a training
-client, and printed as one JSON line per report when no client is polling.
-Nothing here depends on an exporter, so runs without OTLP still explain where
-a step went: queue wait, execution, persistence, admission, and startup.
+``CriticalPath`` is an engine ``Observer``: it turns the ``begin``/``span``
+callbacks the engine already emits into bounded in-memory phase totals, read
+over HTTP by a training client and printed as one JSON line per report when no
+client is polling. Nothing here depends on an exporter, so runs without OTLP
+still explain where a step went: queue wait, execution, persistence,
+admission, and startup.
 """
 
 from __future__ import annotations
@@ -12,10 +14,17 @@ import json
 import threading
 import time
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from lilo.engine.api import FutureState
+    from lilo.engine.server import Operation
 
 EVENT_NAME = "lilo_critical_path"
 MAX_SERIES = 512
+MAX_PENDING = 4096
 ALL_MODELS = "*"
+ACCEPT = "accept"
 _PROCESS_START = time.monotonic()
 
 
@@ -48,10 +57,18 @@ class Series:
 
 @dataclass
 class CriticalPath:
-    """Bounded per-model phase totals plus single-valued lifecycle gauges."""
+    """Bounded per-model phase totals plus single-valued lifecycle gauges.
+
+    Implements the engine ``Observer`` protocol so the engine needs no timing
+    code of its own: ``begin``/``register_model`` stamp submission, ``span``
+    credits ``<kind>.queue_wait`` on a command's first span and
+    ``<kind>.<phase>`` for the span itself, and ``forget_model`` evicts a
+    model's series so a long-lived trainer never fills ``MAX_SERIES``.
+    """
 
     series: dict[tuple[str, str], Series] = field(default_factory=dict)
     gauges: dict[str, float] = field(default_factory=dict)
+    pending: dict[tuple[str, str], float] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
     def record(
@@ -65,13 +82,101 @@ class CriticalPath:
         if seconds < 0:
             return
         with self.lock:
-            for key in ((ALL_MODELS, phase), (model_id, phase)):
+            for key in {(ALL_MODELS, phase), (model_id, phase)}:
                 entry = self.series.get(key)
                 if entry is None:
                     if len(self.series) >= MAX_SERIES:
                         continue
                     entry = self.series[key] = Series()
                 entry.add(seconds, batch)
+
+    # Observer protocol -----------------------------------------------------
+
+    def register_model(self, model_id: str, spec: object) -> None:
+        self._submitted((model_id, ACCEPT))
+
+    def forget_model(self, model_id: str) -> None:
+        with self.lock:
+            for key in [key for key in self.series if key[0] == model_id]:
+                del self.series[key]
+            for key in [key for key in self.pending if key[0] == model_id]:
+                del self.pending[key]
+
+    def begin(self, operation: Operation) -> None:
+        self._submitted((operation.model_id, operation.request_id))
+
+    def reuse(self, request_id: str) -> None:
+        return
+
+    def finish(self, operation: Operation, state: FutureState) -> None:
+        with self.lock:
+            self.pending.pop((operation.model_id, operation.request_id), None)
+
+    def set_activity(self, lane: str, operation: str) -> None:
+        return
+
+    def state(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        state: str,
+        **detail: object,
+    ) -> None:
+        return
+
+    def span(
+        self,
+        model: str | tuple[str, ...] | list[str],
+        name: str,
+        lane: str,
+        t0: float,
+        t1: float | None = None,
+        **attrs: object,
+    ) -> None:
+        models = (model,) if isinstance(model, str) else tuple(model)
+        ended = t1 if t1 is not None else time.time()
+        phase, _, kind = name.rpartition(":")
+        phase = phase or "execute"
+        waits = self._waits(kind, models, attrs)
+        with self.lock:
+            submitted = [(key[0], self.pending.pop(key, None)) for key in waits]
+        for model_id, at in submitted:
+            if at is not None:
+                self.record(f"{kind}.queue_wait", t0 - at, model_id=model_id)
+        batch = attrs.get("n")
+        for model_id in models:
+            self.record(
+                f"{kind}.{phase}",
+                ended - t0,
+                model_id=model_id,
+                batch=batch if isinstance(batch, int) else 1,
+            )
+        if kind == ACCEPT and attrs.get("ok", True):
+            self.gauge("trainer.first_model_ready_s", uptime_s(), once=True)
+
+    def close(self) -> None:
+        return
+
+    @staticmethod
+    def _waits(
+        kind: str,
+        models: tuple[str, ...],
+        attrs: dict[str, object],
+    ) -> list[tuple[str, str]]:
+        if kind == ACCEPT:
+            return [(m, ACCEPT) for m in models]
+        request_ids = attrs.get("request_ids")
+        if isinstance(request_ids, list | tuple):
+            return [(str(r).rpartition(":")[0], str(r)) for r in request_ids]
+        seq_ids = attrs.get("seq_ids")
+        if isinstance(seq_ids, list | tuple) and len(models) == 1:
+            return [(models[0], f"{models[0]}:{s}") for s in seq_ids]
+        return []
+
+    def _submitted(self, key: tuple[str, str]) -> None:
+        with self.lock:
+            if len(self.pending) >= MAX_PENDING:
+                return
+            self.pending[key] = time.time()
 
     def gauge(self, name: str, value: float, *, once: bool = False) -> None:
         with self.lock:
