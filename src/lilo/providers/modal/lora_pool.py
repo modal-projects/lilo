@@ -83,7 +83,7 @@ def deploy_pool(spec: LoraPoolSpec, *, record=None) -> str:
         "--name",
         spec.app_name,
     ]
-    environment = record.spec.deployment["modal"]["environment"]
+    environment = record.platform["modal"]["environment"]
     if environment:
         command.extend(["--env", environment])
     subprocess.run(command, env={**os.environ, **spec.env(), **recipe_env}, check=True)

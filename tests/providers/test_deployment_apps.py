@@ -54,7 +54,7 @@ def test_trainer_declaration_and_executor_configuration(
     builders, monkeypatch, preset, backend, clients, nproc
 ):
     row = deployment(preset)
-    row.spec.deployment["storage"]["checkpoints"] = "test-custom-checkpoints"
+    row.platform["storage"]["checkpoints"] = "test-custom-checkpoints"
     image = object()
     app, trainer = deployment_apps.build_trainer_app(row, image=image)
     declaration, _ = app.functions["trainer"]
@@ -359,7 +359,7 @@ def test_provisioner_rejects_wrong_settings_and_uses_saved_record(
     assert provision(row.model_dump_json(), pool.as_dict()) == "https://pool"
     assert calls[0][1].inference_hash == row.inference_hash
     changed = row.model_copy(deep=True)
-    changed.spec.inference["runtime_version"] = "2"
+    changed.inference_release = "2"
     with pytest.raises(ValueError, match="inference settings"):
         provision(changed.model_dump_json(), pool.as_dict())
 

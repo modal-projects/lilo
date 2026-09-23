@@ -5,12 +5,10 @@ class Config(BaseConfig):
     name = "qwen35-9b-lora-16k"
     model = {
         "id": "Qwen/Qwen3.5-9B-Base",
-        "revision": "68c46c4b3498877f3ef123c856ecfde50c39f404",
         "parameterization": "lora",
         "max_context_length": 16384,
     }
     routing = {"default": True}
-    deployment = {"frontend": "lilo-yaml", "mode": "shared"}
     trainer = {
         "backend": "miles",
         "resources": {"gpu": "H100:4", "cpu": 16, "memory_mib": 65536},

@@ -42,12 +42,15 @@ def test_yaml_definitions_use_configured_checkpoint_storage():
         with patch.object(
             modal.Volume, "from_name", side_effect=lambda name, **kwargs: (name, kwargs)
         ):
-            volumes = volumes_for(spec)
+            volumes = volumes_for(definition.RESOLVED)
         assert volumes[CHECKPOINT_ROOT] == (
-            spec.deployment['storage']['checkpoints'],
+            definition.RESOLVED.platform["storage"]["checkpoints"],
             {"create_if_missing": True, "version": 2},
         )
-        assert volumes["/bulletin"][0] == spec.deployment['storage']['bulletin']
+        assert (
+            volumes["/bulletin"][0]
+            == definition.RESOLVED.platform["storage"]["bulletin"]
+        )
         assert backend_config(spec)["checkpoint_dir"] == CHECKPOINT_ROOT
 
 

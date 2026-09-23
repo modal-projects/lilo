@@ -150,7 +150,7 @@ def deploy_pool(spec: FFTPoolSpec, *, record=None) -> str:
         "--name",
         spec.app_name,
     ]
-    environment = record.spec.deployment["modal"]["environment"]
+    environment = record.platform["modal"]["environment"]
     if environment:
         command.extend(["--env", environment])
     subprocess.run(command, env=env, check=True)

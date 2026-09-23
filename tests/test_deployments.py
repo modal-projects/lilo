@@ -356,7 +356,14 @@ def test_record_creation_copies_without_reparsing():
         row.generation
         == hashlib.sha256(
             json.dumps(
-                {"config": expected, "miles_commit": None}, sort_keys=True
+                {
+                    "config": expected,
+                    "miles_commit": None,
+                    "platform": row.platform,
+                    "trainer_release": "initial",
+                    "inference_release": "initial",
+                },
+                sort_keys=True,
             ).encode()
         ).hexdigest()
     )
@@ -401,10 +408,10 @@ def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
         backends, "serving_options", lambda *a: pytest.fail("serving read")
     )
     spec = load(config_path("qwen35-9b-lora-16k"))
-    original_revision = spec.model["revision"]
+    assert "revision" not in spec.model
     record = DeploymentRecord.create(spec, revision="a" * 40)
     assert record.spec.model["revision"] == "a" * 40
-    assert spec.model["revision"] == original_revision
+    assert "revision" not in spec.model
 
 
 @pytest.mark.parametrize("source", ["Config = {}", "class Config: pass", "value = 1"])
@@ -491,7 +498,7 @@ def test_plain_sections_fill_defaults_without_sharing_values():
     first, second = Config(), Config()
     assert type(first.model) is dict
     assert type(first.trainer) is dict
-    assert first.model["revision"] == "main"
+    assert "revision" not in first.model
     assert first.trainer["resources"]["cpu"] == 8
     assert first.trainer["config"] == {"future_option": False}
     first.inference["scaling"]["max_replicas"] = 2
@@ -519,7 +526,20 @@ def test_worker_hashes_cover_only_their_settings():
     assert routing.inference_hash == base.inference_hash
     assert routing.generation == base.generation
 
-    upgraded = resolved(recipe(inference__runtime_version="2"))
+    upgraded = DeploymentRecord.create(
+        base.spec, revision="a" * 40, inference_release="2"
+    )
     assert upgraded.trainer_hash == base.trainer_hash
     assert upgraded.inference_hash != base.inference_hash
     assert "implementation" not in upgraded.model_dump()
+
+
+def test_examples_only_contain_model_infrastructure():
+    from pathlib import Path
+
+    for path in Path(config_path("qwen35-9b-lora-16k")).parent.glob("qwen*.py"):
+        config = load(path)
+        assert not hasattr(config, "deployment")
+        assert "revision" not in config.model
+        assert "runtime_version" not in config.trainer
+        assert "runtime_version" not in config.inference

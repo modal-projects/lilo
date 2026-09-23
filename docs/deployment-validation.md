@@ -2,6 +2,14 @@
 
 These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Earlier sections record validation of the previous shared-app implementation.
 
+## Model configs contain infrastructure settings only
+
+Removed the `deployment` section from `BaseConfig` and removed explicit model commits from the built-in examples. Frontend app/environment/region selection belongs to `lilo deploy`; platform metadata and automatically generated worker-release IDs live in saved records. Config authors do not need revision or runtime-version fields. The CLI resolves omitted model revisions from Hugging Face `main`.
+
+Code-only updates use `--refresh-trainer CONFIG_NAME` or `--refresh-inference CONFIG_NAME`. Subsequent ordinary deploys retain those releases. The deployment script forwards these options.
+
+Validation: **619 CPU tests passed, 1 skipped**. Added tests cover all 14 examples having no deployment/revision/runtime-version fields, automatic model-commit lookup, command-owned platform settings, and preservation of refreshed workers without changing configs. Existing update-isolation and worker-app construction tests still pass. Ruff, whitespace and script syntax checks passed. No apps were redeployed.
+
 ## Independent worker apps and config hashes
 
 Removed the global source fingerprint and its code-upgrade rejection. The config hash identifies saved job settings; separate trainer and inference hashes identify worker apps. Runtime upgrades use explicit per-role `runtime_version` labels. The CLI skips existing worker apps, deploys changed ones before updating the frontend, and records successful workers for retry. Inference provisioners retain their source in an image so idle pools can restart using their original code.

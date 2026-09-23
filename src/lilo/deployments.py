@@ -13,17 +13,31 @@ import runpy
 import sys
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+
+PLATFORM_DEFAULTS = {
+    "frontend": "lilo-yaml",
+    "modal": {"environment": None, "region": "us-west"},
+    "secrets": {
+        "api": "lilo-api",
+        "sampler_proxy": "lilo-proxy",
+        "huggingface": "huggingface-secret",
+    },
+    "storage": {
+        "assets": "lilo-model-assets",
+        "checkpoints": "lilo-checkpoints",
+        "bulletin": "lilo-snapshot-bulletin",
+    },
+}
 
 # Shared orchestration defaults. Backend option dictionaries have no schema here.
 _DEFAULTS = {
     "api_version": "lilo/v1",
-    "model": {"revision": "main", "parameterization": "lora"},
+    "model": {"parameterization": "lora"},
     "routing": {"default": False, "sampling_default": False},
     "trainer": {
         "backend": "miles",
-        "runtime_version": "1",
         "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
         "scaling": {"min_instances": 0, "max_instances": 1},
         "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 8},
@@ -32,7 +46,6 @@ _DEFAULTS = {
     },
     "inference": {
         "backend": "sglang",
-        "runtime_version": "1",
         "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
         "scaling": {
             "min_replicas": 0,
@@ -42,21 +55,6 @@ _DEFAULTS = {
         },
         "config": {},
         "env": {},
-    },
-    "deployment": {
-        "frontend": "lilo-yaml",
-        "mode": "shared",
-        "modal": {"environment": None, "region": "us-west"},
-        "secrets": {
-            "api": "lilo-api",
-            "sampler_proxy": "lilo-proxy",
-            "huggingface": "huggingface-secret",
-        },
-        "storage": {
-            "assets": "lilo-model-assets",
-            "checkpoints": "lilo-checkpoints",
-            "bulletin": "lilo-snapshot-bulletin",
-        },
     },
     "lifecycle": {
         "session_idle_timeout_s": 300,
@@ -86,7 +84,6 @@ class BaseConfig:
     inference: dict[str, Any]
     api_version: str
     routing: dict[str, Any]
-    deployment: dict[str, Any]
     lifecycle: dict[str, Any]
     overrides: ClassVar[dict[str, Any]] = {}
 
@@ -141,6 +138,11 @@ class DeploymentRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     spec: BaseConfig
+    platform: dict[str, Any] = Field(
+        default_factory=lambda: deepcopy(PLATFORM_DEFAULTS)
+    )
+    trainer_release: str = "initial"
+    inference_release: str = "initial"
     miles_commit: str | None = None
     generation: str
     active: bool = True
@@ -152,6 +154,9 @@ class DeploymentRecord(BaseModel):
         *,
         revision: str,
         miles_commit: str | None = None,
+        platform: dict | None = None,
+        trainer_release: str = "initial",
+        inference_release: str = "initial",
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
         pinned = deepcopy(spec)
@@ -159,22 +164,35 @@ class DeploymentRecord(BaseModel):
         # Changing routing defaults should not restart an existing trainer.
         identity = asdict(pinned)
         identity.pop("routing")
-        generation = settings_hash({"config": identity, "miles_commit": miles_commit})
+        platform = deepcopy(PLATFORM_DEFAULTS if platform is None else platform)
+        generation = settings_hash(
+            {
+                "config": identity,
+                "platform": platform,
+                "miles_commit": miles_commit,
+                "trainer_release": trainer_release,
+                "inference_release": inference_release,
+            }
+        )
         return cls(
             spec=pinned,
+            platform=platform,
+            trainer_release=trainer_release,
+            inference_release=inference_release,
             generation=generation,
             miles_commit=miles_commit,
         )
 
     @property
     def trainer_hash(self) -> str:
-        """Identify trainer settings and the operator-selected runtime version."""
+        """Identify trainer settings and the deployment-managed code release."""
         return settings_hash(
             {
                 "name": self.spec.name,
                 "model": self.spec.model,
                 "trainer": self.spec.trainer,
-                "deployment": self.spec.deployment,
+                "release": self.trainer_release,
+                "platform": self.platform,
                 "miles_commit": self.miles_commit,
             }
         )
@@ -194,7 +212,8 @@ class DeploymentRecord(BaseModel):
                 "name": self.spec.name,
                 "model": self.spec.model,
                 "inference": self.spec.inference,
-                "deployment": self.spec.deployment,
+                "release": self.inference_release,
+                "platform": self.platform,
                 "adapter": adapter,
             }
         )
@@ -253,9 +272,9 @@ def validate_frontend(specs: list[BaseConfig]) -> None:
         raise ValueError("duplicate deployment name")
     first = specs[0]
     for spec in specs:
-        if spec.deployment != first.deployment or spec.lifecycle != first.lifecycle:
+        if spec.lifecycle != first.lifecycle:
             raise ValueError(
-                "deployments on one frontend must share deployment and lifecycle settings"
+                "deployments on one frontend must share lifecycle settings"
             )
     defaults, sampling = set(), set()
     for spec in specs:

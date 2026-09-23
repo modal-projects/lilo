@@ -1,6 +1,6 @@
 # Python deployment configs
 
-Each deployment is a Python file exporting a `Config` class that inherits from `BaseConfig`. The class contains the model, trainer, inference and Modal settings. There is no YAML loader or model catalog.
+Each deployment is a Python file exporting a `Config` class that inherits from `BaseConfig`. The class contains model, trainer, inference, routing and lifecycle settings. App names, environments and worker-code releases are managed by the deployment command. There is no YAML loader or model catalog.
 
 The layout follows the Python recipe approach used by [training-gym](https://github.com/modal-labs/training-gym) and the [multinode training guide](https://github.com/modal-labs/multinode-training-guide/blob/main/nemo-rl/configs/llama3_1_8b_math_2node.py). Only the outer BaseConfig is a dataclass; its sections are ordinary dictionaries. Config files need no decorators or default factories. Importing either project is not required.
 
@@ -39,9 +39,9 @@ Copying happens inside the base class, so edits to a config's nested lists or di
 
 Python imports provide reuse. There is no YAML loader or `extends` key. Config files execute as Python when loaded; keep provisioning and training calls outside them. Sibling imports are available while loading a file.
 
-All 14 previous presets are available under [`src/lilo/configs/`](../src/lilo/configs), with the same model, resource and backend settings. The [64K config](../src/lilo/configs/qwen35_9b_lora_64k.py) inherits from the 16K config. The 9B LoRA and 4B FFT configs directly pin the model revisions used in the earlier GPU checks; derived configs inherit them. There is no separate `deployments/` wrapper directory.
+All 14 previous presets are available under [`src/lilo/configs/`](../src/lilo/configs), with the same model, resource and backend settings. The [64K config](../src/lilo/configs/qwen35_9b_lora_64k.py) inherits from the 16K config. There is no separate `deployments/` wrapper directory.
 
-`model.revision` is the Hugging Face commit or branch containing the base weights and tokenizer. You can omit it to use `"main"`; the CLI resolves that branch to an exact commit before deployment. A fixed commit makes repeated deployments use the same files even if the repository's main branch changes. This is separate from training steps and published adapter versions.
+No revision is required in a config. The CLI resolves the model's Hugging Face `main` branch automatically and saves the exact commit in the deployment record. An explicit `model.revision` remains optional for users who need particular weights; none of the built-in examples specify one. The example defaults therefore no longer pin the weights used in the historical GPU checks.
 
 ## Deploy the complete active set
 
@@ -53,7 +53,7 @@ lilo config resolve src/lilo/configs/my_model.py --output /tmp/deployment.json
 lilo deploy src/lilo/configs/model_a.py src/lilo/configs/model_b.py
 ```
 
-`validate` loads the Python classes and checks shared frontend settings. It does not start backend libraries or prove that the model fits in GPU memory. `resolve` additionally pins model revisions and emits the deployment records as JSON; it does not provision compute.
+`validate` loads the Python classes and checks routing and shared lifecycle settings. It does not start backend libraries or prove that the model fits in GPU memory. `resolve` additionally pins model revisions and emits the deployment records as JSON; it does not provision compute.
 
 For a checked-in list, edit [`scripts/deploy_models.sh`](../scripts/deploy_models.sh). Add a Python config file and its path to the `deployment_files` array, then run:
 
@@ -61,7 +61,13 @@ For a checked-in list, edit [`scripts/deploy_models.sh`](../scripts/deploy_model
 ./scripts/deploy_models.sh
 ```
 
-Supply every configuration that should remain available to new clients. Omitted configurations are retained for existing jobs but removed from new-client selection. All files in the list must agree on shared frontend, region, secrets, storage and lifecycle settings. Pin `LILO_MILES_COMMIT` for repeatable deployments. Credentials remain in Modal secrets; the config contains only secret names.
+Supply every configuration that should remain available to new clients. Omitted configurations are retained for existing jobs but removed from new-client selection. All files in the list must agree on shared lifecycle settings. Frontend deployment settings are not part of `BaseConfig`. The command selects the app, environment and region:
+
+```bash
+./scripts/deploy_models.sh --app my-lilo --env dev --region us-west
+```
+
+These flags are optional; existing provider defaults apply when omitted. Secret and volume names come from provider defaults and are saved as platform metadata in deployment records. Credentials remain in Modal secrets. Pin `LILO_MILES_COMMIT` when a specific Miles build is needed.
 
 ## Code path
 
@@ -150,27 +156,26 @@ There is no source fingerprint and no check that a config matches the current Li
 
 | Identifier | Inputs | Used for |
 | --- | --- | --- |
-| `generation` | Complete computed config except routing defaults, plus pinned Miles commit | Saved job/checkpoint configuration and routing |
-| `trainer_hash` | Deployment name, model, trainer section, shared deployment settings, Miles commit | Independently deployed trainer app name |
-| `inference_hash` | Deployment name, model, inference section, shared deployment settings, adapter rank and target modules | Independently deployed inference provisioner app name |
+| `generation` | Computed config except routing defaults, platform settings, saved worker releases and Miles commit | Saved job/checkpoint configuration and routing |
+| `trainer_hash` | Deployment name, model, trainer section, platform settings, trainer release and Miles commit | Independently deployed trainer app name |
+| `inference_hash` | Deployment name, model, inference section, platform settings, inference release, adapter rank and target modules | Independently deployed inference provisioner app name |
 | Asset hash | Model repository and resolved model commit | Download directory |
 
 The hashes use SHA-256 over sorted JSON. Trainer/inference app names use the first 24 hex characters. Definition IDs use the first 16 characters of `generation`. Code is retained by the deployed Modal apps, rather than reconstructed from a source fingerprint.
 
-Both `trainer` and `inference` have a `runtime_version` setting, defaulting to `"1"`. To deploy a code-only trainer update, change `trainer.runtime_version` for the configurations that should use it:
+Worker-code versions are not config fields. The CLI keeps the previous release IDs in deployment records. To deploy changed code for selected workers:
 
-```python
-overrides = {
-    "trainer.runtime_version": "2",
-}
+```bash
+./scripts/deploy_models.sh --refresh-trainer qwen35-9b-lora-16k
+./scripts/deploy_models.sh --refresh-inference qwen35-9b-lora-16k
 ```
 
-An inference code update uses `inference.runtime_version` instead. These are operator-selected release labels, not source hashes or validation requirements. Editing source alone does not update an existing worker app. If shared worker code changes, bump each affected role's version. The frontend itself is redeployed on every apply.
+The CLI generates a release ID for each requested update; users do not specify or maintain it. Subsequent ordinary deploys retain that release. Refresh flags can be repeated for multiple config names. Editing source alone does not update existing workers. The frontend itself is redeployed on every apply.
 
 Examples:
 
 - Change inference concurrency: deploy a new inference provisioner; keep the existing trainer app.
-- Change trainer batch settings or trainer runtime version: deploy a new trainer app; keep the inference provisioner.
+- Change trainer batch settings or request a trainer code refresh: deploy a new trainer app; keep the inference provisioner.
 - Change adapter rank or target modules: update both because inference must load the changed adapters.
 - Change routing defaults: keep both worker apps.
 - Change one Miles configuration: other Miles configurations and Megatron apps remain deployed as they were.

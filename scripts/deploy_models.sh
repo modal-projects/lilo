@@ -12,4 +12,4 @@ deployment_files=(
   src/lilo/configs/qwen35_4b_fft_64k.py
 )
 
-lilo deploy "${deployment_files[@]}"
+lilo deploy "${deployment_files[@]}" "$@"

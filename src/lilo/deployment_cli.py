@@ -14,13 +14,14 @@ import uuid
 
 from lilo.deployments import (
     DeploymentRecord,
+    PLATFORM_DEFAULTS,
     load,
     config_path,
     validate_frontend,
 )
 
 
-def compile_configs(paths):
+def compile_configs(paths, *, platform=None):
     specs = [load(path) for path in paths]
     validate_frontend(specs)
     from lilo.providers.modal.miles_revision import resolve_miles_commit
@@ -32,7 +33,7 @@ def compile_configs(paths):
     )
     records = []
     for spec in specs:
-        revision = spec.model["revision"]
+        revision = spec.model.get("revision", "main")
         if not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
             from huggingface_hub import HfApi
 
@@ -44,6 +45,7 @@ def compile_configs(paths):
         records.append(
             DeploymentRecord.create(
                 spec,
+                platform=platform,
                 revision=revision,
                 miles_commit=miles_commit
                 if spec.trainer["backend"] == "miles"
@@ -59,7 +61,7 @@ def retain_generations(previous, desired):
     expected = desired[0]
     for row in previous:
         if (
-            row.spec.deployment != expected.spec.deployment
+            row.platform != expected.platform
             or row.spec.lifecycle != expected.spec.lifecycle
         ):
             raise ValueError(
@@ -76,11 +78,44 @@ def retain_generations(previous, desired):
     ]
 
 
+def select_worker_releases(desired, previous, refresh_trainers, refresh_inference):
+    """Keep deployed code unless the operator explicitly requests a worker update."""
+    names = {row.spec.name for row in desired}
+    unknown = (set(refresh_trainers) | set(refresh_inference)) - names
+    if unknown:
+        raise ValueError(f"unknown configs to refresh: {sorted(unknown)}")
+    active = {row.spec.name: row for row in previous if row.active}
+    result = []
+    for row in desired:
+        old = active.get(row.spec.name, row)
+        trainer = (
+            uuid.uuid4().hex
+            if row.spec.name in refresh_trainers
+            else old.trainer_release
+        )
+        inference = (
+            uuid.uuid4().hex
+            if row.spec.name in refresh_inference
+            else old.inference_release
+        )
+        result.append(
+            DeploymentRecord.create(
+                row.spec,
+                revision=row.spec.model["revision"],
+                miles_commit=row.miles_commit,
+                platform=row.platform,
+                trainer_release=trainer,
+                inference_release=inference,
+            )
+        )
+    return result
+
+
 def worker_apps_ready(row, deployed):
     return row.trainer_app_name in deployed and row.inference_app_name in deployed
 
 
-def deploy(desired):
+def deploy(desired, *, refresh_trainers=(), refresh_inference=()):
     """Serialize operator applies and retain interrupted attempts for safe recovery."""
     import modal
     from lilo.providers.modal.deployment_apps import MANIFEST_ENV
@@ -89,7 +124,7 @@ def deploy(desired):
         raise ValueError(
             "Python deployment requires Python 3.12 to match the serialized GPU runtime images"
         )
-    settings = desired[0].spec.deployment
+    settings = desired[0].platform
     registry = modal.Dict.from_name(
         f"{settings['frontend']}-yaml-deployments",
         create_if_missing=True,
@@ -122,9 +157,11 @@ def deploy(desired):
             if worker_apps_ready(DeploymentRecord.model_validate(row), deployed)
         ]
         rows = {r["generation"]: r for r in [*rows, *pending]}
-        manifest = retain_generations(
-            [DeploymentRecord.model_validate(row) for row in rows.values()], desired
+        previous = [DeploymentRecord.model_validate(row) for row in rows.values()]
+        desired = select_worker_releases(
+            desired, previous, refresh_trainers, refresh_inference
         )
+        manifest = retain_generations(previous, desired)
         data = [row.model_dump(mode="json") for row in manifest]
         env = {
             **os.environ,
@@ -210,6 +247,15 @@ def parser():
         help="Deploy the complete active Python config set behind one frontend",
     )
     apply.add_argument("files", nargs="+")
+    apply.add_argument("--app", default=PLATFORM_DEFAULTS["frontend"])
+    apply.add_argument("--env")
+    apply.add_argument("--region", default=PLATFORM_DEFAULTS["modal"]["region"])
+    apply.add_argument(
+        "--refresh-trainer", action="append", default=[], metavar="CONFIG_NAME"
+    )
+    apply.add_argument(
+        "--refresh-inference", action="append", default=[], metavar="CONFIG_NAME"
+    )
     management = commands.add_parser("deployment").add_subparsers(
         dest="action", required=True
     )
@@ -258,7 +304,16 @@ def main(argv=None):
                 else:
                     print(output, end="")
         elif args.command == "deploy":
-            deploy(compile_configs(args.files))
+            from copy import deepcopy
+
+            platform = deepcopy(PLATFORM_DEFAULTS)
+            platform["frontend"] = args.app
+            platform["modal"].update(environment=args.env, region=args.region)
+            deploy(
+                compile_configs(args.files, platform=platform),
+                refresh_trainers=args.refresh_trainer,
+                refresh_inference=args.refresh_inference,
+            )
         else:
             import modal
 

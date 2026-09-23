@@ -177,10 +177,9 @@ def test_only_changed_worker_is_deployed(registry, monkeypatch):
     assert new.trainer_app_name == row.trainer_app_name
     assert registry["manifest"][1]["active"] is False
 
-    changed.trainer["runtime_version"] = "new-trainer-code"
     newest = DeploymentRecord.create(changed, revision="a" * 40)
     calls.clear()
-    cli.deploy([newest])
+    cli.deploy([newest], refresh_trainers=[newest.spec.name])
     assert calls == ["trainer", "frontend"]
     assert newest.inference_app_name == new.inference_app_name
 
@@ -206,8 +205,10 @@ def test_backend_update_does_not_redeploy_other_models(registry, monkeypatch):
     cli.deploy([miles, fft])
     calls.clear()
     spec = deepcopy(miles.spec)
-    spec.trainer["runtime_version"] = "2"
-    cli.deploy([DeploymentRecord.create(spec, revision="a" * 40), fft])
+    cli.deploy(
+        [DeploymentRecord.create(spec, revision="a" * 40), fft],
+        refresh_trainers=[miles.spec.name],
+    )
     assert calls == [("trainer", miles.spec.name)]
 
 
@@ -255,3 +256,77 @@ def test_recover_worker_deployed_before_registry_write(registry, monkeypatch):
     )
     cli.deploy([row])
     assert calls == ["inference", "frontend"]
+
+
+def test_worker_refresh_is_retained_without_editing_config(registry, monkeypatch):
+    row = deployment()
+    calls = []
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **kwargs: calls.append(
+            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
+        ),
+    )
+    cli.deploy([row])
+    cli.deploy([row], refresh_inference=[row.spec.name])
+    active = DeploymentRecord.model_validate(registry["manifest"][0])
+    assert active.inference_release != "initial"
+    assert active.trainer_release == "initial"
+    assert active.spec.inference == row.spec.inference
+    calls.clear()
+    cli.deploy([row])
+    assert calls == ["frontend"]
+    assert registry["manifest"][0]["inference_release"] == active.inference_release
+
+
+def test_deploy_command_owns_platform_settings(monkeypatch):
+    seen = {}
+
+    def compile(paths, *, platform):
+        seen["platform"] = platform
+        return ["record"]
+
+    def deploy(rows, **kwargs):
+        seen["rows"] = rows
+        seen.update(kwargs)
+
+    monkeypatch.setattr(cli, "compile_configs", compile)
+    monkeypatch.setattr(cli, "deploy", deploy)
+    cli.main(
+        [
+            "deploy",
+            "model.py",
+            "--app",
+            "my-lilo",
+            "--env",
+            "dev",
+            "--region",
+            "us-east",
+            "--refresh-trainer",
+            "my-model",
+        ]
+    )
+    assert seen["platform"]["frontend"] == "my-lilo"
+    assert seen["platform"]["modal"] == {"environment": "dev", "region": "us-east"}
+    assert seen["refresh_trainers"] == ["my-model"]
+    assert seen["rows"] == ["record"]
+
+
+def test_builtin_config_resolves_revision_automatically(monkeypatch):
+    from types import SimpleNamespace
+    import huggingface_hub
+    from lilo.providers.modal import miles_revision
+
+    calls = []
+    monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
+    monkeypatch.setattr(
+        huggingface_hub.HfApi,
+        "model_info",
+        lambda self, model, *, revision: calls.append((model, revision))
+        or SimpleNamespace(sha="a" * 40),
+    )
+    (row,) = cli.compile_configs([config_path("qwen35-9b-lora-16k")])
+    assert calls == [("Qwen/Qwen3.5-9B-Base", "main")]
+    assert row.spec.model["revision"] == "a" * 40
+    assert "revision" not in load(config_path("qwen35-9b-lora-16k")).model
