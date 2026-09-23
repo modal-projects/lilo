@@ -10,7 +10,7 @@ from ..checkpoint_storage import (
     checkpoint_volume,
 )
 from ..deployment import trainer_deployment_env, trainer_max_containers
-from ..kernel_cache import KERNEL_CACHE_ROOT, kernel_cache_volume
+from ..kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
 
 MODEL_NAME = "Qwen/Qwen3.8-27B"
 HF_CHECKPOINT = "/assets/Qwen3.8-27B"
@@ -164,6 +164,7 @@ def run_trainer(
             "LILO_DEFINITION_REVISION": config["image_id"],
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
+            **KERNEL_CACHE_ENV,
         },
         nproc=1,
         max_models=max_models,

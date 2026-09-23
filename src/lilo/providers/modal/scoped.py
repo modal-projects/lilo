@@ -135,7 +135,7 @@ def build_app(
     from .engines import ModalEnginePlatform
     from .checkpoint_storage import ModalCheckpointStorage
     from .fft_pool import proxy_auth_headers
-    from .kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
+    from .kernel_cache import kernel_cache_volume
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
@@ -190,7 +190,7 @@ def build_app(
         serialized=True,
         gpu=engine.trainer_gpu,
         cpu=engine.trainer_cpu,
-        env={"LILO_SCOPED_REGISTRY": registry_name, **KERNEL_CACHE_ENV},
+        env={"LILO_SCOPED_REGISTRY": registry_name},
         memory=engine.trainer_memory,
         timeout=engine.trainer_timeout,
         min_containers=0,
@@ -201,7 +201,7 @@ def build_app(
             "/assets": assets,
             "/bulletin": bulletin,
             "/checkpoints": checkpoints,
-            KERNEL_CACHE_ROOT: kernel_cache_volume,
+            "/root/.cache/kernel-cache": kernel_cache_volume,
         },
         secrets=[*telemetry_secrets, api_secret, proxy_secret],
     )
@@ -227,6 +227,8 @@ def build_app(
                 **engine.backend_env,
                 "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
                 "TORCHINDUCTOR_COMPILE_THREADS": "1",
+                "TRITON_CACHE_DIR": "/root/.cache/kernel-cache/triton",
+                "TORCHINDUCTOR_CACHE_DIR": "/root/.cache/kernel-cache/inductor",
                 "LILO_BACKEND_CONFIG": json.dumps(backend_config),
                 "LILO_BASE_MODEL": engine.model,
                 "LILO_DEFINITION_ID": engine.name,

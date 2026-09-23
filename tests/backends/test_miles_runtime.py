@@ -26,6 +26,17 @@ def test_worker_env_carries_volume_names_to_other_nodes(monkeypatch):
     }
 
 
+def test_worker_env_carries_kernel_cache_dirs_to_other_nodes(monkeypatch):
+    for name in miles_runtime._WORKER_ENV_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("TRITON_CACHE_DIR", "/root/.cache/kernel-cache/triton")
+    monkeypatch.setenv("TORCHINDUCTOR_CACHE_DIR", "/root/.cache/kernel-cache/inductor")
+    assert _worker_env() == {
+        "TRITON_CACHE_DIR": "/root/.cache/kernel-cache/triton",
+        "TORCHINDUCTOR_CACHE_DIR": "/root/.cache/kernel-cache/inductor",
+    }
+
+
 def test_capture_detaches_upstream_version_directory(tmp_path):
     version = tmp_path / "_version_capture_123"
     version.mkdir()

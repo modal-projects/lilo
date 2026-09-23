@@ -1,5 +1,3 @@
-"""Shared Triton/TorchInductor kernel cache for single-use trainer containers."""
-
 from __future__ import annotations
 
 import modal

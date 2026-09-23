@@ -5,24 +5,20 @@ from lilo.providers.modal.deployment import (
     trainer_deployment_env,
     trainer_max_containers,
 )
-from lilo.providers.modal.kernel_cache import KERNEL_CACHE_ENV
 
 
 def test_trainer_max_containers_is_configured_for_deployment(monkeypatch) -> None:
     monkeypatch.setenv(TRAINER_MAX_CONTAINERS_ENV, "3")
 
     assert trainer_max_containers() == 3
-    assert trainer_deployment_env() == {
-        TRAINER_MAX_CONTAINERS_ENV: "3",
-        **KERNEL_CACHE_ENV,
-    }
+    assert trainer_deployment_env() == {TRAINER_MAX_CONTAINERS_ENV: "3"}
 
 
 def test_trainer_max_containers_is_unlimited_when_unset(monkeypatch) -> None:
     monkeypatch.delenv(TRAINER_MAX_CONTAINERS_ENV, raising=False)
 
     assert trainer_max_containers() is None
-    assert trainer_deployment_env() == KERNEL_CACHE_ENV
+    assert trainer_deployment_env() == {}
 
 
 @pytest.mark.parametrize(

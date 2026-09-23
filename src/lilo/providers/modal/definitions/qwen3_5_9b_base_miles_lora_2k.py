@@ -10,7 +10,7 @@ from ..checkpoint_storage import (
     checkpoint_volume,
 )
 from ..deployment import trainer_deployment_env, trainer_max_containers
-from ..kernel_cache import KERNEL_CACHE_ROOT, kernel_cache_volume
+from ..kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
 
 MODEL_NAME = "Qwen/Qwen3.5-9B-Base"
 HF_CHECKPOINT = "/assets/Qwen3.5-9B-Base"
@@ -147,6 +147,7 @@ def qwen3_5_9b_base_miles_lora_2k(instance_id: str) -> None:
             "LILO_DEFINITION_REVISION": config["image_id"],
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
+            **KERNEL_CACHE_ENV,
         },
         nproc=1,
         max_models=MAX_LORA_SLOTS,

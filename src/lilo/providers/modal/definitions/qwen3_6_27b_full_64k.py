@@ -9,8 +9,8 @@ from ..checkpoint_storage import (
     CHECKPOINT_VOLUME_NAME,
     checkpoint_volume,
 )
-from ..deployment import trainer_deployment_env, trainer_max_containers
-from ..kernel_cache import KERNEL_CACHE_ROOT, kernel_cache_volume
+from ..deployment import trainer_max_containers
+from ..kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
 
 MODEL_NAME = "Qwen/Qwen3.6-27B"
 HF_CHECKPOINT = "/assets/Qwen3.6-27B"
@@ -75,7 +75,6 @@ proxy_secret = modal.Secret.from_name(
     image=image,
     gpu=f"{GPU_TYPE}:{GPUS}",
     volumes=TRAINER_VOLUMES,
-    env=trainer_deployment_env(),
     secrets=[api_secret, proxy_secret],
     timeout=86_400,
     max_containers=trainer_max_containers(),
@@ -130,6 +129,7 @@ def qwen3_6_27b_full_64k(instance_id: str) -> None:
         backend_env={
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
+            **KERNEL_CACHE_ENV,
             "LILO_BACKEND_CONFIG": json.dumps(backend_config),
             "LILO_BASE_MODEL": MODEL_NAME,
             "LILO_DEFINITION_ID": DEFINITION_ID,
