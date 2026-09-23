@@ -45,7 +45,7 @@ A LoRA pool is shared by clients using the same deployment configuration and bas
 | --- | --- |
 | [`deployments.py`](../src/lilo/deployments.py) | Schema, YAML inheritance, revision pinning and configuration identifiers |
 | [`deployment_cli.py`](../src/lilo/deployment_cli.py) | Operator commands, saved manifests and serialized applies |
-| [`recipe.py`](../src/lilo/providers/modal/recipe.py) | Translate configuration into Miles/Megatron and SGLang settings |
+| [`backends/deployment.py`](../src/lilo/backends/deployment.py) | Dispatch configuration to backend-owned readers; no Modal dependency |
 | [`yaml_apps.py`](../src/lilo/providers/modal/yaml_apps.py) | Declare trainer functions and rollout server classes; start their processes |
 | [`app.py`](../src/lilo/providers/modal/app.py) | Register generated trainers with the existing shared app |
 | [`yaml_pool_app.py`](../src/lilo/providers/modal/yaml_pool_app.py) | Construct a rollout app in the pool deployment subprocess |
@@ -96,7 +96,7 @@ trainer:
     gpu: H200:8
   engine:
     max_clients_per_instance: 12
-  miles:
+  config:
     options:
       tensor_model_parallel_size: 8
       multi_lora_n_adapters: 12
@@ -152,11 +152,78 @@ Each client records its selected definition identifier. Changing defaults affect
 
 ## Backend options and model support
 
-`trainer.miles.model_args` names an architecture preset inside Miles. It can be omitted when the YAML supplies explicit architecture options. Changing `model.id` does not make an inherited architecture preset compatible; Miles still validates the HF configuration at startup.
+The deployment schema reads model identity, GPU resources, scaling, routing, storage and lifecycle settings. Each trainer and inference definition has a `backend` name and an opaque `config` mapping. The schema does not enumerate backend options. Backend-specific readers live beside the backend code, and the Modal app builder consumes their output. There is no Modal `recipe.py`.
 
-`trainer.miles.options` and `inference.sglang.options` use argparse destination names such as `tensor_model_parallel_size` and `max_running_requests`. The Miles and SGLang entrypoints consult their real parsers before initialization. Boolean flags, scalar values and ordinary list arguments are supported. Both spellings of opposing boolean flags are replaced when they share a destination. Unknown options and custom/repeated argparse actions fail explicitly. Backend validation still runs after these overrides.
+For Miles:
 
-Lilo checks settings that affect its integration locally: GPU counts and parallelism, maximum clients versus adapter slots, managed model paths, context/rank configuration, communication endpoints and trainer-only mode. Passthrough cannot override these managed values. Megatron FFT uses its existing `EngineModelConfig` and provider overrides.
+```yaml
+trainer:
+  backend: miles
+  resources:
+    gpu: H100:4
+  config:
+    model_args: qwen3.5-9B
+    options:
+      tensor_model_parallel_size: 4
+      recompute_granularity: full
+      recompute_method: uniform
+      recompute_num_layers: 1
+```
+
+`config.model_args` names an architecture preset inside Miles. It can be omitted when `config.options` supplies explicit architecture options. Changing `model.id` does not make an inherited architecture preset compatible; Miles still validates the HF configuration at startup. Miles options use its argparse destination names. The integration also reads parallelism, adapter limits and targets because Lilo uses those values for admission and adapter export. Other options reach Miles's parser without a Lilo allowlist.
+
+For Megatron FFT:
+
+```yaml
+trainer:
+  backend: megatron
+  resources:
+    gpu: H100:4
+  engine:
+    sampler_persistence_concurrency: 1
+  config:
+    runtime:
+      tensor_model_parallel_size: 2
+      context_parallel_size: 2
+      sequence_parallel: true
+      max_tokens_per_microbatch: 65536
+      use_distributed_optimizer: true
+    provider:
+      recompute_granularity: full
+      recompute_method: uniform
+      recompute_num_layers: 1
+    optimizer:
+      lr: 0.0001
+      loss_scale: 1.0
+    distributed:
+      grad_reduce_in_fp32: true
+```
+
+- `runtime` configures Lilo's training loop, packing and parallelism. It has a finite schema because Lilo implements these settings.
+- `provider` sets attributes on the model provider returned by Megatron Bridge. Names are checked against that actual provider at worker startup. Values, including lists and mappings, are preserved.
+- `optimizer` accepts Megatron optimizer constructor options. Existing Lilo optimizer and scheduling fields (such as `lr` and `min_lr`) remain available to the loop; additional fields pass directly to Megatron's `OptimizerConfig`. Each Tinker `optim_step` still supplies the request's Adam parameters.
+- `distributed` passes additional fields directly to Megatron's `DistributedDataParallelConfig`.
+
+New native Megatron provider, optimizer or distributed options do not require deployment-parser changes. The installed backend rejects unsupported options on worker startup. Optimizer and distributed overrides are recorded in FFT checkpoint metadata and checked on exact resume.
+
+For SGLang, `inference.config` directly contains its options:
+
+```yaml
+inference:
+  backend: sglang
+  resources:
+    gpu: H200:1
+  config:
+    tp_size: 1
+    mem_fraction_static: 0.8
+    max_running_requests: 32
+```
+
+Miles and SGLang use their real argument parsers before initialization. Boolean flags, scalar values and ordinary list arguments are supported. Both spellings of opposing boolean flags are replaced when they share a destination. Unknown options and custom/repeated argparse actions fail explicitly. These are parser-backed options, so arbitrary Python objects and custom actions are not supported.
+
+Lilo still checks settings that affect its integration locally: GPU counts and parallelism, maximum clients versus adapter slots, managed model paths, context/rank configuration, communication endpoints and trainer-only mode. The backend readers reject conflicting values. For Megatron, set parallelism and shared distributed-optimizer controls under `runtime` so both Lilo and Megatron receive the same values. Tinker training requires an Adam optimizer. Native passthrough does not make other training protocols or unsupported process layouts work automatically.
+
+All built-in YAMLs use this structure. The earlier draft's `trainer.miles`, `trainer.megatron` and `inference.sglang` sections have been removed; user YAMLs overriding those sections must move them under `config` as shown above. This schema change is part of the draft and has not been deployed. Existing source-fingerprint checks continue to prevent applying a different runtime implementation over running trainers.
 
 Inference adapter targets are derived from the existing Miles-to-PEFT mapping unless `lora_target_modules` is explicitly supplied. This mapping does not establish support for every architecture. A model still needs compatible training, adapter export and SGLang loading implementations in the selected images.
 

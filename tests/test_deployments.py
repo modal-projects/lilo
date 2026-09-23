@@ -15,7 +15,7 @@ from lilo.deployments import (
 )
 from lilo.deployment_cli import retain_generations
 from lilo.control_plane.deployments import DeploymentRoutes
-from lilo.providers.modal.recipe import backend_config
+from lilo.backends.deployment import backend_config
 from lilo.providers.modal.yaml_apps import definition_from_spec
 from lilo.native_options import apply_defaults
 
@@ -62,8 +62,8 @@ def test_presets_context_topology_and_backend_options():
 def test_no_model_catalog_required():
     spec = recipe(
         model__id="my-org/new-model",
-        trainer__miles__model_args=None,
-        trainer__miles__options={
+        trainer__config__model_args=None,
+        trainer__config__options={
             "num_layers": 12,
             "hidden_size": 768,
             "num_attention_heads": 12,
@@ -80,14 +80,14 @@ def test_extends_false_and_lists_replace(tmp_path):
             {
                 "extends": "builtin:qwen35-9b-lora-16k",
                 "routing": {"default": False},
-                "trainer": {"miles": {"options": {"target_modules": ["linear_qkv"]}}},
+                "trainer": {"config": {"options": {"target_modules": ["linear_qkv"]}}},
             }
         )
     )
     spec = load(path)
     assert spec.routing.default is False
-    assert spec.trainer.miles.options["target_modules"] == ["linear_qkv"]
-    assert spec.trainer.miles.options["lora_rank"] == 32
+    assert spec.trainer.config["options"]["target_modules"] == ["linear_qkv"]
+    assert spec.trainer.config["options"]["lora_rank"] == 32
 
 
 def test_duplicate_keys_and_cycles(tmp_path):
@@ -103,15 +103,15 @@ def test_duplicate_keys_and_cycles(tmp_path):
 @pytest.mark.parametrize(
     "changes,match",
     [
-        ({"trainer__miles__options": {"hf_checkpoint": "other"}}, "managed"),
-        ({"trainer__miles__options": {"pipeline_model_parallel_size": 2}}, "managed"),
-        ({"inference__sglang__options": {"model_path": "other"}}, "managed"),
-        ({"inference__sglang__options": {"tp_size": 2}}, "replica GPU"),
+        ({"trainer__config__options": {"hf_checkpoint": "other"}}, "managed"),
+        ({"trainer__config__options": {"pipeline_model_parallel_size": 2}}, "managed"),
+        ({"inference__config": {"model_path": "other"}}, "managed"),
+        ({"inference__config": {"tp_size": 2}}, "replica GPU"),
         ({"trainer__engine__max_clients_per_instance": 7}, "multi_lora_n_adapters"),
         ({"trainer__env": {"LILO_BACKEND_CONFIG": "oops"}}, "managed"),
         (
             {
-                "inference__sglang__options": {
+                "inference__config": {
                     "max_loaded_loras": 2,
                     "max_loras_per_batch": 8,
                 }
@@ -290,3 +290,66 @@ def test_native_type_callbacks_receive_text():
     args = parser.parse_args([])
     assert args.context_length == 65536
     assert args.sizes == [32, 2000]
+
+
+def test_native_sections_survive_serialization_without_allowlist():
+    import json
+    from lilo.backends.megatron_config import parse_backend_config
+
+    spec = recipe("qwen35-4b-fft-64k")
+    data = spec.model_dump()
+    data["trainer"]["config"]["provider"]["future_provider_option"] = {
+        "layers": [1, 4],
+        "enabled": False,
+    }
+    data["trainer"]["config"]["optimizer"]["future_optimizer_option"] = 0.125
+    data["trainer"]["config"]["distributed"] = {"future_ddp_option": False}
+    spec = DeploymentSpec.model_validate(data)
+    settings = backend_config(spec, "/assets/pinned")
+    config, _ = parse_backend_config(json.loads(json.dumps(settings)))
+    assert config.hf_checkpoint == "/assets/pinned"
+    assert config.seq_length == spec.model.max_context_length
+    assert config.provider_overrides["future_provider_option"] == {
+        "layers": [1, 4],
+        "enabled": False,
+    }
+    assert config.optimizer_overrides == {"future_optimizer_option": 0.125}
+    assert config.distributed_overrides == {"future_ddp_option": False}
+    assert config.optimizer.lr == 0.0001
+    assert spec.model_dump() == data  # Building does not consume or mutate YAML.
+
+
+@pytest.mark.parametrize(
+    "section,options,match",
+    [
+        ("provider", {"context_parallel_size": 4}, "managed"),
+        ("optimizer", {"bf16": False}, "managed"),
+        ("distributed", {"use_distributed_optimizer": False}, "managed"),
+        ("runtime", {"optimizer_overrides": {}}, "managed"),
+        ("runtime", {"misspelled_loop_option": 1}, "runtime options"),
+        ("provider", [], "mapping"),
+        ("optimizer", {"optimizer": "sgd"}, "Adam"),
+    ],
+)
+def test_megatron_native_options_preserve_integration_contract(section, options, match):
+    with pytest.raises(ValueError, match=match):
+        recipe("qwen35-4b-fft-64k", **{f"trainer__config__{section}": options})
+
+
+def test_backend_dispatch_rejects_unknown_backend():
+    with pytest.raises(ValueError, match="unknown deployment backend"):
+        recipe(trainer__backend="missing")
+
+
+def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
+    from lilo.backends.deployment import serving_options
+
+    spec = recipe(
+        trainer__config__options__future_miles_option=[1, 2],
+        inference__config__future_sglang_option=False,
+    )
+    assert backend_config(spec)["miles"]["native_options"]["future_miles_option"] == [
+        1,
+        2,
+    ]
+    assert serving_options(spec)["future_sglang_option"] is False

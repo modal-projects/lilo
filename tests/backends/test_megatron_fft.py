@@ -416,9 +416,7 @@ def test_distributed_optimizer_capture_includes_detached_parameter_state(
             "metadata": {"distrib_optim_sharding_type": "dp_reshardable"},
         }
     ]
-    assert captured["format"] == (
-        fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT
-    )
+    assert captured["format"] == (fft_checkpoint.DISTRIBUTED_OPTIMIZER_STATE_FORMAT)
     tensors = captured["state_dict"]["param_state"][0]["float32"][0][0]
     assert tensors["param"].tolist() == [1.25]
     assert tensors["exp_avg"].tolist() == [2.5]
@@ -618,6 +616,19 @@ def test_fft_backend_hf_load_never_reads_native(monkeypatch) -> None:
                 optimizer_config={**metadata.optimizer_config, "lr": 0.5},
             ),
             "optimizer_config",
+        ),
+        (
+            lambda metadata: replace(
+                metadata,
+                native_optimizer_config={"use_precision_aware_optimizer": True},
+            ),
+            "native_optimizer_config",
+        ),
+        (
+            lambda metadata: replace(
+                metadata, native_distributed_config={"grad_reduce_in_fp32": True}
+            ),
+            "native_distributed_config",
         ),
     ],
 )

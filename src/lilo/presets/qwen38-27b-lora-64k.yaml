@@ -5,13 +5,12 @@ model:
 routing:
   default: false
 trainer:
-  miles:
+  config:
     options:
       context_parallel_size: 2
       max_tokens_per_gpu: 32768
 inference:
   scaling:
     target_concurrency: 8
-  sglang:
-    options:
-      max_running_requests: 16
+  config:
+    max_running_requests: 16

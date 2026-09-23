@@ -5,7 +5,7 @@ model:
 routing:
   default: false
 trainer:
-  miles:
+  config:
     options:
       tensor_model_parallel_size: 2
       context_parallel_size: 4
@@ -16,7 +16,6 @@ inference:
   scaling:
     max_replicas: 4
     target_concurrency: 4
-  sglang:
-    options:
-      tp_size: 2
-      max_running_requests: 8
+  config:
+    tp_size: 2
+    max_running_requests: 8

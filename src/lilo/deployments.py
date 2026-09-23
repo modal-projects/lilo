@@ -65,30 +65,20 @@ class EngineOptions(StrictModel):
     sampler_persistence_concurrency: int = Field(default=8, gt=0)
 
 
-class MilesOptions(StrictModel):
-    model_args: str | None = None
-    options: dict[str, Any] = Field(default_factory=dict)
-
-
-class NativeOptions(StrictModel):
-    options: dict[str, Any] = Field(default_factory=dict)
-
-
 class Trainer(StrictModel):
-    backend: Literal["miles", "megatron"] = "miles"
+    backend: str = "miles"
     resources: Resources
     scaling: TrainerScaling = Field(default_factory=TrainerScaling)
     engine: EngineOptions = Field(default_factory=EngineOptions)
-    miles: MilesOptions | None = None
-    megatron: NativeOptions | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
     env: dict[str, str] = Field(default_factory=dict)
 
 
 class Inference(StrictModel):
-    backend: Literal["sglang"] = "sglang"
+    backend: str = "sglang"
     resources: Resources
     scaling: InferenceScaling = Field(default_factory=InferenceScaling)
-    sglang: NativeOptions = Field(default_factory=NativeOptions)
+    config: dict[str, Any] = Field(default_factory=dict)
     env: dict[str, str] = Field(default_factory=dict)
 
 
@@ -137,39 +127,17 @@ class DeploymentSpec(StrictModel):
 
     @model_validator(mode="after")
     def compatible(self):
-        from lilo.providers.modal.recipe import backend_config, serving_options
+        from lilo.backends.deployment import backend_config, serving_options
 
         for role in (self.trainer, self.inference):
             role.resources.gpu_count
             if any(k.startswith("LILO_") for k in role.env):
                 raise ValueError("LILO_ environment variables are managed by Lilo")
-        if self.trainer.backend == "miles":
-            if (
-                self.model.parameterization != "lora"
-                or self.trainer.miles is None
-                or self.trainer.megatron is not None
-            ):
-                raise ValueError(
-                    "Miles requires lora parameterization and trainer.miles"
-                )
-        elif (
-            self.model.parameterization != "full"
-            or self.trainer.megatron is None
-            or self.trainer.miles is not None
-        ):
-            raise ValueError(
-                "Megatron YAML deployments require full parameterization and trainer.megatron"
-            )
         if (
             self.model.parameterization == "full"
             and self.trainer.engine.max_clients_per_instance != 1
         ):
             raise ValueError("FFT trainers admit one client per instance")
-        if (
-            self.trainer.backend == "megatron"
-            and self.trainer.engine.sampler_persistence_concurrency != 1
-        ):
-            raise ValueError("Megatron requires sampler_persistence_concurrency: 1")
         try:
             backend_config(self)
             serving_options(self)

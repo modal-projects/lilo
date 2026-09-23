@@ -16,8 +16,8 @@ trainer:
   engine:
     max_clients_per_instance: 1
     sampler_persistence_concurrency: 1
-  megatron:
-    options:
+  config:
+    runtime:
       tensor_model_parallel_size: 2
       context_parallel_size: 2
       sequence_parallel: true
@@ -26,22 +26,21 @@ trainer:
       defer_fp32_logits: true
       fp32_lm_head: true
       use_distributed_optimizer: true
-      provider_overrides:
-        mtp_num_layers: 0
-        recompute_granularity: full
-        recompute_method: uniform
-        recompute_num_layers: 1
-      optimizer:
-        lr: 0.0001
-        min_lr: 0.0001
-        loss_scale: 1.0
+    provider:
+      mtp_num_layers: 0
+      recompute_granularity: full
+      recompute_method: uniform
+      recompute_num_layers: 1
+    optimizer:
+      lr: 0.0001
+      min_lr: 0.0001
+      loss_scale: 1.0
 inference:
   resources:
     gpu: H100:1
-  sglang:
-    options:
-      tp_size: 1
-      mem_fraction_static: 0.85
-      max_running_requests: 32
-      max_queued_requests: 4
-      cpu_weight_cache_max_compile_group_gb: 16
+  config:
+    tp_size: 1
+    mem_fraction_static: 0.85
+    max_running_requests: 32
+    max_queued_requests: 4
+    cpu_weight_cache_max_compile_group_gb: 16

@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import modal
 
 from lilo.deployments import ResolvedDeployment, Routing, validate_frontend
-from .recipe import backend_config, serving_options
+from lilo.backends.deployment import backend_config, serving_options
 
 MANIFEST_ENV = "LILO_DEPLOYMENT_MANIFEST"
 POOL_CONFIG_ENV = "LILO_POOL_DEPLOYMENT"

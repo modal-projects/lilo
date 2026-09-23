@@ -61,6 +61,7 @@ def distributed_model(
             overlap_grad_reduce=config.overlap_grad_reduce,
             overlap_param_gather=config.overlap_param_gather,
             align_param_gather=config.align_param_gather,
+            **config.distributed_overrides,
         ),
         bf16=config.bf16,
         fp16=config.fp16,
@@ -87,4 +88,5 @@ def optimizer_config(
         params_dtype=dtype,
         use_distributed_optimizer=distributed_optimizer,
         overlap_param_gather=config.overlap_param_gather,
+        **config.optimizer_overrides,
     )

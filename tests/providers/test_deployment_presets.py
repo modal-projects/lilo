@@ -1,7 +1,7 @@
 import pytest
 
 from lilo.deployments import load, preset_path, resolve
-from lilo.providers.modal.recipe import backend_config, serving_options
+from lilo.backends.deployment import backend_config, serving_options
 from lilo.providers.modal.yaml_apps import (
     definition_from_spec,
     frontend_settings,
@@ -83,6 +83,6 @@ def test_invalid_attention_parallelism_is_rejected(options):
     from lilo.deployments import DeploymentSpec
 
     data = load(preset_path("qwen35-35b-a3b-fft-64k")).model_dump()
-    data["inference"]["sglang"]["options"].update(options)
+    data["inference"]["config"].update(options)
     with pytest.raises(ValueError, match="sglang"):
         DeploymentSpec.model_validate(data)

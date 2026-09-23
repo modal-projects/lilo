@@ -7,7 +7,7 @@ routing:
 trainer:
   resources:
     gpu: H200:8
-  miles:
+  config:
     options:
       tensor_model_parallel_size: 8
       max_tokens_per_gpu: 65536

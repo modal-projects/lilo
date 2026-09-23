@@ -17,7 +17,7 @@ import tinker
 from tinker import types
 
 from lilo.deployments import ResolvedDeployment
-from lilo.providers.modal.recipe import backend_config
+from lilo.backends.deployment import backend_config
 
 TIMEOUT = 3 * 60 * 60
 

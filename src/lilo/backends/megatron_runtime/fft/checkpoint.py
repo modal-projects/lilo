@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
@@ -57,11 +57,16 @@ class FFTCheckpointMetadata:
     has_optimizer: bool
     optimizer_state_format: str | None
     base_model_revision: str | None = None
+    native_optimizer_config: dict[str, Any] = field(default_factory=dict)
+    native_distributed_config: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
         if self.base_model_revision is None:
             value.pop("base_model_revision")
+        for name in ("native_optimizer_config", "native_distributed_config"):
+            if not value[name]:
+                value.pop(name)
         return value
 
     def identity(self) -> str:
@@ -100,11 +105,15 @@ def create_fft_checkpoint_metadata(
         precision="bf16" if config.bf16 else "fp16" if config.fp16 else "fp32",
         use_distributed_optimizer=config.use_distributed_optimizer,
         optimizer_config=asdict(config.optimizer),
+        native_optimizer_config=dict(config.optimizer_overrides),
+        native_distributed_config=dict(config.distributed_overrides),
         has_optimizer=include_optimizer,
         optimizer_state_format=(
             DISTRIBUTED_OPTIMIZER_STATE_FORMAT
             if include_optimizer and config.use_distributed_optimizer
-            else REGULAR_OPTIMIZER_STATE_FORMAT if include_optimizer else None
+            else REGULAR_OPTIMIZER_STATE_FORMAT
+            if include_optimizer
+            else None
         ),
     )
 
@@ -181,8 +190,7 @@ def restore_fft_optimizer_state(
     )
     if not isinstance(state, dict) or state.get("format") != expected_format:
         raise ValueError(
-            "checkpoint optimizer state format mismatch: "
-            f"expected {expected_format!r}"
+            f"checkpoint optimizer state format mismatch: expected {expected_format!r}"
         )
     state_dict = state.get("state_dict")
     if not isinstance(state_dict, dict | list):
@@ -297,6 +305,8 @@ def load_fft_training_checkpoint(
         "precision",
         "use_distributed_optimizer",
         "optimizer_config",
+        "native_optimizer_config",
+        "native_distributed_config",
         "optimizer_state_format",
     )
     for name in comparable_fields:
@@ -369,7 +379,9 @@ def synchronize_checkpoint_preflight(
 def _materialize_local_sharded_state(value):
     """Detach Megatron's local torch_dist representation from live optimizer buffers."""
     if isinstance(value, ShardedTensorFactory):
-        raise TypeError("distributed optimizer state contains an unresolved tensor factory")
+        raise TypeError(
+            "distributed optimizer state contains an unresolved tensor factory"
+        )
     if isinstance(value, ShardedTensor):
         if value.data is None:
             raise ValueError("distributed optimizer sharded tensor has no local data")
@@ -380,8 +392,7 @@ def _materialize_local_sharded_state(value):
         return _materialize_local_sharded_state(value.unwrap())
     if isinstance(value, dict):
         return {
-            key: _materialize_local_sharded_state(item)
-            for key, item in value.items()
+            key: _materialize_local_sharded_state(item) for key, item in value.items()
         }
     if isinstance(value, list):
         return [_materialize_local_sharded_state(item) for item in value]
@@ -394,7 +405,9 @@ def _validate_distributed_optimizer_state_dict(state_dict: dict | list) -> None:
     """Require every DistributedOptimizer leaf to contain its local tensor shards."""
     if isinstance(state_dict, list):
         if not state_dict:
-            raise ValueError("distributed optimizer checkpoint has no optimizer entries")
+            raise ValueError(
+                "distributed optimizer checkpoint has no optimizer entries"
+            )
         for item in state_dict:
             if not isinstance(item, dict | list):
                 raise TypeError("distributed optimizer entry must be a dict or list")
@@ -403,17 +416,22 @@ def _validate_distributed_optimizer_state_dict(state_dict: dict | list) -> None:
 
     if state_dict.get("param_state_sharding_type") == "dp_reshardable":
         if not isinstance(state_dict.get("optimizer"), dict):
-            raise ValueError("distributed optimizer checkpoint has no optimizer metadata")
-        if not isinstance(state_dict.get("param_state"), dict) or not state_dict[
-            "param_state"
-        ]:
+            raise ValueError(
+                "distributed optimizer checkpoint has no optimizer metadata"
+            )
+        if (
+            not isinstance(state_dict.get("param_state"), dict)
+            or not state_dict["param_state"]
+        ):
             raise ValueError("distributed optimizer checkpoint has no parameter state")
         return
 
     if state_dict and all(isinstance(key, int) for key in state_dict):
         for item in state_dict.values():
             if not isinstance(item, dict | list):
-                raise TypeError("chained distributed optimizer entry must be a dict or list")
+                raise TypeError(
+                    "chained distributed optimizer entry must be a dict or list"
+                )
             _validate_distributed_optimizer_state_dict(item)
         return
 

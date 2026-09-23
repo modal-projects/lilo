@@ -2,6 +2,14 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## Backend configuration passthrough
+
+The deployment schema now uses `trainer.backend` / `trainer.config` and `inference.backend` / `inference.config`. Backend readers interpret those mappings outside the Modal provider. Megatron exposes native provider, optimizer and distributed-training settings alongside its Lilo runtime settings.
+
+Validation: **588 CPU tests passed, 1 skipped**. Ruff passed for changed Python files, and whitespace checks passed. A comparison against the previous commit confirmed that all 14 migrated presets produce the same resolved backend and inference settings, apart from the new empty native-override fields. Tests cover native values reaching Megatron constructors, preserving nested values and false booleans through serialization, rejecting conflicting integration settings, and rejecting exact checkpoint resume when native optimizer/distributed settings differ.
+
+Megatron constructor tests use CPU stubs; they verify forwarding and error propagation, not acceptance by the GPU image's installed Megatron version. The native backend remains responsible for validating its options at worker startup. This refactor has not been deployed or GPU-tested.
+
 ## YAML-only deployment cleanup
 
 After the live checks below, the shared deployment's Python-catalog fallback and model-specific trainer/pool modules were removed. Existing recipes are available as YAML presets. The deployment script still selects only its three listed configurations; additional presets are opt-in.
