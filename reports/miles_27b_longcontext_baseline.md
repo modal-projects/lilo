@@ -117,8 +117,9 @@ uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 5 
 #   -> Context 262144 (prompt cap 258048, floor 232243 = 0.9x cap, pad_to 250000); TP2xCP8xDP1, max_tokens_per_gpu=32768
 
 # 30-step statistical runs (W&B group miles-27b), padded, launched in parallel
-uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 30 --tp 2 --cp 4 --actor-nodes 2 \
+uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 128 --steps 30 --tp 2 --cp 4 \
     --pad-to-tokens 120000 --min-prompt-fraction 0 --wandb-group miles-27b --run-name miles-27b-128k-pad-30
+#   (1 trainer node, TP2xCP4xDP1 — W&B config actor_num_nodes=1 for mild-bleed-b1d6255af892)
 uv run scripts/e2e_longrlvr_qwen3_8_27b_miles_lora.py --context-k 256 --steps 30 --tp 2 --cp 8 --actor-nodes 2 \
     --pad-to-tokens 250000 --wandb-group miles-27b --run-name miles-27b-256k-pad-30
 ```
