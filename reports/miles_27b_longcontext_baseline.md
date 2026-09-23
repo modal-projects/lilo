@@ -59,12 +59,38 @@ Notes on columns:
 | 256k padded, 3-node TP2×CP8 probe (1 step) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/molten-area-e262106588e6 | — |
 | 256k padded, 3-node TP2×CP8 (5 steps) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/merciless-barracuda-46b27a74bc00 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/7jiwji5w (tok/s normalised to 16 trainer GPUs) |
 | 128k padded, 30 steps (`miles-27b-128k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/mild-bleed-b1d6255af892 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/xw5cx2je |
-| 256k padded, 30 steps (`miles-27b-256k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/cool-muntin-b1d6255af892 | pending completion |
+| 256k padded, 30 steps (`miles-27b-256k-pad-30`, group `miles-27b`) | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/cool-muntin-b1d6255af892-a2 | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/yz1wuem8 |
 
 The `cmp/*` runs (`scripts/relog_miles_cmp_27b.py`) carry `cmp/reward_mean, cmp/response_len_mean,
 cmp/step_time_s, cmp/train_time_s, cmp/rollout_time_s, cmp/samples_per_s, cmp/tokens_per_gpu_per_s,
 cmp/truncated_ratio, cmp/prompt_len_mean` so they overlay the 9B runs. training-gym does not forward `exp_name` to Miles,
 so the raw run titles are the group name.
+
+### `cmp/train_time_s` semantics (v2 re-logs)
+
+The re-logs above set `cmp/train_time_s = perf/actor_train_time` (fwd/bwd + optimizer only). Miles'
+train stage also runs a forward-only pass to recompute old-policy log-probs
+(`compute_log_prob`, timed as `perf/log_probs_time`) because the baseline used
+`use_rollout_logprobs=False` + TIS; that pass is ~27–30% of fwd/bwd at every rung and
+O(tokens). Under the old mapping it showed up as `cmp/step_time_s − cmp/train_time_s`
+(the "non-train" residual: 42 / 203 / 375 / 595 s at 16k / 64k / 128k / 256k), which reads as
+idle/overlap time next to Lilo's `time/total − time/train_step`. It is trainer GPU compute on the
+critical path; the real idle time is `perf/train_wait_time` (1 / 2 / 3 / 5 s). Lilo's `ppo` loss
+consumes the sampler log-probs directly and has no equivalent pass.
+
+The `-v2` runs re-log the same sources with `cmp/train_time_s = perf/train_time` (the whole train
+stage, comparable to Lilo's `time/train_step`) and add `cmp/fwd_bwd_time_s`, `cmp/logprob_time_s`,
+`cmp/wait_time_s`, `cmp/non_train_time_s`:
+
+| Rung | Raw Miles run | `cmp/*` v2 re-log | step | train (`perf/train_time`) | fwd/bwd | log-probs | wait / non-train |
+|---|---|---|---|---|---|---|---|
+| 16k | `aquamarine-strut-8cb234449949` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/0uvx0qho (`miles-27b-16k-5-v2`) | 150–172 s | 149–171 s | 111–126 s | 38–45 s | ~1 s |
+| 64k | `violent-curb-decfe37c85e3` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/avmnf2uu (`miles-27b-64k-5-v2`) | 819 s | 818 s | 617 s | 201 s | ~2 s |
+| 128k padded, 30 steps | `mild-bleed-b1d6255af892` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/pzoqlw9d (`miles-27b-128k-pad-30-v2`) | 1655 s | 1652 s | 1280 s | 373 s | ~3 s |
+| 256k padded, 30 steps | `cool-muntin-b1d6255af892-a2` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/mwjyfa17 (`miles-27b-256k-pad-30-v2`) | 2754 s | 2749 s | 2159 s | 590 s | ~5 s |
+
+Steady-state medians over steps ≥ 1. Groups match the originals (`baseline-miles-27b` for 16k/64k,
+`miles-27b` for the padded 30-step runs).
 
 ## Exact launcher args per rung
 

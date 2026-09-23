@@ -2,9 +2,27 @@
 
 Runs on Modal so the wandb-secret is available. Reads the source run's history
 via the W&B API (Miles logs rollout/, train/ and perf/ metrics in separate
-rows; they are merged on ``rollout/step``), then writes cmp/* metrics with the
-same definitions as the 9B re-log into a new run ``miles-27b-<ctx>k-<steps>``
-in group ``baseline-miles-27b``.
+rows; they are merged on ``rollout/step``), then writes cmp/* metrics into a new
+run ``miles-27b-<ctx>k-<steps>`` in group ``baseline-miles-27b``.
+
+Timing keys, chosen so a Miles run overlays a Lilo run (whose ``cmp/train_time_s``
+is the cookbook ``time/train_step``, i.e. everything the trainer does with the
+batch, and whose ``cmp/step_time_s`` is ``time/total``):
+
+    cmp/step_time_s      perf/step_time          (= train_wait + train_time)
+    cmp/train_time_s     perf/train_time         trainer critical path: logprob pass +
+                                                 fwd/bwd + optimizer + preprocessing
+    cmp/fwd_bwd_time_s   perf/actor_train_time   fwd/bwd + optimizer only
+    cmp/logprob_time_s   perf/log_probs_time     old-policy logprob recompute forward
+                                                 pass (absent with --use-rollout-logprobs)
+    cmp/wait_time_s      perf/train_wait_time    trainer idle waiting for a batch
+    cmp/non_train_time_s step_time - train_time  (== wait_time for Miles)
+    cmp/rollout_time_s   perf/rollout_time       rollout manager hand-off, overlapped
+                                                 with training in fully-async mode
+
+Earlier re-logs (``miles-27b-16k-5``, ``-64k-5``, ``-128k-pad-30``, ``-256k-pad-30``)
+used ``perf/actor_train_time`` as ``cmp/train_time_s``, so their ``step - train``
+residual was the logprob pass (~27-30% of fwd/bwd, O(tokens)) rather than idle time.
 
 Usage:
     MODAL_ENVIRONMENT=micah-dev uv run --with modal modal run \
@@ -53,8 +71,14 @@ def cmp_metrics(m: dict, trainer_gpus: float = TRAINER_GPUS) -> dict:
         )
     if "rollout/truncated" in m:
         d["cmp/truncated_ratio"] = float(m["rollout/truncated"])
+    if "perf/train_time" in m:
+        d["cmp/train_time_s"] = float(m["perf/train_time"])
     if "perf/actor_train_time" in m:
-        d["cmp/train_time_s"] = float(m["perf/actor_train_time"])
+        d["cmp/fwd_bwd_time_s"] = float(m["perf/actor_train_time"])
+    if "perf/log_probs_time" in m:
+        d["cmp/logprob_time_s"] = float(m["perf/log_probs_time"])
+    if "perf/train_wait_time" in m:
+        d["cmp/wait_time_s"] = float(m["perf/train_wait_time"])
     if "perf/rollout_time" in m:
         d["cmp/rollout_time_s"] = float(m["perf/rollout_time"])
     if "train/loss" in m:
@@ -62,6 +86,8 @@ def cmp_metrics(m: dict, trainer_gpus: float = TRAINER_GPUS) -> dict:
     if "perf/step_time" in m:
         st = float(m["perf/step_time"])
         d["cmp/step_time_s"] = st
+        if "cmp/train_time_s" in d:
+            d["cmp/non_train_time_s"] = st - d["cmp/train_time_s"]
         d["cmp/samples_per_s"] = SAMPLES / st
         if "rollout/total_lengths" in m:
             d["cmp/tokens_per_gpu_per_s"] = (
@@ -100,7 +126,11 @@ def run(
             "context": context_k * 1024,
             "topology": topology,
             "trainer_gpus": trainer_gpus,
-            "note": "cmp/* re-log of the source run; values copied from its metrics",
+            "note": (
+                "cmp/* re-log of the source run; values copied from its metrics. "
+                "cmp/train_time_s = perf/train_time (includes the logprob pass); "
+                "cmp/fwd_bwd_time_s = perf/actor_train_time"
+            ),
         },
     )
     for step in sorted(merged):
