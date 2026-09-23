@@ -1,6 +1,5 @@
 """SGLang settings that must agree with Lilo replica orchestration."""
 
-from lilo.deployments import gpu_count
 from lilo.config_validation import reject_managed_options
 
 SGLANG_MANAGED = {
@@ -11,6 +10,7 @@ SGLANG_MANAGED = {
     "context_length",
     "enable_lora",
     "max_lora_rank",
+    "lora_target_modules",
     "enable_cpu_weight_cache",
     "api_key",
     "pp_size",
@@ -31,13 +31,13 @@ SGLANG_MANAGED = {
 
 
 def build_config(spec):
-    options = dict(spec.inference["config"])
+    options = dict(spec.inference.config)
     reject_managed_options(options, SGLANG_MANAGED)
-    tp = options.get("tp_size", gpu_count(spec.inference["resources"]))
+    tp = options.get("tp_size", spec.inference.compute.gpus_per_node)
     ep = options.get("ep_size", 1)
-    if not isinstance(tp, int) or tp != gpu_count(spec.inference["resources"]):
+    if type(tp) is not int or tp != spec.inference.compute.gpus_per_node:
         raise ValueError("sglang.tp_size must equal the replica GPU allocation")
-    if not isinstance(ep, int) or ep < 1 or tp % ep:
+    if type(ep) is not int or ep < 1 or tp % ep:
         raise ValueError("sglang.ep_size must divide the replica GPU allocation")
     dp = options.get("dp_size", 1)
     dp_attention = options.get("enable_dp_attention", False)
@@ -53,7 +53,7 @@ def build_config(spec):
         "max_running_requests",
         "max_queued_requests",
     ):
-        if key in options and (not isinstance(options[key], int) or options[key] < 1):
+        if key in options and (type(options[key]) is not int or options[key] < 1):
             raise ValueError(f"sglang.{key} must be positive")
     if not 0 < options.get("mem_fraction_static", 0.8) < 1:
         raise ValueError("sglang.mem_fraction_static must be between zero and one")

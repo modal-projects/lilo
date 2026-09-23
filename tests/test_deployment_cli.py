@@ -1,4 +1,5 @@
 from copy import deepcopy
+from dataclasses import replace
 import json
 import subprocess
 
@@ -7,7 +8,7 @@ import pytest
 
 from lilo import deployment_cli as cli
 from lilo.deployments import load, config_path, DeploymentRecord
-from lilo.providers.modal.deployment_apps import MANIFEST_ENV
+from lilo.providers.modal.deployment_records import MANIFEST_ENV
 
 
 class Registry(dict):
@@ -72,7 +73,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
     assert registry["pending"][0]["generation"] == row.generation
     assert "manifest" not in registry and "apply_lock" not in registry
     new_spec = deepcopy(row.spec)
-    new_spec.trainer["scaling"]["max_instances"] = 2
+    new_spec = replace(new_spec, trainer=replace(new_spec.trainer, max_instances=2))
     new = DeploymentRecord.create(new_spec, revision="a" * 40)
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
     cli.deploy([new])
@@ -123,15 +124,15 @@ def test_compile_pins_revision_at_external_boundary(
 
     path = tmp_path / "model.py"
     path.write_text(
-        "from lilo.configs.qwen35_9b_lora_16k import Config as ParentConfig\n"
-        "class Config(ParentConfig):\n"
-        f"    overrides = {{'model.revision': {revision!r}}}\n"
+        "from dataclasses import replace\n"
+        "from lilo.configs.qwen35_9b_lora_16k import config as base\n"
+        f"config = replace(base, model=replace(base.model, revision={revision!r}))\n"
     )
     lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
     monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)
     monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
     (row,) = cli.compile_configs([path])
-    assert row.spec.model["revision"] == "a" * 40
+    assert row.spec.model.revision == "a" * 40
     assert lookup.call_count == lookups
     if lookups:
         lookup.return_value.sha = None
@@ -169,7 +170,7 @@ def test_only_changed_worker_is_deployed(registry, monkeypatch):
     assert calls == ["frontend"]
 
     changed = deepcopy(row.spec)
-    changed.inference["scaling"]["max_replicas"] = 6
+    changed = replace(changed, inference=replace(changed.inference, max_replicas=6))
     new = DeploymentRecord.create(changed, revision="a" * 40)
     calls.clear()
     cli.deploy([new])
@@ -328,5 +329,5 @@ def test_builtin_config_resolves_revision_automatically(monkeypatch):
     )
     (row,) = cli.compile_configs([config_path("qwen35-9b-lora-16k")])
     assert calls == [("Qwen/Qwen3.5-9B-Base", "main")]
-    assert row.spec.model["revision"] == "a" * 40
-    assert "revision" not in load(config_path("qwen35-9b-lora-16k")).model
+    assert row.spec.model.revision == "a" * 40
+    assert load(config_path("qwen35-9b-lora-16k")).model.revision == "main"

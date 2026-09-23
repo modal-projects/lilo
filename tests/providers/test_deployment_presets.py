@@ -4,10 +4,10 @@ import pytest
 
 from lilo.deployments import load, config_path, DeploymentRecord
 from lilo.backends.deployment import backend_config, serving_options
+from lilo.providers.modal.deployment_records import manifest_from_env
 from lilo.providers.modal.deployment_apps import (
     definition_from_spec,
     frontend_settings,
-    manifest_from_env,
 )
 
 
@@ -19,7 +19,7 @@ from lilo.providers.modal.deployment_apps import (
 def test_all_packaged_recipes_validate_offline(path):
     spec = load(path)
     config = backend_config(spec)
-    assert config[spec.trainer["backend"]]["hf_checkpoint"] == "/assets/pending"
+    assert config[spec.trainer.backend]["hf_checkpoint"] == "/assets/pending"
     serving_options(spec)
 
 
@@ -56,8 +56,8 @@ def test_qwen38_context_parallel_token_budget(context, cp):
 def test_single_client_recipe_keeps_shared_backend_capacity():
     shared = load(config_path("qwen35-9b-lora-16k"))
     single = load(config_path("qwen35-9b-lora-16k-single"))
-    assert single.trainer["engine"]["max_clients_per_instance"] == 1
-    assert single.trainer["resources"] == shared.trainer["resources"]
+    assert single.trainer.max_clients_per_instance == 1
+    assert single.trainer.compute == shared.trainer.compute
     assert backend_config(single) == backend_config(shared)
 
 
@@ -82,12 +82,12 @@ def test_missing_manifest_has_no_python_catalog_fallback(monkeypatch, value):
     ],
 )
 def test_invalid_attention_parallelism_is_rejected(options):
-    from lilo.deployments import BaseConfig
+    from lilo.deployments import Deployment
 
     data = asdict(load(config_path("qwen35-35b-a3b-fft-64k")))
     data["inference"]["config"].update(options)
     from lilo.backends.deployment import serving_options
 
-    spec = TypeAdapter(BaseConfig).validate_python(data)
+    spec = TypeAdapter(Deployment).validate_python(data)
     with pytest.raises(ValueError, match="sglang"):
         serving_options(spec)

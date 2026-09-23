@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import asdict, dataclass, fields
 import hashlib
-from importlib.resources import files
 import json
-from pathlib import Path
 import re
 import runpy
 import sys
-from typing import Any, ClassVar
+from copy import deepcopy
+from dataclasses import asdict, replace
+from importlib.resources import files
+from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from lilo.backends.deployment import resolve_backend_settings
+from lilo.configuration import Deployment
 
 PLATFORM_DEFAULTS = {
     "frontend": "lilo-yaml",
@@ -31,100 +33,38 @@ PLATFORM_DEFAULTS = {
     },
 }
 
-# Shared orchestration defaults. Backend option dictionaries have no schema here.
-_DEFAULTS = {
-    "api_version": "lilo/v1",
-    "model": {"parameterization": "lora"},
-    "routing": {"default": False, "sampling_default": False},
-    "trainer": {
-        "backend": "miles",
-        "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
-        "scaling": {"min_instances": 0, "max_instances": 1},
-        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 8},
-        "config": {},
-        "env": {},
-    },
-    "inference": {
-        "backend": "sglang",
-        "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
-        "scaling": {
-            "min_replicas": 0,
-            "max_replicas": 8,
-            "target_concurrency": 16,
-            "scaledown_window_s": 300,
-        },
-        "config": {},
-        "env": {},
-    },
-    "lifecycle": {
-        "session_idle_timeout_s": 300,
-        "pool_idle_timeout_s": 300,
-        "sweep_interval_s": 300,
-    },
-}
-
-
-def _with_defaults(defaults, values):
-    """Fill omitted orchestration settings; explicit values win."""
-    if not isinstance(defaults, dict) or not isinstance(values, dict):
-        return deepcopy(values)
-    result = deepcopy(defaults)
-    for key, value in values.items():
-        result[key] = _with_defaults(defaults.get(key), value)
-    return result
-
-
-@dataclass(kw_only=True, init=False)
-class BaseConfig:
-    """Declare plain section dictionaries and optional inherited overrides."""
-
-    name: str
-    model: dict[str, Any]
-    trainer: dict[str, Any]
-    inference: dict[str, Any]
-    api_version: str
-    routing: dict[str, Any]
-    lifecycle: dict[str, Any]
-    overrides: ClassVar[dict[str, Any]] = {}
-
-    def __init__(self, **kwargs):
-        names = {item.name for item in fields(BaseConfig)}
-        unknown = kwargs.keys() - names
-        if unknown:
-            raise TypeError(f"unknown config fields: {sorted(unknown)}")
-        values = deepcopy(_DEFAULTS)
-        for cls in reversed(type(self).__mro__):
-            for name in names & vars(cls).keys():
-                values[name] = _with_defaults(_DEFAULTS.get(name), vars(cls)[name])
-            for path, value in vars(cls).get("overrides", {}).items():
-                parts = path.split(".")
-                if parts[0] not in names:
-                    raise ValueError(f"unknown config override: {path}")
-                target = values
-                try:
-                    for part in parts[:-1]:
-                        target = target[part]
-                    target[parts[-1]] = deepcopy(value)
-                except (KeyError, TypeError) as exc:
-                    raise ValueError(f"unknown config override: {path}") from exc
-        for name, value in kwargs.items():
-            values[name] = _with_defaults(_DEFAULTS.get(name), value)
-        missing = names - values.keys()
-        if missing:
-            raise TypeError(f"missing config fields: {sorted(missing)}")
-        self.__dict__.update(values)
-
-
-def gpu_count(resources):
-    gpu = resources["gpu"]
-    if not re.fullmatch(r"[A-Za-z0-9-]+(?::[1-9][0-9]*)?", gpu):
-        raise ValueError(f"invalid GPU resource: {gpu}")
-    return int(gpu.split(":")[1]) if ":" in gpu else 1
-
 
 def settings_hash(settings: dict) -> str:
     """Stable identifier for settings, not a claim that they have been validated."""
     return hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()
+
+
+def deployment_generation(
+    spec,
+    platform,
+    miles_commit,
+    trainer_release,
+    inference_release,
+    trainer_settings,
+    inference_settings,
+):
+    identity = asdict(spec)
+    identity.pop("routing")
+    return settings_hash(
+        {
+            "config": identity,
+            "platform": platform,
+            "miles_commit": miles_commit,
+            "trainer_release": trainer_release,
+            "inference_release": inference_release,
+            "trainer_settings": trainer_settings,
+            "inference_settings": inference_settings,
+        }
+    )
+
+
+def platform_defaults():
+    return deepcopy(PLATFORM_DEFAULTS)
 
 
 class DeploymentRecord(BaseModel):
@@ -137,20 +77,20 @@ class DeploymentRecord(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    spec: BaseConfig
-    platform: dict[str, Any] = Field(
-        default_factory=lambda: deepcopy(PLATFORM_DEFAULTS)
-    )
+    spec: Deployment
+    platform: dict[str, Any] = Field(default_factory=platform_defaults)
     trainer_release: str = "initial"
     inference_release: str = "initial"
     miles_commit: str | None = None
+    trainer_settings: dict
+    inference_settings: dict
     generation: str
     active: bool = True
 
     @classmethod
     def create(
         cls,
-        spec: BaseConfig,
+        spec: Deployment,
         *,
         revision: str,
         miles_commit: str | None = None,
@@ -159,28 +99,48 @@ class DeploymentRecord(BaseModel):
         inference_release: str = "initial",
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
-        pinned = deepcopy(spec)
-        pinned.model["revision"] = revision
-        # Changing routing defaults should not restart an existing trainer.
-        identity = asdict(pinned)
-        identity.pop("routing")
+        pinned = replace(deepcopy(spec), model=replace(spec.model, revision=revision))
+        asset_path = model_asset_path(pinned.model.id, revision)
+        trainer_settings, inference_settings = resolve_backend_settings(
+            pinned, asset_path
+        )
         platform = deepcopy(PLATFORM_DEFAULTS if platform is None else platform)
-        generation = settings_hash(
-            {
-                "config": identity,
-                "platform": platform,
-                "miles_commit": miles_commit,
-                "trainer_release": trainer_release,
-                "inference_release": inference_release,
-            }
+        generation = deployment_generation(
+            pinned,
+            platform,
+            miles_commit,
+            trainer_release,
+            inference_release,
+            trainer_settings,
+            inference_settings,
         )
         return cls(
             spec=pinned,
+            trainer_settings=trainer_settings,
+            inference_settings=inference_settings,
             platform=platform,
             trainer_release=trainer_release,
             inference_release=inference_release,
             generation=generation,
             miles_commit=miles_commit,
+        )
+
+    def with_releases(self, trainer_release, inference_release):
+        generation = deployment_generation(
+            self.spec,
+            self.platform,
+            self.miles_commit,
+            trainer_release,
+            inference_release,
+            self.trainer_settings,
+            self.inference_settings,
+        )
+        return self.model_copy(
+            update={
+                "trainer_release": trainer_release,
+                "inference_release": inference_release,
+                "generation": generation,
+            }
         )
 
     @property
@@ -189,8 +149,9 @@ class DeploymentRecord(BaseModel):
         return settings_hash(
             {
                 "name": self.spec.name,
-                "model": self.spec.model,
-                "trainer": self.spec.trainer,
+                "model": asdict(self.spec.model),
+                "trainer": asdict(self.spec.trainer),
+                "settings": self.trainer_settings,
                 "release": self.trainer_release,
                 "platform": self.platform,
                 "miles_commit": self.miles_commit,
@@ -200,21 +161,14 @@ class DeploymentRecord(BaseModel):
     @property
     def inference_hash(self) -> str:
         """Identify inference settings, including the adapter shape it must load."""
-        adapter = {}
-        if self.spec.model["parameterization"] == "lora":
-            options = self.spec.trainer["config"]
-            adapter = {
-                "max_lora_rank": options.get("max_lora_rank"),
-                "target_modules": options.get("target_modules"),
-            }
         return settings_hash(
             {
                 "name": self.spec.name,
-                "model": self.spec.model,
-                "inference": self.spec.inference,
+                "model": asdict(self.spec.model),
+                "inference": asdict(self.spec.inference),
+                "settings": self.inference_settings,
                 "release": self.inference_release,
                 "platform": self.platform,
-                "adapter": adapter,
             }
         )
 
@@ -232,10 +186,12 @@ class DeploymentRecord(BaseModel):
 
     @property
     def asset_path(self) -> str:
-        digest = hashlib.sha256(
-            f"{self.spec.model['id']}@{self.spec.model['revision']}".encode()
-        ).hexdigest()
-        return f"/assets/{digest}"
+        return model_asset_path(self.spec.model.id, self.spec.model.revision)
+
+
+def model_asset_path(model_id, revision):
+    digest = hashlib.sha256(f"{model_id}@{revision}".encode()).hexdigest()
+    return f"/assets/{digest}"
 
 
 def config_path(name: str) -> Path:
@@ -245,8 +201,8 @@ def config_path(name: str) -> Path:
     return Path(str(files("lilo").joinpath("configs", name.replace("-", "_") + ".py")))
 
 
-def load(path: str | Path) -> BaseConfig:
-    """Execute a Python config file and instantiate its exported Config class."""
+def load(path: str | Path) -> Deployment:
+    """Execute a Python config file and read its exported config object."""
     path = Path(path).resolve()
     if path.suffix != ".py":
         raise ValueError("deployment configs must be Python .py files")
@@ -255,17 +211,15 @@ def load(path: str | Path) -> BaseConfig:
     sys.path.insert(0, str(path.parent))
     try:
         namespace = runpy.run_path(str(path))
-        config_class = namespace.get("Config")
-        if not isinstance(config_class, type) or not issubclass(
-            config_class, BaseConfig
-        ):
-            raise ValueError(f"{path} must export a Config subclass of BaseConfig")
-        return config_class()
+        config = namespace.get("config")
+        if not isinstance(config, Deployment):
+            raise ValueError(f"{path} must export a Deployment object named config")
+        return config
     finally:
         sys.path[:] = original_path
 
 
-def validate_frontend(specs: list[BaseConfig]) -> None:
+def validate_frontend(specs: list[Deployment]) -> None:
     if not specs:
         raise ValueError("at least one deployment is required")
     if len({s.name for s in specs}) != len(specs):
@@ -278,12 +232,12 @@ def validate_frontend(specs: list[BaseConfig]) -> None:
             )
     defaults, sampling = set(), set()
     for spec in specs:
-        key = (spec.model["id"], spec.model["parameterization"])
-        if spec.routing["default"]:
+        key = (spec.model.id, spec.model.parameterization)
+        if spec.routing.default:
             if key in defaults:
                 raise ValueError(f"multiple defaults for {key}")
             defaults.add(key)
-        if spec.routing["sampling_default"]:
-            if spec.model["id"] in sampling:
-                raise ValueError(f"multiple sampling defaults for {spec.model['id']}")
-            sampling.add(spec.model["id"])
+        if spec.routing.sampling_default:
+            if spec.model.id in sampling:
+                raise ValueError(f"multiple sampling defaults for {spec.model.id}")
+            sampling.add(spec.model.id)

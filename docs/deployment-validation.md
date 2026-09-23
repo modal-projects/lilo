@@ -2,6 +2,20 @@
 
 These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Earlier sections record validation of the previous shared-app implementation.
 
+## Current: typed config composition and one backend resolution
+
+Configs export a `Deployment` built from validated dataclasses. Ordinary `dataclasses.replace` composes variants; custom inheritance, dotted overrides, and recursive defaults have been removed. Lilo-owned fields reject unknown keys. Backend tuning remains in explicit dictionaries, with duplicates of Lilo-managed settings rejected before constructor calls.
+
+Deployment records save complete trainer and inference settings. Workers consume those settings without resolving them again. SGLang receives `ServerArgs(**settings)` directly; the argparse adapter is now Miles-only. Megatron provider, optimizer, and distributed constructors receive one merged settings dictionary, without attribute-patching loops.
+
+Trainer timeout, CPU, memory, inference startup timeout, and replica scaling are wired through. Unsupported trainer minimum instances and generic inference resource timeout fields are rejected. The merged multi-node Miles launcher is integrated with `Compute.nodes`; a two-node Qwen3.8-27B 256K config replaces the legacy catalog definition.
+
+Validation: **651 CPU tests passed, 1 skipped**. Regression coverage includes misspelled orchestration fields, unsupported settings, optimizer/provider/distributed override collisions, all 15 example configs, saved-record round trips, direct SGLang construction, compute-setting propagation, independent worker updates, and multi-node launcher wiring. No apps were redeployed. GPU backend startup and the new multi-node config have not been live-tested in this revision.
+
+## Historical validation
+
+The sections below describe earlier revisions, including APIs that have since been removed. Their live results do not validate the current implementation.
+
 ## Direct backend configuration
 
 Removed the deployment-specific Miles field-renaming table and Megatron `runtime/provider/optimizer/distributed` schema. Configs now use the existing `MilesBackendConfig` and `EngineModelConfig` field names. Megatron's existing config reader constructs its nested optimizer; extra Megatron constructor settings are explicit `*_overrides` dictionaries instead of being split by field name.

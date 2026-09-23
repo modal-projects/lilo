@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from lilo.backends.miles_config import MilesBackendConfig
+from lilo.backends.miles_arguments import apply_config_overrides
 from lilo.errors import BackendFailed
 
 
@@ -200,7 +201,6 @@ class MilesRuntime:
         )
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
             if self.config.cli_options:
-                from lilo.argparse_config import apply_config_overrides
 
                 def configure(parser):
                     apply_config_overrides(parser, self.config.cli_options, sys.argv)

@@ -1,23 +1,11 @@
-from lilo.deployments import BaseConfig
+from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
 
-
-class Config(BaseConfig):
-    name = "qwen38-27b-lora-16k"
-    model = {
-        "id": "Qwen/Qwen3.8-27B",
-        "parameterization": "lora",
-        "max_context_length": 16384,
-    }
-    routing = {"default": True}
-    trainer = {
-        "backend": "miles",
-        "resources": {"gpu": "H200:8"},
-        "engine": {"max_clients_per_instance": 6, "sampler_persistence_concurrency": 8},
-        "env": {
-            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-            "TORCHINDUCTOR_COMPILE_THREADS": "1",
-        },
-        "config": {
+config = Deployment(
+    name="qwen38-27b-lora-16k",
+    model=Model(id="Qwen/Qwen3.8-27B", max_context_length=16384),
+    trainer=Trainer(
+        compute=Compute(gpu="H200", gpus_per_node=8),
+        config={
             "model_type": "qwen3.8-27B",
             "tensor_model_parallel_size": 4,
             "target_modules": ["linear_qkv", "linear_proj", "linear_fc1", "linear_fc2"],
@@ -31,11 +19,15 @@ class Config(BaseConfig):
                 "recompute_num_layers": 1,
             },
         },
-    }
-    inference = {
-        "resources": {"gpu": "H200:1"},
-        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
-        "config": {
+        env={
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
+        },
+        max_clients_per_instance=6,
+    ),
+    inference=Inference(
+        compute=Compute(gpu="H200"),
+        config={
             "tp_size": 1,
             "ep_size": 1,
             "mem_fraction_static": 0.8,
@@ -43,15 +35,8 @@ class Config(BaseConfig):
             "max_queued_requests": 8,
             "max_loaded_loras": 256,
             "max_loras_per_batch": 8,
-            "lora_target_modules": [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-            ],
             "schedule_policy": "lpm",
         },
-    }
+    ),
+    routing=Routing(default=True),
+)

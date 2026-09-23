@@ -1,23 +1,14 @@
-from lilo.deployments import BaseConfig
+from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
 
-
-class Config(BaseConfig):
-    name = "qwen35-35b-a3b-fft-64k"
-    model = {
-        "id": "Qwen/Qwen3.5-35B-A3B",
-        "parameterization": "full",
-        "max_context_length": 65536,
-    }
-    routing = {"default": True}
-    trainer = {
-        "backend": "megatron",
-        "resources": {"gpu": "H200:8"},
-        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 1},
-        "env": {
-            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-            "TORCHINDUCTOR_COMPILE_THREADS": "1",
-        },
-        "config": {
+config = Deployment(
+    name="qwen35-35b-a3b-fft-64k",
+    model=Model(
+        parameterization="full", id="Qwen/Qwen3.5-35B-A3B", max_context_length=65536
+    ),
+    trainer=Trainer(
+        compute=Compute(gpu="H200", gpus_per_node=8),
+        backend="megatron",
+        config={
             "tensor_model_parallel_size": 4,
             "pipeline_model_parallel_size": 1,
             "context_parallel_size": 2,
@@ -43,11 +34,15 @@ class Config(BaseConfig):
             },
             "optimizer": {"optimizer": "adam", "lr": 0.0001, "min_lr": 0.0001},
         },
-    }
-    inference = {
-        "resources": {"gpu": "H200:4"},
-        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
-        "config": {
+        env={
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
+        },
+        sampler_persistence_concurrency=1,
+    ),
+    inference=Inference(
+        compute=Compute(gpu="H200", gpus_per_node=4),
+        config={
             "tp_size": 4,
             "ep_size": 4,
             "mem_fraction_static": 0.9,
@@ -57,4 +52,6 @@ class Config(BaseConfig):
             "dp_size": 4,
             "enable_dp_attention": True,
         },
-    }
+    ),
+    routing=Routing(default=True),
+)

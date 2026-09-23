@@ -5,51 +5,52 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import subprocess
 import sys
 import uuid
+from copy import deepcopy
+from pathlib import Path
 
+import modal
+from huggingface_hub import HfApi
 
+from lilo.backends.deployment import resolve_backend_settings
 from lilo.deployments import (
-    DeploymentRecord,
     PLATFORM_DEFAULTS,
-    load,
+    DeploymentRecord,
     config_path,
+    load,
     validate_frontend,
 )
+from lilo.providers.modal.deployment_records import MANIFEST_ENV
+from lilo.providers.modal.miles_revision import resolve_miles_commit
 
 
 def compile_configs(paths, *, platform=None):
     specs = [load(path) for path in paths]
     validate_frontend(specs)
-    from lilo.providers.modal.miles_revision import resolve_miles_commit
 
     miles_commit = (
         resolve_miles_commit()
-        if any(spec.trainer["backend"] == "miles" for spec in specs)
+        if any(spec.trainer.backend == "miles" for spec in specs)
         else None
     )
     records = []
     for spec in specs:
-        revision = spec.model.get("revision", "main")
+        revision = spec.model.revision
         if not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
-            from huggingface_hub import HfApi
-
-            revision = HfApi().model_info(spec.model["id"], revision=revision).sha
+            revision = HfApi().model_info(spec.model.id, revision=revision).sha
             if not revision or not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
                 raise ValueError(
-                    f"Hugging Face did not return a commit for {spec.model['id']}"
+                    f"Hugging Face did not return a commit for {spec.model.id}"
                 )
         records.append(
             DeploymentRecord.create(
                 spec,
                 platform=platform,
                 revision=revision,
-                miles_commit=miles_commit
-                if spec.trainer["backend"] == "miles"
-                else None,
+                miles_commit=miles_commit if spec.trainer.backend == "miles" else None,
             )
         )
     return records
@@ -98,16 +99,7 @@ def select_worker_releases(desired, previous, refresh_trainers, refresh_inferenc
             if row.spec.name in refresh_inference
             else old.inference_release
         )
-        result.append(
-            DeploymentRecord.create(
-                row.spec,
-                revision=row.spec.model["revision"],
-                miles_commit=row.miles_commit,
-                platform=row.platform,
-                trainer_release=trainer,
-                inference_release=inference,
-            )
-        )
+        result.append(row.with_releases(trainer, inference))
     return result
 
 
@@ -117,8 +109,6 @@ def worker_apps_ready(row, deployed):
 
 def deploy(desired, *, refresh_trainers=(), refresh_inference=()):
     """Serialize operator applies and retain interrupted attempts for safe recovery."""
-    import modal
-    from lilo.providers.modal.deployment_apps import MANIFEST_ENV
 
     if sys.version_info[:2] != (3, 12):
         raise ValueError(
@@ -278,13 +268,13 @@ def main(argv=None):
                 if not config_path(args.preset).is_file():
                     raise ValueError(f"unknown example config: {args.preset}")
                 print(
-                    f"from lilo.configs.{module} import Config as ParentConfig\n\n\n"
-                    "class Config(ParentConfig):\n"
-                    "    overrides = {}"
+                    f'from dataclasses import replace\nfrom lilo.configs.{module} import config as base\n\nconfig = replace(base, name="my-model")'
                 )
             elif args.action == "validate":
                 specs = [load(path) for path in args.files]
                 validate_frontend(specs)
+                for spec in specs:
+                    resolve_backend_settings(spec, "/assets/pending")
                 print(
                     f"Validated {len(specs)} deployment(s). Backend integration settings are checked when preparing trainers and pools; native options are checked at worker startup."
                 )
@@ -304,8 +294,6 @@ def main(argv=None):
                 else:
                     print(output, end="")
         elif args.command == "deploy":
-            from copy import deepcopy
-
             platform = deepcopy(PLATFORM_DEFAULTS)
             platform["frontend"] = args.app
             platform["modal"].update(environment=args.env, region=args.region)
@@ -315,8 +303,6 @@ def main(argv=None):
                 refresh_inference=args.refresh_inference,
             )
         else:
-            import modal
-
             if args.action == "unlock":
                 registry = modal.Dict.from_name(
                     f"{args.frontend}-yaml-deployments", environment_name=args.env

@@ -1,6 +1,6 @@
-"""Translate config dictionaries into arguments for Miles and SGLang.
+"""Translate config dictionaries into arguments for Miles.
 
-Those backends expose argparse parsers. Append configured values after their
+Miles exposes an argparse parser. Append configured values after their
 preset arguments so argparse itself handles types, choices and required options.
 Boolean flags need defaults because a store_true flag cannot express False.
 """

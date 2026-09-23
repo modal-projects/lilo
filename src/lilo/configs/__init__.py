@@ -1,1 +1,1 @@
-"""Example deployment dataclasses; import and subclass any Config to customize it."""
+"""Example infrastructure objects; compose variants with dataclasses.replace."""

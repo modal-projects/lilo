@@ -1,6 +1,6 @@
 """CPU checks for native config forwarding into Megatron constructors."""
 
-from dataclasses import asdict
+from dataclasses import asdict, make_dataclass
 from pydantic import TypeAdapter
 
 from types import SimpleNamespace
@@ -11,7 +11,7 @@ from runtime_stubs import backend_runtime_imports
 
 from lilo.backends.deployment import backend_config
 from lilo.backends.megatron_config import parse_backend_config
-from lilo.deployments import BaseConfig, load, config_path
+from lilo.deployments import Deployment, load, config_path
 
 with backend_runtime_imports():
     from lilo.backends.megatron_runtime.common import modeling
@@ -25,18 +25,17 @@ def test_config_overrides_reach_megatron(monkeypatch):
     data["trainer"]["config"]["distributed_overrides"] = {"native_ddp_setting": 123}
     data["trainer"]["config"]["provider_overrides"]["native_provider_setting"] = [1, 2]
     config, _ = parse_backend_config(
-        backend_config(TypeAdapter(BaseConfig).validate_python(data))
+        backend_config(TypeAdapter(Deployment).validate_python(data))
     )
     # These stand in for an installed upstream version with extra fields. The
     # deployment reader must not need its own list of those fields.
-    provider = SimpleNamespace(
-        native_provider_setting=None,
-        mtp_num_layers=0,
-        recompute_granularity=None,
-        recompute_method=None,
-        recompute_num_layers=None,
-        provide_distributed_model=Mock(return_value="model"),
-    )
+    # Model providers in Megatron Bridge are dataclasses.
+    fields = {
+        **modeling.provider_settings(config, "bf16"),
+        "provide_distributed_model": Mock(return_value="model"),
+    }
+    Provider = make_dataclass("Provider", [(name, object) for name in fields])
+    provider = Provider(**fields)
     bridge = SimpleNamespace(to_megatron_provider=lambda: provider)
     monkeypatch.setattr(
         modeling,
@@ -50,6 +49,7 @@ def test_config_overrides_reach_megatron(monkeypatch):
     monkeypatch.setattr(modeling, "DistributedDataParallelConfig", ddp_constructor)
     _, actual_provider, _ = modeling.model_provider(config)
     assert actual_provider.native_provider_setting == [1, 2]
+    assert actual_provider is not provider
     assert actual_provider.tensor_model_parallel_size == 2
     optimizer = modeling.optimizer_config(config, "bf16", distributed_optimizer=True)
     assert optimizer["native_optimizer_setting"] is False
@@ -62,5 +62,5 @@ def test_config_overrides_reach_megatron(monkeypatch):
     assert ddp_constructor.call_args.kwargs["use_distributed_optimizer"] is True
     # An unsupported native field is the installed backend's error at startup.
     config.provider_overrides["unknown_field"] = True
-    with pytest.raises(ValueError, match="unknown Megatron provider override"):
+    with pytest.raises(TypeError, match="unknown_field"):
         modeling.model_provider(config)

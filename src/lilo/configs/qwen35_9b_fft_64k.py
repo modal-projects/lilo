@@ -1,23 +1,14 @@
-from lilo.deployments import BaseConfig
+from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
 
-
-class Config(BaseConfig):
-    name = "qwen35-9b-fft-64k"
-    model = {
-        "id": "Qwen/Qwen3.5-9B",
-        "parameterization": "full",
-        "max_context_length": 65536,
-    }
-    routing = {"default": True}
-    trainer = {
-        "backend": "megatron",
-        "resources": {"gpu": "H200:4"},
-        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 1},
-        "env": {
-            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-            "TORCHINDUCTOR_COMPILE_THREADS": "1",
-        },
-        "config": {
+config = Deployment(
+    name="qwen35-9b-fft-64k",
+    model=Model(
+        parameterization="full", id="Qwen/Qwen3.5-9B", max_context_length=65536
+    ),
+    trainer=Trainer(
+        compute=Compute(gpu="H200", gpus_per_node=4),
+        backend="megatron",
+        config={
             "tensor_model_parallel_size": 2,
             "context_parallel_size": 2,
             "sequence_parallel": True,
@@ -34,11 +25,15 @@ class Config(BaseConfig):
             },
             "optimizer": {"lr": 0.0001, "min_lr": 0.0001, "loss_scale": 1.0},
         },
-    }
-    inference = {
-        "resources": {"gpu": "H200:1"},
-        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
-        "config": {
+        env={
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
+        },
+        sampler_persistence_concurrency=1,
+    ),
+    inference=Inference(
+        compute=Compute(gpu="H200"),
+        config={
             "tp_size": 1,
             "ep_size": 1,
             "mem_fraction_static": 0.85,
@@ -46,4 +41,6 @@ class Config(BaseConfig):
             "max_queued_requests": 4,
             "cpu_weight_cache_max_compile_group_gb": 16,
         },
-    }
+    ),
+    routing=Routing(default=True),
+)

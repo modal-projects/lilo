@@ -1,23 +1,11 @@
-from lilo.deployments import BaseConfig
+from lilo.configuration import Compute, Deployment, Inference, Model, Trainer
 
-
-class Config(BaseConfig):
-    name = "qwen35-9b-lora-2k"
-    model = {
-        "id": "Qwen/Qwen3.5-9B-Base",
-        "parameterization": "lora",
-        "max_context_length": 2048,
-    }
-    routing = {"default": False}
-    trainer = {
-        "backend": "miles",
-        "resources": {"gpu": "H200:4"},
-        "engine": {"max_clients_per_instance": 4, "sampler_persistence_concurrency": 8},
-        "env": {
-            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
-            "TORCHINDUCTOR_COMPILE_THREADS": "1",
-        },
-        "config": {
+config = Deployment(
+    name="qwen35-9b-lora-2k",
+    model=Model(id="Qwen/Qwen3.5-9B-Base", max_context_length=2048),
+    trainer=Trainer(
+        compute=Compute(gpu="H200", gpus_per_node=4),
+        config={
             "model_type": "qwen3.5-9B",
             "tensor_model_parallel_size": 4,
             "target_modules": [
@@ -37,11 +25,15 @@ class Config(BaseConfig):
                 "recompute_num_layers": 1,
             },
         },
-    }
-    inference = {
-        "resources": {"gpu": "H200:1"},
-        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
-        "config": {
+        env={
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "TORCHINDUCTOR_COMPILE_THREADS": "1",
+        },
+        max_clients_per_instance=4,
+    ),
+    inference=Inference(
+        compute=Compute(gpu="H200"),
+        config={
             "tp_size": 1,
             "ep_size": 1,
             "mem_fraction_static": 0.8,
@@ -49,16 +41,7 @@ class Config(BaseConfig):
             "max_queued_requests": 8,
             "max_loaded_loras": 32,
             "max_loras_per_batch": 8,
-            "lora_target_modules": [
-                "q_proj",
-                "k_proj",
-                "v_proj",
-                "o_proj",
-                "gate_proj",
-                "up_proj",
-                "down_proj",
-                "lm_head",
-            ],
             "schedule_policy": "lpm",
         },
-    }
+    ),
+)

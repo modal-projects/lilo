@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import modal
+
+from .deployment_records import POOL_CONFIG_ENV, pool_deployment, provision_pool
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -73,8 +76,6 @@ class FFTLatestPool(ModalFlashPool):
         )
 
     def discover_replicas(self) -> list[str]:
-        import modal
-
         try:
             return super().discover_replicas()
         except modal.exception.NotFoundError:
@@ -124,13 +125,9 @@ def deploy_pool(spec: FFTPoolSpec, *, record=None) -> str:
     try:
         return pool.gateway_url()
     except Exception as exc:
-        import modal
-
         if not isinstance(exc, modal.exception.NotFoundError):
             raise
     if record is None:
-        from .deployment_apps import pool_deployment, provision_pool
-
         saved = pool_deployment(spec.definition_id)
         if saved is None:
             raise ValueError(f"missing recorded deployment: {spec.definition_id}")
@@ -138,7 +135,6 @@ def deploy_pool(spec: FFTPoolSpec, *, record=None) -> str:
     modal_cli = shutil.which("modal")
     if modal_cli is None:
         raise RuntimeError("modal CLI is unavailable")
-    from .deployment_apps import POOL_CONFIG_ENV
 
     recipe_env = {POOL_CONFIG_ENV: record.model_dump_json()}
     env = {**os.environ, **spec.env(), **recipe_env}

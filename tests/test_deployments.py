@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace, FrozenInstanceError
 from pydantic import TypeAdapter
 import argparse
 import asyncio
@@ -9,7 +9,7 @@ import pytest
 
 from lilo.deployments import (
     DeploymentRecord,
-    BaseConfig,
+    Deployment,
     load,
     config_path,
     validate_frontend,
@@ -18,7 +18,7 @@ from lilo.deployment_cli import retain_generations
 from lilo.control_plane.deployments import DeploymentRoutes
 from lilo.backends.deployment import backend_config
 from lilo.providers.modal.deployment_apps import definition_from_spec
-from lilo.argparse_config import apply_config_overrides
+from lilo.backends.miles_arguments import apply_config_overrides
 
 
 def recipe(preset="qwen35-9b-lora-16k", **changes):
@@ -29,7 +29,7 @@ def recipe(preset="qwen35-9b-lora-16k", **changes):
         for key in keys[:-1]:
             target = target[key]
         target[keys[-1]] = value
-    return TypeAdapter(BaseConfig).validate_python(data)
+    return TypeAdapter(Deployment).validate_python(data)
 
 
 def resolved(spec=None, **changes):
@@ -51,7 +51,7 @@ def test_presets_context_topology_and_backend_options():
     assert config["cli_options"]["recompute_num_layers"] == 1
     assert config["extra_args"] == ("--seq-length", "16384")
     large = recipe("qwen35-9b-lora-64k")
-    assert large.model["max_context_length"] == 65536
+    assert large.model.max_context_length == 65536
     assert backend_config(large)["miles"]["actor_num_gpus_per_node"] == 8
     fft = backend_config(recipe("qwen35-4b-fft-64k"))["megatron"]
     assert (fft["tensor_model_parallel_size"], fft["context_parallel_size"]) == (2, 2)
@@ -82,7 +82,7 @@ def test_no_model_catalog_required():
         ),
         ({"inference__config": {"model_path": "other"}}, "managed"),
         ({"inference__config": {"tp_size": 2}}, "replica GPU"),
-        ({"trainer__engine__max_clients_per_instance": 7}, "max_lora_slots"),
+        ({"trainer__max_clients_per_instance": 7}, "max_lora_slots"),
         (
             {
                 "inference__config": {
@@ -106,7 +106,7 @@ def test_invalid_integrations_fail_when_building_backend_settings(changes, match
 def test_generation_and_asset_paths_include_exact_base():
     a = resolved()
     assert a.generation == resolved(recipe(routing__default=False)).generation
-    assert a.generation != resolved(recipe(trainer__resources__gpu="H200:4")).generation
+    assert a.generation != resolved(recipe(trainer__compute__gpu="H200")).generation
     b = resolved(recipe(model__id="other/Qwen3.5-9B-Base"))
     assert a.asset_path != b.asset_path
     assert a.asset_path != DeploymentRecord.create(a.spec, revision="b" * 40).asset_path
@@ -117,16 +117,14 @@ def test_frontend_defaults_and_retained_generations():
     large = resolved(recipe("qwen35-9b-lora-64k"))
     routes = DeploymentRoutes([definition(small), definition(large)])
     assert (
-        routes.select(small.spec.model["id"], "lora").DEFINITION_ID
-        == small.definition_id
+        routes.select(small.spec.model.id, "lora").DEFINITION_ID == small.definition_id
     )
     switched = retain_generations(
         [small, large], [resolved(recipe("qwen35-9b-lora-64k", routing__default=True))]
     )
     routes = DeploymentRoutes(map(definition, switched))
     assert (
-        routes.select(small.spec.model["id"], "lora").DEFINITION_ID
-        == large.definition_id
+        routes.select(small.spec.model.id, "lora").DEFINITION_ID == large.definition_id
     )
     # Saved model/checkpoint records continue using their original definition.
     assert (
@@ -146,20 +144,22 @@ def test_ambiguous_model_does_not_get_random_configuration():
     ]
     routes = DeploymentRoutes(map(definition, rows))
     with pytest.raises(ValueError, match="ambiguous.*16k.*64k"):
-        routes.select(rows[0].spec.model["id"], "lora")
+        routes.select(rows[0].spec.model.id, "lora")
     assert routes.capabilities() == []
 
 
 def test_sampling_requires_default_across_training_modes():
     lora = resolved()
-    fft = resolved(recipe("qwen35-4b-fft-64k", model__id=lora.spec.model["id"]))
+    fft = resolved(recipe("qwen35-4b-fft-64k", model__id=lora.spec.model.id))
     routes = DeploymentRoutes(map(definition, [lora, fft]))
     with pytest.raises(ValueError, match="sampling_default"):
-        routes.sampling(lora.spec.model["id"])
-    fft.spec.routing["sampling_default"] = True
+        routes.sampling(lora.spec.model.id)
+    fft.spec = replace(
+        fft.spec, routing=replace(fft.spec.routing, sampling_default=True)
+    )
     assert (
         DeploymentRoutes(map(definition, [lora, fft]))
-        .sampling(lora.spec.model["id"])
+        .sampling(lora.spec.model.id)
         .DEFINITION_ID
         == fft.definition_id
     )
@@ -217,7 +217,7 @@ def test_multiple_models_same_http_service_and_old_binding_survives_switch():
                     json={
                         "session_id": session,
                         "model_seq_id": seq,
-                        "base_model": row.spec.model["id"],
+                        "base_model": row.spec.model.id,
                         "lora_config": {"rank": 32},
                     },
                 )
@@ -280,11 +280,11 @@ def test_native_sections_survive_serialization_without_allowlist():
         "future_optimizer_option": 0.125
     }
     data["trainer"]["config"]["distributed_overrides"] = {"future_ddp_option": False}
-    spec = TypeAdapter(BaseConfig).validate_python(data)
+    spec = TypeAdapter(Deployment).validate_python(data)
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
     assert config.hf_checkpoint == "/assets/pinned"
-    assert config.seq_length == spec.model["max_context_length"]
+    assert config.seq_length == spec.model.max_context_length
     assert config.provider_overrides["future_provider_option"] == {
         "layers": [1, 4],
         "enabled": False,
@@ -312,9 +312,8 @@ def test_megatron_cli_options_preserve_integration_contract(section, options, ma
 
 
 def test_backend_dispatch_rejects_unknown_backend():
-    spec = recipe(trainer__backend="missing")
-    with pytest.raises(ValueError, match="unknown deployment backend"):
-        backend_config(spec)
+    with pytest.raises(ValueError, match="backend"):
+        recipe(trainer__backend="missing")
 
 
 def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
@@ -332,17 +331,15 @@ def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
 
 
 def test_fft_capacity_is_checked_by_backend_setup():
-    spec = recipe("qwen35-4b-fft-64k", trainer__engine__max_clients_per_instance=2)
     with pytest.raises(ValueError, match="FFT trainers admit one client"):
-        backend_config(spec)
+        recipe("qwen35-4b-fft-64k", trainer__max_clients_per_instance=2)
 
 
 def test_reserved_environment_is_checked_by_modal_setup():
     from lilo.providers.modal.deployment_apps import deployment_env
 
-    spec = recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
     with pytest.raises(ValueError, match="managed"):
-        deployment_env(spec.trainer["env"])
+        recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
     assert deployment_env({"MY_SETTING": "value"}) == {"MY_SETTING": "value"}
 
 
@@ -354,7 +351,7 @@ def test_record_creation_copies_without_reparsing():
     original = asdict(spec)
     row = DeploymentRecord.create(spec, revision="a" * 40)
     assert asdict(spec) == original
-    assert row.spec.model["revision"] == "a" * 40
+    assert row.spec.model.revision == "a" * 40
     # The record hash covers settings and the pinned backend dependency, not source.
     expected = original | {"model": original["model"] | {"revision": "a" * 40}}
     expected.pop("routing")
@@ -368,63 +365,53 @@ def test_record_creation_copies_without_reparsing():
                     "platform": row.platform,
                     "trainer_release": "initial",
                     "inference_release": "initial",
+                    "trainer_settings": row.trainer_settings,
+                    "inference_settings": row.inference_settings,
                 },
                 sort_keys=True,
             ).encode()
         ).hexdigest()
     )
-    row.spec.trainer["config"]["max_lora_rank"] = 64
-    assert spec.trainer["config"]["max_lora_rank"] == 32
+    row.spec.trainer.config["max_lora_rank"] = 64
+    assert spec.trainer.config["max_lora_rank"] == 32
     saved = row.model_dump_json()
-    assert DeploymentRecord.model_validate_json(saved) == row
+    assert DeploymentRecord.model_validate_json(saved).model_dump(
+        mode="json"
+    ) == row.model_dump(mode="json")
 
 
-def test_python_config_inheritance_and_independent_defaults(tmp_path):
-    from dataclasses import is_dataclass
-
+def test_python_config_composition(tmp_path):
     path = tmp_path / "model.py"
     path.write_text(
-        "from lilo.configs.qwen35_9b_lora_64k import Config as ParentConfig\n"
-        "class Config(ParentConfig):\n"
-        "    name = 'custom'\n"
-        "    overrides = {'trainer.config.cli_options.new_backend_option': False}\n"
+        "from dataclasses import replace\n"
+        "from lilo.configs.qwen35_9b_lora_16k import config as base\n"
+        "config = replace(base, name='custom', trainer=replace(base.trainer, "
+        "compute=replace(base.trainer.compute, memory_mib=123456)))\n"
     )
-    first, second = load(path), load(path)
-    assert is_dataclass(first)
-    assert first.name == "custom"
-    assert first.model["max_context_length"] == 65536
-    assert first.trainer["config"]["cli_options"]["new_backend_option"] is False
-    first.trainer["config"]["target_modules"].append("extra")
-    assert "extra" not in second.trainer["config"]["target_modules"]
-    assert (
-        "extra"
-        not in load(config_path("qwen35-9b-lora-16k")).trainer["config"][
-            "target_modules"
-        ]
-    )
+    custom = load(path)
+    original = recipe()
+    assert custom.name == "custom"
+    assert custom.trainer.compute.memory_mib == 123456
+    assert custom.trainer.config == original.trainer.config
+    assert original.trainer.compute.memory_mib == 65536
+    with pytest.raises(FrozenInstanceError):
+        custom.trainer.max_instances = 9
 
 
-def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
-    import lilo.backends.deployment as backends
-
-    monkeypatch.setattr(
-        backends, "backend_config", lambda *a: pytest.fail("backend read")
-    )
-    monkeypatch.setattr(
-        backends, "serving_options", lambda *a: pytest.fail("serving read")
-    )
-    spec = load(config_path("qwen35-9b-lora-16k"))
-    assert "revision" not in spec.model
-    record = DeploymentRecord.create(spec, revision="a" * 40)
-    assert record.spec.model["revision"] == "a" * 40
-    assert "revision" not in spec.model
+def test_worker_record_contains_resolved_settings(monkeypatch):
+    record = resolved()
+    assert record.trainer_settings["miles"]["actor_num_gpus_per_node"] == 4
+    assert record.inference_settings["max_lora_rank"] == 32
+    assert DeploymentRecord.model_validate_json(record.model_dump_json()).model_dump(
+        mode="json"
+    ) == record.model_dump(mode="json")
 
 
 @pytest.mark.parametrize("source", ["Config = {}", "class Config: pass", "value = 1"])
 def test_config_file_must_export_config_subclass(tmp_path, source):
     path = tmp_path / "model.py"
     path.write_text(source)
-    with pytest.raises(ValueError, match="Config subclass"):
+    with pytest.raises(ValueError, match="Deployment object"):
         load(path)
 
 
@@ -444,75 +431,25 @@ def test_no_yaml_config_ingestion(tmp_path):
         load(tmp_path / "old.yaml")
 
 
-def test_overrides_inherit_replace_and_copy_values():
-    from lilo.configs.qwen35_9b_lora_16k import Config as Example
-
-    class Parent(Example):
-        overrides = {
-            "trainer.config.target_modules": ["parent"],
-            "trainer.config.cli_options.future_option": {"enabled": True},
-            "inference.config.max_running_requests": 24,
-        }
-
-    class Child(Parent):
-        name = "child"
-        overrides = {
-            "trainer.config.target_modules": ["child"],
-            "trainer.config.cli_options.future_option": {"enabled": False},
-        }
-
-    child = Child()
-    assert child.inference["config"]["max_running_requests"] == 24
-    assert child.trainer["config"]["target_modules"] == ["child"]
-    assert child.trainer["config"]["cli_options"]["future_option"] == {"enabled": False}
-    child.trainer["config"]["target_modules"].append("changed")
-    child.trainer["config"]["cli_options"]["future_option"]["enabled"] = True
-    assert Child.overrides["trainer.config.target_modules"] == ["child"]
-    assert Child().trainer["config"]["cli_options"]["future_option"] == {
-        "enabled": False
-    }
-    assert Parent().trainer["config"]["target_modules"] == ["parent"]
-    assert "overrides" not in asdict(child)
-    assert Child(name="keyword").name == "keyword"
-
-    class Replacement(Parent):
-        trainer = {"resources": {"gpu": "H200:8"}, "config": {"cli_options": {}}}
-        overrides = {"trainer.config.cli_options.new_option": 1}
-
-    # A child's complete field replacement wins over its parent's dotted edits.
-    assert Replacement().trainer["config"] == {"cli_options": {"new_option": 1}}
-
-
 @pytest.mark.parametrize(
-    "path", ["model.missing.value", "trainer.missing.value", "typo"]
+    "section,key",
+    [
+        ("compute", "memroy_mib"),
+        ("trainer", "max_instnaces"),
+        ("trainer", "min_instances"),
+        ("inference", "timeout_s"),
+        ("compute", "timeout_s"),
+    ],
 )
-def test_override_typos_fail_with_the_path(path):
-    from lilo.configs.qwen35_9b_lora_16k import Config as Example
-
-    class Config(Example):
-        overrides = {path: 1}
-
-    with pytest.raises(ValueError, match=path):
-        Config()
-
-
-def test_plain_sections_fill_defaults_without_sharing_values():
-    class Config(BaseConfig):
-        name = "plain"
-        model = {"id": "example/model", "max_context_length": 2048}
-        trainer = {"resources": {"gpu": "H100:4"}, "config": {"future_option": False}}
-        inference = {"resources": {"gpu": "H200"}}
-
-    first, second = Config(), Config()
-    assert type(first.model) is dict
-    assert type(first.trainer) is dict
-    assert "revision" not in first.model
-    assert first.trainer["resources"]["cpu"] == 8
-    assert first.trainer["config"] == {"future_option": False}
-    first.inference["scaling"]["max_replicas"] = 2
-    first.trainer["env"]["CUSTOM"] = "value"
-    assert second.inference["scaling"]["max_replicas"] == 8
-    assert second.trainer["env"] == {}
+def test_orchestration_typos_and_unused_fields_are_rejected(section, key):
+    base = recipe()
+    component = {
+        "compute": base.trainer.compute,
+        "trainer": base.trainer,
+        "inference": base.inference,
+    }[section]
+    with pytest.raises(ValueError, match=key):
+        replace(component, **{key: 9})
 
 
 def test_worker_hashes_cover_only_their_settings():
@@ -548,9 +485,9 @@ def test_examples_only_contain_model_infrastructure():
     for path in Path(config_path("qwen35-9b-lora-16k")).parent.glob("qwen*.py"):
         config = load(path)
         assert not hasattr(config, "deployment")
-        assert "revision" not in config.model
-        assert "runtime_version" not in config.trainer
-        assert "runtime_version" not in config.inference
+        assert config.model.revision == "main"
+        assert "runtime_version" not in asdict(config.trainer)
+        assert "runtime_version" not in asdict(config.inference)
 
 
 @pytest.mark.parametrize("value", ["invalid", 7])
@@ -561,3 +498,40 @@ def test_backend_parser_validates_configured_types_and_choices(value):
     apply_config_overrides(parser, {"count": value}, argv)
     with pytest.raises(SystemExit):
         parser.parse_args(argv)
+
+
+@pytest.mark.parametrize(
+    "section,field",
+    [
+        ("optimizer_overrides", "lr"),
+        ("optimizer_overrides", "adam_eps"),
+        ("provider_overrides", "calculate_per_token_loss"),
+        ("provider_overrides", "attention_backend"),
+        ("distributed_overrides", "overlap_grad_reduce"),
+    ],
+)
+def test_managed_backend_values_fail_before_record_creation(section, field):
+    base = recipe("qwen35-4b-fft-64k")
+    config = {**base.trainer.config, section: {field: 1}}
+    candidate = replace(base, trainer=replace(base.trainer, config=config))
+    with pytest.raises(ValueError, match=field):
+        DeploymentRecord.create(candidate, revision="a" * 40)
+
+
+def test_multinode_ownership_and_topology():
+    config = load(config_path("qwen38-27b-lora-256k"))
+    row = DeploymentRecord.create(config, revision="a" * 40)
+    miles = row.trainer_settings["miles"]
+    assert miles["actor_num_nodes"] == 2
+    assert miles["actor_num_gpus_per_node"] == 8
+    assert miles["tensor_model_parallel_size"] == 2
+    assert miles["context_parallel_size"] == 8
+    invalid = replace(
+        config,
+        trainer=replace(
+            config.trainer,
+            config={**config.trainer.config, "actor_num_nodes": 3},
+        ),
+    )
+    with pytest.raises(ValueError, match="actor_num_nodes"):
+        DeploymentRecord.create(invalid, revision="a" * 40)

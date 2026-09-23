@@ -48,24 +48,23 @@ from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
+from .deployment_records import MANIFEST_ENV, manifest_from_env
 from .deployment_apps import (
-    MANIFEST_ENV,
     definition_from_spec,
     frontend_settings,
-    manifest_from_env,
 )
 
 SETTINGS = frontend_settings()
 APP_NAME = SETTINGS.platform["frontend"]
 ROUTING_REGION = SETTINGS.platform["modal"]["region"]
 MODEL_ASSET_ROOT = "/assets"
-SESSION_IDLE_TIMEOUT = SETTINGS.spec.lifecycle["session_idle_timeout_s"]
-FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = SETTINGS.spec.lifecycle[
-    "pool_idle_timeout_s"
-]
+SESSION_IDLE_TIMEOUT = SETTINGS.spec.lifecycle.session_idle_timeout_s
+FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = (
+    SETTINGS.spec.lifecycle.pool_idle_timeout_s
+)
 FFT_POOL_TOUCH_INTERVAL = 60.0
 LORA_POOL_CHECK_INTERVAL = 60.0
-SWEEP_PERIOD = modal.Period(seconds=SETTINGS.spec.lifecycle["sweep_interval_s"])
+SWEEP_PERIOD = modal.Period(seconds=SETTINGS.spec.lifecycle.sweep_interval_s)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
 _lora_pool_gateways: dict[str, tuple[float, str]] = {}

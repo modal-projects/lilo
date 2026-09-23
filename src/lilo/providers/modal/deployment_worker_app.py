@@ -3,7 +3,8 @@
 import os
 
 from lilo.deployments import DeploymentRecord
-from .deployment_apps import build_trainer_app, build_inference_app
+
+from .deployment_apps import build_inference_app, build_trainer_app
 
 record = DeploymentRecord.model_validate_json(os.environ["LILO_WORKER_DEPLOYMENT"])
 if record.miles_commit:

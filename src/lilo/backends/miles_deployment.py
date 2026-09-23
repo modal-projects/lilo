@@ -2,8 +2,8 @@
 
 from dataclasses import asdict
 
-from lilo.deployments import gpu_count
 from lilo.config_validation import reject_managed_options
+
 from .miles_config import MilesBackendConfig
 
 MILES_MANAGED = {
@@ -48,17 +48,17 @@ MILES_MANAGED = {
 def build_config(spec, asset_path):
     """Pass trainer.config directly to MilesBackendConfig."""
     trainer = spec.trainer
-    if spec.model["parameterization"] != "lora":
-        raise ValueError("Miles requires lora parameterization")
-    settings = trainer["config"]
+    settings = trainer.config
     reject_managed_options(
-        settings, {"hf_checkpoint", "actor_num_gpus_per_node", "extra_args"}
+        settings,
+        {"hf_checkpoint", "actor_num_gpus_per_node", "actor_num_nodes", "extra_args"},
     )
     reject_managed_options(settings.get("cli_options", {}), MILES_MANAGED)
     config = MilesBackendConfig(
         hf_checkpoint=asset_path,
-        actor_num_gpus_per_node=gpu_count(trainer["resources"]),
-        extra_args=("--seq-length", str(spec.model["max_context_length"])),
+        actor_num_gpus_per_node=trainer.compute.gpus_per_node,
+        actor_num_nodes=trainer.compute.nodes,
+        extra_args=("--seq-length", str(spec.model.max_context_length)),
         **settings,
     )
     config.validate()
@@ -66,6 +66,6 @@ def build_config(spec, asset_path):
         config.expert_model_parallel_size * config.expert_tensor_parallel_size
     ):
         raise ValueError("expert parallel sizes must divide the trainer GPU allocation")
-    if trainer["engine"]["max_clients_per_instance"] > config.max_lora_slots:
+    if trainer.max_clients_per_instance > config.max_lora_slots:
         raise ValueError("max_clients_per_instance exceeds max_lora_slots")
     return {"miles": asdict(config), "checkpoint_dir": "/checkpoints"}

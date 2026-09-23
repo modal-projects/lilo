@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from .settings import provider_settings, optimizer_settings, distributed_settings
+
 
 @dataclass(frozen=True, slots=True)
 class OptimizerConfig:
@@ -109,6 +111,9 @@ class EngineModelConfig:
         )
 
     def validate(self, world_size: int) -> None:
+        provider_settings(self, None)
+        optimizer_settings(self, None, self.use_distributed_optimizer)
+        distributed_settings(self, self.use_distributed_optimizer)
         parallel_sizes = {
             "tensor_model_parallel_size": self.tensor_model_parallel_size,
             "pipeline_model_parallel_size": self.pipeline_model_parallel_size,
