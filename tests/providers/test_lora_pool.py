@@ -44,5 +44,5 @@ def test_pool_revision_comes_from_resolved_generation():
 def test_python_definition_cannot_choose_a_pool_revision():
     import pytest
 
-    with pytest.raises(ValueError, match="YAML deployment id"):
+    with pytest.raises(ValueError, match="configured deployment id"):
         LoraPoolSpec("qwen3_5_9b_base_miles_lora_16k")

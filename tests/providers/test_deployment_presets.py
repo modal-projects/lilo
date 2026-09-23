@@ -19,7 +19,7 @@ from lilo.providers.modal.deployment_apps import (
 def test_all_packaged_recipes_validate_offline(path):
     spec = load(path)
     config = backend_config(spec)
-    assert config[spec.trainer['backend']]["hf_checkpoint"] == "/assets/pending"
+    assert config[spec.trainer["backend"]]["hf_checkpoint"] == "/assets/pending"
     serving_options(spec)
 
 
@@ -38,7 +38,7 @@ def test_moe_rollout_preserves_attention_data_parallelism():
     assert options["tp_size"] == options["dp_size"] == options["ep_size"] == 4
     assert options["enable_dp_attention"] is True
     definition = definition_from_spec(
-        DeploymentRecord.create(spec, revision="a" * 40, implementation="test"), register_trainer=False
+        DeploymentRecord.create(spec, revision="a" * 40), register_trainer=False
     )
     assert definition.ROLLOUT_GPUS == 4
     assert definition.ROLLOUT_TENSOR_PARALLEL_SIZE == 1

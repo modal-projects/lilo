@@ -1,4 +1,4 @@
-"""Model-name routing for shared YAML deployments and scoped engines."""
+"""Model-name routing for configured deployments and scoped engines."""
 
 
 class DeploymentRoutes:

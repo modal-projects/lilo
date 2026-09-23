@@ -1,6 +1,14 @@
 # Deployment configuration validation
 
-These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
+These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Earlier sections record validation of the previous shared-app implementation.
+
+## Independent worker apps and config hashes
+
+Removed the global source fingerprint and its code-upgrade rejection. The config hash identifies saved job settings; separate trainer and inference hashes identify worker apps. Runtime upgrades use explicit per-role `runtime_version` labels. The CLI skips existing worker apps, deploys changed ones before updating the frontend, and records successful workers for retry. Inference provisioners retain their source in an image so idle pools can restart using their original code.
+
+CPU tests cover inference-only changes, Miles-only updates beside Megatron, runtime-version changes, adapter-shape changes, retained configurations, interrupted deploy recovery, frontend trainer references, remote spawn arguments, saved inference provisioners, and construction of both real Modal worker entrypoints without deploying. Trainer capacity remains enforced per saved definition by the existing control plane; there is no function-wide cap blocking new definitions behind retained jobs.
+
+Validation: **615 CPU tests passed, 1 skipped**. Ruff and whitespace checks passed. Deployment-command isolation is tested with mocked Modal calls; no apps were redeployed and this architecture has not yet had a live GPU/deployment test. Existing manifests from the earlier shared-app draft require migration or a fresh frontend/registry. Worker API compatibility across future releases and cleanup of unused worker apps remain explicit operational concerns.
 
 ## Plain dictionary sections
 

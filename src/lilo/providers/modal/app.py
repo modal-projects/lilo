@@ -56,19 +56,21 @@ from .deployment_apps import (
 )
 
 SETTINGS = frontend_settings()
-APP_NAME = SETTINGS.deployment['frontend']
-ROUTING_REGION = SETTINGS.deployment['modal']['region']
+APP_NAME = SETTINGS.deployment["frontend"]
+ROUTING_REGION = SETTINGS.deployment["modal"]["region"]
 MODEL_ASSET_ROOT = "/assets"
-SESSION_IDLE_TIMEOUT = SETTINGS.lifecycle['session_idle_timeout_s']
-FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = SETTINGS.lifecycle['pool_idle_timeout_s']
+SESSION_IDLE_TIMEOUT = SETTINGS.lifecycle["session_idle_timeout_s"]
+FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = SETTINGS.lifecycle[
+    "pool_idle_timeout_s"
+]
 FFT_POOL_TOUCH_INTERVAL = 60.0
 LORA_POOL_CHECK_INTERVAL = 60.0
-SWEEP_PERIOD = modal.Period(seconds=SETTINGS.lifecycle['sweep_interval_s'])
+SWEEP_PERIOD = modal.Period(seconds=SETTINGS.lifecycle["sweep_interval_s"])
 CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
 _lora_pool_gateways: dict[str, tuple[float, str]] = {}
 _lora_pool_checks: dict[str, asyncio.Lock] = {}
-CHECKPOINT_VOLUME_NAME = SETTINGS.deployment['storage']['checkpoints']
+CHECKPOINT_VOLUME_NAME = SETTINGS.deployment["storage"]["checkpoints"]
 checkpoint_volume = modal.Volume.from_name(
     CHECKPOINT_VOLUME_NAME, create_if_missing=True, version=2
 )
@@ -79,8 +81,6 @@ TRAINER_DEPLOYMENT_ENV = {
     "LILO_APP_NAME": APP_NAME,
 }
 app = modal.App(APP_NAME)
-for definition in DEFINITIONS:
-    app.include(definition.app)
 
 
 async def _read_checkpoint_metadata(uri: str) -> dict[str, object]:
@@ -110,13 +110,13 @@ image = (
     .add_local_python_source("lilo", ignore=ignore_config_source)
 )
 model_assets = modal.Volume.from_name(
-    SETTINGS.deployment['storage']['assets'],
+    SETTINGS.deployment["storage"]["assets"],
     create_if_missing=True,
 )
-API_SECRET_NAME = SETTINGS.deployment['secrets']['api']
-HF_SECRET_NAME = SETTINGS.deployment['secrets']['huggingface']
+API_SECRET_NAME = SETTINGS.deployment["secrets"]["api"]
+HF_SECRET_NAME = SETTINGS.deployment["secrets"]["huggingface"]
 proxy_secret = modal.Secret.from_name(
-    SETTINGS.deployment['secrets']['sampler_proxy'],
+    SETTINGS.deployment["secrets"]["sampler_proxy"],
     required_keys=["MODAL_PROXY_TOKEN_ID", "MODAL_PROXY_TOKEN_SECRET"],
 )
 
@@ -395,8 +395,9 @@ async def kick_trainer_reconciler(definition_id: str) -> None:
 async def _spawn_engine(definition_id: str, instance_id: str) -> str:
     if error := await deployment_error(definition_id):
         raise ValueError(error)
-    engine = module_for(definition_id).ENGINE_FUNCTION
-    call = await engine.spawn.aio(instance_id)
+    definition = module_for(definition_id)
+    engine = definition.ENGINE_FUNCTION
+    call = await engine.spawn.aio(instance_id, definition.RESOLVED.model_dump_json())
     return call.object_id
 
 

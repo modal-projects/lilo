@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,29 +20,16 @@ from lilo.deployments import (
 )
 
 
-def implementation_fingerprint(miles_commit: str | None) -> str:
-    """Hash shipped source and dependency declarations, independent of Git checkout."""
-    from importlib.metadata import requires
-
-    root = Path(__file__).parent
-    digest = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
-        relative = path.relative_to(root)
-        if relative.parts[0] == "configs":
-            continue  # Config values are hashed separately in DeploymentRecord.
-        digest.update(str(relative).encode())
-        digest.update(path.read_bytes())
-    digest.update(json.dumps([miles_commit, sorted(requires("lilo") or [])]).encode())
-    return digest.hexdigest()
-
-
 def compile_configs(paths):
     specs = [load(path) for path in paths]
     validate_frontend(specs)
     from lilo.providers.modal.miles_revision import resolve_miles_commit
 
-    miles_commit = resolve_miles_commit()
-    implementation = implementation_fingerprint(miles_commit)
+    miles_commit = (
+        resolve_miles_commit()
+        if any(spec.trainer["backend"] == "miles" for spec in specs)
+        else None
+    )
     records = []
     for spec in specs:
         revision = spec.model["revision"]
@@ -59,8 +45,9 @@ def compile_configs(paths):
             DeploymentRecord.create(
                 spec,
                 revision=revision,
-                implementation=implementation,
-                miles_commit=miles_commit,
+                miles_commit=miles_commit
+                if spec.trainer["backend"] == "miles"
+                else None,
             )
         )
     return records
@@ -71,10 +58,6 @@ def retain_generations(previous, desired):
     validate_frontend([row.spec for row in desired])
     expected = desired[0]
     for row in previous:
-        if row.implementation != expected.implementation:
-            raise ValueError(
-                "This draft cannot rebuild retained generations with different Lilo/runtime code. Use a separate frontend for a code upgrade; Config-only changes can retain existing generations."
-            )
         if (
             row.spec.deployment != expected.spec.deployment
             or row.spec.lifecycle != expected.spec.lifecycle
@@ -91,6 +74,10 @@ def retain_generations(previous, desired):
             if row.definition_id not in ids
         ),
     ]
+
+
+def worker_apps_ready(row, deployed):
+    return row.trainer_app_name in deployed and row.inference_app_name in deployed
 
 
 def deploy(desired):
@@ -127,8 +114,14 @@ def deploy(desired):
                 raise ValueError(
                     "The frontend already exists without a deployment registry. Choose a new frontend name; an app with no deployment registry cannot be safely updated."
                 )
-        # A killed deploy may already have updated Modal. Keep its functions on retry.
-        rows = {r["generation"]: r for r in [*rows, *registry.get("pending", [])]}
+        # Only complete worker pairs could have been exposed by a pending frontend.
+        deployed = set(registry.get("worker_apps", []))
+        pending = [
+            row
+            for row in registry.get("pending", [])
+            if worker_apps_ready(DeploymentRecord.model_validate(row), deployed)
+        ]
+        rows = {r["generation"]: r for r in [*rows, *pending]}
         manifest = retain_generations(
             [DeploymentRecord.model_validate(row) for row in rows.values()], desired
         )
@@ -138,8 +131,6 @@ def deploy(desired):
             MANIFEST_ENV: json.dumps(data),
             "LILO_APP_NAME": settings["frontend"],
         }
-        if desired[0].miles_commit:
-            env["LILO_MILES_COMMIT"] = desired[0].miles_commit
         command = [
             sys.executable,
             "-m",
@@ -151,6 +142,50 @@ def deploy(desired):
         if settings["modal"]["environment"]:
             command += ["--env", settings["modal"]["environment"]]
         registry.put("pending", data)
+        # Deploy each worker app once. Retained apps keep their original code.
+        deployed = set(registry.get("worker_apps", []))
+        for row in manifest:
+            for role, app_name in (
+                ("trainer", row.trainer_app_name),
+                ("inference", row.inference_app_name),
+            ):
+                if app_name in deployed:
+                    continue
+                if not row.active:
+                    raise ValueError(
+                        f"Retained worker {app_name} is missing; restore its original deployment."
+                    )
+                # Recover a crash after Modal succeeded but before the registry write.
+                try:
+                    modal.App.lookup(
+                        app_name, environment_name=settings["modal"]["environment"]
+                    )
+                except modal.exception.NotFoundError:
+                    pass
+                else:
+                    deployed.add(app_name)
+                    registry.put("worker_apps", sorted(deployed))
+                    continue
+                worker_env = {
+                    **os.environ,
+                    "LILO_WORKER_DEPLOYMENT": row.model_dump_json(),
+                    "LILO_WORKER_ROLE": role,
+                }
+                if row.miles_commit:
+                    worker_env["LILO_MILES_COMMIT"] = row.miles_commit
+                worker_command = [
+                    sys.executable,
+                    "-m",
+                    "modal",
+                    "deploy",
+                    "-m",
+                    "lilo.providers.modal.deployment_worker_app",
+                ]
+                if settings["modal"]["environment"]:
+                    worker_command += ["--env", settings["modal"]["environment"]]
+                subprocess.run(worker_command, check=True, env=worker_env)
+                deployed.add(app_name)
+                registry.put("worker_apps", sorted(deployed))
         subprocess.run(command, check=True, env=env)
         registry.put("manifest", data)
         registry.pop("pending", None)

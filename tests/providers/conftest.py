@@ -10,7 +10,7 @@ os.environ.setdefault(
     json.dumps(
         [
             DeploymentRecord.create(
-                load(config_path(name)), revision="a" * 40, implementation="tests"
+                load(config_path(name)), revision="a" * 40
             ).model_dump(mode="json")
             for name in ("qwen35-9b-fft-64k", "qwen35-9b-lora-16k")
         ]

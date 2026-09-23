@@ -22,7 +22,6 @@ def deployment():
     return DeploymentRecord.create(
         load(config_path("qwen35-9b-lora-16k")),
         revision="a" * 40,
-        implementation="test",
     )
 
 
@@ -46,8 +45,10 @@ def test_deploy_is_serialized_and_commits_only_after_success(registry, monkeypat
         assert "apply_lock" in registry
         assert "pending" in registry
         assert "manifest" not in registry
-        assert "lilo.providers.modal.app" in command
-        seen.extend(json.loads(kwargs["env"][MANIFEST_ENV]))
+        if "lilo.providers.modal.app" in command:
+            seen.extend(json.loads(kwargs["env"][MANIFEST_ENV]))
+        else:
+            assert "lilo.providers.modal.deployment_worker_app" in command
 
     monkeypatch.setattr(subprocess, "run", run)
     cli.deploy([row])
@@ -72,12 +73,11 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
     assert "manifest" not in registry and "apply_lock" not in registry
     new_spec = deepcopy(row.spec)
     new_spec.trainer["scaling"]["max_instances"] = 2
-    new = DeploymentRecord.create(new_spec, revision="a" * 40, implementation="test")
+    new = DeploymentRecord.create(new_spec, revision="a" * 40)
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
     cli.deploy([new])
     assert [(r["generation"], r["active"]) for r in registry["manifest"]] == [
         (new.generation, True),
-        (row.generation, False),
     ]
 
 
@@ -130,7 +130,6 @@ def test_compile_pins_revision_at_external_boundary(
     lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
     monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)
     monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
-    monkeypatch.setattr(cli, "implementation_fingerprint", lambda _: "runtime")
     (row,) = cli.compile_configs([path])
     assert row.spec.model["revision"] == "a" * 40
     assert lookup.call_count == lookups
@@ -138,24 +137,6 @@ def test_compile_pins_revision_at_external_boundary(
         lookup.return_value.sha = None
         with pytest.raises(ValueError, match="did not return a commit"):
             cli.compile_configs([path])
-
-
-def test_config_edits_do_not_change_runtime_fingerprint(tmp_path, monkeypatch):
-    import importlib.metadata
-
-    root = tmp_path / "lilo"
-    (root / "configs").mkdir(parents=True)
-    runtime = root / "runtime.py"
-    runtime.write_text("runtime = 1")
-    config = root / "configs" / "example.py"
-    config.write_text("gpu = 'H100:4'")
-    monkeypatch.setattr(cli, "__file__", str(root / "deployment_cli.py"))
-    monkeypatch.setattr(importlib.metadata, "requires", lambda _: [])
-    before = cli.implementation_fingerprint("miles-commit")
-    config.write_text("gpu = 'H200:8'")
-    assert cli.implementation_fingerprint("miles-commit") == before
-    runtime.write_text("runtime = 2")
-    assert cli.implementation_fingerprint("miles-commit") != before
 
 
 def test_worker_source_mount_excludes_authoring_configs():
@@ -167,3 +148,110 @@ def test_worker_source_mount_excludes_authoring_configs():
     assert ignore_config_source(Path("data.json"))
     assert not ignore_config_source(Path("deployments.py"))
     assert not ignore_config_source(Path("backends/miles_config.py"))
+
+
+def test_only_changed_worker_is_deployed(registry, monkeypatch):
+    row = deployment()
+    calls = []
+
+    def run(command, **kwargs):
+        if "lilo.providers.modal.deployment_worker_app" in command:
+            calls.append(kwargs["env"]["LILO_WORKER_ROLE"])
+        else:
+            calls.append("frontend")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    cli.deploy([row])
+    assert calls == ["trainer", "inference", "frontend"]
+
+    calls.clear()
+    cli.deploy([row])
+    assert calls == ["frontend"]
+
+    changed = deepcopy(row.spec)
+    changed.inference["scaling"]["max_replicas"] = 6
+    new = DeploymentRecord.create(changed, revision="a" * 40)
+    calls.clear()
+    cli.deploy([new])
+    assert calls == ["inference", "frontend"]
+    assert new.trainer_app_name == row.trainer_app_name
+    assert registry["manifest"][1]["active"] is False
+
+    changed.trainer["runtime_version"] = "new-trainer-code"
+    newest = DeploymentRecord.create(changed, revision="a" * 40)
+    calls.clear()
+    cli.deploy([newest])
+    assert calls == ["trainer", "frontend"]
+    assert newest.inference_app_name == new.inference_app_name
+
+
+def test_backend_update_does_not_redeploy_other_models(registry, monkeypatch):
+    miles = deployment()
+    fft = DeploymentRecord.create(
+        load(config_path("qwen35-4b-fft-64k")),
+        revision="a" * 40,
+    )
+    calls = []
+
+    def run(command, **kwargs):
+        if "LILO_WORKER_DEPLOYMENT" in kwargs["env"]:
+            calls.append(
+                (
+                    kwargs["env"]["LILO_WORKER_ROLE"],
+                    json.loads(kwargs["env"]["LILO_WORKER_DEPLOYMENT"])["spec"]["name"],
+                )
+            )
+
+    monkeypatch.setattr(subprocess, "run", run)
+    cli.deploy([miles, fft])
+    calls.clear()
+    spec = deepcopy(miles.spec)
+    spec.trainer["runtime_version"] = "2"
+    cli.deploy([DeploymentRecord.create(spec, revision="a" * 40), fft])
+    assert calls == [("trainer", miles.spec.name)]
+
+
+def test_retry_preserves_successfully_deployed_workers(registry, monkeypatch):
+    row = deployment()
+    calls = []
+
+    def fail_frontend(command, **kwargs):
+        calls.append(kwargs["env"].get("LILO_WORKER_ROLE", "frontend"))
+        if "lilo.providers.modal.app" in command:
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(subprocess, "run", fail_frontend)
+    with pytest.raises(subprocess.CalledProcessError):
+        cli.deploy([row])
+    assert len(registry["worker_apps"]) == 2
+    calls.clear()
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **kwargs: calls.append(
+            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
+        ),
+    )
+    cli.deploy([row])
+    assert calls == ["frontend"]
+
+
+def test_recover_worker_deployed_before_registry_write(registry, monkeypatch):
+    row = deployment()
+    calls = []
+
+    def lookup(name, **kwargs):
+        if name == row.trainer_app_name:
+            return object()
+        raise modal.exception.NotFoundError("not deployed")
+
+    monkeypatch.setattr(modal.App, "lookup", lookup)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **kwargs: calls.append(
+            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
+        ),
+    )
+    cli.deploy([row])
+    assert calls == ["inference", "frontend"]

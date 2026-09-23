@@ -23,6 +23,7 @@ _DEFAULTS = {
     "routing": {"default": False, "sampling_default": False},
     "trainer": {
         "backend": "miles",
+        "runtime_version": "1",
         "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
         "scaling": {"min_instances": 0, "max_instances": 1},
         "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 8},
@@ -31,6 +32,7 @@ _DEFAULTS = {
     },
     "inference": {
         "backend": "sglang",
+        "runtime_version": "1",
         "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
         "scaling": {
             "min_replicas": 0,
@@ -123,18 +125,22 @@ def gpu_count(resources):
     return int(gpu.split(":")[1]) if ":" in gpu else 1
 
 
+def settings_hash(settings: dict) -> str:
+    """Stable identifier for settings, not a claim that they have been validated."""
+    return hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()
+
+
 class DeploymentRecord(BaseModel):
     """Saved deployment metadata around a Python configuration.
 
     The CLI resolves the model revision before creating this record. Its hash
-    binds jobs to their original code and configuration across later deploys;
+    binds jobs to their original configuration across later deploys;
     active controls whether new clients can select it.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     spec: BaseConfig
-    implementation: str
     miles_commit: str | None = None
     generation: str
     active: bool = True
@@ -145,7 +151,6 @@ class DeploymentRecord(BaseModel):
         spec: BaseConfig,
         *,
         revision: str,
-        implementation: str,
         miles_commit: str | None = None,
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
@@ -154,15 +159,53 @@ class DeploymentRecord(BaseModel):
         # Changing routing defaults should not restart an existing trainer.
         identity = asdict(pinned)
         identity.pop("routing")
-        generation = hashlib.sha256(
-            json.dumps([implementation, identity], sort_keys=True).encode()
-        ).hexdigest()
+        generation = settings_hash({"config": identity, "miles_commit": miles_commit})
         return cls(
             spec=pinned,
-            implementation=implementation,
             generation=generation,
             miles_commit=miles_commit,
         )
+
+    @property
+    def trainer_hash(self) -> str:
+        """Identify trainer settings and the operator-selected runtime version."""
+        return settings_hash(
+            {
+                "name": self.spec.name,
+                "model": self.spec.model,
+                "trainer": self.spec.trainer,
+                "deployment": self.spec.deployment,
+                "miles_commit": self.miles_commit,
+            }
+        )
+
+    @property
+    def inference_hash(self) -> str:
+        """Identify inference settings, including the adapter shape it must load."""
+        adapter = {}
+        if self.spec.model["parameterization"] == "lora":
+            options = self.spec.trainer["config"].get("options", {})
+            adapter = {
+                "lora_rank": options.get("lora_rank"),
+                "target_modules": options.get("target_modules"),
+            }
+        return settings_hash(
+            {
+                "name": self.spec.name,
+                "model": self.spec.model,
+                "inference": self.spec.inference,
+                "deployment": self.spec.deployment,
+                "adapter": adapter,
+            }
+        )
+
+    @property
+    def trainer_app_name(self) -> str:
+        return f"lilo-trainer-{self.trainer_hash[:24]}"
+
+    @property
+    def inference_app_name(self) -> str:
+        return f"lilo-inference-{self.inference_hash[:24]}"
 
     @property
     def definition_id(self) -> str:

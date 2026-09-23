@@ -15,7 +15,7 @@ from lilo.deployments import load, config_path, DeploymentRecord
 
 def definition_id(preset):
     return DeploymentRecord.create(
-        load(config_path(preset)), revision="a" * 40, implementation="tests"
+        load(config_path(preset)), revision="a" * 40
     ).definition_id
 
 

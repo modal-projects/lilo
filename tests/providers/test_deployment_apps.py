@@ -12,9 +12,7 @@ from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 
 def deployment(preset="qwen35-9b-lora-16k"):
-    return DeploymentRecord.create(
-        load(config_path(preset)), revision="a" * 40, implementation="runtime"
-    )
+    return DeploymentRecord.create(load(config_path(preset)), revision="a" * 40)
 
 
 class App:
@@ -56,13 +54,13 @@ def test_trainer_declaration_and_executor_configuration(
     builders, monkeypatch, preset, backend, clients, nproc
 ):
     row = deployment(preset)
-    row.spec.deployment['storage']['checkpoints'] = "test-custom-checkpoints"
+    row.spec.deployment["storage"]["checkpoints"] = "test-custom-checkpoints"
     image = object()
     app, trainer = deployment_apps.build_trainer_app(row, image=image)
-    declaration, _ = app.functions[row.definition_id]
+    declaration, _ = app.functions["trainer"]
     assert declaration["gpu"] == "H100:4"
     assert declaration["region"] == "us-west"
-    assert declaration["max_containers"] == 1
+    assert declaration["max_containers"] is None
     assert declaration["single_use_containers"] is True
     assert declaration["image"] is image
     calls = []
@@ -80,7 +78,7 @@ def test_trainer_declaration_and_executor_configuration(
         "run_engine_with_backend",
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
-    trainer("instance-a")
+    trainer("instance-a", row.model_dump_json())
     args, kwargs = calls[0]
     assert args == ("store", f"lilo.backends.{backend}:build_executor")
     assert kwargs["max_models"] == clients
@@ -88,7 +86,7 @@ def test_trainer_declaration_and_executor_configuration(
     assert kwargs["backend_env"]["LILO_CHECKPOINT_VOLUME"] == "test-custom-checkpoints"
     assert kwargs["backend_env"]["LILO_BASE_MODEL_REVISION"] == "a" * 40
     config = json.loads(kwargs["backend_env"]["LILO_BACKEND_CONFIG"])
-    assert config[row.spec.trainer['backend']]["hf_checkpoint"] == row.asset_path
+    assert config[row.spec.trainer["backend"]]["hf_checkpoint"] == row.asset_path
     assert config["checkpoint_dir"] == "/checkpoints"
     assert reloaded == [True]
 
@@ -108,7 +106,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     app, server = deployment_apps.build_rollout_app(row, pool, image="test-image")
     settings, _ = app.servers["Server"]
     assert app.name == pool.app_name
-    assert settings["gpu"] == row.spec.inference['resources']['gpu']
+    assert settings["gpu"] == row.spec.inference["resources"]["gpu"]
     assert settings["min_containers"] == 0
     assert settings["target_concurrency"] == 16
     assert settings["compute_region"] == "us-west"
@@ -138,7 +136,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     assert commands[0][2] == "lilo.inference.native_sglang"
     assert commands[0][3] == row.asset_path
     native = json.loads(commands[0][4])
-    assert native["context_length"] == row.spec.model['max_context_length']
+    assert native["context_length"] == row.spec.model["max_context_length"]
     if kind == "lora":
         assert native["enable_lora"] is True
         assert native["max_lora_rank"] == 32
@@ -165,7 +163,9 @@ def test_pool_subprocess_receives_recorded_generation(monkeypatch):
     row = deployment()
     monkeypatch.setenv(deployment_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
     env = deployment_apps.pool_environment(row.definition_id)
-    assert json.loads(env[deployment_apps.POOL_CONFIG_ENV])["generation"] == row.generation
+    assert (
+        json.loads(env[deployment_apps.POOL_CONFIG_ENV])["generation"] == row.generation
+    )
     with pytest.raises(ValueError, match="missing recorded"):
         deployment_apps.pool_environment("yaml_missing_123")
     with pytest.raises(ValueError, match="missing recorded"):
@@ -232,13 +232,16 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     old_bytes = serialize(deployment_apps.build_trainer_app(first, image="test")[1])
     changed = first.model_copy(deep=True)
     changed.active = False
-    changed.spec.routing['default'] = not first.spec.routing['default']
-    changed.spec.routing['sampling_default'] = True
+    changed.spec.routing["default"] = not first.spec.routing["default"]
+    changed.spec.routing["sampling_default"] = True
     new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
-    assert first.active is True and first.spec.routing['default'] is True
-    changed.spec.trainer['resources']['gpu'] = "H200:4"
-    assert serialize(deployment_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
+    assert first.active is True and first.spec.routing["default"] is True
+    changed.spec.trainer["resources"]["gpu"] = "H200:4"
+    assert (
+        serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
+        != old_bytes
+    )
 
 
 @pytest.mark.parametrize("kind", ["lora", "full"])
@@ -272,10 +275,148 @@ def test_pool_launch_uses_only_generic_yaml_app(monkeypatch, kind):
         "run",
         lambda command, **kwargs: calls.append((command, kwargs)),
     )
-    assert module.deploy_pool(spec) == "https://pool"
+    assert module.deploy_pool(spec, record=row) == "https://pool"
     command, kwargs = calls[0]
-    assert command[command.index("-m") + 1] == "lilo.providers.modal.deployment_pool_app"
+    assert (
+        command[command.index("-m") + 1] == "lilo.providers.modal.deployment_pool_app"
+    )
     assert (
         json.loads(kwargs["env"][deployment_apps.POOL_CONFIG_ENV])["generation"]
         == row.generation
     )
+
+
+def test_frontend_uses_deployed_trainer_without_building_it(monkeypatch):
+    row = deployment()
+    calls = []
+    monkeypatch.setattr(
+        deployment_apps,
+        "build_trainer_app",
+        lambda *a, **k: pytest.fail("frontend must not rebuild trainer"),
+    )
+    monkeypatch.setattr(
+        modal.Function,
+        "from_name",
+        lambda *a, **k: calls.append((a, k)) or "remote-trainer",
+    )
+    definition = deployment_apps.definition_from_spec(row)
+    assert definition.ENGINE_FUNCTION == "remote-trainer"
+    assert calls[0][0] == (row.trainer_app_name, "trainer")
+
+
+@pytest.mark.parametrize("kind", ["lora", "full"])
+def test_missing_pool_uses_saved_provisioner(monkeypatch, kind):
+    from lilo.providers.modal import fft_pool, lora_pool
+
+    row = deployment("qwen35-9b-lora-16k" if kind == "lora" else "qwen35-4b-fft-64k")
+    monkeypatch.setenv(deployment_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
+    module = lora_pool if kind == "lora" else fft_pool
+    spec = (
+        LoraPoolSpec(row.definition_id)
+        if kind == "lora"
+        else FFTPoolSpec.base(row.definition_id)
+    )
+
+    class MissingPool:
+        def __init__(self, *args):
+            pass
+
+        def gateway_url(self):
+            raise modal.exception.NotFoundError("not deployed")
+
+    monkeypatch.setattr(module, "ModalFlashPool", MissingPool)
+    calls = []
+    monkeypatch.setattr(
+        modal.Function,
+        "from_name",
+        lambda name, function, **kw: (
+            calls.append((name, function))
+            or SimpleNamespace(remote=lambda record, pool: "https://saved-runtime")
+        ),
+    )
+    monkeypatch.setattr(
+        module.subprocess, "run", lambda *a, **k: pytest.fail("frontend rebuilt pool")
+    )
+    assert module.deploy_pool(spec) == "https://saved-runtime"
+    assert calls == [(row.inference_app_name, "provision")]
+
+
+def test_provisioner_rejects_wrong_settings_and_uses_saved_record(
+    builders, monkeypatch
+):
+    from lilo.providers.modal import lora_pool
+
+    row = deployment()
+    app, provision = deployment_apps.build_inference_app(row, image="test")
+    assert app.name == row.inference_app_name
+    calls = []
+    monkeypatch.setattr(
+        lora_pool,
+        "deploy_pool",
+        lambda pool, *, record: calls.append((pool, record)) or "https://pool",
+    )
+    pool = LoraPoolSpec(row.definition_id)
+    assert provision(row.model_dump_json(), pool.as_dict()) == "https://pool"
+    assert calls[0][1].inference_hash == row.inference_hash
+    changed = row.model_copy(deep=True)
+    changed.spec.inference["runtime_version"] = "2"
+    with pytest.raises(ValueError, match="inference settings"):
+        provision(changed.model_dump_json(), pool.as_dict())
+
+
+@pytest.mark.parametrize("role", ["trainer", "inference"])
+def test_real_worker_entrypoint_constructs_offline(monkeypatch, role):
+    import os
+    import subprocess
+    import sys
+
+    row = deployment()
+    env = {
+        **os.environ,
+        "LILO_WORKER_DEPLOYMENT": row.model_dump_json(),
+        "LILO_WORKER_ROLE": role,
+    }
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import modal
+from lilo.providers.modal import deployment_apps
+deployment_apps.image_for = lambda backend: modal.Image.debian_slim()
+import lilo.providers.modal.deployment_worker_app as worker
+assert worker.app.name.startswith("lilo-")
+print(worker.app.name)
+""",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert f"lilo-{role}-" in result.stdout
+
+
+def test_spawn_passes_job_configuration_to_saved_trainer(monkeypatch):
+    import importlib
+
+    app = importlib.import_module("lilo.providers.modal.app")
+    row = deployment()
+    calls = []
+
+    async def spawn(instance_id, config_json):
+        calls.append((instance_id, config_json))
+        return SimpleNamespace(object_id="call-id")
+
+    async def no_error(definition_id):
+        return None
+
+    definition = SimpleNamespace(
+        RESOLVED=row,
+        ENGINE_FUNCTION=SimpleNamespace(spawn=SimpleNamespace(aio=spawn)),
+    )
+    monkeypatch.setattr(app, "deployment_error", no_error)
+    monkeypatch.setattr(app, "module_for", lambda _: definition)
+    assert asyncio.run(app._spawn_engine(row.definition_id, "instance")) == "call-id"
+    assert calls == [("instance", row.model_dump_json())]

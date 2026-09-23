@@ -119,7 +119,7 @@ async def pool_gateway(spec: FFTPoolSpec) -> str:
     return await ModalFlashPool(spec.app_name, "Server").gateway_url_async()
 
 
-def deploy_pool(spec: FFTPoolSpec) -> str:
+def deploy_pool(spec: FFTPoolSpec, *, record=None) -> str:
     pool = ModalFlashPool(spec.app_name, "Server")
     try:
         return pool.gateway_url()
@@ -128,12 +128,19 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
 
         if not isinstance(exc, modal.exception.NotFoundError):
             raise
+    if record is None:
+        from .deployment_apps import pool_deployment, provision_pool
+
+        saved = pool_deployment(spec.definition_id)
+        if saved is None:
+            raise ValueError(f"missing recorded deployment: {spec.definition_id}")
+        return provision_pool(saved, spec)
     modal_cli = shutil.which("modal")
     if modal_cli is None:
         raise RuntimeError("modal CLI is unavailable")
-    from .deployment_apps import pool_environment
+    from .deployment_apps import POOL_CONFIG_ENV
 
-    recipe_env = pool_environment(spec.definition_id)
+    recipe_env = {POOL_CONFIG_ENV: record.model_dump_json()}
     env = {**os.environ, **spec.env(), **recipe_env}
     command = [
         modal_cli,
@@ -143,7 +150,7 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
         "--name",
         spec.app_name,
     ]
-    environment = os.environ.get("MODAL_ENVIRONMENT")
+    environment = record.spec.deployment["modal"]["environment"]
     if environment:
         command.extend(["--env", environment])
     subprocess.run(command, env=env, check=True)

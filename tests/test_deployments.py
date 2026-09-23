@@ -33,9 +33,7 @@ def recipe(preset="qwen35-9b-lora-16k", **changes):
 
 
 def resolved(spec=None, **changes):
-    return DeploymentRecord.create(
-        spec or recipe(**changes), revision="a" * 40, implementation="test-runtime"
-    )
+    return DeploymentRecord.create(spec or recipe(**changes), revision="a" * 40)
 
 
 def definition(value):
@@ -108,12 +106,7 @@ def test_generation_and_asset_paths_include_exact_base():
     assert a.generation != resolved(recipe(trainer__resources__gpu="H200:4")).generation
     b = resolved(recipe(model__id="other/Qwen3.5-9B-Base"))
     assert a.asset_path != b.asset_path
-    assert (
-        a.asset_path
-        != DeploymentRecord.create(
-            a.spec, revision="b" * 40, implementation="test-runtime"
-        ).asset_path
-    )
+    assert a.asset_path != DeploymentRecord.create(a.spec, revision="b" * 40).asset_path
 
 
 def test_frontend_defaults_and_retained_generations():
@@ -137,10 +130,6 @@ def test_frontend_defaults_and_retained_generations():
         routes.select(small.definition_id, "lora").DEFINITION_ID == small.definition_id
     )
     assert routes.capabilities()[0]["max_context_length"] == 65536
-    with pytest.raises(ValueError, match="different Lilo/runtime"):
-        retain_generations(
-            [small.model_copy(update={"implementation": "old"})], [large]
-        )
     with pytest.raises(ValueError, match="multiple defaults"):
         validate_frontend(
             [small.spec, recipe("qwen35-9b-lora-64k", routing__default=True)]
@@ -357,16 +346,18 @@ def test_record_creation_copies_without_reparsing():
 
     spec = recipe()
     original = asdict(spec)
-    row = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
+    row = DeploymentRecord.create(spec, revision="a" * 40)
     assert asdict(spec) == original
     assert row.spec.model["revision"] == "a" * 40
-    # Keep the existing manifest fields and hash format stable.
+    # The record hash covers settings and the pinned backend dependency, not source.
     expected = original | {"model": original["model"] | {"revision": "a" * 40}}
     expected.pop("routing")
     assert (
         row.generation
         == hashlib.sha256(
-            json.dumps(["test", expected], sort_keys=True).encode()
+            json.dumps(
+                {"config": expected, "miles_commit": None}, sort_keys=True
+            ).encode()
         ).hexdigest()
     )
     row.spec.trainer["config"]["options"]["lora_rank"] = 64
@@ -411,7 +402,7 @@ def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
     )
     spec = load(config_path("qwen35-9b-lora-16k"))
     original_revision = spec.model["revision"]
-    record = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
+    record = DeploymentRecord.create(spec, revision="a" * 40)
     assert record.spec.model["revision"] == "a" * 40
     assert spec.model["revision"] == original_revision
 
@@ -507,3 +498,28 @@ def test_plain_sections_fill_defaults_without_sharing_values():
     first.trainer["env"]["CUSTOM"] = "value"
     assert second.inference["scaling"]["max_replicas"] == 8
     assert second.trainer["env"] == {}
+
+
+def test_worker_hashes_cover_only_their_settings():
+    base = resolved()
+    inference = resolved(recipe(inference__config__max_running_requests=24))
+    assert inference.trainer_hash == base.trainer_hash
+    assert inference.inference_hash != base.inference_hash
+
+    trainer = resolved(recipe(trainer__config__options__max_tokens_per_gpu=8192))
+    assert trainer.trainer_hash != base.trainer_hash
+    assert trainer.inference_hash == base.inference_hash
+
+    adapter = resolved(recipe(trainer__config__options__lora_rank=64))
+    assert adapter.trainer_hash != base.trainer_hash
+    assert adapter.inference_hash != base.inference_hash
+
+    routing = resolved(recipe(routing__default=False))
+    assert routing.trainer_hash == base.trainer_hash
+    assert routing.inference_hash == base.inference_hash
+    assert routing.generation == base.generation
+
+    upgraded = resolved(recipe(inference__runtime_version="2"))
+    assert upgraded.trainer_hash == base.trainer_hash
+    assert upgraded.inference_hash != base.inference_hash
+    assert "implementation" not in upgraded.model_dump()
