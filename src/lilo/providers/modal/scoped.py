@@ -135,6 +135,7 @@ def build_app(
     from .engines import ModalEnginePlatform
     from .checkpoint_storage import ModalCheckpointStorage
     from .fft_pool import proxy_auth_headers
+    from .kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
     from .kv import ModalSessionKeyValueStores, shared_kv
     from .megatron_image import image as default_trainer_image
     from .rollout_image import image as default_sampler_image
@@ -189,14 +190,19 @@ def build_app(
         serialized=True,
         gpu=engine.trainer_gpu,
         cpu=engine.trainer_cpu,
-        env={"LILO_SCOPED_REGISTRY": registry_name},
+        env={"LILO_SCOPED_REGISTRY": registry_name, **KERNEL_CACHE_ENV},
         memory=engine.trainer_memory,
         timeout=engine.trainer_timeout,
         min_containers=0,
         max_containers=max_trainers,
         single_use_containers=True,
         retries=0,
-        volumes={"/assets": assets, "/bulletin": bulletin, "/checkpoints": checkpoints},
+        volumes={
+            "/assets": assets,
+            "/bulletin": bulletin,
+            "/checkpoints": checkpoints,
+            KERNEL_CACHE_ROOT: kernel_cache_volume,
+        },
         secrets=[*telemetry_secrets, api_secret, proxy_secret],
     )
     def trainer(instance_id):

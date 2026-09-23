@@ -1,5 +1,7 @@
 import os
 
+from .kernel_cache import KERNEL_CACHE_ENV
+
 TRAINER_MAX_CONTAINERS_ENV = "LILO_TRAINER_MAX_CONTAINERS"
 APP_NAME_ENV = "LILO_APP_NAME"
 
@@ -30,8 +32,9 @@ FORWARDED_DEPLOYMENT_ENVS = (
 
 
 def trainer_deployment_env() -> dict[str, str]:
-    return {
+    forwarded = {
         name: value
         for name in FORWARDED_DEPLOYMENT_ENVS
         if (value := os.environ.get(name)) is not None
     }
+    return {**forwarded, **KERNEL_CACHE_ENV}
