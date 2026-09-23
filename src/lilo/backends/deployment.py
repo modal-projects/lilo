@@ -21,8 +21,8 @@ def _reader(registry, backend):
 
 
 def backend_config(spec, asset_path="/assets/pending"):
-    return _reader(TRAINERS, spec.trainer.backend)(spec, asset_path)
+    return _reader(TRAINERS, spec.trainer["backend"])(spec, asset_path)
 
 
 def serving_options(spec):
-    return _reader(INFERENCE, spec.inference.backend)(spec)
+    return _reader(INFERENCE, spec.inference["backend"])(spec)

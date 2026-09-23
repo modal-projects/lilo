@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import MISSING, asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, fields
 import hashlib
 from importlib.resources import files
 import json
@@ -11,174 +11,116 @@ from pathlib import Path
 import re
 import runpy
 import sys
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
 
 
-@dataclass(kw_only=True)
-class Model:
-    id: str
-    max_context_length: int
-    revision: str = "main"
-    parameterization: Literal["lora", "full"] = "lora"
+# Shared orchestration defaults. Backend option dictionaries have no schema here.
+_DEFAULTS = {
+    "api_version": "lilo/v1",
+    "model": {"revision": "main", "parameterization": "lora"},
+    "routing": {"default": False, "sampling_default": False},
+    "trainer": {
+        "backend": "miles",
+        "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
+        "scaling": {"min_instances": 0, "max_instances": 1},
+        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 8},
+        "config": {},
+        "env": {},
+    },
+    "inference": {
+        "backend": "sglang",
+        "resources": {"cpu": 8, "memory_mib": 32768, "timeout_s": 86400},
+        "scaling": {
+            "min_replicas": 0,
+            "max_replicas": 8,
+            "target_concurrency": 16,
+            "scaledown_window_s": 300,
+        },
+        "config": {},
+        "env": {},
+    },
+    "deployment": {
+        "frontend": "lilo-yaml",
+        "mode": "shared",
+        "modal": {"environment": None, "region": "us-west"},
+        "secrets": {
+            "api": "lilo-api",
+            "sampler_proxy": "lilo-proxy",
+            "huggingface": "huggingface-secret",
+        },
+        "storage": {
+            "assets": "lilo-model-assets",
+            "checkpoints": "lilo-checkpoints",
+            "bulletin": "lilo-snapshot-bulletin",
+        },
+    },
+    "lifecycle": {
+        "session_idle_timeout_s": 300,
+        "pool_idle_timeout_s": 300,
+        "sweep_interval_s": 300,
+    },
+}
 
 
-@dataclass(kw_only=True)
-class Routing:
-    default: bool = False
-    sampling_default: bool = False
-
-
-@dataclass(kw_only=True)
-class Resources:
-    gpu: str
-    cpu: float = 8
-    memory_mib: int = 32768
-    timeout_s: int = 86400
-
-    @property
-    def gpu_count(self) -> int:
-        if not re.fullmatch(r"[A-Za-z0-9-]+(?::[1-9][0-9]*)?", self.gpu):
-            raise ValueError(f"invalid GPU resource: {self.gpu}")
-        return int(self.gpu.split(":")[1]) if ":" in self.gpu else 1
-
-
-@dataclass(kw_only=True)
-class TrainerScaling:
-    min_instances: Literal[0] = 0
-    max_instances: int = 1
-
-
-@dataclass(kw_only=True)
-class InferenceScaling:
-    min_replicas: int = 0
-    max_replicas: int = 8
-    target_concurrency: int = 16
-    scaledown_window_s: int = 300
-
-    def __post_init__(self):
-        if self.min_replicas > self.max_replicas:
-            raise ValueError("min_replicas must not exceed max_replicas")
-
-
-@dataclass(kw_only=True)
-class EngineOptions:
-    max_clients_per_instance: int = 1
-    sampler_persistence_concurrency: int = 8
-
-
-@dataclass(kw_only=True)
-class Trainer:
-    resources: Resources
-    backend: str = "miles"
-    scaling: TrainerScaling = field(default_factory=TrainerScaling)
-    engine: EngineOptions = field(default_factory=EngineOptions)
-    config: dict[str, Any] = field(default_factory=dict)
-    env: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(kw_only=True)
-class Inference:
-    resources: Resources
-    backend: str = "sglang"
-    scaling: InferenceScaling = field(default_factory=InferenceScaling)
-    config: dict[str, Any] = field(default_factory=dict)
-    env: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(kw_only=True)
-class Secrets:
-    api: str = "lilo-api"
-    sampler_proxy: str = "lilo-proxy"
-    huggingface: str | None = "huggingface-secret"
-
-
-@dataclass(kw_only=True)
-class Storage:
-    assets: str = "lilo-model-assets"
-    checkpoints: str = "lilo-checkpoints"
-    bulletin: str = "lilo-snapshot-bulletin"
-
-
-@dataclass(kw_only=True)
-class ModalSettings:
-    environment: str | None = None
-    region: str = "us-west"
-
-
-@dataclass(kw_only=True)
-class Deployment:
-    frontend: str = "lilo-yaml"
-    mode: Literal["shared"] = "shared"
-    modal: ModalSettings = field(default_factory=ModalSettings)
-    secrets: Secrets = field(default_factory=Secrets)
-    storage: Storage = field(default_factory=Storage)
-
-
-@dataclass(kw_only=True)
-class Lifecycle:
-    session_idle_timeout_s: int = 300
-    pool_idle_timeout_s: int = 300
-    sweep_interval_s: int = 300
+def _with_defaults(defaults, values):
+    """Fill omitted orchestration settings; explicit values win."""
+    if not isinstance(defaults, dict) or not isinstance(values, dict):
+        return deepcopy(values)
+    result = deepcopy(defaults)
+    for key, value in values.items():
+        result[key] = _with_defaults(defaults.get(key), value)
+    return result
 
 
 @dataclass(kw_only=True, init=False)
 class BaseConfig:
-    """Declare class defaults and dotted overrides; each instance owns its values."""
+    """Declare plain section dictionaries and optional inherited overrides."""
 
     name: str
-    model: Model
-    trainer: Trainer
-    inference: Inference
-    api_version: Literal["lilo/v1"] = "lilo/v1"
-    routing: Routing = field(default_factory=Routing)
-    deployment: Deployment = field(default_factory=Deployment)
-    lifecycle: Lifecycle = field(default_factory=Lifecycle)
-
+    model: dict[str, Any]
+    trainer: dict[str, Any]
+    inference: dict[str, Any]
+    api_version: str
+    routing: dict[str, Any]
+    deployment: dict[str, Any]
+    lifecycle: dict[str, Any]
     overrides: ClassVar[dict[str, Any]] = {}
 
     def __init__(self, **kwargs):
-        definitions = {item.name: item for item in fields(BaseConfig)}
-        unknown = kwargs.keys() - definitions.keys()
+        names = {item.name for item in fields(BaseConfig)}
+        unknown = kwargs.keys() - names
         if unknown:
             raise TypeError(f"unknown config fields: {sorted(unknown)}")
-        values = {}
-        for name, item in definitions.items():
-            if item.default_factory is not MISSING:
-                values[name] = item.default_factory()
-            elif item.default is not MISSING:
-                values[name] = deepcopy(item.default)
-        # Apply each parent's defaults and overrides before its child's. Copy at
-        # every assignment so instances never mutate class defaults or parents.
+        values = deepcopy(_DEFAULTS)
         for cls in reversed(type(self).__mro__):
-            for name in definitions.keys() & vars(cls).keys():
-                values[name] = deepcopy(vars(cls)[name])
+            for name in names & vars(cls).keys():
+                values[name] = _with_defaults(_DEFAULTS.get(name), vars(cls)[name])
             for path, value in vars(cls).get("overrides", {}).items():
                 parts = path.split(".")
+                if parts[0] not in names:
+                    raise ValueError(f"unknown config override: {path}")
                 target = values
                 try:
                     for part in parts[:-1]:
-                        target = (
-                            target[part]
-                            if isinstance(target, dict)
-                            else getattr(target, part)
-                        )
-                    if isinstance(target, dict):
-                        if len(parts) == 1 and parts[0] not in definitions:
-                            raise KeyError(parts[0])
-                        target[parts[-1]] = deepcopy(value)
-                    else:
-                        # Reject misspelled dataclass fields.
-                        getattr(target, parts[-1])
-                        setattr(target, parts[-1], deepcopy(value))
-                except (KeyError, AttributeError) as exc:
+                        target = target[part]
+                    target[parts[-1]] = deepcopy(value)
+                except (KeyError, TypeError) as exc:
                     raise ValueError(f"unknown config override: {path}") from exc
-        values.update(deepcopy(kwargs))
-        missing = definitions.keys() - values.keys()
+        for name, value in kwargs.items():
+            values[name] = _with_defaults(_DEFAULTS.get(name), value)
+        missing = names - values.keys()
         if missing:
             raise TypeError(f"missing config fields: {sorted(missing)}")
         self.__dict__.update(values)
+
+
+def gpu_count(resources):
+    gpu = resources["gpu"]
+    if not re.fullmatch(r"[A-Za-z0-9-]+(?::[1-9][0-9]*)?", gpu):
+        raise ValueError(f"invalid GPU resource: {gpu}")
+    return int(gpu.split(":")[1]) if ":" in gpu else 1
 
 
 class DeploymentRecord(BaseModel):
@@ -208,7 +150,7 @@ class DeploymentRecord(BaseModel):
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
         pinned = deepcopy(spec)
-        pinned.model.revision = revision
+        pinned.model["revision"] = revision
         # Changing routing defaults should not restart an existing trainer.
         identity = asdict(pinned)
         identity.pop("routing")
@@ -229,7 +171,7 @@ class DeploymentRecord(BaseModel):
     @property
     def asset_path(self) -> str:
         digest = hashlib.sha256(
-            f"{self.spec.model.id}@{self.spec.model.revision}".encode()
+            f"{self.spec.model['id']}@{self.spec.model['revision']}".encode()
         ).hexdigest()
         return f"/assets/{digest}"
 
@@ -274,12 +216,12 @@ def validate_frontend(specs: list[BaseConfig]) -> None:
             )
     defaults, sampling = set(), set()
     for spec in specs:
-        key = (spec.model.id, spec.model.parameterization)
-        if spec.routing.default:
+        key = (spec.model["id"], spec.model["parameterization"])
+        if spec.routing["default"]:
             if key in defaults:
                 raise ValueError(f"multiple defaults for {key}")
             defaults.add(key)
-        if spec.routing.sampling_default:
-            if spec.model.id in sampling:
-                raise ValueError(f"multiple sampling defaults for {spec.model.id}")
-            sampling.add(spec.model.id)
+        if spec.routing["sampling_default"]:
+            if spec.model["id"] in sampling:
+                raise ValueError(f"multiple sampling defaults for {spec.model['id']}")
+            sampling.add(spec.model["id"])

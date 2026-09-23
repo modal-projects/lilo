@@ -1,32 +1,23 @@
-from lilo.deployments import (
-    BaseConfig,
-    EngineOptions,
-    Inference,
-    InferenceScaling,
-    Model,
-    Resources,
-    Routing,
-    Trainer,
-)
+from lilo.deployments import BaseConfig
 
 
 class Config(BaseConfig):
     name = "qwen35-9b-lora-2k"
-    model = Model(
-        id="Qwen/Qwen3.5-9B-Base", parameterization="lora", max_context_length=2048
-    )
-    routing = Routing(default=False)
-    trainer = Trainer(
-        backend="miles",
-        resources=Resources(gpu="H200:4"),
-        engine=EngineOptions(
-            max_clients_per_instance=4, sampler_persistence_concurrency=8
-        ),
-        env={
+    model = {
+        "id": "Qwen/Qwen3.5-9B-Base",
+        "parameterization": "lora",
+        "max_context_length": 2048,
+    }
+    routing = {"default": False}
+    trainer = {
+        "backend": "miles",
+        "resources": {"gpu": "H200:4"},
+        "engine": {"max_clients_per_instance": 4, "sampler_persistence_concurrency": 8},
+        "env": {
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
-        config={
+        "config": {
             "model_args": "qwen3.5-9B",
             "options": {
                 "tensor_model_parallel_size": 4,
@@ -46,11 +37,11 @@ class Config(BaseConfig):
                 "lora_alpha": 32,
             },
         },
-    )
-    inference = Inference(
-        resources=Resources(gpu="H200:1"),
-        scaling=InferenceScaling(min_replicas=0, max_replicas=8, target_concurrency=16),
-        config={
+    }
+    inference = {
+        "resources": {"gpu": "H200:1"},
+        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
+        "config": {
             "tp_size": 1,
             "ep_size": 1,
             "mem_fraction_static": 0.8,
@@ -70,4 +61,4 @@ class Config(BaseConfig):
             ],
             "schedule_policy": "lpm",
         },
-    )
+    }

@@ -16,7 +16,7 @@ import modal
 import tinker
 from tinker import types
 
-from lilo.deployments import DeploymentRecord
+from lilo.deployments import DeploymentRecord, gpu_count
 from lilo.backends.deployment import backend_config
 
 TIMEOUT = 3 * 60 * 60
@@ -35,18 +35,18 @@ def _definition(frontend: str, name: str) -> tuple[Any, str]:
         )
     resolved = matches[0]
     spec = resolved.spec
-    settings = backend_config(spec)[spec.trainer.backend]
+    settings = backend_config(spec)[spec.trainer['backend']]
     definition = SimpleNamespace(
         DEFINITION_ID=resolved.definition_id,
-        MODEL_NAME=spec.model.id,
-        PARAMETERIZATION=spec.model.parameterization,
-        MAX_CONTEXT_LENGTH=spec.model.max_context_length,
+        MODEL_NAME=spec.model['id'],
+        PARAMETERIZATION=spec.model['parameterization'],
+        MAX_CONTEXT_LENGTH=spec.model['max_context_length'],
         MAX_TOKENS_PER_MICROBATCH=settings.get(
             "max_tokens_per_microbatch", settings.get("max_tokens_per_gpu")
         ),
         MICRO_BATCH_SIZE=settings.get("micro_batch_size", 1),
-        GPU_TYPE=spec.trainer.resources.gpu.split(":")[0],
-        GPUS=spec.trainer.resources.gpu_count,
+        GPU_TYPE=spec.trainer['resources']['gpu'].split(":")[0],
+        GPUS=gpu_count(spec.trainer['resources']),
         LORA_RANK=settings.get("max_lora_rank"),
     )
     return definition, definition.PARAMETERIZATION

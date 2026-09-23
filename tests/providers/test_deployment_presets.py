@@ -19,7 +19,7 @@ from lilo.providers.modal.deployment_apps import (
 def test_all_packaged_recipes_validate_offline(path):
     spec = load(path)
     config = backend_config(spec)
-    assert config[spec.trainer.backend]["hf_checkpoint"] == "/assets/pending"
+    assert config[spec.trainer['backend']]["hf_checkpoint"] == "/assets/pending"
     serving_options(spec)
 
 
@@ -56,8 +56,8 @@ def test_qwen38_context_parallel_token_budget(context, cp):
 def test_single_client_recipe_keeps_shared_backend_capacity():
     shared = load(config_path("qwen35-9b-lora-16k"))
     single = load(config_path("qwen35-9b-lora-16k-single"))
-    assert single.trainer.engine.max_clients_per_instance == 1
-    assert single.trainer.resources == shared.trainer.resources
+    assert single.trainer["engine"]["max_clients_per_instance"] == 1
+    assert single.trainer["resources"] == shared.trainer["resources"]
     assert backend_config(single) == backend_config(shared)
 
 

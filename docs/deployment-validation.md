@@ -2,6 +2,12 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## Plain dictionary sections
+
+Config files import only `BaseConfig`. Model, trainer, inference, resource, scaling, routing and deployment sections are plain dictionaries, consumed directly by backend and Modal code. The nested template classes have been removed. One defaults dictionary supplies omitted orchestration settings; inherited dotted overrides still work.
+
+Validation: **604 CPU tests passed, 1 skipped**. All 14 computed configs match their previous settings, build backend/inference options and round-trip through saved JSON. Tests cover independent mutable values, omitted defaults, inherited overrides and native backend option forwarding. Ruff and whitespace checks passed. No apps were redeployed.
+
 ## Simple class defaults and inherited overrides
 
 Config files now declare ordinary class defaults and dotted `overrides` dictionaries. They contain no dataclass decorators, default factories or `__post_init__` methods. `BaseConfig` copies values per instance and applies parent defaults/overrides before child defaults/overrides. The resulting settings and saved-record format are unchanged for all 14 configs.

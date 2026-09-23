@@ -1,5 +1,7 @@
 """SGLang settings that must agree with Lilo replica orchestration."""
 
+
+from lilo.deployments import gpu_count
 from lilo.backend_options import native_options
 
 SGLANG_MANAGED = {
@@ -30,10 +32,10 @@ SGLANG_MANAGED = {
 
 
 def build_config(spec):
-    options = native_options(spec.inference.config, SGLANG_MANAGED)
-    tp = options.get("tp_size", spec.inference.resources.gpu_count)
+    options = native_options(spec.inference["config"], SGLANG_MANAGED)
+    tp = options.get("tp_size", gpu_count(spec.inference["resources"]))
     ep = options.get("ep_size", 1)
-    if not isinstance(tp, int) or tp != spec.inference.resources.gpu_count:
+    if not isinstance(tp, int) or tp != gpu_count(spec.inference["resources"]):
         raise ValueError("sglang.tp_size must equal the replica GPU allocation")
     if not isinstance(ep, int) or ep < 1 or tp % ep:
         raise ValueError("sglang.ep_size must divide the replica GPU allocation")

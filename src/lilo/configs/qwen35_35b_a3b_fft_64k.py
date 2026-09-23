@@ -1,32 +1,23 @@
-from lilo.deployments import (
-    BaseConfig,
-    EngineOptions,
-    Inference,
-    InferenceScaling,
-    Model,
-    Resources,
-    Routing,
-    Trainer,
-)
+from lilo.deployments import BaseConfig
 
 
 class Config(BaseConfig):
     name = "qwen35-35b-a3b-fft-64k"
-    model = Model(
-        id="Qwen/Qwen3.5-35B-A3B", parameterization="full", max_context_length=65536
-    )
-    routing = Routing(default=True)
-    trainer = Trainer(
-        backend="megatron",
-        resources=Resources(gpu="H200:8"),
-        engine=EngineOptions(
-            max_clients_per_instance=1, sampler_persistence_concurrency=1
-        ),
-        env={
+    model = {
+        "id": "Qwen/Qwen3.5-35B-A3B",
+        "parameterization": "full",
+        "max_context_length": 65536,
+    }
+    routing = {"default": True}
+    trainer = {
+        "backend": "megatron",
+        "resources": {"gpu": "H200:8"},
+        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 1},
+        "env": {
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
-        config={
+        "config": {
             "runtime": {
                 "tensor_model_parallel_size": 4,
                 "pipeline_model_parallel_size": 1,
@@ -54,11 +45,11 @@ class Config(BaseConfig):
             },
             "optimizer": {"optimizer": "adam", "lr": 0.0001, "min_lr": 0.0001},
         },
-    )
-    inference = Inference(
-        resources=Resources(gpu="H200:4"),
-        scaling=InferenceScaling(min_replicas=0, max_replicas=8, target_concurrency=16),
-        config={
+    }
+    inference = {
+        "resources": {"gpu": "H200:4"},
+        "scaling": {"min_replicas": 0, "max_replicas": 8, "target_concurrency": 16},
+        "config": {
             "tp_size": 4,
             "ep_size": 4,
             "mem_fraction_static": 0.9,
@@ -68,4 +59,4 @@ class Config(BaseConfig):
             "dp_size": 4,
             "enable_dp_attention": True,
         },
-    )
+    }

@@ -46,14 +46,14 @@ def compile_configs(paths):
     implementation = implementation_fingerprint(miles_commit)
     records = []
     for spec in specs:
-        revision = spec.model.revision
+        revision = spec.model["revision"]
         if not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
             from huggingface_hub import HfApi
 
-            revision = HfApi().model_info(spec.model.id, revision=revision).sha
+            revision = HfApi().model_info(spec.model["id"], revision=revision).sha
             if not revision or not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
                 raise ValueError(
-                    f"Hugging Face did not return a commit for {spec.model.id}"
+                    f"Hugging Face did not return a commit for {spec.model['id']}"
                 )
         records.append(
             DeploymentRecord.create(
@@ -104,21 +104,22 @@ def deploy(desired):
         )
     settings = desired[0].spec.deployment
     registry = modal.Dict.from_name(
-        f"{settings.frontend}-yaml-deployments",
+        f"{settings['frontend']}-yaml-deployments",
         create_if_missing=True,
-        environment_name=settings.modal.environment,
+        environment_name=settings["modal"]["environment"],
     )
     owner = uuid.uuid4().hex
     if not registry.put("apply_lock", owner, skip_if_exists=True):
         raise ValueError(
-            f"An apply owns {settings.frontend}. If it was interrupted, confirm it has stopped before running lilo deployment unlock --frontend {settings.frontend}."
+            f"An apply owns {settings['frontend']}. If it was interrupted, confirm it has stopped before running lilo deployment unlock --frontend {settings['frontend']}."
         )
     try:
         rows = registry.get("manifest", [])
         if not rows and not registry.get("pending", []):
             try:
                 modal.App.lookup(
-                    settings.frontend, environment_name=settings.modal.environment
+                    settings["frontend"],
+                    environment_name=settings["modal"]["environment"],
                 )
             except modal.exception.NotFoundError:
                 pass
@@ -135,7 +136,7 @@ def deploy(desired):
         env = {
             **os.environ,
             MANIFEST_ENV: json.dumps(data),
-            "LILO_APP_NAME": settings.frontend,
+            "LILO_APP_NAME": settings["frontend"],
         }
         if desired[0].miles_commit:
             env["LILO_MILES_COMMIT"] = desired[0].miles_commit
@@ -147,8 +148,8 @@ def deploy(desired):
             "-m",
             "lilo.providers.modal.app",
         ]
-        if settings.modal.environment:
-            command += ["--env", settings.modal.environment]
+        if settings["modal"]["environment"]:
+            command += ["--env", settings["modal"]["environment"]]
         registry.put("pending", data)
         subprocess.run(command, check=True, env=env)
         registry.put("manifest", data)

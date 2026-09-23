@@ -2,7 +2,7 @@
 
 Each deployment is a Python file exporting a `Config` class that inherits from `BaseConfig`. The class contains the model, trainer, inference and Modal settings. There is no YAML loader or model catalog.
 
-The layout follows the Python recipe approach used by [training-gym](https://github.com/modal-labs/training-gym) and the [multinode training guide](https://github.com/modal-labs/multinode-training-guide/blob/main/nemo-rl/configs/llama3_1_8b_math_2node.py). Lilo uses dataclasses for the resulting settings, but config files need no decorators or default factories. Importing either project is not required.
+The layout follows the Python recipe approach used by [training-gym](https://github.com/modal-labs/training-gym) and the [multinode training guide](https://github.com/modal-labs/multinode-training-guide/blob/main/nemo-rl/configs/llama3_1_8b_math_2node.py). Only the outer BaseConfig is a dataclass; its sections are ordinary dictionaries. Config files need no decorators or default factories. Importing either project is not required.
 
 ## Define a deployment
 
@@ -29,9 +29,11 @@ class Config(ParentConfig):
     }
 ```
 
-New deployments can inherit directly from `BaseConfig` and declare ordinary class defaults such as `model = Model(...)` and `trainer = Trainer(...)`. The [16K example](../src/lilo/configs/qwen35_9b_lora_16k.py) shows the complete structure. No `@dataclass`, `field(default_factory=...)`, or `__post_init__` is needed in config files.
+New deployments can inherit directly from `BaseConfig` and declare ordinary class defaults such as `model = {"id": "...", "max_context_length": 16384}` and `trainer = {"resources": {"gpu": "H100:4"}, "config": {...}}`. The [16K example](../src/lilo/configs/qwen35_9b_lora_16k.py) shows the complete structure. No `@dataclass`, `field(default_factory=...)`, or `__post_init__` is needed in config files.
 
-`BaseConfig` copies defaults for each instance, then applies each parent's overrides before its child's. Dotted paths traverse dataclass fields and dictionary keys. A value replaces the selected field/key, including whole lists and dictionaries; other keys remain unchanged. Native backend dictionaries can receive new option names. Misspelled dataclass fields and missing intermediate paths raise an error naming the override. Constructor keywords, when supplied, replace top-level fields last.
+`BaseConfig` copies defaults for each instance, then applies each parent's overrides before its child's. Dotted paths select a section and traverse its dictionary keys. A value replaces the selected field/key, including whole lists and dictionaries; other keys remain unchanged. Native backend dictionaries can receive new option names. Unknown top-level sections and missing intermediate paths raise an error naming the override. Section keys are open; their consumers read the options they need. Constructor keywords, when supplied, replace top-level fields last.
+
+Omitted orchestration settings come from one defaults dictionary in `deployments.py`. Backend options have no schema there. Replacing an entire section fills its omitted orchestration defaults; use dotted overrides to retain the parent’s other settings.
 
 Copying happens inside the base class, so edits to a config's nested lists or dictionaries do not change its parent, another instance, or the class's override dictionary. Only the resulting settings enter the saved deployment record; workers do not apply inheritance again.
 
@@ -78,11 +80,11 @@ lilo deploy config.py
 
 [`load()`](../src/lilo/deployments.py) executes the file and instantiates its exported `Config` subclass. The returned dataclass goes directly to the orchestration code. There is no dictionary-to-config conversion on this path.
 
-`DeploymentRecord` adds the code identity, pinned Miles revision, configuration hash and active status. JSON is used only to store records and pass them to other processes. Pydantic reconstructs the standard dataclasses when reading those records; it does not import or run the user's config file in a GPU worker. Records preserve the full computed settings rather than a reference to the original Python file.
+`DeploymentRecord` adds the code identity, pinned Miles revision, configuration hash and active status. JSON is used only to store records and pass them to other processes. Pydantic reconstructs BaseConfig with its dictionary sections when reading those records; it does not import or run the user's config file in a GPU worker. Records preserve the full computed settings rather than a reference to the original Python file.
 
 | File | Responsibility |
 | --- | --- |
-| [`deployments.py`](../src/lilo/deployments.py) | Dataclasses, Python file loader, saved record and shared-frontend checks |
+| [`deployments.py`](../src/lilo/deployments.py) | BaseConfig defaults and overrides, Python file loader, saved record and shared-frontend checks |
 | [`deployment_cli.py`](../src/lilo/deployment_cli.py) | Revision lookup, manifest updates and Modal deployment |
 | [`deployment_apps.py`](../src/lilo/providers/modal/deployment_apps.py) | Trainer functions, inference server classes and process startup |
 | [`app.py`](../src/lilo/providers/modal/app.py) | Shared frontend and `app.include()` for generated trainers |

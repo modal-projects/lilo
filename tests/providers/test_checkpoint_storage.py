@@ -44,10 +44,10 @@ def test_yaml_definitions_use_configured_checkpoint_storage():
         ):
             volumes = volumes_for(spec)
         assert volumes[CHECKPOINT_ROOT] == (
-            spec.deployment.storage.checkpoints,
+            spec.deployment['storage']['checkpoints'],
             {"create_if_missing": True, "version": 2},
         )
-        assert volumes["/bulletin"][0] == spec.deployment.storage.bulletin
+        assert volumes["/bulletin"][0] == spec.deployment['storage']['bulletin']
         assert backend_config(spec)["checkpoint_dir"] == CHECKPOINT_ROOT
 
 

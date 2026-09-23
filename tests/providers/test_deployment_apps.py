@@ -56,7 +56,7 @@ def test_trainer_declaration_and_executor_configuration(
     builders, monkeypatch, preset, backend, clients, nproc
 ):
     row = deployment(preset)
-    row.spec.deployment.storage.checkpoints = "test-custom-checkpoints"
+    row.spec.deployment['storage']['checkpoints'] = "test-custom-checkpoints"
     image = object()
     app, trainer = deployment_apps.build_trainer_app(row, image=image)
     declaration, _ = app.functions[row.definition_id]
@@ -88,7 +88,7 @@ def test_trainer_declaration_and_executor_configuration(
     assert kwargs["backend_env"]["LILO_CHECKPOINT_VOLUME"] == "test-custom-checkpoints"
     assert kwargs["backend_env"]["LILO_BASE_MODEL_REVISION"] == "a" * 40
     config = json.loads(kwargs["backend_env"]["LILO_BACKEND_CONFIG"])
-    assert config[row.spec.trainer.backend]["hf_checkpoint"] == row.asset_path
+    assert config[row.spec.trainer['backend']]["hf_checkpoint"] == row.asset_path
     assert config["checkpoint_dir"] == "/checkpoints"
     assert reloaded == [True]
 
@@ -108,7 +108,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     app, server = deployment_apps.build_rollout_app(row, pool, image="test-image")
     settings, _ = app.servers["Server"]
     assert app.name == pool.app_name
-    assert settings["gpu"] == row.spec.inference.resources.gpu
+    assert settings["gpu"] == row.spec.inference['resources']['gpu']
     assert settings["min_containers"] == 0
     assert settings["target_concurrency"] == 16
     assert settings["compute_region"] == "us-west"
@@ -138,7 +138,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     assert commands[0][2] == "lilo.inference.native_sglang"
     assert commands[0][3] == row.asset_path
     native = json.loads(commands[0][4])
-    assert native["context_length"] == row.spec.model.max_context_length
+    assert native["context_length"] == row.spec.model['max_context_length']
     if kind == "lora":
         assert native["enable_lora"] is True
         assert native["max_lora_rank"] == 32
@@ -232,12 +232,12 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     old_bytes = serialize(deployment_apps.build_trainer_app(first, image="test")[1])
     changed = first.model_copy(deep=True)
     changed.active = False
-    changed.spec.routing.default = not first.spec.routing.default
-    changed.spec.routing.sampling_default = True
+    changed.spec.routing['default'] = not first.spec.routing['default']
+    changed.spec.routing['sampling_default'] = True
     new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
-    assert first.active is True and first.spec.routing.default is True
-    changed.spec.trainer.resources.gpu = "H200:4"
+    assert first.active is True and first.spec.routing['default'] is True
+    changed.spec.trainer['resources']['gpu'] = "H200:4"
     assert serialize(deployment_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
 
 

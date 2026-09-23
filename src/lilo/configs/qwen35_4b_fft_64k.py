@@ -1,32 +1,21 @@
-from lilo.deployments import (
-    BaseConfig,
-    Deployment,
-    EngineOptions,
-    Inference,
-    Model,
-    Resources,
-    Routing,
-    Trainer,
-)
+from lilo.deployments import BaseConfig
 
 
 class Config(BaseConfig):
     name = "qwen35-4b-fft-64k"
-    model = Model(
-        id="Qwen/Qwen3.5-4B",
-        revision="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
-        parameterization="full",
-        max_context_length=65536,
-    )
-    routing = Routing(default=True)
-    deployment = Deployment(frontend="lilo-yaml")
-    trainer = Trainer(
-        backend="megatron",
-        resources=Resources(gpu="H100:4"),
-        engine=EngineOptions(
-            max_clients_per_instance=1, sampler_persistence_concurrency=1
-        ),
-        config={
+    model = {
+        "id": "Qwen/Qwen3.5-4B",
+        "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+        "parameterization": "full",
+        "max_context_length": 65536,
+    }
+    routing = {"default": True}
+    deployment = {"frontend": "lilo-yaml"}
+    trainer = {
+        "backend": "megatron",
+        "resources": {"gpu": "H100:4"},
+        "engine": {"max_clients_per_instance": 1, "sampler_persistence_concurrency": 1},
+        "config": {
             "runtime": {
                 "tensor_model_parallel_size": 2,
                 "context_parallel_size": 2,
@@ -45,14 +34,14 @@ class Config(BaseConfig):
             },
             "optimizer": {"lr": 0.0001, "min_lr": 0.0001, "loss_scale": 1.0},
         },
-    )
-    inference = Inference(
-        resources=Resources(gpu="H100:1"),
-        config={
+    }
+    inference = {
+        "resources": {"gpu": "H100:1"},
+        "config": {
             "tp_size": 1,
             "mem_fraction_static": 0.85,
             "max_running_requests": 32,
             "max_queued_requests": 4,
             "cpu_weight_cache_max_compile_group_gb": 16,
         },
-    )
+    }

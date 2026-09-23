@@ -1,7 +1,9 @@
 """Build Lilo loop settings while preserving native Megatron configuration."""
 
+
 from dataclasses import asdict, fields
 
+from lilo.deployments import gpu_count
 from lilo.backend_options import native_options
 from .megatron_runtime.common.config import EngineModelConfig, OptimizerConfig
 
@@ -36,13 +38,13 @@ OPTIMIZER_MANAGED = {
 
 def build_config(spec, asset_path):
     trainer = spec.trainer
-    if spec.model.parameterization != "full":
+    if spec.model["parameterization"] != "full":
         raise ValueError("Megatron deployments require full parameterization")
-    if trainer.engine.max_clients_per_instance != 1:
+    if trainer["engine"]["max_clients_per_instance"] != 1:
         raise ValueError("FFT trainers admit one client per instance")
-    if trainer.engine.sampler_persistence_concurrency != 1:
+    if trainer["engine"]["sampler_persistence_concurrency"] != 1:
         raise ValueError("Megatron requires sampler_persistence_concurrency: 1")
-    sections = native_options(trainer.config, set())
+    sections = native_options(trainer["config"], set())
     unknown = sections.keys() - {"runtime", "provider", "optimizer", "distributed"}
     if unknown:
         raise ValueError(f"unknown Megatron config sections: {sorted(unknown)}")
@@ -76,7 +78,7 @@ def build_config(spec, asset_path):
     try:
         config = EngineModelConfig(
             hf_checkpoint=asset_path,
-            seq_length=spec.model.max_context_length,
+            seq_length=spec.model["max_context_length"],
             optimizer=OptimizerConfig(**loop_optimizer),
             provider_overrides=provider,
             optimizer_overrides=native_optimizer,
@@ -85,5 +87,5 @@ def build_config(spec, asset_path):
         )
     except TypeError as exc:
         raise ValueError(f"invalid Megatron runtime options: {exc}") from exc
-    config.validate(trainer.resources.gpu_count)
+    config.validate(gpu_count(trainer["resources"]))
     return {"megatron": asdict(config), "checkpoint_dir": "/checkpoints"}

@@ -71,7 +71,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
     assert registry["pending"][0]["generation"] == row.generation
     assert "manifest" not in registry and "apply_lock" not in registry
     new_spec = deepcopy(row.spec)
-    new_spec.trainer.scaling.max_instances = 2
+    new_spec.trainer["scaling"]["max_instances"] = 2
     new = DeploymentRecord.create(new_spec, revision="a" * 40, implementation="test")
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
     cli.deploy([new])
@@ -132,7 +132,7 @@ def test_compile_pins_revision_at_external_boundary(
     monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
     monkeypatch.setattr(cli, "implementation_fingerprint", lambda _: "runtime")
     (row,) = cli.compile_configs([path])
-    assert row.spec.model.revision == "a" * 40
+    assert row.spec.model["revision"] == "a" * 40
     assert lookup.call_count == lookups
     if lookups:
         lookup.return_value.sha = None

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import modal
 
-from lilo.deployments import DeploymentRecord, Routing, validate_frontend
+from lilo.deployments import DeploymentRecord, gpu_count, validate_frontend
 from lilo.backends.deployment import backend_config, serving_options
 
 MANIFEST_ENV = "LILO_DEPLOYMENT_MANIFEST"
@@ -58,30 +58,30 @@ def image_for(backend):
 
 
 def volumes_for(spec):
-    storage = spec.deployment.storage
+    storage = spec.deployment["storage"]
     return {
-        "/assets": modal.Volume.from_name(storage.assets, create_if_missing=True),
+        "/assets": modal.Volume.from_name(storage["assets"], create_if_missing=True),
         "/checkpoints": modal.Volume.from_name(
-            storage.checkpoints, create_if_missing=True, version=2
+            storage["checkpoints"], create_if_missing=True, version=2
         ),
         "/bulletin": modal.Volume.from_name(
-            storage.bulletin, create_if_missing=True, version=2
+            storage["bulletin"], create_if_missing=True, version=2
         ),
     }
 
 
 def secrets_for(spec, *, training=False):
-    names = spec.deployment.secrets
-    result = [modal.Secret.from_name(names.api, required_keys=["TINKER_API_KEY"])]
+    names = spec.deployment["secrets"]
+    result = [modal.Secret.from_name(names["api"], required_keys=["TINKER_API_KEY"])]
     if training:
         result.append(
             modal.Secret.from_name(
-                names.sampler_proxy,
+                names["sampler_proxy"],
                 required_keys=["MODAL_PROXY_TOKEN_ID", "MODAL_PROXY_TOKEN_SECRET"],
             )
         )
-        if names.huggingface:
-            result.append(modal.Secret.from_name(names.huggingface))
+        if names["huggingface"]:
+            result.append(modal.Secret.from_name(names["huggingface"]))
     return result
 
 
@@ -97,31 +97,31 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
     # configuration when a default switches or an older configuration drains.
     resolved = resolved.model_copy(deep=True)
     resolved.active = True
-    resolved.spec.routing = Routing()
+    resolved.spec.routing = {"default": False, "sampling_default": False}
     spec = resolved.spec
     config_json = json.dumps(
         resolved.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
     )
-    app = modal.App(f"{spec.deployment.frontend}-{resolved.definition_id}")
-    resource = spec.trainer.resources
+    app = modal.App(f"{spec.deployment['frontend']}-{resolved.definition_id}")
+    resource = spec.trainer["resources"]
     from .deployment import trainer_deployment_env
 
     env = {
         **trainer_deployment_env(),
-        **deployment_env(spec.trainer.env),
-        "LILO_APP_NAME": spec.deployment.frontend,
+        **deployment_env(spec.trainer["env"]),
+        "LILO_APP_NAME": spec.deployment["frontend"],
     }
 
     @app.function(
         name=resolved.definition_id,
         serialized=True,
-        image=image if image is not None else image_for(spec.trainer.backend),
-        gpu=resource.gpu,
-        region=spec.deployment.modal.region,
-        cpu=resource.cpu,
-        memory=resource.memory_mib,
-        timeout=resource.timeout_s,
-        max_containers=spec.trainer.scaling.max_instances,
+        image=image if image is not None else image_for(spec.trainer["backend"]),
+        gpu=resource["gpu"],
+        region=spec.deployment["modal"]["region"],
+        cpu=resource["cpu"],
+        memory=resource["memory_mib"],
+        timeout=resource["timeout_s"],
+        max_containers=spec.trainer["scaling"]["max_instances"],
         min_containers=0,
         single_use_containers=True,
         volumes=volumes_for(spec),
@@ -145,20 +145,20 @@ def run_trainer(resolved, instance_id):
     # on startup to see the committed exact snapshot; never race a trainer download.
     volumes_for(spec)["/assets"].reload()
     env = {
-        **deployment_env(spec.trainer.env),
-        "LILO_APP_NAME": spec.deployment.frontend,
+        **deployment_env(spec.trainer["env"]),
+        "LILO_APP_NAME": spec.deployment["frontend"],
         "LILO_BACKEND_CONFIG": json.dumps(settings),
-        "LILO_BASE_MODEL": spec.model.id,
-        "LILO_BASE_MODEL_REVISION": spec.model.revision,
+        "LILO_BASE_MODEL": spec.model["id"],
+        "LILO_BASE_MODEL_REVISION": spec.model["revision"],
         "LILO_DEFINITION_ID": resolved.definition_id,
-        "LILO_CHECKPOINT_VOLUME": spec.deployment.storage.checkpoints,
+        "LILO_CHECKPOINT_VOLUME": spec.deployment["storage"]["checkpoints"],
         "LILO_BULLETIN_ROOT": "/bulletin",
-        "LILO_BULLETIN_VOLUME": spec.deployment.storage.bulletin,
+        "LILO_BULLETIN_VOLUME": spec.deployment["storage"]["bulletin"],
         "LILO_DEFINITION_REVISION": resolved.generation,
     }
     executor = (
         "lilo.backends.miles_lora:build_executor"
-        if spec.trainer.backend == "miles"
+        if spec.trainer["backend"] == "miles"
         else "lilo.backends.megatron_fft:build_executor"
     )
 
@@ -176,10 +176,12 @@ def run_trainer(resolved, instance_id):
         instance_id=instance_id,
         backend_env=env,
         nproc=1
-        if spec.trainer.backend == "miles"
-        else spec.trainer.resources.gpu_count,
-        max_models=spec.trainer.engine.max_clients_per_instance,
-        sampler_persistence_concurrency=spec.trainer.engine.sampler_persistence_concurrency,
+        if spec.trainer["backend"] == "miles"
+        else gpu_count(spec.trainer["resources"]),
+        max_models=spec.trainer["engine"]["max_clients_per_instance"],
+        sampler_persistence_concurrency=spec.trainer["engine"][
+            "sampler_persistence_concurrency"
+        ],
         on_startup_error=failed,
     )
 
@@ -189,21 +191,21 @@ def definition_from_spec(resolved, *, register_trainer=True, image=None):
     native = serving_options(spec)
     definition = SimpleNamespace(
         DEFINITION_ID=resolved.definition_id,
-        MODEL_NAME=spec.model.id,
-        MODEL_REVISION=spec.model.revision,
+        MODEL_NAME=spec.model["id"],
+        MODEL_REVISION=spec.model["revision"],
         HF_CHECKPOINT=resolved.asset_path,
-        PARAMETERIZATION=spec.model.parameterization,
+        PARAMETERIZATION=spec.model["parameterization"],
         CATALOG_VISIBLE=resolved.active,
-        ROUTING_DEFAULT=spec.routing.default,
-        SAMPLING_DEFAULT=spec.routing.sampling_default,
+        ROUTING_DEFAULT=spec.routing["default"],
+        SAMPLING_DEFAULT=spec.routing["sampling_default"],
         DEPLOYMENT_NAME=spec.name,
         RESOLVED=resolved,
-        MAX_CONTEXT_LENGTH=spec.model.max_context_length,
-        TRAINER_MODELS_PER_INSTANCE=spec.trainer.engine.max_clients_per_instance,
-        TRAINER_MAX_CONTAINERS=spec.trainer.scaling.max_instances,
-        ROLLOUT_GPUS=spec.inference.resources.gpu_count,
+        MAX_CONTEXT_LENGTH=spec.model["max_context_length"],
+        TRAINER_MODELS_PER_INSTANCE=spec.trainer["engine"]["max_clients_per_instance"],
+        TRAINER_MAX_CONTAINERS=spec.trainer["scaling"]["max_instances"],
+        ROLLOUT_GPUS=gpu_count(spec.inference["resources"]),
         ROLLOUT_TENSOR_PARALLEL_SIZE=native.get(
-            "tp_size", spec.inference.resources.gpu_count
+            "tp_size", gpu_count(spec.inference["resources"])
         )
         // (native.get("dp_size", 1) if native.get("enable_dp_attention") else 1),
     )
@@ -231,14 +233,14 @@ def pool_environment(definition_id):
 def build_rollout_app(resolved, pool, *, image=None):
     """Create one frozen-base LoRA pool or one FFT latest/pinned/base pool."""
     spec = resolved.spec
-    lora = spec.model.parameterization == "lora"
+    lora = spec.model["parameterization"] == "lora"
     if pool.definition_id != resolved.definition_id:
         raise ValueError("pool generation does not match deployment")
     app = modal.App(pool.app_name)
-    resources, scaling = spec.inference.resources, spec.inference.scaling
+    resources, scaling = spec.inference["resources"], spec.inference["scaling"]
     options = {
-        "context_length": spec.model.max_context_length,
-        "tp_size": resources.gpu_count,
+        "context_length": spec.model["max_context_length"],
+        "tp_size": gpu_count(resources),
         "mem_fraction_static": 0.8,
         "max_running_requests": 32,
         "weight_loader_disable_mmap": True,
@@ -264,21 +266,21 @@ def build_rollout_app(resolved, pool, *, image=None):
         name="Server",
         serialized=True,
         image=image if image is not None else image_for("sglang"),
-        gpu=resources.gpu,
-        cpu=resources.cpu,
-        memory=resources.memory_mib,
+        gpu=resources["gpu"],
+        cpu=resources["cpu"],
+        memory=resources["memory_mib"],
         volumes=volumes_for(spec),
         secrets=secrets_for(spec),
-        env=deployment_env(spec.inference.env),
-        min_containers=scaling.min_replicas if minimum is None else minimum,
-        max_containers=scaling.max_replicas if maximum is None else maximum,
-        target_concurrency=scaling.target_concurrency,
-        scaledown_window=scaling.scaledown_window_s if window is None else window,
+        env=deployment_env(spec.inference["env"]),
+        min_containers=scaling["min_replicas"] if minimum is None else minimum,
+        max_containers=scaling["max_replicas"] if maximum is None else maximum,
+        target_concurrency=scaling["target_concurrency"],
+        scaledown_window=scaling["scaledown_window_s"] if window is None else window,
         startup_timeout=1200,
         exit_grace_period=300,
         port=8000,
-        routing_region=spec.deployment.modal.region,
-        compute_region=spec.deployment.modal.region,
+        routing_region=spec.deployment["modal"]["region"],
+        compute_region=spec.deployment["modal"]["region"],
     )
     class Server:
         @modal.enter()
@@ -309,7 +311,7 @@ def build_rollout_app(resolved, pool, *, image=None):
                     port=8000,
                     sglang_port=8001,
                     bulletin_root="/bulletin",
-                    bulletin_volume=spec.deployment.storage.bulletin,
+                    bulletin_volume=spec.deployment["storage"]["bulletin"],
                 )
                 self.sidecar = (
                     start_lora_sidecar(**kwargs)

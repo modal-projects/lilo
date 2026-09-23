@@ -53,7 +53,7 @@ def test_presets_context_topology_and_backend_options():
     assert config["native_options"]["recompute_num_layers"] == 1
     assert config["extra_args"] == ("--seq-length", "16384")
     large = recipe("qwen35-9b-lora-64k")
-    assert large.model.max_context_length == 65536
+    assert large.model["max_context_length"] == 65536
     assert backend_config(large)["miles"]["actor_num_gpus_per_node"] == 8
     fft = backend_config(recipe("qwen35-4b-fft-64k"))["megatron"]
     assert (fft["tensor_model_parallel_size"], fft["context_parallel_size"]) == (2, 2)
@@ -121,14 +121,16 @@ def test_frontend_defaults_and_retained_generations():
     large = resolved(recipe("qwen35-9b-lora-64k"))
     routes = DeploymentRoutes([definition(small), definition(large)])
     assert (
-        routes.select(small.spec.model.id, "lora").DEFINITION_ID == small.definition_id
+        routes.select(small.spec.model["id"], "lora").DEFINITION_ID
+        == small.definition_id
     )
     switched = retain_generations(
         [small, large], [resolved(recipe("qwen35-9b-lora-64k", routing__default=True))]
     )
     routes = DeploymentRoutes(map(definition, switched))
     assert (
-        routes.select(small.spec.model.id, "lora").DEFINITION_ID == large.definition_id
+        routes.select(small.spec.model["id"], "lora").DEFINITION_ID
+        == large.definition_id
     )
     # Saved model/checkpoint records continue using their original definition.
     assert (
@@ -152,20 +154,20 @@ def test_ambiguous_model_does_not_get_random_configuration():
     ]
     routes = DeploymentRoutes(map(definition, rows))
     with pytest.raises(ValueError, match="ambiguous.*16k.*64k"):
-        routes.select(rows[0].spec.model.id, "lora")
+        routes.select(rows[0].spec.model["id"], "lora")
     assert routes.capabilities() == []
 
 
 def test_sampling_requires_default_across_training_modes():
     lora = resolved()
-    fft = resolved(recipe("qwen35-4b-fft-64k", model__id=lora.spec.model.id))
+    fft = resolved(recipe("qwen35-4b-fft-64k", model__id=lora.spec.model["id"]))
     routes = DeploymentRoutes(map(definition, [lora, fft]))
     with pytest.raises(ValueError, match="sampling_default"):
-        routes.sampling(lora.spec.model.id)
-    fft.spec.routing.sampling_default = True
+        routes.sampling(lora.spec.model["id"])
+    fft.spec.routing["sampling_default"] = True
     assert (
         DeploymentRoutes(map(definition, [lora, fft]))
-        .sampling(lora.spec.model.id)
+        .sampling(lora.spec.model["id"])
         .DEFINITION_ID
         == fft.definition_id
     )
@@ -221,7 +223,7 @@ def test_multiple_models_same_http_service_and_old_binding_survives_switch():
                     json={
                         "session_id": session,
                         "model_seq_id": seq,
-                        "base_model": row.spec.model.id,
+                        "base_model": row.spec.model["id"],
                         "lora_config": {"rank": 32},
                     },
                 )
@@ -285,7 +287,7 @@ def test_native_sections_survive_serialization_without_allowlist():
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
     assert config.hf_checkpoint == "/assets/pinned"
-    assert config.seq_length == spec.model.max_context_length
+    assert config.seq_length == spec.model["max_context_length"]
     assert config.provider_overrides["future_provider_option"] == {
         "layers": [1, 4],
         "enabled": False,
@@ -345,7 +347,7 @@ def test_reserved_environment_is_checked_by_modal_setup():
 
     spec = recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
     with pytest.raises(ValueError, match="managed"):
-        deployment_env(spec.trainer.env)
+        deployment_env(spec.trainer["env"])
     assert deployment_env({"MY_SETTING": "value"}) == {"MY_SETTING": "value"}
 
 
@@ -357,7 +359,7 @@ def test_record_creation_copies_without_reparsing():
     original = asdict(spec)
     row = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
     assert asdict(spec) == original
-    assert row.spec.model.revision == "a" * 40
+    assert row.spec.model["revision"] == "a" * 40
     # Keep the existing manifest fields and hash format stable.
     expected = original | {"model": original["model"] | {"revision": "a" * 40}}
     expected.pop("routing")
@@ -367,8 +369,8 @@ def test_record_creation_copies_without_reparsing():
             json.dumps(["test", expected], sort_keys=True).encode()
         ).hexdigest()
     )
-    row.spec.trainer.config["options"]["lora_rank"] = 64
-    assert spec.trainer.config["options"]["lora_rank"] == 32
+    row.spec.trainer["config"]["options"]["lora_rank"] = 64
+    assert spec.trainer["config"]["options"]["lora_rank"] == 32
     saved = row.model_dump_json()
     assert DeploymentRecord.model_validate_json(saved) == row
 
@@ -386,13 +388,13 @@ def test_python_config_inheritance_and_independent_defaults(tmp_path):
     first, second = load(path), load(path)
     assert is_dataclass(first)
     assert first.name == "custom"
-    assert first.model.max_context_length == 65536
-    assert first.trainer.config["options"]["new_backend_option"] is False
-    first.trainer.config["options"]["target_modules"].append("extra")
-    assert "extra" not in second.trainer.config["options"]["target_modules"]
+    assert first.model["max_context_length"] == 65536
+    assert first.trainer["config"]["options"]["new_backend_option"] is False
+    first.trainer["config"]["options"]["target_modules"].append("extra")
+    assert "extra" not in second.trainer["config"]["options"]["target_modules"]
     assert (
         "extra"
-        not in load(config_path("qwen35-9b-lora-16k")).trainer.config["options"][
+        not in load(config_path("qwen35-9b-lora-16k")).trainer["config"]["options"][
             "target_modules"
         ]
     )
@@ -408,10 +410,10 @@ def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
         backends, "serving_options", lambda *a: pytest.fail("serving read")
     )
     spec = load(config_path("qwen35-9b-lora-16k"))
-    original_revision = spec.model.revision
+    original_revision = spec.model["revision"]
     record = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
-    assert record.spec.model.revision == "a" * 40
-    assert spec.model.revision == original_revision
+    assert record.spec.model["revision"] == "a" * 40
+    assert spec.model["revision"] == original_revision
 
 
 @pytest.mark.parametrize("source", ["Config = {}", "class Config: pass", "value = 1"])
@@ -440,7 +442,6 @@ def test_no_yaml_config_ingestion(tmp_path):
 
 def test_overrides_inherit_replace_and_copy_values():
     from lilo.configs.qwen35_9b_lora_16k import Config as Example
-    from lilo.deployments import Trainer, Resources
 
     class Parent(Example):
         overrides = {
@@ -457,26 +458,28 @@ def test_overrides_inherit_replace_and_copy_values():
         }
 
     child = Child()
-    assert child.inference.config["max_running_requests"] == 24
-    assert child.trainer.config["options"]["target_modules"] == ["child"]
-    assert child.trainer.config["options"]["future_option"] == {"enabled": False}
-    child.trainer.config["options"]["target_modules"].append("changed")
-    child.trainer.config["options"]["future_option"]["enabled"] = True
+    assert child.inference["config"]["max_running_requests"] == 24
+    assert child.trainer["config"]["options"]["target_modules"] == ["child"]
+    assert child.trainer["config"]["options"]["future_option"] == {"enabled": False}
+    child.trainer["config"]["options"]["target_modules"].append("changed")
+    child.trainer["config"]["options"]["future_option"]["enabled"] = True
     assert Child.overrides["trainer.config.options.target_modules"] == ["child"]
-    assert Child().trainer.config["options"]["future_option"] == {"enabled": False}
-    assert Parent().trainer.config["options"]["target_modules"] == ["parent"]
+    assert Child().trainer["config"]["options"]["future_option"] == {"enabled": False}
+    assert Parent().trainer["config"]["options"]["target_modules"] == ["parent"]
     assert "overrides" not in asdict(child)
     assert Child(name="keyword").name == "keyword"
 
     class Replacement(Parent):
-        trainer = Trainer(resources=Resources(gpu="H200:8"), config={"options": {}})
+        trainer = {"resources": {"gpu": "H200:8"}, "config": {"options": {}}}
         overrides = {"trainer.config.options.new_option": 1}
 
     # A child's complete field replacement wins over its parent's dotted edits.
-    assert Replacement().trainer.config == {"options": {"new_option": 1}}
+    assert Replacement().trainer["config"] == {"options": {"new_option": 1}}
 
 
-@pytest.mark.parametrize("path", ["model.typo", "trainer.missing.value", "typo"])
+@pytest.mark.parametrize(
+    "path", ["model.missing.value", "trainer.missing.value", "typo"]
+)
 def test_override_typos_fail_with_the_path(path):
     from lilo.configs.qwen35_9b_lora_16k import Config as Example
 
@@ -485,3 +488,22 @@ def test_override_typos_fail_with_the_path(path):
 
     with pytest.raises(ValueError, match=path):
         Config()
+
+
+def test_plain_sections_fill_defaults_without_sharing_values():
+    class Config(BaseConfig):
+        name = "plain"
+        model = {"id": "example/model", "max_context_length": 2048}
+        trainer = {"resources": {"gpu": "H100:4"}, "config": {"future_option": False}}
+        inference = {"resources": {"gpu": "H200"}}
+
+    first, second = Config(), Config()
+    assert type(first.model) is dict
+    assert type(first.trainer) is dict
+    assert first.model["revision"] == "main"
+    assert first.trainer["resources"]["cpu"] == 8
+    assert first.trainer["config"] == {"future_option": False}
+    first.inference["scaling"]["max_replicas"] = 2
+    first.trainer["env"]["CUSTOM"] = "value"
+    assert second.inference["scaling"]["max_replicas"] == 8
+    assert second.trainer["env"] == {}
