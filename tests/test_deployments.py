@@ -275,3 +275,18 @@ def test_native_boolean_opposite_flags_and_optional_value():
     parser.add_argument("--custom", action="append")
     with pytest.raises(ValueError, match="unsupported argparse action"):
         apply_defaults(parser, {"custom": [1]}, [])
+
+
+def test_native_type_callbacks_receive_text():
+    def readable_int(value):
+        return int(value.strip().removesuffix("k")) * (
+            1000 if value.endswith("k") else 1
+        )
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--context-length", type=readable_int)
+    parser.add_argument("--sizes", nargs="+", type=readable_int)
+    apply_defaults(parser, {"context_length": 65536, "sizes": [32, "2k"]}, [])
+    args = parser.parse_args([])
+    assert args.context_length == 65536
+    assert args.sizes == [32, 2000]

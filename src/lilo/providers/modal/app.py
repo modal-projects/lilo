@@ -148,12 +148,12 @@ async def _delete_checkpoint(uri: str) -> None:
 
 
 image = (
-    modal.Image.debian_slim(python_version="3.11")
+    modal.Image.debian_slim(python_version="3.12" if YAML_SETTINGS else "3.11")
     .apt_install("git")
     .pip_install(*CORE_PACKAGES, TINKER_PACKAGE)
     .pip_install(STITCH_PACKAGE, "huggingface-hub")
-    .add_local_python_source("lilo")
     .env(TRAINER_DEPLOYMENT_ENV)
+    .add_local_python_source("lilo")
 )
 model_assets = modal.Volume.from_name(
     YAML_SETTINGS.deployment.storage.assets if YAML_SETTINGS else "lilo-model-assets",

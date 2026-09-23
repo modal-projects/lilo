@@ -50,7 +50,9 @@ def apply_defaults(
                 raise ValueError(f"backend option {key} requires {action.nargs} values")
             cast = action.type or (lambda x: x)
             try:
-                values = [cast(v) for v in values]
+                # argparse type callbacks receive command-line text, including
+                # custom converters such as SGLang human_readable_int.
+                values = [cast(str(v)) for v in values]
             except (ValueError, TypeError, argparse.ArgumentTypeError) as exc:
                 raise ValueError(
                     f"invalid value for backend option {key}: {exc}"

@@ -96,3 +96,14 @@ def test_validate_never_resolves_or_deploys(monkeypatch, capsys):
     )
     cli.main(["config", "validate", str(preset_path("qwen35-9b-lora-16k"))])
     assert "Validated 1 deployment" in capsys.readouterr().out
+
+
+def test_deploy_rejects_python_mismatch_before_remote_changes(monkeypatch):
+    monkeypatch.setattr(cli.sys, "version_info", (3, 11, 0))
+    monkeypatch.setattr(
+        modal.Dict,
+        "from_name",
+        lambda *a, **k: pytest.fail("must reject before touching Modal"),
+    )
+    with pytest.raises(ValueError, match="requires Python 3.12"):
+        cli.deploy([deployment()])

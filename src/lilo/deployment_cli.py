@@ -93,6 +93,10 @@ def deploy(desired):
     import modal
     from lilo.providers.modal.yaml_apps import MANIFEST_ENV
 
+    if sys.version_info[:2] != (3, 12):
+        raise ValueError(
+            "YAML deployment requires Python 3.12 to match the serialized GPU runtime images"
+        )
     settings = desired[0].spec.deployment
     registry = modal.Dict.from_name(
         f"{settings.frontend}-yaml-deployments",

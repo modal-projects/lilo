@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import modal
 
-from lilo.deployments import ResolvedDeployment, validate_frontend
+from lilo.deployments import ResolvedDeployment, Routing, validate_frontend
 from .recipe import backend_config, serving_options
 
 MANIFEST_ENV = "LILO_DEPLOYMENT_MANIFEST"
@@ -85,7 +85,15 @@ def secrets_for(spec, *, training=False):
 
 
 def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
+    # Admission metadata must not change the serialized function for a running
+    # configuration when a default switches or an older configuration drains.
+    resolved = resolved.model_copy(deep=True)
+    resolved.active = True
+    resolved.spec.routing = Routing()
     spec = resolved.spec
+    config_json = json.dumps(
+        resolved.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+    )
     app = modal.App(f"{spec.deployment.frontend}-{resolved.definition_id}")
     resource = spec.trainer.resources
     from .deployment import trainer_deployment_env
@@ -113,7 +121,7 @@ def build_trainer_app(resolved: ResolvedDeployment, *, image=None):
         env=env,
     )
     def trainer(instance_id: str):
-        run_trainer(resolved, instance_id)
+        run_trainer(ResolvedDeployment.model_validate_json(config_json), instance_id)
 
     return app, trainer
 

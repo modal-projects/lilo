@@ -210,3 +210,19 @@ print('constructed')
     )
     assert result.returncode == 0, result.stderr
     assert "constructed" in result.stdout
+
+
+def test_admission_changes_preserve_serialized_trainer(builders):
+    from modal._serialization import serialize
+
+    first = deployment()
+    old_bytes = serialize(yaml_apps.build_trainer_app(first, image="test")[1])
+    changed = first.model_copy(deep=True)
+    changed.active = False
+    changed.spec.routing.default = not first.spec.routing.default
+    changed.spec.routing.sampling_default = True
+    new_bytes = serialize(yaml_apps.build_trainer_app(changed, image="test")[1])
+    assert new_bytes == old_bytes
+    assert first.active is True and first.spec.routing.default is True
+    changed.spec.trainer.resources.gpu = "H200:4"
+    assert serialize(yaml_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
