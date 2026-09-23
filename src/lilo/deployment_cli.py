@@ -1,4 +1,4 @@
-"""Operator CLI for YAML deployments. Only `deploy` provisions Modal resources."""
+"""Operator CLI for Python deployments. Only `deploy` provisions Modal resources."""
 
 from __future__ import annotations
 
@@ -12,12 +12,11 @@ import subprocess
 import sys
 import uuid
 
-import yaml
 
 from lilo.deployments import (
     DeploymentRecord,
     load,
-    preset_path,
+    config_path,
     validate_frontend,
 )
 
@@ -71,7 +70,7 @@ def retain_generations(previous, desired):
     for row in previous:
         if row.implementation != expected.implementation:
             raise ValueError(
-                "This draft cannot rebuild retained generations with different Lilo/runtime code. Use a separate frontend for a code upgrade; YAML-only changes can retain existing generations."
+                "This draft cannot rebuild retained generations with different Lilo/runtime code. Use a separate frontend for a code upgrade; Config-only changes can retain existing generations."
             )
         if (
             row.spec.deployment != expected.spec.deployment
@@ -94,11 +93,11 @@ def retain_generations(previous, desired):
 def deploy(desired):
     """Serialize operator applies and retain interrupted attempts for safe recovery."""
     import modal
-    from lilo.providers.modal.yaml_apps import MANIFEST_ENV
+    from lilo.providers.modal.deployment_apps import MANIFEST_ENV
 
     if sys.version_info[:2] != (3, 12):
         raise ValueError(
-            "YAML deployment requires Python 3.12 to match the serialized GPU runtime images"
+            "Python deployment requires Python 3.12 to match the serialized GPU runtime images"
         )
     settings = desired[0].spec.deployment
     registry = modal.Dict.from_name(
@@ -122,7 +121,7 @@ def deploy(desired):
                 pass
             else:
                 raise ValueError(
-                    "The frontend already exists without a YAML registry. Choose a new frontend name; an app with no deployment registry cannot be safely updated."
+                    "The frontend already exists without a deployment registry. Choose a new frontend name; an app with no deployment registry cannot be safely updated."
                 )
         # A killed deploy may already have updated Modal. Keep its functions on retry.
         rows = {r["generation"]: r for r in [*rows, *registry.get("pending", [])]}
@@ -168,7 +167,7 @@ def parser():
         if name == "resolve":
             cmd.add_argument("--output")
     apply = commands.add_parser(
-        "deploy", help="Deploy the complete active YAML set behind one frontend"
+        "deploy", help="Deploy the complete active Python config set behind one frontend"
     )
     apply.add_argument("files", nargs="+")
     management = commands.add_parser("deployment").add_subparsers(
@@ -189,12 +188,16 @@ def main(argv=None):
     try:
         if args.command == "config":
             if args.action == "init":
+                module = config_path(args.preset).stem
+                if not config_path(args.preset).is_file():
+                    raise ValueError(f"unknown example config: {args.preset}")
                 print(
-                    yaml.safe_dump(
-                        load(preset_path(args.preset)).model_dump(mode="json"),
-                        sort_keys=False,
-                    ),
-                    end="",
+                    "from dataclasses import dataclass\n"
+                    f"from lilo.configs.{module} import Config as ParentConfig\n\n\n"
+                    "@dataclass(kw_only=True)\n"
+                    "class Config(ParentConfig):\n"
+                    "    # Override fields or customize nested settings in __post_init__.\n"
+                    "    pass"
                 )
             elif args.action == "validate":
                 specs = [load(path) for path in args.files]

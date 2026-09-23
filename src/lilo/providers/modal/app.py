@@ -46,7 +46,7 @@ from .lora_pool import (
     stop_pool as stop_lora_pool,
 )
 from .sampling import ModalSamplingTaskPlatform
-from .yaml_apps import (
+from .deployment_apps import (
     MANIFEST_ENV,
     definition_from_spec,
     frontend_settings,

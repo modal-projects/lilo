@@ -1,6 +1,15 @@
-# YAML deployment validation
+# Deployment configuration validation
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
+
+## Python dataclass configuration
+
+Python `Config` subclasses replace the YAML presets and loader. All 14 configs were compared with the previous specifications: model, resources, backend options and inference options are unchanged. The three checked-in deployment files retain their pinned model revisions. Inheritance uses normal dataclass defaults and `__post_init__`; tests verify mutable defaults are independent.
+
+Validation: **597 CPU tests passed, 1 skipped**; Ruff passed for changed Python files and whitespace/shell-syntax checks passed. The CLI generated a Python config and validated it. A clean wheel contains all 14 Python configs and no YAML presets or old YAML app modules; every config was loaded from that wheel, its backend settings built, and its record round-tripped through JSON. PyYAML was removed from Lilo's direct dependencies; the lockfile otherwise preserves package versions and sources.
+
+This migration has not been redeployed or GPU-tested. The GPU results below describe the earlier YAML-based source at `13d2a31`, before the subsequent CPU-only refactors. Earlier cleanup counts below are historical.
+
 
 ## Deployment record simplification
 
@@ -73,11 +82,11 @@ The western 8×H200 trainer remained queued without a container for approximatel
 
 ## Reproduce the smoke test
 
-Use Python 3.12 and an authenticated Modal environment. Set `TINKER_API_KEY` locally to the value in the deployment's API secret. Generate the preset YAMLs, give them the same isolated `deployment.frontend`, and pin model revisions plus `LILO_MILES_COMMIT` before deploying.
+Use Python 3.12 and an authenticated Modal environment. Set `TINKER_API_KEY` locally to the value in the deployment's API secret. Generate Python config files from the packaged examples, give them the same isolated `deployment.frontend`, and pin model revisions plus `LILO_MILES_COMMIT` before deploying.
 
 ```bash
-lilo deploy qwen35-9b-lora-16k.yaml qwen35-9b-lora-64k.yaml qwen35-4b-fft-64k.yaml
-python scripts/yaml_deployment_smoke.py \
+lilo deploy deployments/qwen35_9b_lora_16k.py deployments/qwen35_9b_lora_64k.py deployments/qwen35_4b_fft_64k.py
+python scripts/deployment_smoke.py \
   --frontend YOUR_TEST_FRONTEND \
   --name qwen35-9b-lora-16k \
   --steps 3 \

@@ -5,15 +5,15 @@ from types import SimpleNamespace
 import modal
 import pytest
 
-from lilo.deployments import load, preset_path, DeploymentRecord
-from lilo.providers.modal import yaml_apps
+from lilo.deployments import load, config_path, DeploymentRecord
+from lilo.providers.modal import deployment_apps
 from lilo.providers.modal.fft_pool import FFTPoolSpec
 from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 
 def deployment(preset="qwen35-9b-lora-16k"):
     return DeploymentRecord.create(
-        load(preset_path(preset)), revision="a" * 40, implementation="runtime"
+        load(config_path(preset)), revision="a" * 40, implementation="runtime"
     )
 
 
@@ -58,7 +58,7 @@ def test_trainer_declaration_and_executor_configuration(
     row = deployment(preset)
     row.spec.deployment.storage.checkpoints = "test-custom-checkpoints"
     image = object()
-    app, trainer = yaml_apps.build_trainer_app(row, image=image)
+    app, trainer = deployment_apps.build_trainer_app(row, image=image)
     declaration, _ = app.functions[row.definition_id]
     assert declaration["gpu"] == "H100:4"
     assert declaration["region"] == "us-west"
@@ -71,7 +71,7 @@ def test_trainer_declaration_and_executor_configuration(
 
     monkeypatch.setattr(kv, "shared_kv", lambda: "store")
     monkeypatch.setattr(
-        yaml_apps,
+        deployment_apps,
         "volumes_for",
         lambda spec: {"/assets": SimpleNamespace(reload=lambda: reloaded.append(True))},
     )
@@ -105,7 +105,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
             else FFTPoolSpec(row.definition_id, "job", kind == "latest", 7)
         )
     )
-    app, server = yaml_apps.build_rollout_app(row, pool, image="test-image")
+    app, server = deployment_apps.build_rollout_app(row, pool, image="test-image")
     settings, _ = app.servers["Server"]
     assert app.name == pool.app_name
     assert settings["gpu"] == row.spec.inference.resources.gpu
@@ -163,13 +163,13 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
 
 def test_pool_subprocess_receives_recorded_generation(monkeypatch):
     row = deployment()
-    monkeypatch.setenv(yaml_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
-    env = yaml_apps.pool_environment(row.definition_id)
-    assert json.loads(env[yaml_apps.POOL_CONFIG_ENV])["generation"] == row.generation
+    monkeypatch.setenv(deployment_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
+    env = deployment_apps.pool_environment(row.definition_id)
+    assert json.loads(env[deployment_apps.POOL_CONFIG_ENV])["generation"] == row.generation
     with pytest.raises(ValueError, match="missing recorded"):
-        yaml_apps.pool_environment("yaml_missing_123")
+        deployment_apps.pool_environment("yaml_missing_123")
     with pytest.raises(ValueError, match="missing recorded"):
-        yaml_apps.pool_environment("unconfigured-python-definition")
+        deployment_apps.pool_environment("unconfigured-python-definition")
 
 
 def test_startup_failure_is_visible_and_blocks_new_spawns(monkeypatch):
@@ -199,15 +199,15 @@ def test_real_modal_app_constructs_from_manifest_without_legacy_catalog(monkeypa
     import sys
 
     row = deployment()
-    env = {**os.environ, yaml_apps.MANIFEST_ENV: json.dumps([row.model_dump()])}
+    env = {**os.environ, deployment_apps.MANIFEST_ENV: json.dumps([row.model_dump()])}
     result = subprocess.run(
         [
             sys.executable,
             "-c",
             """
 import importlib, sys, modal
-from lilo.providers.modal import yaml_apps
-yaml_apps.image_for = lambda backend: modal.Image.debian_slim()
+from lilo.providers.modal import deployment_apps
+deployment_apps.image_for = lambda backend: modal.Image.debian_slim()
 app = importlib.import_module('lilo.providers.modal.app')
 assert len(app.DEFINITIONS) == 1
 assert app.APP_NAME == 'lilo-yaml'
@@ -229,16 +229,16 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     from modal._serialization import serialize
 
     first = deployment()
-    old_bytes = serialize(yaml_apps.build_trainer_app(first, image="test")[1])
+    old_bytes = serialize(deployment_apps.build_trainer_app(first, image="test")[1])
     changed = first.model_copy(deep=True)
     changed.active = False
     changed.spec.routing.default = not first.spec.routing.default
     changed.spec.routing.sampling_default = True
-    new_bytes = serialize(yaml_apps.build_trainer_app(changed, image="test")[1])
+    new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
     assert first.active is True and first.spec.routing.default is True
     changed.spec.trainer.resources.gpu = "H200:4"
-    assert serialize(yaml_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
+    assert serialize(deployment_apps.build_trainer_app(changed, image="test")[1]) != old_bytes
 
 
 @pytest.mark.parametrize("kind", ["lora", "full"])
@@ -246,7 +246,7 @@ def test_pool_launch_uses_only_generic_yaml_app(monkeypatch, kind):
     from lilo.providers.modal import fft_pool, lora_pool
 
     row = deployment("qwen35-9b-lora-16k" if kind == "lora" else "qwen35-4b-fft-64k")
-    monkeypatch.setenv(yaml_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
+    monkeypatch.setenv(deployment_apps.MANIFEST_ENV, json.dumps([row.model_dump()]))
     module = lora_pool if kind == "lora" else fft_pool
     spec = (
         LoraPoolSpec(row.definition_id)
@@ -274,8 +274,8 @@ def test_pool_launch_uses_only_generic_yaml_app(monkeypatch, kind):
     )
     assert module.deploy_pool(spec) == "https://pool"
     command, kwargs = calls[0]
-    assert command[command.index("-m") + 1] == "lilo.providers.modal.yaml_pool_app"
+    assert command[command.index("-m") + 1] == "lilo.providers.modal.deployment_pool_app"
     assert (
-        json.loads(kwargs["env"][yaml_apps.POOL_CONFIG_ENV])["generation"]
+        json.loads(kwargs["env"][deployment_apps.POOL_CONFIG_ENV])["generation"]
         == row.generation
     )

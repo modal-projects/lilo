@@ -1,4 +1,4 @@
-"""Apply typed YAML values through a backend's own argparse schema."""
+"""Apply typed config values through a backend's own argparse schema."""
 
 from __future__ import annotations
 

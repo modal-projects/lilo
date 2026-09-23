@@ -1,4 +1,7 @@
-"""CPU checks for the boundary between YAML settings and Megatron constructors."""
+"""CPU checks for native config forwarding into Megatron constructors."""
+
+from dataclasses import asdict
+from pydantic import TypeAdapter
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -8,19 +11,19 @@ from runtime_stubs import backend_runtime_imports
 
 from lilo.backends.deployment import backend_config
 from lilo.backends.megatron_config import parse_backend_config
-from lilo.deployments import DeploymentSpec, load, preset_path
+from lilo.deployments import BaseConfig, load, config_path
 
 with backend_runtime_imports():
     from lilo.backends.megatron_runtime.common import modeling
 
 
 def test_yaml_native_values_reach_megatron(monkeypatch):
-    data = load(preset_path("qwen35-4b-fft-64k")).model_dump()
+    data = asdict(load(config_path("qwen35-4b-fft-64k")))
     data["trainer"]["config"]["optimizer"]["native_optimizer_setting"] = False
     data["trainer"]["config"]["distributed"] = {"native_ddp_setting": 123}
     data["trainer"]["config"]["provider"]["native_provider_setting"] = [1, 2]
     config, _ = parse_backend_config(
-        backend_config(DeploymentSpec.model_validate(data))
+        backend_config(TypeAdapter(BaseConfig).validate_python(data))
     )
     # These stand in for an installed upstream version with extra fields. The
     # deployment reader must not need its own list of those fields.

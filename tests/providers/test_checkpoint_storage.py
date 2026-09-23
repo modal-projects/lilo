@@ -34,7 +34,7 @@ def test_checkpoint_storage_creates_one_v2_volume_without_live_lookup() -> None:
 
 
 def test_yaml_definitions_use_configured_checkpoint_storage():
-    from lilo.providers.modal.yaml_apps import volumes_for
+    from lilo.providers.modal.deployment_apps import volumes_for
     from lilo.backends.deployment import backend_config
 
     for definition in DEFINITIONS:

@@ -131,7 +131,7 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
     modal_cli = shutil.which("modal")
     if modal_cli is None:
         raise RuntimeError("modal CLI is unavailable")
-    from .yaml_apps import pool_environment
+    from .deployment_apps import pool_environment
 
     recipe_env = pool_environment(spec.definition_id)
     env = {**os.environ, **spec.env(), **recipe_env}
@@ -139,7 +139,7 @@ def deploy_pool(spec: FFTPoolSpec) -> str:
         modal_cli,
         "deploy",
         "-m",
-        "lilo.providers.modal.yaml_pool_app",
+        "lilo.providers.modal.deployment_pool_app",
         "--name",
         spec.app_name,
     ]

@@ -1,3 +1,4 @@
+from copy import deepcopy
 import json
 import subprocess
 
@@ -5,8 +6,8 @@ import modal
 import pytest
 
 from lilo import deployment_cli as cli
-from lilo.deployments import load, preset_path, DeploymentRecord
-from lilo.providers.modal.yaml_apps import MANIFEST_ENV
+from lilo.deployments import load, config_path, DeploymentRecord
+from lilo.providers.modal.deployment_apps import MANIFEST_ENV
 
 
 class Registry(dict):
@@ -19,7 +20,7 @@ class Registry(dict):
 
 def deployment():
     return DeploymentRecord.create(
-        load(preset_path("qwen35-9b-lora-16k")),
+        load(config_path("qwen35-9b-lora-16k")),
         revision="a" * 40,
         implementation="test",
     )
@@ -69,7 +70,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
         cli.deploy([row])
     assert registry["pending"][0]["generation"] == row.generation
     assert "manifest" not in registry and "apply_lock" not in registry
-    new_spec = row.spec.model_copy(deep=True)
+    new_spec = deepcopy(row.spec)
     new_spec.trainer.scaling.max_instances = 2
     new = DeploymentRecord.create(new_spec, revision="a" * 40, implementation="test")
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
@@ -82,7 +83,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
 
 def test_refuse_overwriting_legacy_frontend(registry, monkeypatch):
     monkeypatch.setattr(modal.App, "lookup", lambda *args, **kwargs: object())
-    with pytest.raises(ValueError, match="already exists without a YAML registry"):
+    with pytest.raises(ValueError, match="already exists without a deployment registry"):
         cli.deploy([deployment()])
     assert "pending" not in registry
 
@@ -94,7 +95,7 @@ def test_validate_never_resolves_or_deploys(monkeypatch, capsys):
     monkeypatch.setattr(
         cli, "deploy", lambda *args: pytest.fail("unexpected deployment")
     )
-    cli.main(["config", "validate", str(preset_path("qwen35-9b-lora-16k"))])
+    cli.main(["config", "validate", str(config_path("qwen35-9b-lora-16k"))])
     assert "Validated 1 deployment" in capsys.readouterr().out
 
 
@@ -116,13 +117,17 @@ def test_compile_pins_revision_at_external_boundary(
     from types import SimpleNamespace
     from unittest.mock import Mock
     import huggingface_hub
-    import yaml
     from lilo.providers.modal import miles_revision
 
-    data = load(preset_path("qwen35-9b-lora-16k")).model_dump()
-    data["model"]["revision"] = revision
-    path = tmp_path / "model.yaml"
-    path.write_text(yaml.safe_dump(data))
+    path = tmp_path / "model.py"
+    path.write_text(
+        "from dataclasses import dataclass\n"
+        "from lilo.configs.qwen35_9b_lora_16k import Config as ParentConfig\n"
+        "@dataclass(kw_only=True)\n"
+        "class Config(ParentConfig):\n"
+        "    def __post_init__(self):\n"
+        f"        self.model.revision = {revision!r}\n"
+    )
     lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
     monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)
     monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)

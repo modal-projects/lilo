@@ -1,39 +1,41 @@
-"""Deployment specifications. Loading YAML never contacts Modal or allocates GPUs."""
+"""Python deployment configs and the records saved by the deployment CLI."""
 
 from __future__ import annotations
 
+from copy import deepcopy
+from dataclasses import asdict, dataclass, field
 import hashlib
-import json
-import re
 from importlib.resources import files
+import json
 from pathlib import Path
+import re
+import runpy
+import sys
 from typing import Any, Literal
 
-import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict
 
 
-class StrictModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class Model(StrictModel):
-    id: str = Field(min_length=1)
+@dataclass(kw_only=True)
+class Model:
+    id: str
+    max_context_length: int
     revision: str = "main"
     parameterization: Literal["lora", "full"] = "lora"
-    max_context_length: int = Field(gt=0)
 
 
-class Routing(StrictModel):
+@dataclass(kw_only=True)
+class Routing:
     default: bool = False
     sampling_default: bool = False
 
 
-class Resources(StrictModel):
+@dataclass(kw_only=True)
+class Resources:
     gpu: str
-    cpu: float = Field(default=8, gt=0)
-    memory_mib: int = Field(default=32768, gt=0)
-    timeout_s: int = Field(default=86400, gt=0, le=86400)
+    cpu: float = 8
+    memory_mib: int = 32768
+    timeout_s: int = 86400
 
     @property
     def gpu_count(self) -> int:
@@ -42,99 +44,110 @@ class Resources(StrictModel):
         return int(self.gpu.split(":")[1]) if ":" in self.gpu else 1
 
 
-class TrainerScaling(StrictModel):
+@dataclass(kw_only=True)
+class TrainerScaling:
     min_instances: Literal[0] = 0
-    max_instances: int = Field(default=1, gt=0)
+    max_instances: int = 1
 
 
-class InferenceScaling(StrictModel):
-    min_replicas: int = Field(default=0, ge=0)
-    max_replicas: int = Field(default=8, gt=0)
-    target_concurrency: int = Field(default=16, gt=0)
-    scaledown_window_s: int = Field(default=300, gt=0)
+@dataclass(kw_only=True)
+class InferenceScaling:
+    min_replicas: int = 0
+    max_replicas: int = 8
+    target_concurrency: int = 16
+    scaledown_window_s: int = 300
 
-    @model_validator(mode="after")
-    def ordered(self):
+    def __post_init__(self):
         if self.min_replicas > self.max_replicas:
             raise ValueError("min_replicas must not exceed max_replicas")
-        return self
 
 
-class EngineOptions(StrictModel):
-    max_clients_per_instance: int = Field(default=1, gt=0)
-    sampler_persistence_concurrency: int = Field(default=8, gt=0)
+@dataclass(kw_only=True)
+class EngineOptions:
+    max_clients_per_instance: int = 1
+    sampler_persistence_concurrency: int = 8
 
 
-class Trainer(StrictModel):
+@dataclass(kw_only=True)
+class Trainer:
+    resources: Resources
     backend: str = "miles"
+    scaling: TrainerScaling = field(default_factory=TrainerScaling)
+    engine: EngineOptions = field(default_factory=EngineOptions)
+    config: dict[str, Any] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class Inference:
     resources: Resources
-    scaling: TrainerScaling = Field(default_factory=TrainerScaling)
-    engine: EngineOptions = Field(default_factory=EngineOptions)
-    config: dict[str, Any] = Field(default_factory=dict)
-    env: dict[str, str] = Field(default_factory=dict)
-
-
-class Inference(StrictModel):
     backend: str = "sglang"
-    resources: Resources
-    scaling: InferenceScaling = Field(default_factory=InferenceScaling)
-    config: dict[str, Any] = Field(default_factory=dict)
-    env: dict[str, str] = Field(default_factory=dict)
+    scaling: InferenceScaling = field(default_factory=InferenceScaling)
+    config: dict[str, Any] = field(default_factory=dict)
+    env: dict[str, str] = field(default_factory=dict)
 
 
-class Secrets(StrictModel):
+@dataclass(kw_only=True)
+class Secrets:
     api: str = "lilo-api"
     sampler_proxy: str = "lilo-proxy"
     huggingface: str | None = "huggingface-secret"
 
 
-class Storage(StrictModel):
+@dataclass(kw_only=True)
+class Storage:
     assets: str = "lilo-model-assets"
     checkpoints: str = "lilo-checkpoints"
     bulletin: str = "lilo-snapshot-bulletin"
 
 
-class ModalSettings(StrictModel):
+@dataclass(kw_only=True)
+class ModalSettings:
     environment: str | None = None
     region: str = "us-west"
 
 
-class Deployment(StrictModel):
-    frontend: str = Field(
-        default="lilo-yaml", pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,46}$"
-    )
+@dataclass(kw_only=True)
+class Deployment:
+    frontend: str = "lilo-yaml"
     mode: Literal["shared"] = "shared"
-    modal: ModalSettings = Field(default_factory=ModalSettings)
-    secrets: Secrets = Field(default_factory=Secrets)
-    storage: Storage = Field(default_factory=Storage)
+    modal: ModalSettings = field(default_factory=ModalSettings)
+    secrets: Secrets = field(default_factory=Secrets)
+    storage: Storage = field(default_factory=Storage)
 
 
-class Lifecycle(StrictModel):
-    session_idle_timeout_s: int = Field(default=300, gt=0)
-    pool_idle_timeout_s: int = Field(default=300, gt=0)
-    sweep_interval_s: int = Field(default=300, gt=0)
+@dataclass(kw_only=True)
+class Lifecycle:
+    session_idle_timeout_s: int = 300
+    pool_idle_timeout_s: int = 300
+    sweep_interval_s: int = 300
 
 
-class DeploymentSpec(StrictModel):
-    api_version: Literal["lilo/v1"] = "lilo/v1"
-    name: str = Field(pattern=r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$")
+@dataclass(kw_only=True)
+class BaseConfig:
+    """Subclass in a config file and override defaults or use __post_init__."""
+
+    name: str
     model: Model
-    routing: Routing = Field(default_factory=Routing)
-    deployment: Deployment = Field(default_factory=Deployment)
     trainer: Trainer
     inference: Inference
-    lifecycle: Lifecycle = Field(default_factory=Lifecycle)
+    api_version: Literal["lilo/v1"] = "lilo/v1"
+    routing: Routing = field(default_factory=Routing)
+    deployment: Deployment = field(default_factory=Deployment)
+    lifecycle: Lifecycle = field(default_factory=Lifecycle)
 
 
-class DeploymentRecord(StrictModel):
-    """Saved deployment metadata around a YAML specification.
+class DeploymentRecord(BaseModel):
+    """Saved deployment metadata around a Python configuration.
 
     The CLI resolves the model revision before creating this record. Its hash
     binds jobs to their original code and configuration across later deploys;
     active controls whether new clients can select it.
     """
 
-    spec: DeploymentSpec
+    model_config = ConfigDict(extra="forbid")
+
+    spec: BaseConfig
     implementation: str
     miles_commit: str | None = None
     generation: str
@@ -143,17 +156,18 @@ class DeploymentRecord(StrictModel):
     @classmethod
     def create(
         cls,
-        spec: DeploymentSpec,
+        spec: BaseConfig,
         *,
         revision: str,
         implementation: str,
         miles_commit: str | None = None,
     ) -> DeploymentRecord:
-        """Record an already-resolved revision without reparsing the YAML."""
-        pinned = spec.model_copy(deep=True)
+        """Record an already-resolved revision without reparsing the configuration."""
+        pinned = deepcopy(spec)
         pinned.model.revision = revision
         # Changing routing defaults should not restart an existing trainer.
-        identity = pinned.model_dump(exclude={"routing"})
+        identity = asdict(pinned)
+        identity.pop("routing")
         generation = hashlib.sha256(
             json.dumps([implementation, identity], sort_keys=True).encode()
         ).hexdigest()
@@ -176,72 +190,34 @@ class DeploymentRecord(StrictModel):
         return f"/assets/{digest}"
 
 
-class UniqueLoader(yaml.SafeLoader):
-    pass
-
-
-def _mapping(loader, node):
-    result = {}
-    for key_node, value_node in node.value:
-        key = loader.construct_object(key_node)
-        if not isinstance(key, str) or key in result:
-            raise ValueError(f"duplicate or non-string YAML key: {key!r}")
-        result[key] = loader.construct_object(value_node)
-    return result
-
-
-UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _mapping)
-
-
-def merge(parent: dict, child: dict) -> dict:
-    return {
-        key: merge(parent[key], value)
-        if isinstance(parent.get(key), dict) and isinstance(value, dict)
-        else value
-        for key, value in (parent | child).items()
-    }
-
-
-def preset_path(name: str) -> Path:
+def config_path(name: str) -> Path:
+    """Locate an installed example config without maintaining a model catalog."""
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", name):
-        raise ValueError("invalid preset name")
-    return Path(str(files("lilo").joinpath("presets", name + ".yaml")))
+        raise ValueError("invalid config name")
+    return Path(str(files("lilo").joinpath("configs", name.replace("-", "_") + ".py")))
 
 
-def load(path: str | Path) -> DeploymentSpec:
-    """Read and merge YAML inheritance, then construct the deployment fields.
-
-    Backend configuration is interpreted when preparing its trainer or pool.
-    Parent files may be partial; only the fully merged document is constructed.
-    """
+def load(path: str | Path) -> BaseConfig:
+    """Execute a Python config file and instantiate its exported Config class."""
     path = Path(path).resolve()
-    seen = set()
-    documents = []
-    while True:
-        if path in seen:
-            raise ValueError(f"cyclic extends: {path}")
-        seen.add(path)
-        data = yaml.load(path.read_text(), Loader=UniqueLoader)
-        if not isinstance(data, dict):
-            raise ValueError("deployment YAML must be a mapping")
-        parent = data.pop("extends", None)
-        documents.append(data)
-        if parent is None:
-            break
-        if not isinstance(parent, str):
-            raise ValueError("extends must be a path or builtin:preset")
-        path = (
-            preset_path(parent[8:])
-            if parent.startswith("builtin:")
-            else path.parent / parent
-        ).resolve()
-    merged = {}
-    for document in reversed(documents):
-        merged = merge(merged, document)
-    return DeploymentSpec(**merged)
+    if path.suffix != ".py":
+        raise ValueError("deployment configs must be Python .py files")
+    # Let a config import sibling modules using normal Python imports.
+    original_path = sys.path[:]
+    sys.path.insert(0, str(path.parent))
+    try:
+        namespace = runpy.run_path(str(path))
+        config_class = namespace.get("Config")
+        if not isinstance(config_class, type) or not issubclass(
+            config_class, BaseConfig
+        ):
+            raise ValueError(f"{path} must export a Config subclass of BaseConfig")
+        return config_class()
+    finally:
+        sys.path[:] = original_path
 
 
-def validate_frontend(specs: list[DeploymentSpec]) -> None:
+def validate_frontend(specs: list[BaseConfig]) -> None:
     if not specs:
         raise ValueError("at least one deployment is required")
     if len({s.name for s in specs}) != len(specs):

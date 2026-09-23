@@ -1,4 +1,4 @@
-"""Dispatch opaque YAML configuration to its backend-owned integration.
+"""Dispatch backend configuration to its backend-owned integration.
 
 These readers are CPU-only. Native libraries validate their options in workers.
 """

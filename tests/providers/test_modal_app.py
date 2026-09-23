@@ -10,12 +10,12 @@ from lilo.providers.local import InMemoryKeyValueStore
 from lilo.providers.modal.fft_pool import FFTPoolSpec
 from lilo.providers.modal.lora_pool import LoraPoolSpec
 
-from lilo.deployments import load, preset_path, DeploymentRecord
+from lilo.deployments import load, config_path, DeploymentRecord
 
 
 def definition_id(preset):
     return DeploymentRecord.create(
-        load(preset_path(preset)), revision="a" * 40, implementation="tests"
+        load(config_path(preset)), revision="a" * 40, implementation="tests"
     ).definition_id
 
 

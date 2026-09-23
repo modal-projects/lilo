@@ -124,20 +124,20 @@ sampling scales according to rollout traffic. We best-effort sticky-route groups
 
 ## Adding a new model deployment
 
-A deployment YAML specifies the base model, training mode, context length, GPUs, parallelism, and inference settings. Shared deployments are defined only through these files.
+A Python deployment dataclass specifies the base model, training mode, context length, GPUs, parallelism, and inference settings. Shared deployments are defined only through these files.
 
-1. Create a YAML under `deployments/`, optionally extending a packaged preset.
+1. Create a Python `Config` subclass under `deployments/`, optionally inheriting from a packaged config.
 2. Add its path to the list in [`scripts/deploy_models.sh`](../scripts/deploy_models.sh).
 3. Run the script to apply the complete list to the shared frontend.
 
-There is no model-specific Python module or catalog registration to update. The generic builders in [`yaml_apps.py`](../src/lilo/providers/modal/yaml_apps.py) construct trainer functions and inference apps from the resolved YAML. See [YAML deployments](deployment-yaml-design.md) for the configuration schema and app structure.
+No central model catalog registration is needed. The generic builders in [`deployment_apps.py`](../src/lilo/providers/modal/deployment_apps.py) construct trainer functions and inference apps from the saved config. See [Python deployment configs](deployment-configs.md) for the configuration schema and app structure.
 
-Set each configuration's trainer limit with `trainer.scaling.max_instances` and its inference limits with `inference.scaling`. Trainer limits are read from YAML; `LILO_TRAINER_MAX_CONTAINERS` is no longer used.
+Set each configuration's trainer limit with `trainer.scaling.max_instances` and its inference limits with `inference.scaling`. Trainer limits are read from the config; `LILO_TRAINER_MAX_CONTAINERS` is no longer used.
 
 To check training, publication, and sampling against a deployed configuration:
 
 ```bash
-uv run python scripts/yaml_deployment_smoke.py \
+uv run python scripts/deployment_smoke.py \
   --frontend lilo-yaml --name qwen35-9b-lora-16k \
   --output /tmp/lilo-smoke.json
 ```

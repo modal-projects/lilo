@@ -48,7 +48,7 @@ training = service.create_lora_training_client(
 
 ## Shared deployment quick start
 
-Shared deployments are defined in YAML. See [YAML deployments](docs/deployment-yaml-design.md). Keep the active YAML list in [scripts/deploy_models.sh](scripts/deploy_models.sh); run it to deploy the complete list.
+Shared deployments use Python dataclasses. See [Python deployment configs](docs/deployment-configs.md). Keep the active Python config list in [scripts/deploy_models.sh](scripts/deploy_models.sh); run it to deploy the complete list.
 
 Install Lilo into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.
@@ -134,12 +134,12 @@ uv run modal secret create lilo-proxy \
 Create a configuration from a preset, validate it, and deploy it with Python 3.12:
 
 ```bash
-uv run lilo config init --preset qwen35-9b-lora-16k > deployment.yaml
-uv run lilo config validate deployment.yaml
-uv run lilo deploy deployment.yaml
+uv run lilo config init --preset qwen35-9b-lora-16k > deployment.py
+uv run lilo config validate deployment.py
+uv run lilo deploy deployment.py
 ```
 
-This deploys the shared app and prints its `server` URL. Add more YAML files to the same command to serve more configurations. Always supply the complete active set. Pin model revisions and `LILO_MILES_COMMIT` for repeatable applies; see [YAML deployments](docs/deployment-yaml-design.md).
+This deploys the shared app and prints its `server` URL. Add more Python config files to the same command to serve more configurations. Always supply the complete active set. Pin model revisions and `LILO_MILES_COMMIT` for repeatable applies; see [Python deployment configs](docs/deployment-configs.md).
 
 From a repository checkout, maintain the list in `scripts/deploy_models.sh` and run that script. `lilo deploy` supplies the saved configuration to Modal; importing the shared app directly without a manifest is no longer a deployment entrypoint.
 
@@ -156,7 +156,7 @@ has finished in the Modal dashboard or list apps with:
 uv run modal app list
 ```
 
-To tear down the deployment, stop its `lilo-fft-...` sampler apps, then the frontend named in your YAML (`lilo-yaml` by default),
+To tear down the deployment, stop its `lilo-fft-...` sampler apps, then the frontend named in your config (`lilo-yaml` by default),
 using `uv run modal app stop <app-id>`. Stopping the frontend does not stop sampler apps.
 
 ## Next steps

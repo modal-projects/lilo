@@ -1,7 +1,0 @@
-extends: builtin:qwen35-9b-lora-16k
-name: qwen35-9b-lora-16k-single
-routing:
-  default: false
-trainer:
-  engine:
-    max_clients_per_instance: 1

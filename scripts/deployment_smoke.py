@@ -1,4 +1,4 @@
-"""Small real-GPU training/publication/sampling check for a YAML deployment.
+"""Small real-GPU training/publication/sampling check for a Python-configured deployment.
 
 Run from an authenticated operator environment. Results are written to --output;
 credentials are read from TINKER_API_KEY and never included in the report.

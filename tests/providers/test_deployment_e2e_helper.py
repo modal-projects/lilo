@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import modal
 import pytest
 
-from lilo.deployments import load, preset_path, DeploymentRecord
+from lilo.deployments import load, config_path, DeploymentRecord
 
 
 @pytest.mark.parametrize("preset", ["qwen35-9b-lora-16k", "qwen35-4b-fft-64k"])
@@ -13,7 +13,7 @@ def test_e2e_helper_reads_active_deployed_configuration(monkeypatch, preset):
     helper = runpy.run_path(
         str(Path(__file__).parents[2] / "scripts/e2e_engine_definition.py")
     )
-    row = DeploymentRecord.create(load(preset_path(preset)), revision="a" * 40, implementation="test")
+    row = DeploymentRecord.create(load(config_path(preset)), revision="a" * 40, implementation="test")
     retired = row.model_copy(update={"active": False, "generation": "b" * 64})
     registry = SimpleNamespace(
         get=lambda *args: [retired.model_dump(), row.model_dump()]

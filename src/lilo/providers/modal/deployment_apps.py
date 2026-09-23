@@ -1,4 +1,4 @@
-"""Modal app builders shared by all YAML model deployments.
+"""Modal app builders shared by all Python-configured model deployments.
 
 Trainer functions live in the frontend app. Rollout pools are separate apps,
 created on demand with the existing LoRA/FFT pool lifecycle.
@@ -23,7 +23,7 @@ def manifest_from_env():
     data = os.environ.get(MANIFEST_ENV)
     if not data:
         raise ValueError(
-            "Missing deployment manifest. Use lilo deploy with your YAML files."
+            "Missing deployment manifest. Use lilo deploy with your Python config files."
         )
     rows = json.loads(data)
     if not isinstance(rows, list) or not rows:

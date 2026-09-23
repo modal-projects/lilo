@@ -14,7 +14,6 @@ dependencies = [
     "huggingface-hub>=0.34",
     "modal>=1.5.3",
     "protobuf>=5.29",
-    "pyyaml>=6.0.2",
     "pydantic>=2.13.4",
     "stitch @ git+https://github.com/modal-projects/stitch.git@375a9396a7b05770dc4ed9cc5fe34fc4d5a472d5",
     "tinker>=0.24.1,<0.25",
@@ -36,6 +35,3 @@ dev = [
 
 [project.scripts]
 lilo = "lilo.deployment_cli:main"
-
-[tool.setuptools.package-data]
-lilo = ["presets/*.yaml"]

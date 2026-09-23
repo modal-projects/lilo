@@ -1,8 +1,0 @@
-extends: builtin:qwen35-9b-instruct-lora-16k
-name: qwen35-9b-instruct-lora-16k-dp2
-routing:
-  default: false
-trainer:
-  config:
-    options:
-      tensor_model_parallel_size: 4

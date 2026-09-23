@@ -1,34 +1,35 @@
+from dataclasses import asdict
+from pydantic import TypeAdapter
 import argparse
 import asyncio
 from types import SimpleNamespace
 
 import httpx
 import pytest
-import yaml
 
 from lilo.deployments import (
     DeploymentRecord,
-    DeploymentSpec,
+    BaseConfig,
     load,
-    preset_path,
+    config_path,
     validate_frontend,
 )
 from lilo.deployment_cli import retain_generations
 from lilo.control_plane.deployments import DeploymentRoutes
 from lilo.backends.deployment import backend_config
-from lilo.providers.modal.yaml_apps import definition_from_spec
+from lilo.providers.modal.deployment_apps import definition_from_spec
 from lilo.native_options import apply_defaults
 
 
 def recipe(preset="qwen35-9b-lora-16k", **changes):
-    data = load(preset_path(preset)).model_dump()
+    data = asdict(load(config_path(preset)))
     for path, value in changes.items():
         keys = path.split("__")
         target = data
         for key in keys[:-1]:
             target = target[key]
         target[keys[-1]] = value
-    return DeploymentSpec.model_validate(data)
+    return TypeAdapter(BaseConfig).validate_python(data)
 
 
 def resolved(spec=None, **changes):
@@ -71,33 +72,6 @@ def test_no_model_catalog_required():
     )
     assert definition(resolved(spec)).MODEL_NAME == "my-org/new-model"
     assert backend_config(spec)["miles"]["model_type"] == ""
-
-
-def test_extends_false_and_lists_replace(tmp_path):
-    path = tmp_path / "child.yaml"
-    path.write_text(
-        yaml.safe_dump(
-            {
-                "extends": "builtin:qwen35-9b-lora-16k",
-                "routing": {"default": False},
-                "trainer": {"config": {"options": {"target_modules": ["linear_qkv"]}}},
-            }
-        )
-    )
-    spec = load(path)
-    assert spec.routing.default is False
-    assert spec.trainer.config["options"]["target_modules"] == ["linear_qkv"]
-    assert spec.trainer.config["options"]["lora_rank"] == 32
-
-
-def test_duplicate_keys_and_cycles(tmp_path):
-    path = tmp_path / "bad.yaml"
-    path.write_text("name: first\nname: second\n")
-    with pytest.raises(ValueError, match="duplicate"):
-        load(path)
-    path.write_text("extends: bad.yaml\n")
-    with pytest.raises(ValueError, match="cyclic"):
-        load(path)
 
 
 @pytest.mark.parametrize(
@@ -300,14 +274,14 @@ def test_native_sections_survive_serialization_without_allowlist():
     from lilo.backends.megatron_config import parse_backend_config
 
     spec = recipe("qwen35-4b-fft-64k")
-    data = spec.model_dump()
+    data = asdict(spec)
     data["trainer"]["config"]["provider"]["future_provider_option"] = {
         "layers": [1, 4],
         "enabled": False,
     }
     data["trainer"]["config"]["optimizer"]["future_optimizer_option"] = 0.125
     data["trainer"]["config"]["distributed"] = {"future_ddp_option": False}
-    spec = DeploymentSpec.model_validate(data)
+    spec = TypeAdapter(BaseConfig).validate_python(data)
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
     assert config.hf_checkpoint == "/assets/pinned"
@@ -319,7 +293,7 @@ def test_native_sections_survive_serialization_without_allowlist():
     assert config.optimizer_overrides == {"future_optimizer_option": 0.125}
     assert config.distributed_overrides == {"future_ddp_option": False}
     assert config.optimizer.lr == 0.0001
-    assert spec.model_dump() == data  # Building does not consume or mutate YAML.
+    assert asdict(spec) == data  # Building does not consume or mutate YAML.
 
 
 @pytest.mark.parametrize(
@@ -360,43 +334,6 @@ def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
     assert serving_options(spec)["future_sglang_option"] is False
 
 
-def test_load_merges_partial_parents_before_constructing_spec(tmp_path):
-    parent = tmp_path / "parent.yaml"
-    parent.write_text("trainer:\n  config:\n    options:\n      custom_option: 1\n")
-    middle = tmp_path / "middle.yaml"
-    middle.write_text(
-        "extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom_option: 2\n"
-    )
-    data = recipe().model_dump()
-    data["extends"] = "middle.yaml"
-    data["trainer"]["config"]["options"]["other_option"] = False
-    child = tmp_path / "child.yaml"
-    child.write_text(yaml.safe_dump(data))
-    spec = load(child)
-    assert spec.trainer.config["options"]["custom_option"] == 2
-    assert spec.trainer.config["options"]["other_option"] is False
-
-
-def test_loading_and_resolving_do_not_interpret_backend_config(tmp_path, monkeypatch):
-    import lilo.backends.deployment as backends
-
-    def unexpected(*args, **kwargs):
-        pytest.fail("YAML construction must not interpret backend configuration")
-
-    monkeypatch.setattr(backends, "backend_config", unexpected)
-    monkeypatch.setattr(backends, "serving_options", unexpected)
-    data = recipe().model_dump()
-    data["trainer"]["backend"] = "unknown-until-startup"
-    path = tmp_path / "deployment.yaml"
-    path.write_text(yaml.safe_dump(data))
-    spec = load(path)
-    assert DeploymentRecord.create(
-        spec, revision="a" * 40, implementation="test"
-    ).spec == spec.model_copy(
-        update={"model": spec.model.model_copy(update={"revision": "a" * 40})}
-    )
-
-
 def test_fft_capacity_is_checked_by_backend_setup():
     spec = recipe("qwen35-4b-fft-64k", trainer__engine__max_clients_per_instance=2)
     with pytest.raises(ValueError, match="FFT trainers admit one client"):
@@ -404,7 +341,7 @@ def test_fft_capacity_is_checked_by_backend_setup():
 
 
 def test_reserved_environment_is_checked_by_modal_setup():
-    from lilo.providers.modal.yaml_apps import deployment_env
+    from lilo.providers.modal.deployment_apps import deployment_env
 
     spec = recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
     with pytest.raises(ValueError, match="managed"):
@@ -412,32 +349,14 @@ def test_reserved_environment_is_checked_by_modal_setup():
     assert deployment_env({"MY_SETTING": "value"}) == {"MY_SETTING": "value"}
 
 
-def test_inheritance_keeps_intermediate_replacements(tmp_path):
-    parent = recipe().model_dump()
-    parent["trainer"]["config"]["options"]["custom"] = {"old": 1}
-    (tmp_path / "parent.yaml").write_text(yaml.safe_dump(parent))
-    (tmp_path / "middle.yaml").write_text(
-        "extends: parent.yaml\ntrainer:\n  config:\n    options:\n      custom: null\n"
-    )
-    child = tmp_path / "child.yaml"
-    child.write_text(
-        "extends: middle.yaml\ntrainer:\n  config:\n    options:\n      custom:\n        new: 2\n"
-    )
-    assert load(child).trainer.config["options"]["custom"] == {"new": 2}
-
-
-def test_record_creation_copies_without_reparsing(monkeypatch):
+def test_record_creation_copies_without_reparsing():
     import hashlib
     import json
 
     spec = recipe()
-    original = spec.model_dump()
-    # Creating a record must not reconstruct an already-parsed specification.
-    monkeypatch.setattr(
-        DeploymentSpec, "model_validate", lambda *a, **k: pytest.fail("reparse")
-    )
+    original = asdict(spec)
     row = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
-    assert spec.model_dump() == original
+    assert asdict(spec) == original
     assert row.spec.model.revision == "a" * 40
     # Keep the existing manifest fields and hash format stable.
     expected = original | {"model": original["model"] | {"revision": "a" * 40}}
@@ -452,3 +371,71 @@ def test_record_creation_copies_without_reparsing(monkeypatch):
     assert spec.trainer.config["options"]["lora_rank"] == 32
     saved = row.model_dump_json()
     assert DeploymentRecord.model_validate_json(saved) == row
+
+
+def test_python_config_inheritance_and_independent_defaults(tmp_path):
+    from dataclasses import is_dataclass
+
+    path = tmp_path / "model.py"
+    path.write_text(
+        "from dataclasses import dataclass\n"
+        "from lilo.configs.qwen35_9b_lora_64k import Config as ParentConfig\n"
+        "@dataclass(kw_only=True)\n"
+        "class Config(ParentConfig):\n"
+        "    name: str = 'custom'\n"
+        "    def __post_init__(self):\n"
+        "        super().__post_init__()\n"
+        "        self.trainer.config['options']['new_backend_option'] = False\n"
+    )
+    first, second = load(path), load(path)
+    assert is_dataclass(first)
+    assert first.name == "custom"
+    assert first.model.max_context_length == 65536
+    assert first.trainer.config["options"]["new_backend_option"] is False
+    first.trainer.config["options"]["target_modules"].append("extra")
+    assert "extra" not in second.trainer.config["options"]["target_modules"]
+    assert (
+        "extra"
+        not in load(config_path("qwen35-9b-lora-16k")).trainer.config["options"][
+            "target_modules"
+        ]
+    )
+
+
+def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
+    import lilo.backends.deployment as backends
+
+    monkeypatch.setattr(
+        backends, "backend_config", lambda *a: pytest.fail("backend read")
+    )
+    monkeypatch.setattr(
+        backends, "serving_options", lambda *a: pytest.fail("serving read")
+    )
+    spec = load(config_path("qwen35-9b-lora-16k"))
+    record = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
+    assert record.spec.model.revision == "a" * 40
+    assert spec.model.revision == "main"
+
+
+@pytest.mark.parametrize("source", ["Config = {}", "class Config: pass", "value = 1"])
+def test_config_file_must_export_config_subclass(tmp_path, source):
+    path = tmp_path / "model.py"
+    path.write_text(source)
+    with pytest.raises(ValueError, match="Config subclass"):
+        load(path)
+
+
+def test_config_import_error_preserves_traceback_and_restores_path(tmp_path):
+    import sys
+
+    path = tmp_path / "model.py"
+    path.write_text("raise RuntimeError('bad user config')")
+    before = list(sys.path)
+    with pytest.raises(RuntimeError, match="bad user config"):
+        load(path)
+    assert sys.path == before
+
+
+def test_no_yaml_config_ingestion(tmp_path):
+    with pytest.raises(ValueError, match="Python .py"):
+        load(tmp_path / "old.yaml")
