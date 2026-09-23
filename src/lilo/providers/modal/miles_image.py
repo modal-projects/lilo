@@ -1,5 +1,7 @@
 import modal
 
+from .image_dependencies import ignore_config_source
+
 from .miles_revision import MILES_REPOSITORY, resolve_miles_commit
 
 from .image_dependencies import (
@@ -65,5 +67,5 @@ image = (
         "('load_slot', 'unload_slot', 'forward_backward', "
         "'forward_only', 'optim_step', 'save_slot', 'export_slot'))\"",
     )
-    .add_local_python_source("lilo")
+    .add_local_python_source("lilo", ignore=ignore_config_source)
 )

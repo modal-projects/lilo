@@ -1,5 +1,7 @@
 import modal
 
+from .image_dependencies import ignore_config_source
+
 from .image_dependencies import (
     CORE_PACKAGES,
     MEGATRON_RUNTIME_CHECK,
@@ -44,5 +46,5 @@ image = (
     .pip_install(*CORE_PACKAGES, STITCH_PACKAGE)
     .pip_install(*MEGATRON_RUNTIME_PACKAGES)
     .run_commands(MEGATRON_RUNTIME_CHECK)
-    .add_local_python_source("lilo")
+    .add_local_python_source("lilo", ignore=ignore_config_source)
 )

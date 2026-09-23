@@ -126,7 +126,7 @@ sampling scales according to rollout traffic. We best-effort sticky-route groups
 
 A Python deployment dataclass specifies the base model, training mode, context length, GPUs, parallelism, and inference settings. Shared deployments are defined only through these files.
 
-1. Create a Python `Config` subclass under `deployments/`, optionally inheriting from a packaged config.
+1. Create a Python `Config` subclass under `src/lilo/configs/`, optionally inheriting from a packaged config.
 2. Add its path to the list in [`scripts/deploy_models.sh`](../scripts/deploy_models.sh).
 3. Run the script to apply the complete list to the shared frontend.
 

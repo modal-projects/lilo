@@ -412,9 +412,10 @@ def test_loading_python_config_does_not_call_backend_readers(monkeypatch):
         backends, "serving_options", lambda *a: pytest.fail("serving read")
     )
     spec = load(config_path("qwen35-9b-lora-16k"))
+    original_revision = spec.model.revision
     record = DeploymentRecord.create(spec, revision="a" * 40, implementation="test")
     assert record.spec.model.revision == "a" * 40
-    assert spec.model.revision == "main"
+    assert spec.model.revision == original_revision
 
 
 @pytest.mark.parametrize("source", ["Config = {}", "class Config: pass", "value = 1"])

@@ -1,3 +1,8 @@
+def ignore_config_source(path):
+    """Workers receive computed configs as JSON; authoring files stay local."""
+    return path.suffix != ".py" or path.parts[0] == "configs"
+
+
 CORE_PACKAGES = (
     "fastapi>=0.141.1",
     "httpx>=0.28.1",

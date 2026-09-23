@@ -7,6 +7,8 @@ import time
 from dataclasses import asdict
 
 import modal
+
+from .image_dependencies import ignore_config_source
 from stitch.pools.modal_flash import ModalFlashPool
 
 from lilo.providers.contracts import (
@@ -105,7 +107,7 @@ image = (
     .pip_install(*CORE_PACKAGES, TINKER_PACKAGE)
     .pip_install(STITCH_PACKAGE, "huggingface-hub")
     .env(TRAINER_DEPLOYMENT_ENV)
-    .add_local_python_source("lilo")
+    .add_local_python_source("lilo", ignore=ignore_config_source)
 )
 model_assets = modal.Volume.from_name(
     SETTINGS.deployment.storage.assets,

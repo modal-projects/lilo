@@ -83,7 +83,9 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
 
 def test_refuse_overwriting_legacy_frontend(registry, monkeypatch):
     monkeypatch.setattr(modal.App, "lookup", lambda *args, **kwargs: object())
-    with pytest.raises(ValueError, match="already exists without a deployment registry"):
+    with pytest.raises(
+        ValueError, match="already exists without a deployment registry"
+    ):
         cli.deploy([deployment()])
     assert "pending" not in registry
 
@@ -139,3 +141,32 @@ def test_compile_pins_revision_at_external_boundary(
         lookup.return_value.sha = None
         with pytest.raises(ValueError, match="did not return a commit"):
             cli.compile_configs([path])
+
+
+def test_config_edits_do_not_change_runtime_fingerprint(tmp_path, monkeypatch):
+    import importlib.metadata
+
+    root = tmp_path / "lilo"
+    (root / "configs").mkdir(parents=True)
+    runtime = root / "runtime.py"
+    runtime.write_text("runtime = 1")
+    config = root / "configs" / "example.py"
+    config.write_text("gpu = 'H100:4'")
+    monkeypatch.setattr(cli, "__file__", str(root / "deployment_cli.py"))
+    monkeypatch.setattr(importlib.metadata, "requires", lambda _: [])
+    before = cli.implementation_fingerprint("miles-commit")
+    config.write_text("gpu = 'H200:8'")
+    assert cli.implementation_fingerprint("miles-commit") == before
+    runtime.write_text("runtime = 2")
+    assert cli.implementation_fingerprint("miles-commit") != before
+
+
+def test_worker_source_mount_excludes_authoring_configs():
+    from pathlib import Path
+    from lilo.providers.modal.image_dependencies import ignore_config_source
+
+    assert ignore_config_source(Path("configs/example.py"))
+    assert ignore_config_source(Path("configs/__init__.py"))
+    assert ignore_config_source(Path("data.json"))
+    assert not ignore_config_source(Path("deployments.py"))
+    assert not ignore_config_source(Path("backends/miles_config.py"))

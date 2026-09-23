@@ -1,5 +1,7 @@
 import modal
 
+from .image_dependencies import ignore_config_source
+
 from .image_dependencies import CORE_PACKAGES, STITCH_PACKAGE, TINKER_PACKAGE
 
 SGLANG_IMAGE = "lmsysorg/sglang:v0.5.17"
@@ -240,5 +242,5 @@ image = (
             "SGLANG_DISABLE_CUDNN_CHECK": "1",
         }
     )
-    .add_local_python_source("lilo")
+    .add_local_python_source("lilo", ignore=ignore_config_source)
 )

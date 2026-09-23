@@ -19,7 +19,7 @@ class Config(BaseConfig):
     model: Model = field(
         default_factory=lambda: Model(
             id="Qwen/Qwen3.5-9B-Base",
-            revision="main",
+            revision="68c46c4b3498877f3ef123c856ecfde50c39f404",
             parameterization="lora",
             max_context_length=16384,
         )

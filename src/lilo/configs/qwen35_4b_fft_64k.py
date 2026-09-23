@@ -17,7 +17,7 @@ class Config(BaseConfig):
     model: Model = field(
         default_factory=lambda: Model(
             id="Qwen/Qwen3.5-4B",
-            revision="main",
+            revision="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
             parameterization="full",
             max_context_length=65536,
         )

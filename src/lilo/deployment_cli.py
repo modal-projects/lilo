@@ -28,7 +28,10 @@ def implementation_fingerprint(miles_commit: str | None) -> str:
     root = Path(__file__).parent
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*.py")):
-        digest.update(str(path.relative_to(root)).encode())
+        relative = path.relative_to(root)
+        if relative.parts[0] == "configs":
+            continue  # Config values are hashed separately in DeploymentRecord.
+        digest.update(str(relative).encode())
         digest.update(path.read_bytes())
     digest.update(json.dumps([miles_commit, sorted(requires("lilo") or [])]).encode())
     return digest.hexdigest()

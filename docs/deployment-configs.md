@@ -9,7 +9,7 @@ The layout follows the Python recipe approach used by [training-gym](https://git
 Start with an example:
 
 ```bash
-lilo config init --preset qwen35-9b-lora-16k > deployments/my_model.py
+lilo config init --preset qwen35-9b-lora-16k > src/lilo/configs/my_model.py
 ```
 
 The generated file imports a packaged config and subclasses it. Customize it using ordinary Python:
@@ -35,16 +35,18 @@ When a parent defines `__post_init__`, call `super().__post_init__()` before you
 
 Python imports provide reuse. There is no `extends` key or implicit dictionary merge. Backend dictionaries support normal Python operations such as `update()` or `|`. Config files execute as Python when loaded; keep provisioning and training calls outside them. Sibling imports are available while loading a file.
 
-All 14 previous presets are available under [`src/lilo/configs/`](../src/lilo/configs), with the same model, resource and backend settings. The [64K config](../src/lilo/configs/qwen35_9b_lora_64k.py) inherits from the 16K config. The three files under [`deployments/`](../deployments) pin the model revisions used in the earlier GPU checks.
+All 14 previous presets are available under [`src/lilo/configs/`](../src/lilo/configs), with the same model, resource and backend settings. The [64K config](../src/lilo/configs/qwen35_9b_lora_64k.py) inherits from the 16K config. The 9B LoRA and 4B FFT configs directly pin the model revisions used in the earlier GPU checks; derived configs inherit them. There is no separate `deployments/` wrapper directory.
+
+`model.revision` is the Hugging Face commit or branch containing the base weights and tokenizer. You can omit it to use `"main"`; the CLI resolves that branch to an exact commit before deployment. A fixed commit makes repeated deployments use the same files even if the repository's main branch changes. This is separate from training steps and published adapter versions.
 
 ## Deploy the complete active set
 
 Use Python 3.12, matching the serialized trainer and inference images:
 
 ```bash
-lilo config validate deployments/my_model.py
-lilo config resolve deployments/my_model.py --output /tmp/deployment.json
-lilo deploy deployments/model_a.py deployments/model_b.py
+lilo config validate src/lilo/configs/my_model.py
+lilo config resolve src/lilo/configs/my_model.py --output /tmp/deployment.json
+lilo deploy src/lilo/configs/model_a.py src/lilo/configs/model_b.py
 ```
 
 `validate` loads the Python classes and checks shared frontend settings. It does not start backend libraries or prove that the model fits in GPU memory. `resolve` additionally pins model revisions and emits the deployment records as JSON; it does not provision compute.
@@ -136,7 +138,7 @@ If multiple configurations serve the same model and training mode, select one wi
 
 Every client stores its selected definition ID. Changing routing defaults affects new clients. Changing compute or backend settings creates a new configuration ID, and old configurations remain registered for existing jobs and checkpoints. The CLI serializes applies and retains interrupted deployments for recovery.
 
-The shared app is deployed on each apply. Existing trainer functions use stable captured configuration JSON, and unchanged inference pools retain their apps. This is the shared-app architecture, not independent trainer-app deployment. Source/runtime upgrades still require a separate frontend in this draft. Config files outside the installed Lilo package can change without changing the runtime source fingerprint.
+The shared app is deployed on each apply. Existing trainer functions use stable captured configuration JSON, and unchanged inference pools retain their apps. This is the shared-app architecture, not independent trainer-app deployment. Source/runtime upgrades still require a separate frontend in this draft. The `src/lilo/configs/` directory is excluded from runtime fingerprints and image source mounts. Its computed values are stored and hashed in each deployment record, so editing a config does not count as a runtime-code upgrade. Backend code changes still do.
 
 Existing resource names (`lilo-yaml`, `*-yaml-deployments`, and the `yaml_` definition prefix) are retained so this authoring change does not rename saved resources. They no longer indicate a YAML ingestion path. PyYAML is not a direct Lilo dependency; other installed libraries may depend on it.
 

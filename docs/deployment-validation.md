@@ -2,6 +2,12 @@
 
 These checks exercise the shared-app deployment path in PR #55. Each deployment contains the frontend and generated trainer functions; inference pools are separate apps started on demand.
 
+## One config directory
+
+Removed the three `deployments/` wrappers. The deployment script now lists `src/lilo/configs/` directly, and the validated model revisions live in the 9B LoRA and 4B FFT configs. Derived configs inherit those revisions. Authoring configs are excluded from runtime source fingerprints and shared-app/trainer/inference source mounts; workers receive computed settings as JSON.
+
+Validation: **599 CPU tests passed, 1 skipped**; Ruff, whitespace and deployment-script syntax checks passed. The CLI loaded the three selected configs together. Regression tests verify that editing config source leaves the runtime fingerprint unchanged, editing backend source changes it, and worker source filtering retains runtime code while excluding authoring files. No apps were redeployed.
+
 ## Python dataclass configuration
 
 Python `Config` subclasses replace the YAML presets and loader. All 14 configs were compared with the previous specifications: model, resources, backend options and inference options are unchanged. The three checked-in deployment files retain their pinned model revisions. Inheritance uses normal dataclass defaults and `__post_init__`; tests verify mutable defaults are independent.
@@ -85,7 +91,7 @@ The western 8×H200 trainer remained queued without a container for approximatel
 Use Python 3.12 and an authenticated Modal environment. Set `TINKER_API_KEY` locally to the value in the deployment's API secret. Generate Python config files from the packaged examples, give them the same isolated `deployment.frontend`, and pin model revisions plus `LILO_MILES_COMMIT` before deploying.
 
 ```bash
-lilo deploy deployments/qwen35_9b_lora_16k.py deployments/qwen35_9b_lora_64k.py deployments/qwen35_4b_fft_64k.py
+lilo deploy src/lilo/configs/qwen35_9b_lora_16k.py src/lilo/configs/qwen35_9b_lora_64k.py src/lilo/configs/qwen35_4b_fft_64k.py
 python scripts/deployment_smoke.py \
   --frontend YOUR_TEST_FRONTEND \
   --name qwen35-9b-lora-16k \
