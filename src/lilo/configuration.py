@@ -1,5 +1,6 @@
 """Readable Python recipes with validated model, trainer, and inference settings."""
 
+from copy import deepcopy
 from dataclasses import field
 from typing import Annotated, Literal
 
@@ -78,23 +79,45 @@ class Deployment:
                 raise ValueError("LILO_ environment variables are managed by Lilo")
 
 
-class BaseConfig(Deployment):
-    """Author a recipe with class attributes and ordinary Python inheritance.
+def _apply_overrides(values, overrides):
+    """Set dotted dictionary paths; the deployment schema validates the result."""
+    if not isinstance(overrides, dict):
+        raise ValueError("overrides must be a dictionary of dotted paths")
+    for path, value in overrides.items():
+        if not isinstance(path, str) or any(not part for part in path.split(".")):
+            raise ValueError(f"invalid override path: {path!r}")
+        target = values
+        for part in path.split(".")[:-1]:
+            target = target.setdefault(part, {})
+            if not isinstance(target, dict):
+                raise ValueError(f"override {path!r} traverses a non-dictionary value")
+        target[path.rsplit(".", 1)[-1]] = deepcopy(value)
 
-    Sections are dictionaries in the recipe and validated values in an instance.
-    Overriding a section replaces it; use ``{**Parent.trainer, ...}`` to extend it.
+
+class BaseConfig(Deployment):
+    """Declare a recipe, then change inherited settings with dotted overrides.
+
+    Each class's attributes and overrides apply in parent-to-child order.
+    Constructor fields and overrides apply last. Dictionary/list values replace
+    the value at that path, and each instance owns its mutable settings.
     """
 
-    def __init__(self, **overrides):
-        from copy import deepcopy
-
+    def __init__(self, **kwargs):
         values = {}
         for cls in reversed(type(self).__mro__):
             if cls in (object, Deployment, BaseConfig):
                 continue
             values.update(
-                (key, value)
-                for key, value in vars(cls).items()
-                if not key.startswith("_")
+                deepcopy(
+                    {
+                        key: value
+                        for key, value in vars(cls).items()
+                        if not key.startswith("_") and key != "overrides"
+                    }
+                )
             )
-        super().__init__(**deepcopy(values | overrides))
+            _apply_overrides(values, vars(cls).get("overrides", {}))
+        overrides = kwargs.pop("overrides", {})
+        values.update(deepcopy(kwargs))
+        _apply_overrides(values, overrides)
+        super().__init__(**values)

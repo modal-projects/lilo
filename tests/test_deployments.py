@@ -379,7 +379,7 @@ def test_python_config_composition(tmp_path):
         "from lilo.configs.qwen35_9b_lora_16k import Config as Parent\n"
         "class Config(Parent):\n"
         "    name = 'custom'\n"
-        "    trainer = {**Parent.trainer, 'memory_mib': 123456}\n"
+        "    overrides = {'trainer.memory_mib': 123456}\n"
         "config = Config()\n"
     )
     custom = load(path)
@@ -536,10 +536,7 @@ def test_config_inheritance_and_constructor_overrides_copy_nested_options():
     class Child(Parent):
         name = "child"
         max_context_length = 8192
-        trainer = {
-            **Parent.trainer,
-            "config": {**Parent.trainer["config"], "max_tokens_per_gpu": 8192},
-        }
+        overrides = {"trainer.config.max_tokens_per_gpu": 8192}
 
     first, second = Child(), Child(name="second")
     first.trainer.config["target_modules"].append("extra")
@@ -578,3 +575,85 @@ def test_recipe_section_replacement_uses_defaults_without_implicit_merge():
     assert config.inference.gpu == "H100"
     assert config.inference.max_replicas == 8
     assert config.inference.config == {"max_running_requests": 4}
+
+
+def test_overrides_compose_across_generations_and_constructor():
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    class Child(Parent):
+        overrides = {
+            "trainer.gpu": "H200",
+            "trainer.env.FIRST": "1",
+            "trainer.config.max_tokens_per_gpu": 8192,
+            "inference.config.future_option.nested": [1, 2],
+        }
+
+    class Grandchild(Child):
+        overrides = {
+            "trainer.config.max_tokens_per_gpu": 4096,
+            "trainer.env.SECOND": "2",
+            "default": False,
+        }
+
+    config = Grandchild(
+        name="custom",
+        overrides={"trainer.config.max_tokens_per_gpu": 2048},
+    )
+    assert config.name == "custom"
+    assert config.trainer.gpu == "H200"
+    assert config.trainer.env["FIRST"] == "1"
+    assert config.trainer.env["SECOND"] == "2"
+    assert config.trainer.config["max_tokens_per_gpu"] == 2048
+    assert not config.default
+    assert Grandchild().trainer.config["max_tokens_per_gpu"] == 4096
+    assert Child().trainer.config["max_tokens_per_gpu"] == 8192
+    config.inference.config["future_option"]["nested"].append(3)
+    assert Child.overrides["inference.config.future_option.nested"] == [1, 2]
+    assert Grandchild().inference.config["future_option"]["nested"] == [1, 2]
+    assert "FIRST" not in Parent().trainer.env
+
+
+def test_override_values_replace_dictionaries_and_lists():
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    class Child(Parent):
+        overrides = {"trainer.env": {"FIRST": "1"}}
+
+    class Grandchild(Child):
+        overrides = {
+            "trainer.env": {},
+            "trainer.config.target_modules": ["q_proj"],
+        }
+
+    config = Grandchild()
+    assert config.trainer.env == {}
+    assert config.trainer.config["target_modules"] == ["q_proj"]
+    assert Child().trainer.env == {"FIRST": "1"}
+    # Constructor fields replace the inherited section, then overrides apply.
+    config = Grandchild(inference={"gpu": "H100"}, overrides={"inference.gpu": "H200"})
+    assert config.inference.gpu == "H200"
+    assert config.inference.config == {}
+    assert replace(config, name="copy").trainer == config.trainer
+
+
+@pytest.mark.parametrize(
+    "overrides,match",
+    [
+        ([], "overrides must be a dictionary"),
+        ({"": 1}, "invalid override path"),
+        ({"trainer..gpu": "H200"}, "invalid override path"),
+        ({1: "H200"}, "invalid override path"),
+        ({"trainer.gpu.type": "H200"}, "non-dictionary"),
+        ({"trainer.memroy_mib": 123}, "memroy_mib"),
+        ({"trianer.gpu": "H200"}, "trianer"),
+        ({"trainer.gpus_per_node": "4"}, "gpus_per_node"),
+    ],
+)
+def test_dotted_overrides_are_validated(overrides, match):
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    cls = type("Invalid", (Parent,), {"overrides": overrides})
+    with pytest.raises(ValueError, match=match):
+        cls()
+    with pytest.raises(ValueError, match=match):
+        Parent(overrides=overrides)

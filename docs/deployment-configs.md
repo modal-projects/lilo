@@ -34,7 +34,7 @@ See the [9B LoRA recipe](../src/lilo/configs/qwen35_9b_lora_16k.py) and [4B FFT 
 
 ## Variants
 
-Use Python inheritance to change a recipe. Extend a section explicitly when you want to keep its other settings:
+Use Python inheritance and an `overrides` dictionary to change only the settings you need:
 
 ```python
 from lilo.configs.qwen35_9b_lora_16k import Config as Parent
@@ -42,13 +42,19 @@ from lilo.configs.qwen35_9b_lora_16k import Config as Parent
 
 class Config(Parent):
     name = "my-9b-more-memory"
-    trainer = {**Parent.trainer, "memory_mib": 98304}
+    overrides = {
+        "trainer.memory_mib": 98304,
+        "trainer.config.max_tokens_per_gpu": 8192,
+        "inference.gpu": "H200",
+    }
 
 
 config = Config()
 ```
 
-Assigning a new dictionary replaces that section. There is no implicit deep merge or dotted override language. Extend backend options with `{**Parent.trainer["config"], "max_tokens_per_gpu": 8192}`. Constructor arguments can also override fields: `Config(name="another-run")`.
+Dotted paths set individual values. Parent settings and overrides apply first, then child settings and overrides; a child does not need to repeat its parent’s `overrides`. Assigning a dictionary or list replaces the value at that path: `"trainer.env": {}` clears inherited environment settings. Assigning a whole section as a class attribute still replaces that section.
+
+Constructor fields apply last, followed by constructor overrides: `Config(name="another-run", overrides={"trainer.gpu": "H200"})`. These are ordinary Python values, with no expressions or merge directives. Only the resolved settings are saved for workers.
 
 Construction copies the recipe's dictionaries and validates Lilo-owned fields. Unknown fields, invalid types, negative capacities, and inconsistent scaling limits fail before deployment. The validated instance has attribute access (`config.trainer.gpu`); backend options stay dictionaries. Instances do not share mutable options with each other or with their recipe class.
 
