@@ -4,13 +4,15 @@ These checks exercise PR #55. The current implementation deploys trainers and in
 
 ## Current: simple BaseConfig recipes
 
-Recipes use one `BaseConfig` subclass with top-level model settings and plain trainer/inference dictionaries. Removed the `Compute`, `Model`, `Routing`, and `Lifecycle` wrapper classes and the matching nested fields. Compute settings live directly in trainer/inference; routing flags and lifecycle timeouts live at the top level. The supported inference backend remains SGLang, so its redundant backend selector was removed.
+Recipes use one `BaseConfig` subclass with top-level model settings and plain trainer/inference dictionaries. Removed the `Compute`, `Model`, `Routing`, and `Lifecycle` wrapper classes and the matching nested fields. Compute settings live directly in trainer/inference; lifecycle timeouts live at the top level. The supported inference backend remains SGLang, so its redundant backend selector was removed.
 
 Variants use dotted `overrides` dictionaries to change inherited settings. Each parent’s settings and overrides apply before its child’s; dictionary and list values replace the value at their path. Constructor fields and overrides apply last. Construction copies mutable settings and validates against the existing schema. Workers continue to consume saved resolved backend settings.
 
-Validation: **666 CPU tests passed, 1 skipped** (including **132 focused config/deployment tests**). Coverage includes multilevel inherited overrides, constructor precedence, dictionary/list replacement, nested option isolation, invalid override paths, strict field validation, CLI revision resolution, saved-record round trips, and worker construction. The CLI-generated recipe also loaded and validated successfully. Ruff and whitespace checks passed. The full suite ran outside the socket-restricted sandbox so its local HTTP and SDK tests could run.
+Validation: **664 CPU tests passed, 1 skipped**. Coverage includes multilevel inherited overrides, constructor precedence, dictionary/list replacement, nested option isolation, invalid override paths, strict field validation, CLI revision resolution, saved-record round trips, and worker construction. The CLI-generated recipe also loaded and validated successfully. Ruff and whitespace checks passed. The full suite ran outside the socket-restricted sandbox so its local HTTP and SDK tests could run.
 
-All 15 recipes were compared with their pre-change values: compute, model, routing, lifecycle, and resolved trainer/inference settings are unchanged. The conversion to dotted overrides also preserves every deployment generation and trainer/inference hash. No deployments or GPU jobs were modified. Existing draft manifests use the previous schema and require a fresh registry or explicit migration.
+Routing uses the first matching recipe in deployment order, or an explicit definition ID. Visibility and training/sampling default flags have been removed. Tests cover recipe ordering, LoRA/FFT selection, explicit IDs, listing all definitions, and retained generations.
+
+All 15 recipes preserve compute, model, lifecycle, resolved trainer/inference settings, and deployment hashes. Routing flags were removed from the recipe schema; retained definitions remain selectable and listed. No deployments or GPU jobs were modified. Existing draft manifests use the previous schema and require a fresh registry or explicit migration.
 
 ## Historical validation
 

@@ -47,7 +47,6 @@ class Config(BaseConfig):
             "cpu_weight_cache_max_compile_group_gb": 32,
         },
     }
-    default = True
 
 
 config = Config()

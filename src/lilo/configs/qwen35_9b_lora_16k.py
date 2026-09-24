@@ -47,7 +47,6 @@ class Config(BaseConfig):
             "max_loras_per_batch": 8,
         },
     }
-    default = True
 
 
 config = Config()

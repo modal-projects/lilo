@@ -56,7 +56,6 @@ class Config(BaseConfig):
             "enable_dp_attention": True,
         },
     }
-    default = True
 
 
 config = Config()

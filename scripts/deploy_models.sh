@@ -5,7 +5,7 @@ set -e
 cd "$(dirname "$0")/.."
 
 # Add a model by creating its Python config in src/lilo/configs/ and adding it here.
-# Keep every configuration that should be available to new clients in this list.
+# Put the preferred recipe first when multiple configs share a model.
 deployment_files=(
   src/lilo/configs/qwen35_9b_lora_16k.py
   src/lilo/configs/qwen35_9b_lora_64k.py

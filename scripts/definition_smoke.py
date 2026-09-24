@@ -316,7 +316,6 @@ def main() -> None:
                 f"{definition.DEFINITION_ID:40} {definition.PARAMETERIZATION:5} "
                 f"{definition.RESOLVED.spec.trainer.nodes} nodes x {definition.RESOLVED.spec.trainer.gpu}:{definition.RESOLVED.spec.trainer.gpus_per_node} "
                 f"ctx={definition.MAX_CONTEXT_LENGTH}"
-                + ("" if definition.CATALOG_VISIBLE else "  (not cataloged)")
             )
         return
     if not args.base_url:

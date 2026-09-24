@@ -105,56 +105,51 @@ def test_invalid_integrations_fail_when_building_backend_settings(changes, match
 
 def test_generation_and_asset_paths_include_exact_base():
     a = resolved()
-    assert a.generation == resolved(recipe(default=False)).generation
     assert a.generation != resolved(recipe(trainer__gpu="H200")).generation
     b = resolved(recipe(model="other/Qwen3.5-9B-Base"))
     assert a.asset_path != b.asset_path
     assert a.asset_path != DeploymentRecord.create(a.spec, revision="b" * 40).asset_path
 
 
-def test_frontend_defaults_and_retained_generations():
+def test_routing_uses_deployment_order_and_preserves_explicit_generations():
     small = resolved()
     large = resolved(recipe("qwen35-9b-lora-64k"))
-    routes = DeploymentRoutes([definition(small), definition(large)])
+    routes = DeploymentRoutes(map(definition, [small, large]))
     assert routes.select(small.spec.model, "lora").DEFINITION_ID == small.definition_id
-    switched = retain_generations(
-        [small, large], [resolved(recipe("qwen35-9b-lora-64k", default=True))]
-    )
+    assert routes.capabilities()[0]["max_context_length"] == 16384
+    validate_frontend([small.spec, large.spec])
+
+    switched = retain_generations([small, large], [large])
     routes = DeploymentRoutes(map(definition, switched))
     assert routes.select(small.spec.model, "lora").DEFINITION_ID == large.definition_id
-    # Saved model/checkpoint records continue using their original definition.
     assert (
         routes.select(small.definition_id, "lora").DEFINITION_ID == small.definition_id
     )
     assert routes.capabilities()[0]["max_context_length"] == 65536
-    with pytest.raises(ValueError, match="multiple defaults"):
-        validate_frontend([small.spec, recipe("qwen35-9b-lora-64k", default=True)])
+
+    # A retained-only model is still listed and selectable.
+    other = resolved(recipe(name="other", model="org/other"))
+    routes = DeploymentRoutes(map(definition, retain_generations([small], [other])))
+    assert routes.select(small.spec.model, "lora").DEFINITION_ID == small.definition_id
+    assert {row["model_name"] for row in routes.capabilities()} == {
+        small.spec.model,
+        other.spec.model,
+    }
 
 
-def test_ambiguous_model_does_not_get_random_configuration():
-    rows = [
-        resolved(recipe(default=False)),
-        resolved(recipe("qwen35-9b-lora-64k")),
-    ]
-    routes = DeploymentRoutes(map(definition, rows))
-    with pytest.raises(ValueError, match="ambiguous.*16k.*64k"):
-        routes.select(rows[0].spec.model, "lora")
-    assert routes.capabilities() == []
-
-
-def test_sampling_requires_default_across_training_modes():
+def test_sampling_uses_order_and_training_filters_parameterization():
     lora = resolved()
     fft = resolved(recipe("qwen35-4b-fft-64k", model=lora.spec.model))
-    routes = DeploymentRoutes(map(definition, [lora, fft]))
-    with pytest.raises(ValueError, match="sampling_default"):
-        routes.sampling(lora.spec.model)
-    fft.spec = replace(fft.spec, sampling_default=True)
-    assert (
-        DeploymentRoutes(map(definition, [lora, fft]))
-        .sampling(lora.spec.model)
-        .DEFINITION_ID
-        == fft.definition_id
-    )
+    for first, second in ((lora, fft), (fft, lora)):
+        routes = DeploymentRoutes(map(definition, [first, second]))
+        assert routes.select(lora.spec.model).DEFINITION_ID == first.definition_id
+        assert (
+            routes.select(lora.spec.model, "lora").DEFINITION_ID == lora.definition_id
+        )
+        assert routes.select(lora.spec.model, "full").DEFINITION_ID == fft.definition_id
+        assert routes.select(second.definition_id).DEFINITION_ID == second.definition_id
+        assert routes.select("missing") is None
+        assert routes.select(lora.definition_id, "full") is None
 
 
 def test_native_false_list_aliases_and_scalar_overrides():
@@ -346,8 +341,6 @@ def test_record_creation_copies_without_reparsing():
     assert row.spec.revision == "a" * 40
     # The record hash covers settings and the pinned backend dependency, not source.
     expected = original | {"revision": "a" * 40}
-    expected.pop("default")
-    expected.pop("sampling_default")
     assert (
         row.generation
         == hashlib.sha256(
@@ -459,11 +452,6 @@ def test_worker_hashes_cover_only_their_settings():
     assert adapter.trainer_hash != base.trainer_hash
     assert adapter.inference_hash != base.inference_hash
 
-    routing = resolved(recipe(default=False))
-    assert routing.trainer_hash == base.trainer_hash
-    assert routing.inference_hash == base.inference_hash
-    assert routing.generation == base.generation
-
     upgraded = DeploymentRecord.create(
         base.spec, revision="a" * 40, inference_release="2"
     )
@@ -553,7 +541,11 @@ def test_config_inheritance_and_constructor_overrides_copy_nested_options():
 
 @pytest.mark.parametrize(
     "field,value",
-    [("max_contex_length", 8192), ("max_context_length", "8192"), ("default", "false")],
+    [
+        ("max_contex_length", 8192),
+        ("max_context_length", "8192"),
+        ("pool_idle_timeout_s", "300"),
+    ],
 )
 def test_recipe_class_fields_and_constructor_overrides_are_validated(field, value):
     from lilo.configs.qwen35_9b_lora_16k import Config as Parent
@@ -592,7 +584,6 @@ def test_overrides_compose_across_generations_and_constructor():
         overrides = {
             "trainer.config.max_tokens_per_gpu": 4096,
             "trainer.env.SECOND": "2",
-            "default": False,
         }
 
     config = Grandchild(
@@ -604,7 +595,6 @@ def test_overrides_compose_across_generations_and_constructor():
     assert config.trainer.env["FIRST"] == "1"
     assert config.trainer.env["SECOND"] == "2"
     assert config.trainer.config["max_tokens_per_gpu"] == 2048
-    assert not config.default
     assert Grandchild().trainer.config["max_tokens_per_gpu"] == 4096
     assert Child().trainer.config["max_tokens_per_gpu"] == 8192
     config.inference.config["future_option"]["nested"].append(3)

@@ -41,7 +41,6 @@ class Config(BaseConfig):
             "schedule_policy": "lpm",
         },
     }
-    default = True
 
 
 config = Config()

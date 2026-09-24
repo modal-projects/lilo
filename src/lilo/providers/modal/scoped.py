@@ -455,7 +455,6 @@ def build_app(
             checkpoint_root=storage.root,
         )
         definition = SimpleNamespace(
-            CATALOG_VISIBLE=True,
             DEFINITION_ID=engine.name,
             MODEL_NAME=engine.model,
             PARAMETERIZATION="full",

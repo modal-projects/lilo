@@ -127,13 +127,13 @@ The checked-in [deploy_models.sh](../scripts/deploy_models.sh) lists the complet
 
 These settings are not model-config fields. Secret/volume names come from provider defaults. Credentials remain in Modal secrets.
 
-One frontend serves all models through Tinker's base_model. `default = True` selects among multiple training configurations for one model; `sampling_default = True` selects a sampling configuration when LoRA/FFT configurations coexist.
+One frontend serves all models through Tinker’s `base_model`. When recipes share a model, the first matching recipe in the `lilo deploy` argument list is used. Training also matches the requested LoRA/FFT mode; base sampling uses the first recipe regardless of training mode. To select a specific recipe, pass its definition ID from `/api/v1/lilo/deployments` as `base_model`. All supplied definitions are listed, including retained generations. Current recipes precede retained ones; existing jobs keep their saved definition IDs.
 
 ## Hashes and update isolation
 
 Hashes identify settings, not compatibility with a source checkout:
 
-- generation identifies the saved configuration, resolved backend settings, platform settings and code releases. Routing defaults are excluded.
+- generation identifies the saved configuration, resolved backend settings, platform settings and code releases.
 - trainer_hash includes trainer/model/platform settings, resolved trainer settings, Miles commit and its recorded code release.
 - inference_hash includes inference/model/platform settings, resolved inference settings and its recorded code release.
 

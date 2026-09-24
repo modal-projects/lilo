@@ -4,7 +4,6 @@ from lilo.configs.qwen35_9b_lora_16k import Config as Parent
 class Config(Parent):
     name = "qwen35-9b-lora-2k"
     max_context_length = 2048
-    default = False
     overrides = {
         "trainer.gpu": "H200",
         "trainer.cpu": 8,

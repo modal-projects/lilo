@@ -160,14 +160,11 @@ def create_control_plane_app(
     retrieve_window: float = 30.0,
     checkpoint_volume: str = "lilo-checkpoints",
 ) -> FastAPI:
-    all_definitions = tuple(definitions)
-    definitions = tuple(
-        definition for definition in all_definitions if definition.CATALOG_VISIBLE
-    )
+    definitions = tuple(definitions)
 
     from .deployments import DeploymentRoutes
 
-    routes = DeploymentRoutes(all_definitions)
+    routes = DeploymentRoutes(definitions)
 
     def definition_for(model_name, parameterization):
         selected = routes.select(model_name, parameterization)
@@ -177,7 +174,7 @@ def create_control_plane_app(
         return any(
             definition.MODEL_NAME == model_name for definition in definitions
         ) or any(
-            definition.DEFINITION_ID == model_name for definition in all_definitions
+            definition.DEFINITION_ID == model_name for definition in definitions
         )
 
     async def authorize(request: Request) -> None:
@@ -280,8 +277,6 @@ def create_control_plane_app(
                     "base_model": d.MODEL_NAME,
                     "parameterization": d.PARAMETERIZATION,
                     "max_context_length": d.MAX_CONTEXT_LENGTH,
-                    "default": getattr(d, "ROUTING_DEFAULT", False),
-                    "sampling_default": getattr(d, "SAMPLING_DEFAULT", False),
                 }
                 for d in definitions
             ]
@@ -360,7 +355,7 @@ def create_control_plane_app(
             spec={
                 "base_model": next(
                     d.MODEL_NAME
-                    for d in all_definitions
+                    for d in definitions
                     if d.DEFINITION_ID == definition_id
                 ),
                 "lora_config": body.lora_config,
@@ -383,7 +378,7 @@ def create_control_plane_app(
                 status_code=400,
                 detail="base_model or model_path is required",
             )
-        selected = routes.sampling(body.base_model) if body.base_model else None
+        selected = routes.select(body.base_model) if body.base_model else None
         definition_id = selected.DEFINITION_ID if selected else None
         if body.model_path is None and definition_id is None:
             raise HTTPException(
@@ -396,7 +391,7 @@ def create_control_plane_app(
             base_model=(
                 next(
                     d.MODEL_NAME
-                    for d in all_definitions
+                    for d in definitions
                     if d.DEFINITION_ID == definition_id
                 )
                 if definition_id
@@ -494,7 +489,7 @@ def create_control_plane_app(
                 base_model=body.base_model,
                 user_metadata=body.user_metadata,
                 optimizer=body.optimizer,
-                definition_ids={d.DEFINITION_ID for d in all_definitions},
+                definition_ids={d.DEFINITION_ID for d in definitions},
             )
             return {
                 "request_id": creation.request_id,

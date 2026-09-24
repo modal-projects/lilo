@@ -232,14 +232,9 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     old_bytes = serialize(deployment_apps.build_trainer_app(first, image="test")[1])
     changed = first.model_copy(deep=True)
     changed.active = False
-    changed.spec = replace(
-        changed.spec,
-        default=False,
-        sampling_default=True,
-    )
     new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
-    assert first.active is True and first.spec.default is True
+    assert first.active is True
     changed.spec = replace(
         changed.spec,
         trainer=replace(

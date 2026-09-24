@@ -19,7 +19,6 @@ DEFINITIONS = (
         DEFINITION_ID=DEFINITION,
         MODEL_NAME=BASE_MODEL,
         PARAMETERIZATION="lora",
-        CATALOG_VISIBLE=True,
     ),
 )
 API_KEY = "tml-test"

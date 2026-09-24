@@ -51,8 +51,6 @@ def deployment_generation(
     inference_settings,
 ):
     identity = asdict(spec)
-    identity.pop("default")
-    identity.pop("sampling_default")
     return settings_hash(
         {
             "config": identity,
@@ -75,7 +73,7 @@ class DeploymentRecord(BaseModel):
 
     The CLI resolves the model revision before creating this record. Its hash
     binds jobs to their original configuration across later deploys;
-    active controls whether new clients can select it.
+    active marks recipes in the latest deploy command; retained recipes remain usable.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -241,14 +239,3 @@ def validate_frontend(specs: list[Deployment]) -> None:
             raise ValueError(
                 "deployments on one frontend must share lifecycle settings"
             )
-    defaults, sampling = set(), set()
-    for spec in specs:
-        key = (spec.model, spec.parameterization)
-        if spec.default:
-            if key in defaults:
-                raise ValueError(f"multiple defaults for {key}")
-            defaults.add(key)
-        if spec.sampling_default:
-            if spec.model in sampling:
-                raise ValueError(f"multiple sampling defaults for {spec.model}")
-            sampling.add(spec.model)

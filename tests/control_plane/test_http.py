@@ -19,14 +19,12 @@ DEFINITIONS = (
         DEFINITION_ID=DEFINITION,
         MODEL_NAME=BASE_MODEL,
         PARAMETERIZATION="lora",
-        CATALOG_VISIBLE=True,
         MAX_CONTEXT_LENGTH=16_384,
     ),
     SimpleNamespace(
         DEFINITION_ID=f"{DEFINITION}_full",
         MODEL_NAME=BASE_MODEL,
         PARAMETERIZATION="full",
-        CATALOG_VISIBLE=True,
         MAX_CONTEXT_LENGTH=65_536,
     ),
 )
@@ -283,13 +281,13 @@ def test_model_info_and_unload() -> None:
     asyncio.run(run())
 
 
-def test_base_sampling_session_uses_explicit_sampling_default() -> None:
+def test_base_sampling_session_uses_first_deployment() -> None:
     async def run() -> None:
         plane = ControlPlane(
             InMemoryKeyValueStore(),
             LocalEnginePlatform(DEFINITION, EchoExecutor),
         )
-        definitions = [SimpleNamespace(**vars(d), SAMPLING_DEFAULT=d.PARAMETERIZATION == "full") for d in DEFINITIONS]
+        definitions = list(reversed(DEFINITIONS))
         app = create_control_plane_app(plane, definitions, api_key=None)
         client = httpx.AsyncClient(
             base_url="http://control-plane",
@@ -467,13 +465,15 @@ def test_rollout_pool_config_is_full_only_and_validated() -> None:
     asyncio.run(run())
 
 
-def test_explicit_hidden_deployment_keeps_canonical_model_name() -> None:
+def test_explicit_deployment_keeps_canonical_model_name() -> None:
     async def run():
-        hidden = SimpleNamespace(DEFINITION_ID="isolated", MODEL_NAME=BASE_MODEL,
-                                 PARAMETERIZATION="lora", CATALOG_VISIBLE=False, MAX_CONTEXT_LENGTH=16384)
+        explicit = SimpleNamespace(DEFINITION_ID="isolated", MODEL_NAME=BASE_MODEL,
+                                 PARAMETERIZATION="lora", MAX_CONTEXT_LENGTH=16384)
         plane = ControlPlane(InMemoryKeyValueStore(), LocalEnginePlatform("isolated", EchoExecutor))
-        app = create_control_plane_app(plane, (*DEFINITIONS, hidden), retrieve_window=1.0)
+        app = create_control_plane_app(plane, (*DEFINITIONS, explicit), retrieve_window=1.0)
         async with httpx.AsyncClient(base_url="http://test", transport=httpx.ASGITransport(app=app)) as client:
+            listed = (await client.get("/api/v1/lilo/deployments")).json()["deployments"]
+            assert [row["generation"] for row in listed] == [d.DEFINITION_ID for d in (*DEFINITIONS, explicit)]
             session = (await client.post("/api/v1/create_session", json={"tags": [], "sdk_version": "0.5.0"})).json()["session_id"]
             response = await client.post("/api/v1/create_model", json={"session_id": session,
                 "model_seq_id": 0, "base_model": "isolated", "lora_config": {"rank": 16}})

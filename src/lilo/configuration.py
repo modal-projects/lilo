@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import field
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Field, StrictBool
+from pydantic import ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 PositiveInt = Annotated[int, Field(strict=True, gt=0)]
@@ -54,8 +54,6 @@ class Deployment:
     inference: Inference
     parameterization: Literal["lora", "full"] = "lora"
     revision: NonemptyString = "main"
-    default: StrictBool = False
-    sampling_default: StrictBool = False
     session_idle_timeout_s: PositiveInt = 300
     pool_idle_timeout_s: PositiveInt = 300
     sweep_interval_s: PositiveInt = 300
