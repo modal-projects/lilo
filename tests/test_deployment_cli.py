@@ -1,5 +1,4 @@
 from copy import deepcopy
-from dataclasses import replace
 import json
 import subprocess
 
@@ -73,7 +72,7 @@ def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monke
     assert registry["pending"][0]["generation"] == row.generation
     assert "manifest" not in registry and "apply_lock" not in registry
     new_spec = deepcopy(row.spec)
-    new_spec = replace(new_spec, trainer=replace(new_spec.trainer, max_instances=2))
+    new_spec.trainer_max_instances = 2
     new = DeploymentRecord.create(new_spec, revision="a" * 40)
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
     cli.deploy([new])
@@ -170,7 +169,7 @@ def test_only_changed_worker_is_deployed(registry, monkeypatch):
     assert calls == ["frontend"]
 
     changed = deepcopy(row.spec)
-    changed = replace(changed, inference=replace(changed.inference, max_replicas=6))
+    changed.inference_max_replicas = 6
     new = DeploymentRecord.create(changed, revision="a" * 40)
     calls.clear()
     cli.deploy([new])
@@ -274,7 +273,7 @@ def test_worker_refresh_is_retained_without_editing_config(registry, monkeypatch
     active = DeploymentRecord.model_validate(registry["manifest"][0])
     assert active.inference_release != "initial"
     assert active.trainer_release == "initial"
-    assert active.spec.inference == row.spec.inference
+    assert vars(active.spec) == vars(row.spec)
     calls.clear()
     cli.deploy([row])
     assert calls == ["frontend"]

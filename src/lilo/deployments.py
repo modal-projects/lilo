@@ -8,15 +8,14 @@ import re
 import runpy
 import sys
 from copy import deepcopy
-from dataclasses import asdict, replace
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from lilo.backends.deployment import resolve_backend_settings
-from lilo.configuration import Deployment
+from lilo.configuration import BaseConfig
 
 LIFECYCLE_FIELDS = ("session_idle_timeout_s", "pool_idle_timeout_s", "sweep_interval_s")
 
@@ -50,7 +49,7 @@ def deployment_generation(
     trainer_settings,
     inference_settings,
 ):
-    identity = asdict(spec)
+    identity = vars(spec)
     return settings_hash(
         {
             "config": identity,
@@ -76,9 +75,9 @@ class DeploymentRecord(BaseModel):
     active marks recipes in the latest deploy command; retained recipes remain usable.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    spec: Deployment
+    spec: BaseConfig
     platform: dict[str, Any] = Field(default_factory=platform_defaults)
     trainer_release: str = "initial"
     inference_release: str = "initial"
@@ -88,10 +87,19 @@ class DeploymentRecord(BaseModel):
     generation: str
     active: bool = True
 
+    @field_validator("spec", mode="before")
+    @classmethod
+    def restore_config(cls, value):
+        return BaseConfig(**value) if isinstance(value, dict) else value
+
+    @field_serializer("spec")
+    def serialize_config(self, config):
+        return vars(config)
+
     @classmethod
     def create(
         cls,
-        spec: Deployment,
+        spec: BaseConfig,
         *,
         revision: str,
         miles_commit: str | None = None,
@@ -100,7 +108,8 @@ class DeploymentRecord(BaseModel):
         inference_release: str = "initial",
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
-        pinned = replace(deepcopy(spec), revision=revision)
+        pinned = deepcopy(spec)
+        pinned.revision = revision
         asset_path = model_asset_path(pinned.model, revision)
         trainer_settings, inference_settings = resolve_backend_settings(
             pinned, asset_path
@@ -154,7 +163,18 @@ class DeploymentRecord(BaseModel):
                 "revision": self.spec.revision,
                 "parameterization": self.spec.parameterization,
                 "max_context_length": self.spec.max_context_length,
-                "trainer": asdict(self.spec.trainer),
+                "trainer": {
+                    key: value
+                    for key, value in vars(self.spec).items()
+                    if key.startswith("trainer_")
+                    or key
+                    in (
+                        "backend",
+                        "miles_cfg",
+                        "megatron_cfg",
+                        "sampler_persistence_concurrency",
+                    )
+                },
                 "settings": self.trainer_settings,
                 "release": self.trainer_release,
                 "platform": self.platform,
@@ -172,7 +192,11 @@ class DeploymentRecord(BaseModel):
                 "revision": self.spec.revision,
                 "parameterization": self.spec.parameterization,
                 "max_context_length": self.spec.max_context_length,
-                "inference": asdict(self.spec.inference),
+                "inference": {
+                    key: value
+                    for key, value in vars(self.spec).items()
+                    if key.startswith("inference_") or key == "sglang_cfg"
+                },
                 "settings": self.inference_settings,
                 "release": self.inference_release,
                 "platform": self.platform,
@@ -208,7 +232,7 @@ def config_path(name: str) -> Path:
     return Path(str(files("lilo").joinpath("configs", name.replace("-", "_") + ".py")))
 
 
-def load(path: str | Path) -> Deployment:
+def load(path: str | Path) -> BaseConfig:
     """Execute a Python config file and read its exported config object."""
     path = Path(path).resolve()
     if path.suffix != ".py":
@@ -219,14 +243,14 @@ def load(path: str | Path) -> Deployment:
     try:
         namespace = runpy.run_path(str(path))
         config = namespace.get("config")
-        if not isinstance(config, Deployment):
+        if not isinstance(config, BaseConfig):
             raise ValueError(f"{path} must export a BaseConfig instance named config")
         return config
     finally:
         sys.path[:] = original_path
 
 
-def validate_frontend(specs: list[Deployment]) -> None:
+def validate_frontend(specs: list[BaseConfig]) -> None:
     if not specs:
         raise ValueError("at least one deployment is required")
     if len({s.name for s in specs}) != len(specs):

@@ -1,4 +1,4 @@
-from dataclasses import replace
+from copy import deepcopy
 import asyncio
 import json
 from types import SimpleNamespace
@@ -86,7 +86,7 @@ def test_trainer_declaration_and_executor_configuration(
     assert kwargs["backend_env"]["LILO_CHECKPOINT_VOLUME"] == "test-custom-checkpoints"
     assert kwargs["backend_env"]["LILO_BASE_MODEL_REVISION"] == "a" * 40
     config = json.loads(kwargs["backend_env"]["LILO_BACKEND_CONFIG"])
-    assert config[row.spec.trainer.backend]["hf_checkpoint"] == row.asset_path
+    assert config[row.spec.backend]["hf_checkpoint"] == row.asset_path
     assert config["checkpoint_dir"] == "/checkpoints"
     assert reloaded == [True]
 
@@ -108,7 +108,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     assert app.name == pool.app_name
     assert (
         settings["gpu"]
-        == f"{row.spec.inference.gpu}:{row.spec.inference.gpus_per_node}"
+        == f"{row.spec.inference_gpu}:{row.spec.inference_gpus_per_node}"
     )
     assert settings["min_containers"] == 0
     assert settings["target_concurrency"] == 16
@@ -235,13 +235,7 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
     assert first.active is True
-    changed.spec = replace(
-        changed.spec,
-        trainer=replace(
-            changed.spec.trainer,
-            gpu="H200",
-        ),
-    )
+    changed.spec.trainer_gpu = "H200"
     assert (
         serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
         != old_bytes
@@ -425,24 +419,15 @@ def test_spawn_passes_job_configuration_to_saved_trainer(monkeypatch):
 
 
 def test_declared_compute_settings_reach_modal(builders):
-    base = deployment().spec
-    spec = replace(
-        base,
-        trainer=replace(
-            base.trainer,
-            timeout_s=90,
-            cpu=12,
-            memory_mib=123456,
-        ),
-        inference=replace(
-            base.inference,
-            startup_timeout_s=90,
-            min_replicas=1,
-            max_replicas=3,
-            cpu=6,
-            memory_mib=45000,
-        ),
-    )
+    spec = deepcopy(deployment().spec)
+    spec.trainer_timeout_s = 90
+    spec.trainer_cpu = 12
+    spec.trainer_memory_mib = 123456
+    spec.inference_startup_timeout_s = 90
+    spec.inference_min_replicas = 1
+    spec.inference_max_replicas = 3
+    spec.inference_cpu = 6
+    spec.inference_memory_mib = 45000
     row = DeploymentRecord.create(spec, revision="a" * 40)
     trainer_app, _ = deployment_apps.build_trainer_app(row, image="test")
     trainer, _ = trainer_app.functions["trainer"]

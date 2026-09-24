@@ -104,11 +104,10 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
     spec = resolved.spec
     trainer_hash = resolved.trainer_hash
     app = modal.App(resolved.trainer_app_name)
-    resource = spec.trainer
 
     env = {
         **trainer_deployment_env(),
-        **deployment_env(spec.trainer.env),
+        **deployment_env(spec.trainer_env),
         "LILO_APP_NAME": resolved.platform["frontend"],
     }
 
@@ -118,17 +117,17 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
             raise ValueError("trainer settings do not match the deployed app")
         run_trainer(record, instance_id)
 
-    if resource.nodes > 1:
-        trainer = modal.experimental.clustered(resource.nodes, rdma=True)(trainer)
+    if spec.trainer_nodes > 1:
+        trainer = modal.experimental.clustered(spec.trainer_nodes, rdma=True)(trainer)
     trainer = app.function(
         name="trainer",
         serialized=True,
-        image=image if image is not None else image_for(spec.trainer.backend),
-        gpu=f"{resource.gpu}:{resource.gpus_per_node}",
+        image=image if image is not None else image_for(spec.backend),
+        gpu=f"{spec.trainer_gpu}:{spec.trainer_gpus_per_node}",
         region=resolved.platform["modal"]["region"],
-        cpu=resource.cpu,
-        memory=resource.memory_mib,
-        timeout=spec.trainer.timeout_s,
+        cpu=spec.trainer_cpu,
+        memory=spec.trainer_memory_mib,
+        timeout=spec.trainer_timeout_s,
         # Admission/reconciliation caps each definition. A function-wide cap
         # would block new definitions behind retained jobs sharing this app.
         max_containers=None,
@@ -137,7 +136,7 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
         volumes=volumes_for(resolved),
         secrets=secrets_for(resolved, training=True),
         env=env,
-        experimental_options={"efa_enabled": True} if resource.nodes > 1 else {},
+        experimental_options={"efa_enabled": True} if spec.trainer_nodes > 1 else {},
     )(trainer)
 
     return app, trainer
@@ -149,9 +148,9 @@ def run_trainer(resolved, instance_id):
     # Assets are prepared by the frontend before demand is registered. Reload once
     # on startup to see the committed exact snapshot; never race a trainer download.
     assets = volumes_for(resolved)["/assets"]
-    if spec.trainer.nodes > 1:
+    if spec.trainer_nodes > 1:
         ray_address = start_trainer_cluster(
-            spec.trainer.nodes,
+            spec.trainer_nodes,
             before_head=assets.reload,
             before_worker_join=assets.reload,
         )
@@ -161,7 +160,7 @@ def run_trainer(resolved, instance_id):
         assets.reload()
         ray_address = None
     env = {
-        **deployment_env(spec.trainer.env),
+        **deployment_env(spec.trainer_env),
         "LILO_APP_NAME": resolved.platform["frontend"],
         "LILO_BACKEND_CONFIG": json.dumps(settings),
         "LILO_BASE_MODEL": spec.model,
@@ -176,7 +175,7 @@ def run_trainer(resolved, instance_id):
         env["LILO_RAY_ADDRESS"] = ray_address
     executor = (
         "lilo.backends.miles_lora:build_executor"
-        if spec.trainer.backend == "miles"
+        if spec.backend == "miles"
         else "lilo.backends.megatron_fft:build_executor"
     )
 
@@ -193,9 +192,9 @@ def run_trainer(resolved, instance_id):
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env=env,
-        nproc=1 if spec.trainer.backend == "miles" else spec.trainer.gpus_per_node,
-        max_models=spec.trainer.max_clients_per_instance,
-        sampler_persistence_concurrency=spec.trainer.sampler_persistence_concurrency,
+        nproc=1 if spec.backend == "miles" else spec.trainer_gpus_per_node,
+        max_models=spec.trainer_max_clients_per_instance,
+        sampler_persistence_concurrency=spec.sampler_persistence_concurrency,
         on_startup_error=failed,
     )
 
@@ -212,11 +211,11 @@ def definition_from_spec(resolved, *, register_trainer=True, image=None):
         DEPLOYMENT_NAME=spec.name,
         RESOLVED=resolved,
         MAX_CONTEXT_LENGTH=spec.max_context_length,
-        TRAINER_MODELS_PER_INSTANCE=spec.trainer.max_clients_per_instance,
-        TRAINER_MAX_CONTAINERS=spec.trainer.max_instances,
-        ROLLOUT_GPUS=spec.inference.gpus_per_node,
+        TRAINER_MODELS_PER_INSTANCE=spec.trainer_max_clients_per_instance,
+        TRAINER_MAX_CONTAINERS=spec.trainer_max_instances,
+        ROLLOUT_GPUS=spec.inference_gpus_per_node,
         ROLLOUT_TENSOR_PARALLEL_SIZE=serving.get(
-            "tp_size", spec.inference.gpus_per_node
+            "tp_size", spec.inference_gpus_per_node
         )
         // (serving.get("dp_size", 1) if serving.get("enable_dp_attention") else 1),
     )
@@ -236,11 +235,10 @@ def build_rollout_app(resolved, pool, *, image=None):
     if pool.definition_id != resolved.definition_id:
         raise ValueError("pool generation does not match deployment")
     app = modal.App(pool.app_name)
-    inference = spec.inference
     options = resolved.inference_settings
-    minimum = inference.min_replicas
-    maximum = inference.max_replicas
-    window = inference.scaledown_window_s
+    minimum = spec.inference_min_replicas
+    maximum = spec.inference_max_replicas
+    window = spec.inference_scaledown_window_s
     if isinstance(pool, FFTPoolSpec):
         minimum = minimum if pool.min_containers is None else pool.min_containers
         maximum = maximum if pool.max_containers is None else pool.max_containers
@@ -251,17 +249,17 @@ def build_rollout_app(resolved, pool, *, image=None):
         name="Server",
         serialized=True,
         image=image if image is not None else image_for("sglang"),
-        gpu=f"{inference.gpu}:{inference.gpus_per_node}",
-        cpu=inference.cpu,
-        memory=inference.memory_mib,
+        gpu=f"{spec.inference_gpu}:{spec.inference_gpus_per_node}",
+        cpu=spec.inference_cpu,
+        memory=spec.inference_memory_mib,
         volumes=volumes_for(resolved),
         secrets=secrets_for(resolved),
-        env=deployment_env(inference.env),
+        env=deployment_env(spec.inference_env),
         min_containers=minimum,
         max_containers=maximum,
-        target_concurrency=inference.target_concurrency,
+        target_concurrency=spec.inference_target_concurrency,
         scaledown_window=window,
-        startup_timeout=inference.startup_timeout_s,
+        startup_timeout=spec.inference_startup_timeout_s,
         exit_grace_period=300,
         port=8000,
         routing_region=resolved.platform["modal"]["region"],
@@ -287,7 +285,7 @@ def build_rollout_app(resolved, pool, *, image=None):
                 wait_http(
                     "http://127.0.0.1:8001/health",
                     self.sglang,
-                    inference.startup_timeout_s,
+                    spec.inference_startup_timeout_s,
                 )
                 kwargs = dict(
                     port=8000,
@@ -309,7 +307,7 @@ def build_rollout_app(resolved, pool, *, image=None):
                 wait_http(
                     "http://127.0.0.1:8000/health",
                     self.sidecar,
-                    inference.startup_timeout_s,
+                    spec.inference_startup_timeout_s,
                 )
             except BaseException:
                 terminate(self.sidecar)

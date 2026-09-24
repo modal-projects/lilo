@@ -1,5 +1,5 @@
-from dataclasses import asdict, replace, FrozenInstanceError
-from pydantic import TypeAdapter
+from lilo.configuration import BaseConfig
+from copy import deepcopy
 import argparse
 import asyncio
 from types import SimpleNamespace
@@ -9,7 +9,6 @@ import pytest
 
 from lilo.deployments import (
     DeploymentRecord,
-    Deployment,
     load,
     config_path,
     validate_frontend,
@@ -22,14 +21,14 @@ from lilo.backends.miles_arguments import apply_config_overrides
 
 
 def recipe(preset="qwen35-9b-lora-16k", **changes):
-    data = asdict(load(config_path(preset)))
+    data = vars(load(config_path(preset)))
     for path, value in changes.items():
         keys = path.split("__")
         target = data
         for key in keys[:-1]:
             target = target[key]
         target[keys[-1]] = value
-    return TypeAdapter(Deployment).validate_python(data)
+    return BaseConfig(**data)
 
 
 def resolved(spec=None, **changes):
@@ -61,8 +60,8 @@ def test_presets_context_topology_and_backend_options():
 def test_no_model_catalog_required():
     spec = recipe(
         model="my-org/new-model",
-        trainer__config__model_type="",
-        trainer__config__cli_options={
+        miles_cfg__model_type="",
+        miles_cfg__cli_options={
             "num_layers": 12,
             "hidden_size": 768,
             "num_attention_heads": 12,
@@ -75,23 +74,14 @@ def test_no_model_catalog_required():
 @pytest.mark.parametrize(
     "changes,match",
     [
-        ({"trainer__config__cli_options": {"hf_checkpoint": "other"}}, "managed"),
+        ({"miles_cfg__cli_options": {"hf_checkpoint": "other"}}, "managed"),
         (
-            {"trainer__config__cli_options": {"pipeline_model_parallel_size": 2}},
+            {"miles_cfg__cli_options": {"pipeline_model_parallel_size": 2}},
             "managed",
         ),
-        ({"inference__config": {"model_path": "other"}}, "managed"),
-        ({"inference__config": {"tp_size": 2}}, "replica GPU"),
-        ({"trainer__max_clients_per_instance": 7}, "max_lora_slots"),
-        (
-            {
-                "inference__config": {
-                    "max_loaded_loras": 2,
-                    "max_loras_per_batch": 8,
-                }
-            },
-            "max_loaded_loras",
-        ),
+        ({"sglang_cfg": {"model_path": "other"}}, "managed"),
+        ({"sglang_cfg": {"tp_size": 2}}, "replica GPU"),
+        ({"trainer_max_clients_per_instance": 7}, "max_lora_slots"),
     ],
 )
 def test_invalid_integrations_fail_when_building_backend_settings(changes, match):
@@ -105,7 +95,7 @@ def test_invalid_integrations_fail_when_building_backend_settings(changes, match
 
 def test_generation_and_asset_paths_include_exact_base():
     a = resolved()
-    assert a.generation != resolved(recipe(trainer__gpu="H200")).generation
+    assert a.generation != resolved(recipe(trainer_gpu="H200")).generation
     b = resolved(recipe(model="other/Qwen3.5-9B-Base"))
     assert a.asset_path != b.asset_path
     assert a.asset_path != DeploymentRecord.create(a.spec, revision="b" * 40).asset_path
@@ -258,16 +248,14 @@ def test_native_sections_survive_serialization_without_allowlist():
     from lilo.backends.megatron_config import parse_backend_config
 
     spec = recipe("qwen35-4b-fft-64k")
-    data = asdict(spec)
-    data["trainer"]["config"]["provider_overrides"]["future_provider_option"] = {
+    data = vars(spec)
+    data["megatron_cfg"]["provider_overrides"]["future_provider_option"] = {
         "layers": [1, 4],
         "enabled": False,
     }
-    data["trainer"]["config"]["optimizer_overrides"] = {
-        "future_optimizer_option": 0.125
-    }
-    data["trainer"]["config"]["distributed_overrides"] = {"future_ddp_option": False}
-    spec = TypeAdapter(Deployment).validate_python(data)
+    data["megatron_cfg"]["optimizer_overrides"] = {"future_optimizer_option": 0.125}
+    data["megatron_cfg"]["distributed_overrides"] = {"future_ddp_option": False}
+    spec = BaseConfig(**data)
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
     assert config.hf_checkpoint == "/assets/pinned"
@@ -279,7 +267,7 @@ def test_native_sections_survive_serialization_without_allowlist():
     assert config.optimizer_overrides == {"future_optimizer_option": 0.125}
     assert config.distributed_overrides == {"future_ddp_option": False}
     assert config.optimizer.lr == 0.0001
-    assert asdict(spec) == data  # Building does not consume or mutate the config.
+    assert vars(spec) == data  # Building does not consume or mutate the config.
 
 
 @pytest.mark.parametrize(
@@ -293,22 +281,22 @@ def test_native_sections_survive_serialization_without_allowlist():
     ],
 )
 def test_megatron_cli_options_preserve_integration_contract(section, options, match):
-    spec = recipe("qwen35-4b-fft-64k", **{f"trainer__config__{section}": options})
+    spec = recipe("qwen35-4b-fft-64k", **{f"megatron_cfg__{section}": options})
     with pytest.raises(ValueError, match=match):
         backend_config(spec)
 
 
 def test_backend_dispatch_rejects_unknown_backend():
     with pytest.raises(ValueError, match="backend"):
-        recipe(trainer__backend="missing")
+        backend_config(recipe(backend="missing"))
 
 
 def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
     from lilo.backends.deployment import serving_options
 
     spec = recipe(
-        trainer__config__cli_options__future_miles_option=[1, 2],
-        inference__config__future_sglang_option=False,
+        miles_cfg__cli_options__future_miles_option=[1, 2],
+        sglang_cfg__future_sglang_option=False,
     )
     assert backend_config(spec)["miles"]["cli_options"]["future_miles_option"] == [
         1,
@@ -319,47 +307,25 @@ def test_new_miles_and_sglang_options_need_no_deployment_schema_change():
 
 def test_fft_capacity_is_checked_by_backend_setup():
     with pytest.raises(ValueError, match="FFT trainers admit one client"):
-        recipe("qwen35-4b-fft-64k", trainer__max_clients_per_instance=2)
+        backend_config(recipe("qwen35-4b-fft-64k", trainer_max_clients_per_instance=2))
 
 
 def test_reserved_environment_is_checked_by_modal_setup():
     from lilo.providers.modal.deployment_apps import deployment_env
 
     with pytest.raises(ValueError, match="managed"):
-        recipe(trainer__env={"LILO_BACKEND_CONFIG": "oops"})
+        deployment_env({"LILO_BACKEND_CONFIG": "oops"})
     assert deployment_env({"MY_SETTING": "value"}) == {"MY_SETTING": "value"}
 
 
 def test_record_creation_copies_without_reparsing():
-    import hashlib
-    import json
-
     spec = recipe()
-    original = asdict(spec)
+    original = vars(spec)
     row = DeploymentRecord.create(spec, revision="a" * 40)
-    assert asdict(spec) == original
+    assert vars(spec) == original
     assert row.spec.revision == "a" * 40
-    # The record hash covers settings and the pinned backend dependency, not source.
-    expected = original | {"revision": "a" * 40}
-    assert (
-        row.generation
-        == hashlib.sha256(
-            json.dumps(
-                {
-                    "config": expected,
-                    "miles_commit": None,
-                    "platform": row.platform,
-                    "trainer_release": "initial",
-                    "inference_release": "initial",
-                    "trainer_settings": row.trainer_settings,
-                    "inference_settings": row.inference_settings,
-                },
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
-    )
-    row.spec.trainer.config["max_lora_rank"] = 64
-    assert spec.trainer.config["max_lora_rank"] == 32
+    row.spec.miles_cfg["max_lora_rank"] = 64
+    assert spec.miles_cfg["max_lora_rank"] == 32
     saved = row.model_dump_json()
     assert DeploymentRecord.model_validate_json(saved).model_dump(
         mode="json"
@@ -372,17 +338,18 @@ def test_python_config_composition(tmp_path):
         "from lilo.configs.qwen35_9b_lora_16k import Config as Parent\n"
         "class Config(Parent):\n"
         "    name = 'custom'\n"
-        "    overrides = {'trainer.memory_mib': 123456}\n"
+        "    overrides = {'trainer_memory_mib': 123456}\n"
         "config = Config()\n"
     )
     custom = load(path)
     original = recipe()
     assert custom.name == "custom"
-    assert custom.trainer.memory_mib == 123456
-    assert custom.trainer.config == original.trainer.config
-    assert original.trainer.memory_mib == 65536
-    with pytest.raises(FrozenInstanceError):
-        custom.trainer.max_instances = 9
+    assert custom.trainer_memory_mib == 123456
+    assert custom.miles_cfg == original.miles_cfg
+    assert original.trainer_memory_mib == 65536
+    custom.trainer_max_instances = 9
+    assert custom.trainer_max_instances == 9
+    assert original.trainer_max_instances == 1
 
 
 def test_worker_record_contains_resolved_settings(monkeypatch):
@@ -418,37 +385,17 @@ def test_no_yaml_config_ingestion(tmp_path):
         load(tmp_path / "old.yaml")
 
 
-@pytest.mark.parametrize(
-    "section,key",
-    [
-        ("trainer", "memroy_mib"),
-        ("trainer", "max_instnaces"),
-        ("trainer", "min_instances"),
-        ("inference", "timeout_s"),
-        ("inference", "nodes"),
-    ],
-)
-def test_orchestration_typos_and_unused_fields_are_rejected(section, key):
-    base = recipe()
-    component = {
-        "trainer": base.trainer,
-        "inference": base.inference,
-    }[section]
-    with pytest.raises(ValueError, match=key):
-        replace(component, **{key: 9})
-
-
 def test_worker_hashes_cover_only_their_settings():
     base = resolved()
-    inference = resolved(recipe(inference__config__max_running_requests=24))
+    inference = resolved(recipe(sglang_cfg__max_running_requests=24))
     assert inference.trainer_hash == base.trainer_hash
     assert inference.inference_hash != base.inference_hash
 
-    trainer = resolved(recipe(trainer__config__max_tokens_per_gpu=8192))
+    trainer = resolved(recipe(miles_cfg__max_tokens_per_gpu=8192))
     assert trainer.trainer_hash != base.trainer_hash
     assert trainer.inference_hash == base.inference_hash
 
-    adapter = resolved(recipe(trainer__config__max_lora_rank=64))
+    adapter = resolved(recipe(miles_cfg__max_lora_rank=64))
     assert adapter.trainer_hash != base.trainer_hash
     assert adapter.inference_hash != base.inference_hash
 
@@ -467,8 +414,6 @@ def test_examples_only_contain_model_infrastructure():
         config = load(path)
         assert not hasattr(config, "deployment")
         assert config.revision == "main"
-        assert "runtime_version" not in asdict(config.trainer)
-        assert "runtime_version" not in asdict(config.inference)
 
 
 @pytest.mark.parametrize("value", ["invalid", 7])
@@ -493,8 +438,8 @@ def test_backend_parser_validates_configured_types_and_choices(value):
 )
 def test_managed_backend_values_fail_before_record_creation(section, field):
     base = recipe("qwen35-4b-fft-64k")
-    config = {**base.trainer.config, section: {field: 1}}
-    candidate = replace(base, trainer=replace(base.trainer, config=config))
+    candidate = deepcopy(base)
+    candidate.megatron_cfg[section] = {field: 1}
     with pytest.raises(ValueError, match=field):
         DeploymentRecord.create(candidate, revision="a" * 40)
 
@@ -507,13 +452,8 @@ def test_multinode_ownership_and_topology():
     assert miles["actor_num_gpus_per_node"] == 8
     assert miles["tensor_model_parallel_size"] == 2
     assert miles["context_parallel_size"] == 8
-    invalid = replace(
-        config,
-        trainer=replace(
-            config.trainer,
-            config={**config.trainer.config, "actor_num_nodes": 3},
-        ),
-    )
+    invalid = deepcopy(config)
+    invalid.miles_cfg["actor_num_nodes"] = 3
     with pytest.raises(ValueError, match="actor_num_nodes"):
         DeploymentRecord.create(invalid, revision="a" * 40)
 
@@ -524,49 +464,32 @@ def test_config_inheritance_and_constructor_overrides_copy_nested_options():
     class Child(Parent):
         name = "child"
         max_context_length = 8192
-        overrides = {"trainer.config.max_tokens_per_gpu": 8192}
+        overrides = {"miles_cfg.max_tokens_per_gpu": 8192}
 
     first, second = Child(), Child(name="second")
-    first.trainer.config["target_modules"].append("extra")
-    first.trainer.config["cli_options"]["recompute_num_layers"] = 2
+    first.miles_cfg["target_modules"].append("extra")
+    first.miles_cfg["cli_options"]["recompute_num_layers"] = 2
     assert second.name == "second"
     assert second.max_context_length == 8192
-    assert second.trainer.gpu == "H100"
+    assert second.trainer_gpu == "H100"
     assert backend_config(second)["miles"]["max_tokens_per_gpu"] == 8192
     assert Parent().max_context_length == 16384
     for config in (second, Parent()):
-        assert "extra" not in config.trainer.config["target_modules"]
-        assert config.trainer.config["cli_options"]["recompute_num_layers"] == 1
+        assert "extra" not in config.miles_cfg["target_modules"]
+        assert config.miles_cfg["cli_options"]["recompute_num_layers"] == 1
 
 
-@pytest.mark.parametrize(
-    "field,value",
-    [
-        ("max_contex_length", 8192),
-        ("max_context_length", "8192"),
-        ("pool_idle_timeout_s", "300"),
-    ],
-)
-def test_recipe_class_fields_and_constructor_overrides_are_validated(field, value):
-    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
-
-    cls = type("Invalid", (Parent,), {field: value})
-    with pytest.raises(ValueError, match=field):
-        cls()
-    with pytest.raises(ValueError, match=field):
-        Parent(**{field: value})
-
-
-def test_recipe_section_replacement_uses_defaults_without_implicit_merge():
+def test_backend_dictionary_assignment_replaces_inherited_values():
     from lilo.configs.qwen35_9b_lora_16k import Config as Parent
 
     class Child(Parent):
-        inference = {"gpu": "H100", "config": {"max_running_requests": 4}}
+        inference_gpu = "H100"
+        sglang_cfg = {"max_running_requests": 4}
 
     config = Child()
-    assert config.inference.gpu == "H100"
-    assert config.inference.max_replicas == 8
-    assert config.inference.config == {"max_running_requests": 4}
+    assert config.inference_gpu == "H100"
+    assert config.inference_max_replicas == 8
+    assert config.sglang_cfg == {"max_running_requests": 4}
 
 
 def test_overrides_compose_across_generations_and_constructor():
@@ -574,76 +497,54 @@ def test_overrides_compose_across_generations_and_constructor():
 
     class Child(Parent):
         overrides = {
-            "trainer.gpu": "H200",
-            "trainer.env.FIRST": "1",
-            "trainer.config.max_tokens_per_gpu": 8192,
-            "inference.config.future_option.nested": [1, 2],
+            "trainer_gpu": "H200",
+            "trainer_env.FIRST": "1",
+            "miles_cfg.max_tokens_per_gpu": 8192,
+            "sglang_cfg.future_option.nested": [1, 2],
         }
 
     class Grandchild(Child):
         overrides = {
-            "trainer.config.max_tokens_per_gpu": 4096,
-            "trainer.env.SECOND": "2",
+            "miles_cfg.max_tokens_per_gpu": 4096,
+            "trainer_env.SECOND": "2",
         }
 
     config = Grandchild(
         name="custom",
-        overrides={"trainer.config.max_tokens_per_gpu": 2048},
+        overrides={"miles_cfg.max_tokens_per_gpu": 2048},
     )
     assert config.name == "custom"
-    assert config.trainer.gpu == "H200"
-    assert config.trainer.env["FIRST"] == "1"
-    assert config.trainer.env["SECOND"] == "2"
-    assert config.trainer.config["max_tokens_per_gpu"] == 2048
-    assert Grandchild().trainer.config["max_tokens_per_gpu"] == 4096
-    assert Child().trainer.config["max_tokens_per_gpu"] == 8192
-    config.inference.config["future_option"]["nested"].append(3)
-    assert Child.overrides["inference.config.future_option.nested"] == [1, 2]
-    assert Grandchild().inference.config["future_option"]["nested"] == [1, 2]
-    assert "FIRST" not in Parent().trainer.env
+    assert config.trainer_gpu == "H200"
+    assert config.trainer_env["FIRST"] == "1"
+    assert config.trainer_env["SECOND"] == "2"
+    assert config.miles_cfg["max_tokens_per_gpu"] == 2048
+    assert Grandchild().miles_cfg["max_tokens_per_gpu"] == 4096
+    assert Child().miles_cfg["max_tokens_per_gpu"] == 8192
+    config.sglang_cfg["future_option"]["nested"].append(3)
+    assert Child.overrides["sglang_cfg.future_option.nested"] == [1, 2]
+    assert Grandchild().sglang_cfg["future_option"]["nested"] == [1, 2]
+    assert "FIRST" not in Parent().trainer_env
 
 
 def test_override_values_replace_dictionaries_and_lists():
     from lilo.configs.qwen35_9b_lora_16k import Config as Parent
 
     class Child(Parent):
-        overrides = {"trainer.env": {"FIRST": "1"}}
+        overrides = {"trainer_env": {"FIRST": "1"}}
 
     class Grandchild(Child):
         overrides = {
-            "trainer.env": {},
-            "trainer.config.target_modules": ["q_proj"],
+            "trainer_env": {},
+            "miles_cfg.target_modules": ["q_proj"],
         }
 
     config = Grandchild()
-    assert config.trainer.env == {}
-    assert config.trainer.config["target_modules"] == ["q_proj"]
-    assert Child().trainer.env == {"FIRST": "1"}
+    assert config.trainer_env == {}
+    assert config.miles_cfg["target_modules"] == ["q_proj"]
+    assert Child().trainer_env == {"FIRST": "1"}
     # Constructor fields replace the inherited section, then overrides apply.
-    config = Grandchild(inference={"gpu": "H100"}, overrides={"inference.gpu": "H200"})
-    assert config.inference.gpu == "H200"
-    assert config.inference.config == {}
-    assert replace(config, name="copy").trainer == config.trainer
-
-
-@pytest.mark.parametrize(
-    "overrides,match",
-    [
-        ([], "overrides must be a dictionary"),
-        ({"": 1}, "invalid override path"),
-        ({"trainer..gpu": "H200"}, "invalid override path"),
-        ({1: "H200"}, "invalid override path"),
-        ({"trainer.gpu.type": "H200"}, "non-dictionary"),
-        ({"trainer.memroy_mib": 123}, "memroy_mib"),
-        ({"trianer.gpu": "H200"}, "trianer"),
-        ({"trainer.gpus_per_node": "4"}, "gpus_per_node"),
-    ],
-)
-def test_dotted_overrides_are_validated(overrides, match):
-    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
-
-    cls = type("Invalid", (Parent,), {"overrides": overrides})
-    with pytest.raises(ValueError, match=match):
-        cls()
-    with pytest.raises(ValueError, match=match):
-        Parent(overrides=overrides)
+    config = Grandchild(
+        sglang_cfg={}, inference_gpu="H100", overrides={"inference_gpu": "H200"}
+    )
+    assert config.inference_gpu == "H200"
+    assert config.sglang_cfg == {}

@@ -1,7 +1,6 @@
 """CPU checks for native config forwarding into Megatron constructors."""
 
-from dataclasses import asdict, make_dataclass
-from pydantic import TypeAdapter
+from dataclasses import make_dataclass
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -11,22 +10,18 @@ from runtime_stubs import backend_runtime_imports
 
 from lilo.backends.deployment import backend_config
 from lilo.backends.megatron_config import parse_backend_config
-from lilo.deployments import Deployment, load, config_path
+from lilo.deployments import load, config_path
 
 with backend_runtime_imports():
     from lilo.backends.megatron_runtime.common import modeling
 
 
 def test_config_overrides_reach_megatron(monkeypatch):
-    data = asdict(load(config_path("qwen35-4b-fft-64k")))
-    data["trainer"]["config"]["optimizer_overrides"] = {
-        "native_optimizer_setting": False
-    }
-    data["trainer"]["config"]["distributed_overrides"] = {"native_ddp_setting": 123}
-    data["trainer"]["config"]["provider_overrides"]["native_provider_setting"] = [1, 2]
-    config, _ = parse_backend_config(
-        backend_config(TypeAdapter(Deployment).validate_python(data))
-    )
+    spec = load(config_path("qwen35-4b-fft-64k"))
+    spec.megatron_cfg["optimizer_overrides"] = {"native_optimizer_setting": False}
+    spec.megatron_cfg["distributed_overrides"] = {"native_ddp_setting": 123}
+    spec.megatron_cfg["provider_overrides"]["native_provider_setting"] = [1, 2]
+    config, _ = parse_backend_config(backend_config(spec))
     # These stand in for an installed upstream version with extra fields. The
     # deployment reader must not need its own list of those fields.
     # Model providers in Megatron Bridge are dataclasses.

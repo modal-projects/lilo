@@ -35,7 +35,7 @@ def _definition(frontend: str, name: str) -> tuple[Any, str]:
         )
     resolved = matches[0]
     spec = resolved.spec
-    settings = backend_config(spec)[spec.trainer.backend]
+    settings = backend_config(spec)[spec.backend]
     definition = SimpleNamespace(
         DEFINITION_ID=resolved.definition_id,
         MODEL_NAME=spec.model,
@@ -45,8 +45,8 @@ def _definition(frontend: str, name: str) -> tuple[Any, str]:
             "max_tokens_per_microbatch", settings.get("max_tokens_per_gpu")
         ),
         MICRO_BATCH_SIZE=settings.get("micro_batch_size", 1),
-        GPU_TYPE=spec.trainer.gpu,
-        GPUS=spec.trainer.gpus_per_node,
+        GPU_TYPE=spec.trainer_gpu,
+        GPUS=spec.trainer_gpus_per_node,
         LORA_RANK=settings.get("max_lora_rank"),
     )
     return definition, definition.PARAMETERIZATION

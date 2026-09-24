@@ -1,6 +1,6 @@
 # Python deployment configs
 
-A recipe subclasses `BaseConfig` and exports `config = Config()`. Model settings are ordinary class attributes; trainer and inference settings are dictionaries. No `Compute`, `Model`, or `Routing` constructors are needed.
+A recipe subclasses `BaseConfig` and exports `config = Config()`. Settings are flat, untyped Python attributes. Backend options are ordinary dictionaries.
 
 ```python
 from lilo.configuration import BaseConfig
@@ -10,21 +10,21 @@ class Config(BaseConfig):
     name = "my-9b"
     model = "Qwen/Qwen3.5-9B-Base"
     max_context_length = 16384
-
-    trainer = {
-        "gpu": "H100",
-        "gpus_per_node": 4,
-        "cpu": 16,
-        "memory_mib": 65536,
-        "max_clients_per_instance": 6,
-        "config": {
-            "model_type": "qwen3.5-9B",
-            "tensor_model_parallel_size": 4,
-            "max_lora_slots": 6,
-            "max_lora_rank": 32,
-        },
+    backend = "miles"
+    trainer_gpu = "H100"
+    trainer_gpus_per_node = 4
+    trainer_cpu = 16
+    trainer_memory_mib = 65536
+    trainer_max_clients_per_instance = 6
+    inference_gpu = "H200"
+    inference_max_replicas = 8
+    miles_cfg = {
+        "model_type": "qwen3.5-9B",
+        "tensor_model_parallel_size": 4,
+        "max_lora_slots": 6,
+        "max_lora_rank": 32,
     }
-    inference = {"gpu": "H200", "max_replicas": 8}
+    sglang_cfg = {"max_running_requests": 32}
 
 
 config = Config()
@@ -34,7 +34,7 @@ See the [9B LoRA recipe](../src/lilo/configs/qwen35_9b_lora_16k.py) and [4B FFT 
 
 ## Variants
 
-Use Python inheritance and an `overrides` dictionary to change only the settings you need:
+Override ordinary attributes directly. Use dotted `overrides` to change individual backend options:
 
 ```python
 from lilo.configs.qwen35_9b_lora_16k import Config as Parent
@@ -42,45 +42,34 @@ from lilo.configs.qwen35_9b_lora_16k import Config as Parent
 
 class Config(Parent):
     name = "my-9b-more-memory"
-    overrides = {
-        "trainer.memory_mib": 98304,
-        "trainer.config.max_tokens_per_gpu": 8192,
-        "inference.gpu": "H200",
-    }
+    trainer_memory_mib = 98304
+    overrides = {"miles_cfg.max_tokens_per_gpu": 8192}
 
 
 config = Config()
 ```
 
-Dotted paths set individual values. Parent settings and overrides apply first, then child settings and overrides; a child does not need to repeat its parent’s `overrides`. Assigning a dictionary or list replaces the value at that path: `"trainer.env": {}` clears inherited environment settings. Assigning a whole section as a class attribute still replaces that section.
+Each parent's settings and overrides apply before its child's. Constructor fields and overrides apply last: `Config(trainer_gpu="H200", overrides={"sglang_cfg.max_running_requests": 16})`. Assigning a dictionary or list replaces that value; `trainer_env = {}` clears inherited environment settings. Instances own independent copies of mutable values and can also be edited directly.
 
-Constructor fields apply last, followed by constructor overrides: `Config(name="another-run", overrides={"trainer.gpu": "H200"})`. These are ordinary Python values, with no expressions or merge directives. Only the resolved settings are saved for workers.
+## Backend options
 
-Construction copies the recipe's dictionaries and validates Lilo-owned fields. Unknown fields, invalid types, negative capacities, and inconsistent scaling limits fail before deployment. The validated instance has attribute access (`config.trainer.gpu`); backend options stay dictionaries. Instances do not share mutable options with each other or with their recipe class.
-
-## Ownership and validation
-
-| Setting | Owner and behavior |
+| Setting | Consumed by |
 | --- | --- |
-| trainer / inference resources | GPU type, GPUs per node, CPU and memory directly in each section; `nodes` is trainer-only. Unknown keys such as `memroy_mib` are rejected. |
-| trainer | Maximum instances/clients, publication concurrency and function timeout. Trainers start on demand; there is no min_instances field. |
-| inference | Replica scaling and startup_timeout_s, passed to the Modal server and startup health checks. There is no unused timeout_s. Each replica uses one node. |
-| trainer.config | Existing MilesBackendConfig or EngineModelConfig fields, plus their explicit extra-option dictionaries. |
-| inference.config | SGLang ServerArgs fields. Lilo reserves paths, context, topology and adapter settings that must agree with its own configuration. |
+| `trainer_*`, `inference_*` | Modal GPU/CPU/memory allocation, scaling, timeouts and Lilo admission limits |
+| `megatron_cfg` | Existing Megatron `EngineModelConfig`; provider, optimizer and distributed options use its native dictionaries |
+| `miles_cfg` | Existing `MilesBackendConfig`; `cli_options` supplies additional Miles arguments |
+| `sglang_cfg` | SGLang `ServerArgs` |
 
-Compute topology is configured directly in `trainer`; Miles receives actor_num_nodes and actor_num_gpus_per_node from it. Setting those again in backend options is rejected.
+Modal and backend libraries validate their own options. Lilo checks integration requirements such as trainer slot capacity, supported training modes, and parallelism agreeing with allocated GPUs. It supplies managed model paths, context length and adapter settings; conflicting backend overrides are rejected.
 
-Megatron's provider_overrides, optimizer_overrides and distributed_overrides may add backend fields, but may not replace Lilo-owned fields. For example, put the learning rate in optimizer={"lr": ...}; optimizer_overrides={"lr": ...} is rejected. The same settings builders are used during validation and worker construction. The provider is constructed with dataclasses.replace, without an override-by-setattr pass.
+`BaseConfig` does not enforce field types or reject arbitrary attributes. Extra backend options belong in the corresponding backend dictionary. A misspelled top-level attribute is ordinary Python data and may be unused.
 
-Miles has a cli_options dictionary for additional Miles arguments. Its argument conversion is isolated in [miles_arguments.py](../src/lilo/backends/miles_arguments.py), because Miles exposes an argparse interface. SGLang uses ServerArgs(**settings) directly in the worker-only [sglang.py](../src/lilo/inference/sglang.py) entrypoint.
-
-Backend libraries validate their own extra options when workers start. Lilo does not maintain another schema for every upstream tuning option. Frontend config imports remain CPU-only.
+Miles argument conversion lives in [miles_arguments.py](../src/lilo/backends/miles_arguments.py). SGLang receives `ServerArgs(**settings)` in its [worker entrypoint](../src/lilo/inference/sglang.py). Backend libraries validate native options when workers start; frontend config imports remain CPU-only.
 
 ## Resolve and launch
 
 ~~~text
 load(config.py) → config: BaseConfig
-  → validate typed compute/scaling/model settings
   → resolve model commit
   → resolve_backend_settings(config, asset_path)
   → save DeploymentRecord with trainer_settings and inference_settings
@@ -92,7 +81,7 @@ The launcher consumes the saved settings. It does not reparse backend configurat
 
 | File | Responsibility |
 | --- | --- |
-| [configuration.py](../src/lilo/configuration.py) | BaseConfig and validation of model, trainer, and inference settings |
+| [configuration.py](../src/lilo/configuration.py) | BaseConfig defaults, inheritance and overrides |
 | [deployments.py](../src/lilo/deployments.py) | Python object loader, resolved records and config hashes |
 | [backends/deployment.py](../src/lilo/backends/deployment.py) | Resolve backend settings before launch |
 | [megatron_runtime/common/settings.py](../src/lilo/backends/megatron_runtime/common/settings.py) | Shared Megatron ownership rules and constructor dictionaries |
@@ -115,7 +104,7 @@ lilo config validate my_model.py
 lilo deploy my_model.py
 ~~~
 
-Validation checks orchestration and integration constraints without loading GPU libraries or provisioning compute. Backend option support and GPU memory capacity still require worker startup.
+Validation resolves backend settings and checks Lilo integration constraints without loading GPU libraries or provisioning compute. Backend option support and GPU memory capacity still require worker startup.
 
 The checked-in [deploy_models.sh](../scripts/deploy_models.sh) lists the complete active config set. Add a config path there, then run it. The deployment command owns frontend selection and worker-code updates:
 

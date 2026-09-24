@@ -5,15 +5,15 @@ class Config(Parent):
     name = "qwen35-9b-lora-2k"
     max_context_length = 2048
     overrides = {
-        "trainer.gpu": "H200",
-        "trainer.cpu": 8,
-        "trainer.memory_mib": 32768,
-        "trainer.max_clients_per_instance": 4,
-        "trainer.config.max_tokens_per_gpu": 2048,
-        "trainer.config.max_lora_slots": 4,
-        "inference.config.ep_size": 1,
-        "inference.config.max_loaded_loras": 32,
-        "inference.config.schedule_policy": "lpm",
+        "trainer_gpu": "H200",
+        "trainer_cpu": 8,
+        "trainer_memory_mib": 32768,
+        "trainer_max_clients_per_instance": 4,
+        "miles_cfg.max_tokens_per_gpu": 2048,
+        "miles_cfg.max_lora_slots": 4,
+        "sglang_cfg.ep_size": 1,
+        "sglang_cfg.max_loaded_loras": 32,
+        "sglang_cfg.schedule_policy": "lpm",
     }
 
 

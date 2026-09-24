@@ -5,10 +5,10 @@ class Config(Parent):
     name = "qwen35-9b-lora-64k"
     max_context_length = 65536
     overrides = {
-        "trainer.gpu": "H200",
-        "trainer.gpus_per_node": 8,
-        "trainer.config.tensor_model_parallel_size": 8,
-        "trainer.config.max_tokens_per_gpu": 65536,
+        "trainer_gpu": "H200",
+        "trainer_gpus_per_node": 8,
+        "miles_cfg.tensor_model_parallel_size": 8,
+        "miles_cfg.max_tokens_per_gpu": 65536,
     }
 
 

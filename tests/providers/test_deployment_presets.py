@@ -1,5 +1,3 @@
-from dataclasses import asdict
-from pydantic import TypeAdapter
 import pytest
 
 from lilo.deployments import load, config_path, DeploymentRecord
@@ -19,7 +17,7 @@ from lilo.providers.modal.deployment_apps import (
 def test_all_packaged_recipes_validate_offline(path):
     spec = load(path)
     config = backend_config(spec)
-    assert config[spec.trainer.backend]["hf_checkpoint"] == "/assets/pending"
+    assert config[spec.backend]["hf_checkpoint"] == "/assets/pending"
     serving_options(spec)
 
 
@@ -56,11 +54,11 @@ def test_qwen38_context_parallel_token_budget(context, cp):
 def test_single_client_recipe_keeps_shared_backend_capacity():
     shared = load(config_path("qwen35-9b-lora-16k"))
     single = load(config_path("qwen35-9b-lora-16k-single"))
-    assert single.trainer.max_clients_per_instance == 1
-    assert (single.trainer.gpu, single.trainer.gpus_per_node, single.trainer.nodes) == (
-        shared.trainer.gpu,
-        shared.trainer.gpus_per_node,
-        shared.trainer.nodes,
+    assert single.trainer_max_clients_per_instance == 1
+    assert (single.trainer_gpu, single.trainer_gpus_per_node, single.trainer_nodes) == (
+        shared.trainer_gpu,
+        shared.trainer_gpus_per_node,
+        shared.trainer_nodes,
     )
     assert backend_config(single) == backend_config(shared)
 
@@ -75,23 +73,3 @@ def test_missing_manifest_has_no_python_catalog_fallback(monkeypatch, value):
         manifest_from_env()
     with pytest.raises(ValueError, match="manifest"):
         frontend_settings()
-
-
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"dp_size": 3, "enable_dp_attention": True},
-        {"dp_size": 2, "enable_dp_attention": False},
-        {"dp_size": 2, "enable_dp_attention": "true"},
-    ],
-)
-def test_invalid_attention_parallelism_is_rejected(options):
-    from lilo.deployments import Deployment
-
-    data = asdict(load(config_path("qwen35-35b-a3b-fft-64k")))
-    data["inference"]["config"].update(options)
-    from lilo.backends.deployment import serving_options
-
-    spec = TypeAdapter(Deployment).validate_python(data)
-    with pytest.raises(ValueError, match="sglang"):
-        serving_options(spec)

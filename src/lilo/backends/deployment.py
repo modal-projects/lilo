@@ -74,9 +74,16 @@ SGLANG_MANAGED = {
 
 
 def backend_config(spec, asset_path="/assets/pending"):
-    trainer = spec.trainer
-    settings = trainer.config
-    if trainer.backend == "megatron":
+    if spec.backend == "megatron":
+        if spec.trainer_nodes != 1:
+            raise ValueError("multi-node training currently requires Miles")
+        if spec.parameterization != "full":
+            raise ValueError("Megatron requires full parameterization")
+        if spec.trainer_max_clients_per_instance != 1:
+            raise ValueError("FFT trainers admit one client per instance")
+        if spec.sampler_persistence_concurrency != 1:
+            raise ValueError("Megatron requires sampler_persistence_concurrency: 1")
+        settings = spec.megatron_cfg
         reject_managed_options(settings, {"hf_checkpoint", "seq_length"})
         config, _ = parse_backend_config(
             {
@@ -89,8 +96,13 @@ def backend_config(spec, asset_path="/assets/pending"):
         )
         if config.optimizer.optimizer != "adam":
             raise ValueError("Tinker optim_step requires an Adam optimizer")
-        config.validate(trainer.gpus_per_node)
+        config.validate(spec.trainer_gpus_per_node)
         return {"megatron": asdict(config), "checkpoint_dir": "/checkpoints"}
+    if spec.backend != "miles":
+        raise ValueError(f"unknown backend: {spec.backend}")
+    if spec.parameterization != "lora":
+        raise ValueError("Miles requires lora parameterization")
+    settings = spec.miles_cfg
     reject_managed_options(
         settings,
         {"hf_checkpoint", "actor_num_gpus_per_node", "actor_num_nodes", "extra_args"},
@@ -98,8 +110,8 @@ def backend_config(spec, asset_path="/assets/pending"):
     reject_managed_options(settings.get("cli_options", {}), MILES_MANAGED)
     config = MilesBackendConfig(
         hf_checkpoint=asset_path,
-        actor_num_gpus_per_node=trainer.gpus_per_node,
-        actor_num_nodes=trainer.nodes,
+        actor_num_gpus_per_node=spec.trainer_gpus_per_node,
+        actor_num_nodes=spec.trainer_nodes,
         extra_args=("--seq-length", str(spec.max_context_length)),
         **settings,
     )
@@ -108,40 +120,17 @@ def backend_config(spec, asset_path="/assets/pending"):
         config.expert_model_parallel_size * config.expert_tensor_parallel_size
     ):
         raise ValueError("expert parallel sizes must divide the trainer GPU allocation")
-    if trainer.max_clients_per_instance > config.max_lora_slots:
+    if spec.trainer_max_clients_per_instance > config.max_lora_slots:
         raise ValueError("max_clients_per_instance exceeds max_lora_slots")
     return {"miles": asdict(config), "checkpoint_dir": "/checkpoints"}
 
 
 def serving_options(spec):
-    options = dict(spec.inference.config)
+    options = dict(spec.sglang_cfg)
     reject_managed_options(options, SGLANG_MANAGED)
-    tp = options.get("tp_size", spec.inference.gpus_per_node)
-    ep = options.get("ep_size", 1)
-    if type(tp) is not int or tp != spec.inference.gpus_per_node:
+    tp = options.get("tp_size", spec.inference_gpus_per_node)
+    if tp != spec.inference_gpus_per_node:
         raise ValueError("sglang.tp_size must equal the replica GPU allocation")
-    if type(ep) is not int or ep < 1 or tp % ep:
-        raise ValueError("sglang.ep_size must divide the replica GPU allocation")
-    dp = options.get("dp_size", 1)
-    dp_attention = options.get("enable_dp_attention", False)
-    if type(dp) is not int or dp < 1 or tp % dp:
-        raise ValueError("sglang.dp_size must divide the replica GPU allocation")
-    if not isinstance(dp_attention, bool):
-        raise ValueError("sglang.enable_dp_attention must be a boolean")
-    if dp > 1 and not dp_attention:
-        raise ValueError("sglang.dp_size > 1 requires enable_dp_attention")
-    for key in (
-        "max_loaded_loras",
-        "max_loras_per_batch",
-        "max_running_requests",
-        "max_queued_requests",
-    ):
-        if key in options and (type(options[key]) is not int or options[key] < 1):
-            raise ValueError(f"sglang.{key} must be positive")
-    if not 0 < options.get("mem_fraction_static", 0.8) < 1:
-        raise ValueError("sglang.mem_fraction_static must be between zero and one")
-    if options.get("max_loaded_loras", 64) < options.get("max_loras_per_batch", 8):
-        raise ValueError("max_loaded_loras must be >= max_loras_per_batch")
     return options
 
 
@@ -149,7 +138,7 @@ def resolve_backend_settings(spec, asset_path):
     trainer = backend_config(spec, asset_path)
     inference = {
         "context_length": spec.max_context_length,
-        "tp_size": spec.inference.gpus_per_node,
+        "tp_size": spec.inference_gpus_per_node,
         "mem_fraction_static": 0.8,
         "max_running_requests": 32,
         "weight_loader_disable_mmap": True,

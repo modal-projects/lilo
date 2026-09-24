@@ -34,7 +34,7 @@ def compile_configs(paths, *, platform=None):
 
     miles_commit = (
         resolve_miles_commit()
-        if any(spec.trainer.backend == "miles" for spec in specs)
+        if any(spec.backend == "miles" for spec in specs)
         else None
     )
     records = []
@@ -51,7 +51,7 @@ def compile_configs(paths, *, platform=None):
                 spec,
                 platform=platform,
                 revision=revision,
-                miles_commit=miles_commit if spec.trainer.backend == "miles" else None,
+                miles_commit=miles_commit if spec.backend == "miles" else None,
             )
         )
     return records
