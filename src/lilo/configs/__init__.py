@@ -1,1 +1,1 @@
-"""Example infrastructure objects; compose variants with dataclasses.replace."""
+"""Example BaseConfig recipes; compose variants with ordinary Python inheritance."""

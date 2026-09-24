@@ -48,7 +48,7 @@ training = service.create_lora_training_client(
 
 ## Shared deployment quick start
 
-Shared deployments use Python dataclasses. See [Python deployment configs](docs/deployment-configs.md). Keep the active Python config list in [scripts/deploy_models.sh](scripts/deploy_models.sh); run it to deploy the complete list.
+Shared deployments use Python recipes inheriting from `BaseConfig`. See [Python deployment configs](docs/deployment-configs.md). Keep the active Python config list in [scripts/deploy_models.sh](scripts/deploy_models.sh); run it to deploy the complete list.
 
 Install Lilo into your own Python project, deploy it once to Modal, then call
 its API from your training scripts. The commands below work in Bash or Zsh.

@@ -17,6 +17,7 @@ from huggingface_hub import HfApi
 
 from lilo.backends.deployment import resolve_backend_settings
 from lilo.deployments import (
+    LIFECYCLE_FIELDS,
     PLATFORM_DEFAULTS,
     DeploymentRecord,
     config_path,
@@ -38,12 +39,12 @@ def compile_configs(paths, *, platform=None):
     )
     records = []
     for spec in specs:
-        revision = spec.model.revision
+        revision = spec.revision
         if not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
-            revision = HfApi().model_info(spec.model.id, revision=revision).sha
+            revision = HfApi().model_info(spec.model, revision=revision).sha
             if not revision or not re.fullmatch(r"[0-9a-fA-F]{40,64}", revision):
                 raise ValueError(
-                    f"Hugging Face did not return a commit for {spec.model.id}"
+                    f"Hugging Face did not return a commit for {spec.model}"
                 )
         records.append(
             DeploymentRecord.create(
@@ -61,9 +62,9 @@ def retain_generations(previous, desired):
     validate_frontend([row.spec for row in desired])
     expected = desired[0]
     for row in previous:
-        if (
-            row.platform != expected.platform
-            or row.spec.lifecycle != expected.spec.lifecycle
+        if row.platform != expected.platform or any(
+            getattr(row.spec, field) != getattr(expected.spec, field)
+            for field in LIFECYCLE_FIELDS
         ):
             raise ValueError(
                 "Cannot change shared storage, secrets, region, or lifecycle while retaining generations; use a separate frontend."
@@ -268,7 +269,7 @@ def main(argv=None):
                 if not config_path(args.preset).is_file():
                     raise ValueError(f"unknown example config: {args.preset}")
                 print(
-                    f'from dataclasses import replace\nfrom lilo.configs.{module} import config as base\n\nconfig = replace(base, name="my-model")'
+                    f'from lilo.configs.{module} import Config as Parent\n\n\nclass Config(Parent):\n    name = "my-model"\n\n\nconfig = Config()'
                 )
             elif args.action == "validate":
                 specs = [load(path) for path in args.files]

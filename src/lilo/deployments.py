@@ -18,6 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from lilo.backends.deployment import resolve_backend_settings
 from lilo.configuration import Deployment
 
+LIFECYCLE_FIELDS = ("session_idle_timeout_s", "pool_idle_timeout_s", "sweep_interval_s")
+
 PLATFORM_DEFAULTS = {
     "frontend": "lilo-yaml",
     "modal": {"environment": None, "region": "us-west"},
@@ -49,7 +51,8 @@ def deployment_generation(
     inference_settings,
 ):
     identity = asdict(spec)
-    identity.pop("routing")
+    identity.pop("default")
+    identity.pop("sampling_default")
     return settings_hash(
         {
             "config": identity,
@@ -99,8 +102,8 @@ class DeploymentRecord(BaseModel):
         inference_release: str = "initial",
     ) -> DeploymentRecord:
         """Record an already-resolved revision without reparsing the configuration."""
-        pinned = replace(deepcopy(spec), model=replace(spec.model, revision=revision))
-        asset_path = model_asset_path(pinned.model.id, revision)
+        pinned = replace(deepcopy(spec), revision=revision)
+        asset_path = model_asset_path(pinned.model, revision)
         trainer_settings, inference_settings = resolve_backend_settings(
             pinned, asset_path
         )
@@ -149,7 +152,10 @@ class DeploymentRecord(BaseModel):
         return settings_hash(
             {
                 "name": self.spec.name,
-                "model": asdict(self.spec.model),
+                "model": self.spec.model,
+                "revision": self.spec.revision,
+                "parameterization": self.spec.parameterization,
+                "max_context_length": self.spec.max_context_length,
                 "trainer": asdict(self.spec.trainer),
                 "settings": self.trainer_settings,
                 "release": self.trainer_release,
@@ -164,7 +170,10 @@ class DeploymentRecord(BaseModel):
         return settings_hash(
             {
                 "name": self.spec.name,
-                "model": asdict(self.spec.model),
+                "model": self.spec.model,
+                "revision": self.spec.revision,
+                "parameterization": self.spec.parameterization,
+                "max_context_length": self.spec.max_context_length,
                 "inference": asdict(self.spec.inference),
                 "settings": self.inference_settings,
                 "release": self.inference_release,
@@ -186,7 +195,7 @@ class DeploymentRecord(BaseModel):
 
     @property
     def asset_path(self) -> str:
-        return model_asset_path(self.spec.model.id, self.spec.model.revision)
+        return model_asset_path(self.spec.model, self.spec.revision)
 
 
 def model_asset_path(model_id, revision):
@@ -213,7 +222,7 @@ def load(path: str | Path) -> Deployment:
         namespace = runpy.run_path(str(path))
         config = namespace.get("config")
         if not isinstance(config, Deployment):
-            raise ValueError(f"{path} must export a Deployment object named config")
+            raise ValueError(f"{path} must export a BaseConfig instance named config")
         return config
     finally:
         sys.path[:] = original_path
@@ -226,18 +235,20 @@ def validate_frontend(specs: list[Deployment]) -> None:
         raise ValueError("duplicate deployment name")
     first = specs[0]
     for spec in specs:
-        if spec.lifecycle != first.lifecycle:
+        if any(
+            getattr(spec, field) != getattr(first, field) for field in LIFECYCLE_FIELDS
+        ):
             raise ValueError(
                 "deployments on one frontend must share lifecycle settings"
             )
     defaults, sampling = set(), set()
     for spec in specs:
-        key = (spec.model.id, spec.model.parameterization)
-        if spec.routing.default:
+        key = (spec.model, spec.parameterization)
+        if spec.default:
             if key in defaults:
                 raise ValueError(f"multiple defaults for {key}")
             defaults.add(key)
-        if spec.routing.sampling_default:
-            if spec.model.id in sampling:
-                raise ValueError(f"multiple sampling defaults for {spec.model.id}")
-            sampling.add(spec.model.id)
+        if spec.sampling_default:
+            if spec.model in sampling:
+                raise ValueError(f"multiple sampling defaults for {spec.model}")
+            sampling.add(spec.model)

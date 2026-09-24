@@ -10,7 +10,7 @@ from .fft_pool import FFTPoolSpec
 from .lora_pool import LoraPoolSpec
 
 resolved = DeploymentRecord.model_validate_json(os.environ[POOL_CONFIG_ENV])
-if resolved.spec.model.parameterization == "lora":
+if resolved.spec.parameterization == "lora":
     pool = LoraPoolSpec(resolved.definition_id, revision=resolved.generation[:16])
 else:
     pool = FFTPoolSpec(

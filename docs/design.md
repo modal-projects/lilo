@@ -132,7 +132,7 @@ A Python deployment dataclass specifies the base model, training mode, context l
 
 No central model catalog registration is needed. The generic builders in [`deployment_apps.py`](../src/lilo/providers/modal/deployment_apps.py) construct trainer functions and inference apps from the saved config. See [Python deployment configs](deployment-configs.md) for the configuration schema and app structure.
 
-Set each configuration's trainer limit with `trainer.scaling.max_instances` and its inference limits with `inference.scaling`. Trainer limits are read from the config; `LILO_TRAINER_MAX_CONTAINERS` is no longer used.
+Set each configuration's trainer limit with `trainer.max_instances` and its inference limits with `inference.min_replicas` and `inference.max_replicas`. Trainer limits are read from the config; `LILO_TRAINER_MAX_CONTAINERS` is no longer used.
 
 To check training, publication, and sampling against a deployed configuration:
 

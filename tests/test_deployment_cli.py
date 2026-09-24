@@ -124,15 +124,15 @@ def test_compile_pins_revision_at_external_boundary(
 
     path = tmp_path / "model.py"
     path.write_text(
-        "from dataclasses import replace\n"
-        "from lilo.configs.qwen35_9b_lora_16k import config as base\n"
-        f"config = replace(base, model=replace(base.model, revision={revision!r}))\n"
+        "from lilo.configs.qwen35_9b_lora_16k import Config as Parent\n"
+        f"class Config(Parent):\n    revision = {revision!r}\n"
+        "config = Config()\n"
     )
     lookup = Mock(return_value=SimpleNamespace(sha="a" * 40))
     monkeypatch.setattr(huggingface_hub.HfApi, "model_info", lookup)
     monkeypatch.setattr(miles_revision, "resolve_miles_commit", lambda: "b" * 40)
     (row,) = cli.compile_configs([path])
-    assert row.spec.model.revision == "a" * 40
+    assert row.spec.revision == "a" * 40
     assert lookup.call_count == lookups
     if lookups:
         lookup.return_value.sha = None
@@ -329,5 +329,5 @@ def test_builtin_config_resolves_revision_automatically(monkeypatch):
     )
     (row,) = cli.compile_configs([config_path("qwen35-9b-lora-16k")])
     assert calls == [("Qwen/Qwen3.5-9B-Base", "main")]
-    assert row.spec.model.revision == "a" * 40
-    assert load(config_path("qwen35-9b-lora-16k")).model.revision == "main"
+    assert row.spec.revision == "a" * 40
+    assert load(config_path("qwen35-9b-lora-16k")).revision == "main"

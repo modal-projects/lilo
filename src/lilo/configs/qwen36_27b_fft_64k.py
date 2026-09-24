@@ -1,14 +1,16 @@
-from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
+from lilo.configuration import BaseConfig
 
-config = Deployment(
-    name="qwen36-27b-fft-64k",
-    model=Model(
-        parameterization="full", id="Qwen/Qwen3.6-27B", max_context_length=65536
-    ),
-    trainer=Trainer(
-        compute=Compute(gpu="H200", gpus_per_node=8),
-        backend="megatron",
-        config={
+
+class Config(BaseConfig):
+    name = "qwen36-27b-fft-64k"
+    parameterization = "full"
+    model = "Qwen/Qwen3.6-27B"
+    max_context_length = 65536
+    trainer = {
+        "gpu": "H200",
+        "gpus_per_node": 8,
+        "backend": "megatron",
+        "config": {
             "tensor_model_parallel_size": 4,
             "pipeline_model_parallel_size": 1,
             "context_parallel_size": 2,
@@ -27,15 +29,16 @@ config = Deployment(
             },
             "optimizer": {"optimizer": "adam", "lr": 0.0001, "min_lr": 0.0001},
         },
-        env={
+        "env": {
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
-        sampler_persistence_concurrency=1,
-    ),
-    inference=Inference(
-        compute=Compute(gpu="H200", gpus_per_node=4),
-        config={
+        "sampler_persistence_concurrency": 1,
+    }
+    inference = {
+        "gpu": "H200",
+        "gpus_per_node": 4,
+        "config": {
             "tp_size": 4,
             "ep_size": 1,
             "mem_fraction_static": 0.9,
@@ -43,6 +46,8 @@ config = Deployment(
             "max_queued_requests": 4,
             "cpu_weight_cache_max_compile_group_gb": 32,
         },
-    ),
-    routing=Routing(default=True),
-)
+    }
+    default = True
+
+
+config = Config()

@@ -106,7 +106,10 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     app, server = deployment_apps.build_rollout_app(row, pool, image="test-image")
     settings, _ = app.servers["Server"]
     assert app.name == pool.app_name
-    assert settings["gpu"] == row.spec.inference.compute.modal_gpu
+    assert (
+        settings["gpu"]
+        == f"{row.spec.inference.gpu}:{row.spec.inference.gpus_per_node}"
+    )
     assert settings["min_containers"] == 0
     assert settings["target_concurrency"] == 16
     assert settings["compute_region"] == "us-west"
@@ -135,7 +138,7 @@ def test_pool_starts_native_server_and_correct_sidecar(builders, monkeypatch, ki
     assert commands[0][2] == "lilo.inference.sglang"
     assert commands[0][3] == row.asset_path
     native = json.loads(commands[0][4])
-    assert native["context_length"] == row.spec.model.max_context_length
+    assert native["context_length"] == row.spec.max_context_length
     if kind == "lora":
         assert native["enable_lora"] is True
         assert native["max_lora_rank"] == 32
@@ -231,16 +234,17 @@ def test_admission_changes_preserve_serialized_trainer(builders):
     changed.active = False
     changed.spec = replace(
         changed.spec,
-        routing=replace(changed.spec.routing, default=False, sampling_default=True),
+        default=False,
+        sampling_default=True,
     )
     new_bytes = serialize(deployment_apps.build_trainer_app(changed, image="test")[1])
     assert new_bytes == old_bytes
-    assert first.active is True and first.spec.routing.default is True
+    assert first.active is True and first.spec.default is True
     changed.spec = replace(
         changed.spec,
         trainer=replace(
             changed.spec.trainer,
-            compute=replace(changed.spec.trainer.compute, gpu="H200"),
+            gpu="H200",
         ),
     )
     assert (
@@ -432,14 +436,16 @@ def test_declared_compute_settings_reach_modal(builders):
         trainer=replace(
             base.trainer,
             timeout_s=90,
-            compute=replace(base.trainer.compute, cpu=12, memory_mib=123456),
+            cpu=12,
+            memory_mib=123456,
         ),
         inference=replace(
             base.inference,
             startup_timeout_s=90,
             min_replicas=1,
             max_replicas=3,
-            compute=replace(base.inference.compute, cpu=6, memory_mib=45000),
+            cpu=6,
+            memory_mib=45000,
         ),
     )
     row = DeploymentRecord.create(spec, revision="a" * 40)

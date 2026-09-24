@@ -38,15 +38,15 @@ def _definition(frontend: str, name: str) -> tuple[Any, str]:
     settings = backend_config(spec)[spec.trainer.backend]
     definition = SimpleNamespace(
         DEFINITION_ID=resolved.definition_id,
-        MODEL_NAME=spec.model.id,
-        PARAMETERIZATION=spec.model.parameterization,
-        MAX_CONTEXT_LENGTH=spec.model.max_context_length,
+        MODEL_NAME=spec.model,
+        PARAMETERIZATION=spec.parameterization,
+        MAX_CONTEXT_LENGTH=spec.max_context_length,
         MAX_TOKENS_PER_MICROBATCH=settings.get(
             "max_tokens_per_microbatch", settings.get("max_tokens_per_gpu")
         ),
         MICRO_BATCH_SIZE=settings.get("micro_batch_size", 1),
-        GPU_TYPE=spec.trainer.compute.modal_gpu.split(":")[0],
-        GPUS=spec.trainer.compute.gpus_per_node,
+        GPU_TYPE=spec.trainer.gpu,
+        GPUS=spec.trainer.gpus_per_node,
         LORA_RANK=settings.get("max_lora_rank"),
     )
     return definition, definition.PARAMETERIZATION

@@ -1,65 +1,68 @@
-# Model infrastructure configs
+# Python deployment configs
 
-A config file exports a config object made from the components in [configuration.py](../src/lilo/configuration.py). These are frozen, validated dataclasses. Unknown fields, invalid types, negative capacities and inconsistent scaling limits fail at construction. Backend option dictionaries and environment dictionaries remain open.
+A recipe subclasses `BaseConfig` and exports `config = Config()`. Model settings are ordinary class attributes; trainer and inference settings are dictionaries. No `Compute`, `Model`, or `Routing` constructors are needed.
 
-~~~python
-from lilo.configuration import Compute, Deployment, Inference, Model, Trainer
+```python
+from lilo.configuration import BaseConfig
 
-config = Deployment(
-    name="my-9b",
-    model=Model(id="Qwen/Qwen3.5-9B-Base", max_context_length=16384),
-    trainer=Trainer(
-        compute=Compute(gpu="H100", gpus_per_node=4, cpu=16, memory_mib=65536),
-        max_clients_per_instance=6,
-        config={
+
+class Config(BaseConfig):
+    name = "my-9b"
+    model = "Qwen/Qwen3.5-9B-Base"
+    max_context_length = 16384
+
+    trainer = {
+        "gpu": "H100",
+        "gpus_per_node": 4,
+        "cpu": 16,
+        "memory_mib": 65536,
+        "max_clients_per_instance": 6,
+        "config": {
             "model_type": "qwen3.5-9B",
             "tensor_model_parallel_size": 4,
             "max_lora_slots": 6,
             "max_lora_rank": 32,
         },
-    ),
-    inference=Inference(
-        compute=Compute(gpu="H200"),
-        max_replicas=8,
-        startup_timeout_s=1200,
-        config={"mem_fraction_static": 0.8},
-    ),
-)
-~~~
+    }
+    inference = {"gpu": "H200", "max_replicas": 8}
 
-See the [9B LoRA example](../src/lilo/configs/qwen35_9b_lora_16k.py) and [4B FFT example](../src/lilo/configs/qwen35_4b_fft_64k.py) for complete configurations. No model revision is required; deployment resolves Hugging Face main to an exact commit and records it. An explicit Model(revision=...) is optional.
 
-## Composition
+config = Config()
+```
 
-Use standard Python composition and dataclasses.replace:
+See the [9B LoRA recipe](../src/lilo/configs/qwen35_9b_lora_16k.py) and [4B FFT recipe](../src/lilo/configs/qwen35_4b_fft_64k.py) for complete examples. Deployment resolves the model's `main` revision to an exact commit; set `revision` only when you want a different revision.
 
-~~~python
-from dataclasses import replace
-from lilo.configs.qwen35_9b_lora_16k import config as base
+## Variants
 
-config = replace(
-    base,
-    name="my-9b-more-memory",
-    trainer=replace(
-        base.trainer,
-        compute=replace(base.trainer.compute, memory_mib=98304),
-    ),
-)
-~~~
+Use Python inheritance to change a recipe. Extend a section explicitly when you want to keep its other settings:
 
-This retains the other trainer settings. There is no inheritance interpreter, dotted-path override syntax or implicit dictionary merge. Backend dictionaries can be composed explicitly with {**base.trainer.config, "max_tokens_per_gpu": 8192}. Treat configs as values; construct a variant instead of editing an imported object's dictionaries.
+```python
+from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+
+class Config(Parent):
+    name = "my-9b-more-memory"
+    trainer = {**Parent.trainer, "memory_mib": 98304}
+
+
+config = Config()
+```
+
+Assigning a new dictionary replaces that section. There is no implicit deep merge or dotted override language. Extend backend options with `{**Parent.trainer["config"], "max_tokens_per_gpu": 8192}`. Constructor arguments can also override fields: `Config(name="another-run")`.
+
+Construction copies the recipe's dictionaries and validates Lilo-owned fields. Unknown fields, invalid types, negative capacities, and inconsistent scaling limits fail before deployment. The validated instance has attribute access (`config.trainer.gpu`); backend options stay dictionaries. Instances do not share mutable options with each other or with their recipe class.
 
 ## Ownership and validation
 
 | Setting | Owner and behavior |
 | --- | --- |
-| Compute | GPU type, GPUs per node, nodes, CPU and memory. Unknown keys such as memroy_mib are rejected. |
-| Trainer | Maximum instances/clients, publication concurrency and function timeout. Trainers start on demand; there is no min_instances field. |
-| Inference | Replica scaling and startup_timeout_s, passed to the Modal server and startup health checks. There is no unused timeout_s. Each replica uses one node. |
+| trainer / inference resources | GPU type, GPUs per node, CPU and memory directly in each section; `nodes` is trainer-only. Unknown keys such as `memroy_mib` are rejected. |
+| trainer | Maximum instances/clients, publication concurrency and function timeout. Trainers start on demand; there is no min_instances field. |
+| inference | Replica scaling and startup_timeout_s, passed to the Modal server and startup health checks. There is no unused timeout_s. Each replica uses one node. |
 | trainer.config | Existing MilesBackendConfig or EngineModelConfig fields, plus their explicit extra-option dictionaries. |
 | inference.config | SGLang ServerArgs fields. Lilo reserves paths, context, topology and adapter settings that must agree with its own configuration. |
 
-Compute topology is configured in Compute; Miles receives actor_num_nodes and actor_num_gpus_per_node from it. Setting those again in backend options is rejected.
+Compute topology is configured directly in `trainer`; Miles receives actor_num_nodes and actor_num_gpus_per_node from it. Setting those again in backend options is rejected.
 
 Megatron's provider_overrides, optimizer_overrides and distributed_overrides may add backend fields, but may not replace Lilo-owned fields. For example, put the learning rate in optimizer={"lr": ...}; optimizer_overrides={"lr": ...} is rejected. The same settings builders are used during validation and worker construction. The provider is constructed with dataclasses.replace, without an override-by-setattr pass.
 
@@ -70,7 +73,7 @@ Backend libraries validate their own extra options when workers start. Lilo does
 ## Resolve and launch
 
 ~~~text
-load(config.py) → config: Deployment
+load(config.py) → config: BaseConfig
   → validate typed compute/scaling/model settings
   → resolve model commit
   → resolve_backend_settings(config, asset_path)
@@ -83,7 +86,7 @@ The launcher consumes the saved settings. It does not reparse backend configurat
 
 | File | Responsibility |
 | --- | --- |
-| [configuration.py](../src/lilo/configuration.py) | Typed components and shared orchestration constraints |
+| [configuration.py](../src/lilo/configuration.py) | BaseConfig and validation of model, trainer, and inference settings |
 | [deployments.py](../src/lilo/deployments.py) | Python object loader, resolved records and config hashes |
 | [backends/deployment.py](../src/lilo/backends/deployment.py) | Resolve backend settings before launch |
 | [megatron_runtime/common/settings.py](../src/lilo/backends/megatron_runtime/common/settings.py) | Shared Megatron ownership rules and constructor dictionaries |
@@ -118,7 +121,7 @@ The checked-in [deploy_models.sh](../scripts/deploy_models.sh) lists the complet
 
 These settings are not model-config fields. Secret/volume names come from provider defaults. Credentials remain in Modal secrets.
 
-One frontend serves all models through Tinker's base_model. Routing(default=True) selects among multiple training configurations for one model; sampling_default=True selects a sampling configuration when LoRA/FFT configurations coexist.
+One frontend serves all models through Tinker's base_model. `default = True` selects among multiple training configurations for one model; `sampling_default = True` selects a sampling configuration when LoRA/FFT configurations coexist.
 
 ## Hashes and update isolation
 

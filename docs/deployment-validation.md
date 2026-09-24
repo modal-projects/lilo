@@ -1,8 +1,22 @@
 # Deployment configuration validation
 
-These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Earlier sections record validation of the previous shared-app implementation.
+These checks exercise PR #55. The current implementation deploys trainers and inference provisioners independently; the shared frontend references them by app name. Historical sections record validation of previous implementations.
 
-## Current: typed config composition and one backend resolution
+## Current: simple BaseConfig recipes
+
+Recipes use one `BaseConfig` subclass with top-level model settings and plain trainer/inference dictionaries. Removed the `Compute`, `Model`, `Routing`, and `Lifecycle` wrapper classes and the matching nested fields. Compute settings live directly in trainer/inference; routing flags and lifecycle timeouts live at the top level. The supported inference backend remains SGLang, so its redundant backend selector was removed.
+
+Inheritance follows Python attribute replacement. A section is extended explicitly with dictionary unpacking; there is no deep-merge or dotted-override parser. Construction copies class dictionaries and validates against one schema, and workers continue to consume the saved resolved backend settings.
+
+Validation: **656 CPU tests passed, 1 skipped** (including **122 focused config/deployment tests**). Coverage includes inherited recipes, constructor overrides, nested option isolation, strict field validation, CLI revision resolution, saved-record round trips, and worker construction. The CLI-generated recipe also loaded and validated successfully. Ruff and whitespace checks passed. The full suite ran outside the socket-restricted sandbox so its local HTTP and SDK tests could run.
+
+All 15 recipes were compared with their pre-change values: compute, model, routing, lifecycle, and resolved trainer/inference settings are unchanged. No deployments or GPU jobs were modified. Existing draft manifests use the previous schema and require a fresh registry or explicit migration.
+
+## Historical validation
+
+These results describe earlier APIs and do not validate the current implementation.
+
+### Previous: typed config composition and one backend resolution
 
 Configs export a `Deployment` built from validated dataclasses. Ordinary `dataclasses.replace` composes variants; custom inheritance, dotted overrides, and recursive defaults have been removed. Lilo-owned fields reject unknown keys. Backend tuning remains in explicit dictionaries, with duplicates of Lilo-managed settings rejected before constructor calls.
 
@@ -13,10 +27,6 @@ Trainer timeout, CPU, memory, inference startup timeout, and replica scaling are
 Validation: **651 CPU tests passed, 1 skipped**. Regression coverage includes misspelled orchestration fields, unsupported settings, optimizer/provider/distributed override collisions, all 15 example configs, saved-record round trips, direct SGLang construction, compute-setting propagation, independent worker updates, and multi-node launcher wiring. No apps were redeployed. GPU backend startup and the new multi-node config have not been live-tested in this revision.
 
 The follow-up reduction removes three adapter modules and their dispatch wrappers, the unused pool-environment helper, and duplicated preset definitions. The two composed presets were compared field-for-field with their previous values. The CPU suite remains at **651 passed, 1 skipped**.
-
-## Historical validation
-
-The sections below describe earlier revisions, including APIs that have since been removed. Their live results do not validate the current implementation.
 
 ## Direct backend configuration
 

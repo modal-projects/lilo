@@ -51,7 +51,7 @@ def test_presets_context_topology_and_backend_options():
     assert config["cli_options"]["recompute_num_layers"] == 1
     assert config["extra_args"] == ("--seq-length", "16384")
     large = recipe("qwen35-9b-lora-64k")
-    assert large.model.max_context_length == 65536
+    assert large.max_context_length == 65536
     assert backend_config(large)["miles"]["actor_num_gpus_per_node"] == 8
     fft = backend_config(recipe("qwen35-4b-fft-64k"))["megatron"]
     assert (fft["tensor_model_parallel_size"], fft["context_parallel_size"]) == (2, 2)
@@ -60,7 +60,7 @@ def test_presets_context_topology_and_backend_options():
 
 def test_no_model_catalog_required():
     spec = recipe(
-        model__id="my-org/new-model",
+        model="my-org/new-model",
         trainer__config__model_type="",
         trainer__config__cli_options={
             "num_layers": 12,
@@ -105,9 +105,9 @@ def test_invalid_integrations_fail_when_building_backend_settings(changes, match
 
 def test_generation_and_asset_paths_include_exact_base():
     a = resolved()
-    assert a.generation == resolved(recipe(routing__default=False)).generation
-    assert a.generation != resolved(recipe(trainer__compute__gpu="H200")).generation
-    b = resolved(recipe(model__id="other/Qwen3.5-9B-Base"))
+    assert a.generation == resolved(recipe(default=False)).generation
+    assert a.generation != resolved(recipe(trainer__gpu="H200")).generation
+    b = resolved(recipe(model="other/Qwen3.5-9B-Base"))
     assert a.asset_path != b.asset_path
     assert a.asset_path != DeploymentRecord.create(a.spec, revision="b" * 40).asset_path
 
@@ -116,50 +116,42 @@ def test_frontend_defaults_and_retained_generations():
     small = resolved()
     large = resolved(recipe("qwen35-9b-lora-64k"))
     routes = DeploymentRoutes([definition(small), definition(large)])
-    assert (
-        routes.select(small.spec.model.id, "lora").DEFINITION_ID == small.definition_id
-    )
+    assert routes.select(small.spec.model, "lora").DEFINITION_ID == small.definition_id
     switched = retain_generations(
-        [small, large], [resolved(recipe("qwen35-9b-lora-64k", routing__default=True))]
+        [small, large], [resolved(recipe("qwen35-9b-lora-64k", default=True))]
     )
     routes = DeploymentRoutes(map(definition, switched))
-    assert (
-        routes.select(small.spec.model.id, "lora").DEFINITION_ID == large.definition_id
-    )
+    assert routes.select(small.spec.model, "lora").DEFINITION_ID == large.definition_id
     # Saved model/checkpoint records continue using their original definition.
     assert (
         routes.select(small.definition_id, "lora").DEFINITION_ID == small.definition_id
     )
     assert routes.capabilities()[0]["max_context_length"] == 65536
     with pytest.raises(ValueError, match="multiple defaults"):
-        validate_frontend(
-            [small.spec, recipe("qwen35-9b-lora-64k", routing__default=True)]
-        )
+        validate_frontend([small.spec, recipe("qwen35-9b-lora-64k", default=True)])
 
 
 def test_ambiguous_model_does_not_get_random_configuration():
     rows = [
-        resolved(recipe(routing__default=False)),
+        resolved(recipe(default=False)),
         resolved(recipe("qwen35-9b-lora-64k")),
     ]
     routes = DeploymentRoutes(map(definition, rows))
     with pytest.raises(ValueError, match="ambiguous.*16k.*64k"):
-        routes.select(rows[0].spec.model.id, "lora")
+        routes.select(rows[0].spec.model, "lora")
     assert routes.capabilities() == []
 
 
 def test_sampling_requires_default_across_training_modes():
     lora = resolved()
-    fft = resolved(recipe("qwen35-4b-fft-64k", model__id=lora.spec.model.id))
+    fft = resolved(recipe("qwen35-4b-fft-64k", model=lora.spec.model))
     routes = DeploymentRoutes(map(definition, [lora, fft]))
     with pytest.raises(ValueError, match="sampling_default"):
-        routes.sampling(lora.spec.model.id)
-    fft.spec = replace(
-        fft.spec, routing=replace(fft.spec.routing, sampling_default=True)
-    )
+        routes.sampling(lora.spec.model)
+    fft.spec = replace(fft.spec, sampling_default=True)
     assert (
         DeploymentRoutes(map(definition, [lora, fft]))
-        .sampling(lora.spec.model.id)
+        .sampling(lora.spec.model)
         .DEFINITION_ID
         == fft.definition_id
     )
@@ -199,7 +191,7 @@ def test_multiple_models_same_http_service_and_old_binding_survives_switch():
         store = InMemoryKeyValueStore()
         plane = ControlPlane(store, SimpleNamespace())
         first = resolved()
-        other = resolved(recipe(name="other", model__id="org/other-model"))
+        other = resolved(recipe(name="other", model="org/other-model"))
         app = create_control_plane_app(
             plane, list(map(definition, [first, other])), api_key="test"
         )
@@ -217,7 +209,7 @@ def test_multiple_models_same_http_service_and_old_binding_survives_switch():
                     json={
                         "session_id": session,
                         "model_seq_id": seq,
-                        "base_model": row.spec.model.id,
+                        "base_model": row.spec.model,
                         "lora_config": {"rank": 32},
                     },
                 )
@@ -284,7 +276,7 @@ def test_native_sections_survive_serialization_without_allowlist():
     settings = backend_config(spec, "/assets/pinned")
     config, _ = parse_backend_config(json.loads(json.dumps(settings)))
     assert config.hf_checkpoint == "/assets/pinned"
-    assert config.seq_length == spec.model.max_context_length
+    assert config.seq_length == spec.max_context_length
     assert config.provider_overrides["future_provider_option"] == {
         "layers": [1, 4],
         "enabled": False,
@@ -351,10 +343,11 @@ def test_record_creation_copies_without_reparsing():
     original = asdict(spec)
     row = DeploymentRecord.create(spec, revision="a" * 40)
     assert asdict(spec) == original
-    assert row.spec.model.revision == "a" * 40
+    assert row.spec.revision == "a" * 40
     # The record hash covers settings and the pinned backend dependency, not source.
-    expected = original | {"model": original["model"] | {"revision": "a" * 40}}
-    expected.pop("routing")
+    expected = original | {"revision": "a" * 40}
+    expected.pop("default")
+    expected.pop("sampling_default")
     assert (
         row.generation
         == hashlib.sha256(
@@ -383,17 +376,18 @@ def test_record_creation_copies_without_reparsing():
 def test_python_config_composition(tmp_path):
     path = tmp_path / "model.py"
     path.write_text(
-        "from dataclasses import replace\n"
-        "from lilo.configs.qwen35_9b_lora_16k import config as base\n"
-        "config = replace(base, name='custom', trainer=replace(base.trainer, "
-        "compute=replace(base.trainer.compute, memory_mib=123456)))\n"
+        "from lilo.configs.qwen35_9b_lora_16k import Config as Parent\n"
+        "class Config(Parent):\n"
+        "    name = 'custom'\n"
+        "    trainer = {**Parent.trainer, 'memory_mib': 123456}\n"
+        "config = Config()\n"
     )
     custom = load(path)
     original = recipe()
     assert custom.name == "custom"
-    assert custom.trainer.compute.memory_mib == 123456
+    assert custom.trainer.memory_mib == 123456
     assert custom.trainer.config == original.trainer.config
-    assert original.trainer.compute.memory_mib == 65536
+    assert original.trainer.memory_mib == 65536
     with pytest.raises(FrozenInstanceError):
         custom.trainer.max_instances = 9
 
@@ -411,7 +405,7 @@ def test_worker_record_contains_resolved_settings(monkeypatch):
 def test_config_file_must_export_config_subclass(tmp_path, source):
     path = tmp_path / "model.py"
     path.write_text(source)
-    with pytest.raises(ValueError, match="Deployment object"):
+    with pytest.raises(ValueError, match="BaseConfig instance"):
         load(path)
 
 
@@ -434,17 +428,16 @@ def test_no_yaml_config_ingestion(tmp_path):
 @pytest.mark.parametrize(
     "section,key",
     [
-        ("compute", "memroy_mib"),
+        ("trainer", "memroy_mib"),
         ("trainer", "max_instnaces"),
         ("trainer", "min_instances"),
         ("inference", "timeout_s"),
-        ("compute", "timeout_s"),
+        ("inference", "nodes"),
     ],
 )
 def test_orchestration_typos_and_unused_fields_are_rejected(section, key):
     base = recipe()
     component = {
-        "compute": base.trainer.compute,
         "trainer": base.trainer,
         "inference": base.inference,
     }[section]
@@ -466,7 +459,7 @@ def test_worker_hashes_cover_only_their_settings():
     assert adapter.trainer_hash != base.trainer_hash
     assert adapter.inference_hash != base.inference_hash
 
-    routing = resolved(recipe(routing__default=False))
+    routing = resolved(recipe(default=False))
     assert routing.trainer_hash == base.trainer_hash
     assert routing.inference_hash == base.inference_hash
     assert routing.generation == base.generation
@@ -485,7 +478,7 @@ def test_examples_only_contain_model_infrastructure():
     for path in Path(config_path("qwen35-9b-lora-16k")).parent.glob("qwen*.py"):
         config = load(path)
         assert not hasattr(config, "deployment")
-        assert config.model.revision == "main"
+        assert config.revision == "main"
         assert "runtime_version" not in asdict(config.trainer)
         assert "runtime_version" not in asdict(config.inference)
 
@@ -535,3 +528,53 @@ def test_multinode_ownership_and_topology():
     )
     with pytest.raises(ValueError, match="actor_num_nodes"):
         DeploymentRecord.create(invalid, revision="a" * 40)
+
+
+def test_config_inheritance_and_constructor_overrides_copy_nested_options():
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    class Child(Parent):
+        name = "child"
+        max_context_length = 8192
+        trainer = {
+            **Parent.trainer,
+            "config": {**Parent.trainer["config"], "max_tokens_per_gpu": 8192},
+        }
+
+    first, second = Child(), Child(name="second")
+    first.trainer.config["target_modules"].append("extra")
+    first.trainer.config["cli_options"]["recompute_num_layers"] = 2
+    assert second.name == "second"
+    assert second.max_context_length == 8192
+    assert second.trainer.gpu == "H100"
+    assert backend_config(second)["miles"]["max_tokens_per_gpu"] == 8192
+    assert Parent().max_context_length == 16384
+    for config in (second, Parent()):
+        assert "extra" not in config.trainer.config["target_modules"]
+        assert config.trainer.config["cli_options"]["recompute_num_layers"] == 1
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("max_contex_length", 8192), ("max_context_length", "8192"), ("default", "false")],
+)
+def test_recipe_class_fields_and_constructor_overrides_are_validated(field, value):
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    cls = type("Invalid", (Parent,), {field: value})
+    with pytest.raises(ValueError, match=field):
+        cls()
+    with pytest.raises(ValueError, match=field):
+        Parent(**{field: value})
+
+
+def test_recipe_section_replacement_uses_defaults_without_implicit_merge():
+    from lilo.configs.qwen35_9b_lora_16k import Config as Parent
+
+    class Child(Parent):
+        inference = {"gpu": "H100", "config": {"max_running_requests": 4}}
+
+    config = Child()
+    assert config.inference.gpu == "H100"
+    assert config.inference.max_replicas == 8
+    assert config.inference.config == {"max_running_requests": 4}

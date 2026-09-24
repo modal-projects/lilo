@@ -83,13 +83,13 @@ def backend_config(spec, asset_path="/assets/pending"):
                 "megatron": {
                     **settings,
                     "hf_checkpoint": asset_path,
-                    "seq_length": spec.model.max_context_length,
+                    "seq_length": spec.max_context_length,
                 }
             }
         )
         if config.optimizer.optimizer != "adam":
             raise ValueError("Tinker optim_step requires an Adam optimizer")
-        config.validate(trainer.compute.gpus_per_node)
+        config.validate(trainer.gpus_per_node)
         return {"megatron": asdict(config), "checkpoint_dir": "/checkpoints"}
     reject_managed_options(
         settings,
@@ -98,9 +98,9 @@ def backend_config(spec, asset_path="/assets/pending"):
     reject_managed_options(settings.get("cli_options", {}), MILES_MANAGED)
     config = MilesBackendConfig(
         hf_checkpoint=asset_path,
-        actor_num_gpus_per_node=trainer.compute.gpus_per_node,
-        actor_num_nodes=trainer.compute.nodes,
-        extra_args=("--seq-length", str(spec.model.max_context_length)),
+        actor_num_gpus_per_node=trainer.gpus_per_node,
+        actor_num_nodes=trainer.nodes,
+        extra_args=("--seq-length", str(spec.max_context_length)),
         **settings,
     )
     config.validate()
@@ -116,9 +116,9 @@ def backend_config(spec, asset_path="/assets/pending"):
 def serving_options(spec):
     options = dict(spec.inference.config)
     reject_managed_options(options, SGLANG_MANAGED)
-    tp = options.get("tp_size", spec.inference.compute.gpus_per_node)
+    tp = options.get("tp_size", spec.inference.gpus_per_node)
     ep = options.get("ep_size", 1)
-    if type(tp) is not int or tp != spec.inference.compute.gpus_per_node:
+    if type(tp) is not int or tp != spec.inference.gpus_per_node:
         raise ValueError("sglang.tp_size must equal the replica GPU allocation")
     if type(ep) is not int or ep < 1 or tp % ep:
         raise ValueError("sglang.ep_size must divide the replica GPU allocation")
@@ -148,14 +148,14 @@ def serving_options(spec):
 def resolve_backend_settings(spec, asset_path):
     trainer = backend_config(spec, asset_path)
     inference = {
-        "context_length": spec.model.max_context_length,
-        "tp_size": spec.inference.compute.gpus_per_node,
+        "context_length": spec.max_context_length,
+        "tp_size": spec.inference.gpus_per_node,
         "mem_fraction_static": 0.8,
         "max_running_requests": 32,
         "weight_loader_disable_mmap": True,
         **serving_options(spec),
     }
-    if spec.model.parameterization == "lora":
+    if spec.parameterization == "lora":
         miles = MilesBackendConfig(**trainer["miles"])
         inference.update(
             enable_lora=True,

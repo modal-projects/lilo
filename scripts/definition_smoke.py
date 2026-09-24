@@ -314,7 +314,7 @@ def main() -> None:
         for definition in definitions.values():
             print(
                 f"{definition.DEFINITION_ID:40} {definition.PARAMETERIZATION:5} "
-                f"{definition.RESOLVED.spec.trainer.compute.nodes} nodes x {definition.RESOLVED.spec.trainer.compute.modal_gpu} "
+                f"{definition.RESOLVED.spec.trainer.nodes} nodes x {definition.RESOLVED.spec.trainer.gpu}:{definition.RESOLVED.spec.trainer.gpus_per_node} "
                 f"ctx={definition.MAX_CONTEXT_LENGTH}"
                 + ("" if definition.CATALOG_VISIBLE else "  (not cataloged)")
             )

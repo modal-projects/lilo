@@ -57,7 +57,11 @@ def test_single_client_recipe_keeps_shared_backend_capacity():
     shared = load(config_path("qwen35-9b-lora-16k"))
     single = load(config_path("qwen35-9b-lora-16k-single"))
     assert single.trainer.max_clients_per_instance == 1
-    assert single.trainer.compute == shared.trainer.compute
+    assert (single.trainer.gpu, single.trainer.gpus_per_node, single.trainer.nodes) == (
+        shared.trainer.gpu,
+        shared.trainer.gpus_per_node,
+        shared.trainer.nodes,
+    )
     assert backend_config(single) == backend_config(shared)
 
 

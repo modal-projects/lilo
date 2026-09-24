@@ -104,7 +104,7 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
     spec = resolved.spec
     trainer_hash = resolved.trainer_hash
     app = modal.App(resolved.trainer_app_name)
-    resource = spec.trainer.compute
+    resource = spec.trainer
 
     env = {
         **trainer_deployment_env(),
@@ -124,7 +124,7 @@ def build_trainer_app(resolved: DeploymentRecord, *, image=None):
         name="trainer",
         serialized=True,
         image=image if image is not None else image_for(spec.trainer.backend),
-        gpu=resource.modal_gpu,
+        gpu=f"{resource.gpu}:{resource.gpus_per_node}",
         region=resolved.platform["modal"]["region"],
         cpu=resource.cpu,
         memory=resource.memory_mib,
@@ -149,9 +149,9 @@ def run_trainer(resolved, instance_id):
     # Assets are prepared by the frontend before demand is registered. Reload once
     # on startup to see the committed exact snapshot; never race a trainer download.
     assets = volumes_for(resolved)["/assets"]
-    if spec.trainer.compute.nodes > 1:
+    if spec.trainer.nodes > 1:
         ray_address = start_trainer_cluster(
-            spec.trainer.compute.nodes,
+            spec.trainer.nodes,
             before_head=assets.reload,
             before_worker_join=assets.reload,
         )
@@ -164,8 +164,8 @@ def run_trainer(resolved, instance_id):
         **deployment_env(spec.trainer.env),
         "LILO_APP_NAME": resolved.platform["frontend"],
         "LILO_BACKEND_CONFIG": json.dumps(settings),
-        "LILO_BASE_MODEL": spec.model.id,
-        "LILO_BASE_MODEL_REVISION": spec.model.revision,
+        "LILO_BASE_MODEL": spec.model,
+        "LILO_BASE_MODEL_REVISION": spec.revision,
         "LILO_DEFINITION_ID": resolved.definition_id,
         "LILO_CHECKPOINT_VOLUME": resolved.platform["storage"]["checkpoints"],
         "LILO_BULLETIN_ROOT": "/bulletin",
@@ -193,9 +193,7 @@ def run_trainer(resolved, instance_id):
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env=env,
-        nproc=1
-        if spec.trainer.backend == "miles"
-        else spec.trainer.compute.gpus_per_node,
+        nproc=1 if spec.trainer.backend == "miles" else spec.trainer.gpus_per_node,
         max_models=spec.trainer.max_clients_per_instance,
         sampler_persistence_concurrency=spec.trainer.sampler_persistence_concurrency,
         on_startup_error=failed,
@@ -207,21 +205,21 @@ def definition_from_spec(resolved, *, register_trainer=True, image=None):
     serving = resolved.inference_settings
     definition = SimpleNamespace(
         DEFINITION_ID=resolved.definition_id,
-        MODEL_NAME=spec.model.id,
-        MODEL_REVISION=spec.model.revision,
+        MODEL_NAME=spec.model,
+        MODEL_REVISION=spec.revision,
         HF_CHECKPOINT=resolved.asset_path,
-        PARAMETERIZATION=spec.model.parameterization,
+        PARAMETERIZATION=spec.parameterization,
         CATALOG_VISIBLE=resolved.active,
-        ROUTING_DEFAULT=spec.routing.default,
-        SAMPLING_DEFAULT=spec.routing.sampling_default,
+        ROUTING_DEFAULT=spec.default,
+        SAMPLING_DEFAULT=spec.sampling_default,
         DEPLOYMENT_NAME=spec.name,
         RESOLVED=resolved,
-        MAX_CONTEXT_LENGTH=spec.model.max_context_length,
+        MAX_CONTEXT_LENGTH=spec.max_context_length,
         TRAINER_MODELS_PER_INSTANCE=spec.trainer.max_clients_per_instance,
         TRAINER_MAX_CONTAINERS=spec.trainer.max_instances,
-        ROLLOUT_GPUS=spec.inference.compute.gpus_per_node,
+        ROLLOUT_GPUS=spec.inference.gpus_per_node,
         ROLLOUT_TENSOR_PARALLEL_SIZE=serving.get(
-            "tp_size", spec.inference.compute.gpus_per_node
+            "tp_size", spec.inference.gpus_per_node
         )
         // (serving.get("dp_size", 1) if serving.get("enable_dp_attention") else 1),
     )
@@ -237,15 +235,15 @@ def definition_from_spec(resolved, *, register_trainer=True, image=None):
 def build_rollout_app(resolved, pool, *, image=None):
     """Create one frozen-base LoRA pool or one FFT latest/pinned/base pool."""
     spec = resolved.spec
-    lora = spec.model.parameterization == "lora"
+    lora = spec.parameterization == "lora"
     if pool.definition_id != resolved.definition_id:
         raise ValueError("pool generation does not match deployment")
     app = modal.App(pool.app_name)
-    resources, scaling = spec.inference.compute, spec.inference
+    inference = spec.inference
     options = resolved.inference_settings
-    minimum = scaling.min_replicas
-    maximum = scaling.max_replicas
-    window = scaling.scaledown_window_s
+    minimum = inference.min_replicas
+    maximum = inference.max_replicas
+    window = inference.scaledown_window_s
     if isinstance(pool, FFTPoolSpec):
         minimum = minimum if pool.min_containers is None else pool.min_containers
         maximum = maximum if pool.max_containers is None else pool.max_containers
@@ -256,17 +254,17 @@ def build_rollout_app(resolved, pool, *, image=None):
         name="Server",
         serialized=True,
         image=image if image is not None else image_for("sglang"),
-        gpu=resources.modal_gpu,
-        cpu=resources.cpu,
-        memory=resources.memory_mib,
+        gpu=f"{inference.gpu}:{inference.gpus_per_node}",
+        cpu=inference.cpu,
+        memory=inference.memory_mib,
         volumes=volumes_for(resolved),
         secrets=secrets_for(resolved),
-        env=deployment_env(spec.inference.env),
+        env=deployment_env(inference.env),
         min_containers=minimum,
         max_containers=maximum,
-        target_concurrency=scaling.target_concurrency,
+        target_concurrency=inference.target_concurrency,
         scaledown_window=window,
-        startup_timeout=spec.inference.startup_timeout_s,
+        startup_timeout=inference.startup_timeout_s,
         exit_grace_period=300,
         port=8000,
         routing_region=resolved.platform["modal"]["region"],
@@ -292,7 +290,7 @@ def build_rollout_app(resolved, pool, *, image=None):
                 wait_http(
                     "http://127.0.0.1:8001/health",
                     self.sglang,
-                    spec.inference.startup_timeout_s,
+                    inference.startup_timeout_s,
                 )
                 kwargs = dict(
                     port=8000,
@@ -314,7 +312,7 @@ def build_rollout_app(resolved, pool, *, image=None):
                 wait_http(
                     "http://127.0.0.1:8000/health",
                     self.sidecar,
-                    spec.inference.startup_timeout_s,
+                    inference.startup_timeout_s,
                 )
             except BaseException:
                 terminate(self.sidecar)
@@ -351,7 +349,7 @@ def build_inference_app(record, *, image=None):
             raise ValueError("inference settings do not match the deployed app")
         if pool_data["definition_id"] != saved.definition_id:
             raise ValueError("pool definition does not match deployment")
-        if saved.spec.model.parameterization == "lora":
+        if saved.spec.parameterization == "lora":
             return deploy_lora(LoraPoolSpec.from_dict(pool_data), record=saved)
         return deploy_fft(FFTPoolSpec.from_dict(pool_data), record=saved)
 

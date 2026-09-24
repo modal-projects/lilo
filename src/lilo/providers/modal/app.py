@@ -58,13 +58,11 @@ SETTINGS = frontend_settings()
 APP_NAME = SETTINGS.platform["frontend"]
 ROUTING_REGION = SETTINGS.platform["modal"]["region"]
 MODEL_ASSET_ROOT = "/assets"
-SESSION_IDLE_TIMEOUT = SETTINGS.spec.lifecycle.session_idle_timeout_s
-FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = (
-    SETTINGS.spec.lifecycle.pool_idle_timeout_s
-)
+SESSION_IDLE_TIMEOUT = SETTINGS.spec.session_idle_timeout_s
+FFT_POOL_IDLE_TIMEOUT = LORA_POOL_IDLE_TIMEOUT = SETTINGS.spec.pool_idle_timeout_s
 FFT_POOL_TOUCH_INTERVAL = 60.0
 LORA_POOL_CHECK_INTERVAL = 60.0
-SWEEP_PERIOD = modal.Period(seconds=SETTINGS.spec.lifecycle.sweep_interval_s)
+SWEEP_PERIOD = modal.Period(seconds=SETTINGS.spec.sweep_interval_s)
 CHECKPOINT_READ_LOCK = asyncio.Lock()
 _pool_touches: dict[str, float] = {}
 _lora_pool_gateways: dict[str, tuple[float, str]] = {}

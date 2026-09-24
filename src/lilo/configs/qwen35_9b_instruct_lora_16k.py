@@ -1,11 +1,14 @@
-from lilo.configuration import Compute, Deployment, Inference, Model, Routing, Trainer
+from lilo.configuration import BaseConfig
 
-config = Deployment(
-    name="qwen35-9b-instruct-lora-16k",
-    model=Model(id="Qwen/Qwen3.5-9B", max_context_length=16384),
-    trainer=Trainer(
-        compute=Compute(gpu="H100", gpus_per_node=8),
-        config={
+
+class Config(BaseConfig):
+    name = "qwen35-9b-instruct-lora-16k"
+    model = "Qwen/Qwen3.5-9B"
+    max_context_length = 16384
+    trainer = {
+        "gpu": "H100",
+        "gpus_per_node": 8,
+        "config": {
             "model_type": "qwen3.5-9B",
             "tensor_model_parallel_size": 8,
             "target_modules": ["linear_qkv", "linear_proj", "linear_fc1", "linear_fc2"],
@@ -19,15 +22,15 @@ config = Deployment(
                 "recompute_num_layers": 1,
             },
         },
-        env={
+        "env": {
             "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "TORCHINDUCTOR_COMPILE_THREADS": "1",
         },
-        max_clients_per_instance=6,
-    ),
-    inference=Inference(
-        compute=Compute(gpu="H200"),
-        config={
+        "max_clients_per_instance": 6,
+    }
+    inference = {
+        "gpu": "H200",
+        "config": {
             "tp_size": 1,
             "ep_size": 1,
             "mem_fraction_static": 0.8,
@@ -37,6 +40,8 @@ config = Deployment(
             "max_loras_per_batch": 8,
             "schedule_policy": "lpm",
         },
-    ),
-    routing=Routing(default=True),
-)
+    }
+    default = True
+
+
+config = Config()
