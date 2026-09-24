@@ -90,16 +90,14 @@ There are three separate credentials:
 | `TINKER_API_KEY` in the `lilo-api` secret | Authenticate calls to the Lilo API | Deployer and API clients |
 | Proxy token in the `lilo-proxy` secret | Let Lilo reach protected sampler pools | Deployed control plane and trainers |
 
-For a new deployment, generate a Lilo API key and store it in Modal:
+For a new deployment, generate a Lilo API key and store it as a Modal secret in the existing environment: 
 
 ```bash
-export TINKER_API_KEY=$(uv run python -c 'import secrets; print(f"tml-lilo-{secrets.token_urlsafe(42)}")')
+export TINKER_API_KEY="your api key here"
 uv run modal secret create lilo-api \
   TINKER_API_KEY="$TINKER_API_KEY"
 ```
 
-Keep this key in your secret manager for subsequent client sessions. Reuse the
-existing key and secret when returning to an existing deployment.
 
 Sampler pools use [Modal proxy authentication](https://modal.com/docs/guide/webhook-proxy-auth).
 Create a proxy token and allow it in the deployment environment. If you deploy
@@ -119,7 +117,7 @@ print(token.token_id, token.token_secret)
 ')
 ```
 
-Store the token in the same environment:
+Store the token in the same environment under the secret `lilo-proxy`:
 
 ```bash
 uv run modal secret create lilo-proxy \
