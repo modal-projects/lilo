@@ -18,6 +18,7 @@ import modal
 import tinker
 from tinker import types
 
+from lilo.providers.modal.deployment_records import deployed_manifest
 from lilo.client import create_full_training_client
 from lilo.providers.modal.kv import app_store_name
 
@@ -100,9 +101,9 @@ def run(args):
     server = modal.Function.from_name(args.frontend, "server")
     url = server.get_web_url()
     headers = {"X-API-Key": os.environ["TINKER_API_KEY"]}
-    rows = modal.Dict.from_name(f"{args.frontend}-yaml-deployments").get("manifest")
+    rows = deployed_manifest(args.frontend)
     row = next(r for r in rows if r["active"] and r["spec"]["name"] == args.name)
-    definition_id = f"yaml_{args.name}_{row['generation'][:16]}"
+    definition_id = f"deployment_{args.name}_{row['generation'][:16]}"
     report = {
         "frontend": args.frontend,
         "app_id": app.app_id,

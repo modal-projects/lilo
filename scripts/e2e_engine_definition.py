@@ -17,13 +17,14 @@ import tinker
 from tinker import types
 
 from lilo.deployments import DeploymentRecord
+from lilo.providers.modal.deployment_records import deployed_manifest
 from lilo.backends.deployment import backend_config
 
 TIMEOUT = 3 * 60 * 60
 
 
 def _definition(frontend: str, name: str) -> tuple[Any, str]:
-    rows = modal.Dict.from_name(f"{frontend}-yaml-deployments").get("manifest", [])
+    rows = deployed_manifest(frontend)
     matches = [
         DeploymentRecord.model_validate(row)
         for row in rows
@@ -31,7 +32,7 @@ def _definition(frontend: str, name: str) -> tuple[Any, str]:
     ]
     if len(matches) != 1:
         raise ValueError(
-            f"expected one active YAML configuration named {name} in {frontend}"
+            f"expected one active configuration named {name} in {frontend}"
         )
     resolved = matches[0]
     spec = resolved.spec

@@ -8,7 +8,9 @@ Recipes use one plain `BaseConfig` with untyped attributes such as `trainer_gpu`
 
 Variants inherit class attributes and use dotted `overrides` for nested backend options. Mutable settings are copied per instance. Workers consume saved resolved backend settings. Routing uses deployment order or explicit definition IDs, without visibility or default flags.
 
-Validation: **644 CPU tests passed, 1 skipped**, including **111 focused config/deployment tests**. Coverage includes inherited overrides, mutable option isolation, backend passthrough, saved-record JSON round trips, worker resources, update isolation and deployment recovery. The CLI-generated recipe loaded and validated successfully. Ruff and whitespace checks passed.
+Validation: **642 CPU tests passed, 1 skipped**, including **41 focused deployment/provider tests**. Coverage includes inherited overrides, mutable option isolation, backend passthrough, saved-record JSON round trips, worker resources, update isolation and deployment recovery. The CLI-generated recipe loaded and validated successfully. Ruff and whitespace checks passed.
+
+Deployment uses Modal app lookups and the frontend’s `deployment_manifest` function. The separate Dict registry, pending records, deployment lock, unlock command and registry-less-frontend rejection are removed. Tests cover worker reuse, retries after partial deployment, missing worker recreation, retained configurations and code refresh. The default frontend is `lilo`; definition IDs use `deployment_`.
 
 All 15 recipes preserve compute, model, lifecycle and resolved trainer/inference settings. The flat saved config layout changes deployment hashes. Existing draft manifests need regeneration or explicit migration. No deployments or GPU jobs were modified; GPU backend startup has not been rerun for this revision.
 

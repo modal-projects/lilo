@@ -31,7 +31,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-import modal
 import httpx
 import tinker
 from tinker import types
@@ -39,6 +38,7 @@ from tinker import types
 from lilo.backends.miles_config import lora_target_flags
 from lilo.client import create_full_training_client
 from lilo.deployments import DeploymentRecord
+from lilo.providers.modal.deployment_records import deployed_manifest
 from lilo.providers.modal.deployment_apps import definition_from_spec
 
 TIMEOUT = 60 * 60
@@ -295,12 +295,10 @@ def main() -> None:
         type=Path,
         default=Path("scripts/results/definition_smoke.json"),
     )
-    parser.add_argument("--app", default="lilo-yaml")
+    parser.add_argument("--app", default="lilo")
     parser.add_argument("--env")
     args = parser.parse_args()
-    rows = modal.Dict.from_name(
-        f"{args.app}-yaml-deployments", environment_name=args.env
-    ).get("manifest", [])
+    rows = deployed_manifest(args.app, args.env)
     definitions = {
         row.definition_id: definition_from_spec(row, register_trainer=False)
         for data in rows

@@ -166,7 +166,7 @@ def test_pool_lookup_uses_recorded_generation(monkeypatch):
     monkeypatch.setenv(deployment_records.MANIFEST_ENV, json.dumps([row.model_dump()]))
     saved = deployment_records.pool_deployment(row.definition_id)
     assert saved.generation == row.generation
-    assert deployment_records.pool_deployment("yaml_missing_123") is None
+    assert deployment_records.pool_deployment("deployment_missing_123") is None
 
 
 def test_startup_failure_is_visible_and_blocks_new_spawns(monkeypatch):
@@ -210,7 +210,8 @@ from lilo.providers.modal import deployment_apps, deployment_records
 deployment_apps.image_for = lambda backend: modal.Image.debian_slim()
 app = importlib.import_module('lilo.providers.modal.app')
 assert len(app.DEFINITIONS) == 1
-assert app.APP_NAME == 'lilo-yaml'
+assert app.APP_NAME == 'lilo'
+assert app.deployment_manifest.local() == [d.model_dump(mode='json') for d in app.manifest_from_env()]
 assert app.DEFINITIONS[0].ENGINE_FUNCTION is not None
 assert not any(name.startswith('lilo.providers.modal.definitions.') for name in sys.modules)
 print('constructed')
@@ -243,7 +244,7 @@ def test_admission_changes_preserve_serialized_trainer(builders):
 
 
 @pytest.mark.parametrize("kind", ["lora", "full"])
-def test_pool_launch_uses_only_generic_yaml_app(monkeypatch, kind):
+def test_pool_launch_uses_only_generic_deployment_app(monkeypatch, kind):
     from lilo.providers.modal import fft_pool, lora_pool
 
     row = deployment("qwen35-9b-lora-16k" if kind == "lora" else "qwen35-4b-fft-64k")

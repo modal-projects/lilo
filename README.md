@@ -156,7 +156,7 @@ has finished in the Modal dashboard or list apps with:
 uv run modal app list
 ```
 
-To tear down the deployment, stop its `lilo-fft-...` sampler apps, then the frontend named in your config (`lilo-yaml` by default),
+To tear down the deployment, stop its `lilo-fft-...` sampler apps, then the frontend selected with `--app` (`lilo` by default),
 using `uv run modal app stop <app-id>`. Stopping the frontend does not stop sampler apps.
 
 ## Next steps

@@ -20,7 +20,7 @@ from lilo.configuration import BaseConfig
 LIFECYCLE_FIELDS = ("session_idle_timeout_s", "pool_idle_timeout_s", "sweep_interval_s")
 
 PLATFORM_DEFAULTS = {
-    "frontend": "lilo-yaml",
+    "frontend": "lilo",
     "modal": {"environment": None, "region": "us-west"},
     "secrets": {
         "api": "lilo-api",
@@ -213,7 +213,7 @@ class DeploymentRecord(BaseModel):
 
     @property
     def definition_id(self) -> str:
-        return f"yaml_{self.spec.name}_{self.generation[:16]}"
+        return f"deployment_{self.spec.name}_{self.generation[:16]}"
 
     @property
     def asset_path(self) -> str:

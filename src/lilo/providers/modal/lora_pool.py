@@ -106,6 +106,6 @@ def stop_pool(spec: LoraPoolSpec) -> None:
 
 
 def _definition_revision(definition_id: str) -> str:
-    if not definition_id.startswith("yaml_"):
+    if not definition_id.startswith("deployment_"):
         raise ValueError(f"expected a configured deployment id: {definition_id}")
     return definition_id.rsplit("_", 1)[-1]

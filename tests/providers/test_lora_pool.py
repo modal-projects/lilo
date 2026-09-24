@@ -2,7 +2,7 @@ from lilo.providers.modal.lora_pool import LoraPoolSpec
 
 
 def test_lora_pool_is_shared_by_every_adapter_for_definition() -> None:
-    first = LoraPoolSpec("yaml_example_0123456789abcdef")
+    first = LoraPoolSpec("deployment_example_0123456789abcdef")
     second = LoraPoolSpec.from_dict(first.as_dict())
 
     assert first == second
@@ -35,8 +35,8 @@ def test_stop_already_stopped_lora_pool_succeeds_but_real_failure_propagates(
 
 
 def test_pool_revision_comes_from_resolved_generation():
-    first = LoraPoolSpec("yaml_example_0123456789abcdef")
-    changed = LoraPoolSpec("yaml_example_fedcba9876543210")
+    first = LoraPoolSpec("deployment_example_0123456789abcdef")
+    changed = LoraPoolSpec("deployment_example_fedcba9876543210")
     assert first.revision == "0123456789abcdef"
     assert first.app_name != changed.app_name
 

@@ -23,6 +23,18 @@ def manifest_from_env():
     return [DeploymentRecord.model_validate(row) for row in rows]
 
 
+def deployed_manifest(frontend, environment=None):
+    """Read the configuration carried by the currently deployed frontend."""
+    function = modal.Function.from_name(
+        frontend, "deployment_manifest", environment_name=environment
+    )
+    try:
+        function.hydrate()
+    except modal.exception.NotFoundError:
+        return []
+    return function.remote()
+
+
 def pool_deployment(definition_id):
     for row in manifest_from_env():
         if row.definition_id == definition_id:

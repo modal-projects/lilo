@@ -1,93 +1,141 @@
 from copy import deepcopy
 import json
 import subprocess
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import modal
 import pytest
 
 from lilo import deployment_cli as cli
 from lilo.deployments import load, config_path, DeploymentRecord
-from lilo.providers.modal.deployment_records import MANIFEST_ENV
-
-
-class Registry(dict):
-    def put(self, key, value, skip_if_exists=False):
-        if skip_if_exists and key in self:
-            return False
-        self[key] = value
-        return True
+from lilo.providers.modal.deployment_records import MANIFEST_ENV, deployed_manifest
 
 
 def deployment():
     return DeploymentRecord.create(
-        load(config_path("qwen35-9b-lora-16k")),
-        revision="a" * 40,
+        load(config_path("qwen35-9b-lora-16k")), revision="a" * 40
     )
 
 
 @pytest.fixture
-def registry(monkeypatch):
-    value = Registry()
-    monkeypatch.setattr(modal.Dict, "from_name", lambda *args, **kwargs: value)
+def deployed(monkeypatch):
+    state = SimpleNamespace(apps=set(), manifest=[], calls=[], fail=None)
 
-    def missing(*args, **kwargs):
-        raise modal.exception.NotFoundError("not deployed")
+    def read_manifest(frontend, environment):
+        return state.manifest
 
-    monkeypatch.setattr(modal.App, "lookup", missing)
-    return value
+    def lookup(name, **kwargs):
+        if name not in state.apps:
+            raise modal.exception.NotFoundError("not deployed")
 
-
-def test_deploy_is_serialized_and_commits_only_after_success(registry, monkeypatch):
-    row = deployment()
-    seen = []
-
-    def run(command, **kwargs):
-        assert "apply_lock" in registry
-        assert "pending" in registry
-        assert "manifest" not in registry
-        if "lilo.providers.modal.app" in command:
-            seen.extend(json.loads(kwargs["env"][MANIFEST_ENV]))
+    def run(command, *, env, check):
+        role = env.get("LILO_WORKER_ROLE", "frontend")
+        state.calls.append(role)
+        if state.fail == role:
+            raise subprocess.CalledProcessError(1, command)
+        if role == "frontend":
+            state.manifest = json.loads(env[MANIFEST_ENV])
         else:
-            assert "lilo.providers.modal.deployment_worker_app" in command
+            row = DeploymentRecord.model_validate_json(env["LILO_WORKER_DEPLOYMENT"])
+            state.apps.add(
+                row.trainer_app_name if role == "trainer" else row.inference_app_name
+            )
 
+    monkeypatch.setattr(cli, "deployed_manifest", read_manifest)
+    monkeypatch.setattr(modal.App, "lookup", lookup)
     monkeypatch.setattr(subprocess, "run", run)
-    cli.deploy([row])
-    assert seen == registry["manifest"]
-    assert "pending" not in registry and "apply_lock" not in registry
-    registry["apply_lock"] = "other-operator"
-    with pytest.raises(ValueError, match="An apply owns"):
-        cli.deploy([row])
-    assert registry["apply_lock"] == "other-operator"
+    monkeypatch.setattr(
+        modal.Dict,
+        "from_name",
+        lambda *a, **k: pytest.fail("deployment must not use a Dict registry"),
+    )
+    return state
 
 
-def test_failed_apply_keeps_pending_generations_for_next_attempt(registry, monkeypatch):
+def test_deploy_reuses_modal_apps_and_retains_previous_config(deployed):
     row = deployment()
+    cli.deploy([row])
+    assert deployed.calls == ["trainer", "inference", "frontend"]
+    deployed.calls.clear()
+    cli.deploy([row])
+    assert deployed.calls == ["frontend"]
 
-    def fail(*args, **kwargs):
-        raise subprocess.CalledProcessError(1, args[0])
-
-    monkeypatch.setattr(subprocess, "run", fail)
-    with pytest.raises(subprocess.CalledProcessError):
-        cli.deploy([row])
-    assert registry["pending"][0]["generation"] == row.generation
-    assert "manifest" not in registry and "apply_lock" not in registry
-    new_spec = deepcopy(row.spec)
-    new_spec.trainer_max_instances = 2
-    new = DeploymentRecord.create(new_spec, revision="a" * 40)
-    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: None)
-    cli.deploy([new])
-    assert [(r["generation"], r["active"]) for r in registry["manifest"]] == [
-        (new.generation, True),
+    spec = deepcopy(row.spec)
+    spec.inference_max_replicas = 6
+    changed = DeploymentRecord.create(spec, revision="a" * 40)
+    deployed.calls.clear()
+    cli.deploy([changed])
+    assert deployed.calls == ["inference", "frontend"]
+    assert [(r["generation"], r["active"]) for r in deployed.manifest] == [
+        (changed.generation, True),
+        (row.generation, False),
     ]
 
+    # Modal's actual state wins over a frontend record that mentions an old app.
+    deployed.apps.remove(changed.inference_app_name)
+    deployed.calls.clear()
+    cli.deploy([changed])
+    assert deployed.calls == ["inference", "frontend"]
 
-def test_refuse_overwriting_legacy_frontend(registry, monkeypatch):
-    monkeypatch.setattr(modal.App, "lookup", lambda *args, **kwargs: object())
-    with pytest.raises(
-        ValueError, match="already exists without a deployment registry"
-    ):
-        cli.deploy([deployment()])
-    assert "pending" not in registry
+
+@pytest.mark.parametrize("failure", ["inference", "frontend"])
+def test_retry_discovers_completed_workers_without_pending_records(deployed, failure):
+    row = deployment()
+    deployed.fail = failure
+    with pytest.raises(subprocess.CalledProcessError):
+        cli.deploy([row])
+    assert deployed.manifest == []
+    assert row.trainer_app_name in deployed.apps
+    deployed.calls.clear()
+    deployed.fail = None
+    cli.deploy([row])
+    assert deployed.calls == (
+        ["inference", "frontend"] if failure == "inference" else ["frontend"]
+    )
+
+
+def test_refresh_keeps_other_workers_and_is_remembered_by_frontend(deployed):
+    miles = deployment()
+    fft = DeploymentRecord.create(
+        load(config_path("qwen35-4b-fft-64k")), revision="a" * 40
+    )
+    cli.deploy([miles, fft])
+    deployed.calls.clear()
+    cli.deploy([miles, fft], refresh_trainers=[miles.spec.name])
+    assert deployed.calls == ["trainer", "frontend"]
+    updated = deployed.manifest[0]
+    assert updated["trainer_release"] != "initial"
+    assert updated["inference_release"] == "initial"
+    deployed.calls.clear()
+    cli.deploy([miles, fft])
+    assert deployed.calls == ["frontend"]
+    assert deployed.manifest[0] == updated
+
+
+def test_existing_frontend_without_deployment_metadata_can_be_updated(deployed):
+    row = deployment()
+    deployed.apps.add(row.platform["frontend"])
+    cli.deploy([row])
+    assert deployed.manifest[0]["generation"] == row.generation
+
+
+def test_read_manifest_from_deployed_function(monkeypatch):
+    function = SimpleNamespace(
+        hydrate=Mock(), remote=Mock(return_value=[{"configuration": "saved"}])
+    )
+    lookup = Mock(return_value=function)
+    monkeypatch.setattr(modal.Function, "from_name", lookup)
+    assert deployed_manifest("my-app", "dev") == [{"configuration": "saved"}]
+    lookup.assert_called_once_with(
+        "my-app", "deployment_manifest", environment_name="dev"
+    )
+    function.hydrate.side_effect = modal.exception.NotFoundError("no function")
+    assert deployed_manifest("my-app", "dev") == []
+    function.hydrate.side_effect = None
+    function.remote.side_effect = RuntimeError("frontend failed")
+    with pytest.raises(RuntimeError, match="frontend failed"):
+        deployed_manifest("my-app", "dev")
 
 
 def test_validate_never_resolves_or_deploys(monkeypatch, capsys):
@@ -148,136 +196,6 @@ def test_worker_source_mount_excludes_authoring_configs():
     assert ignore_config_source(Path("data.json"))
     assert not ignore_config_source(Path("deployments.py"))
     assert not ignore_config_source(Path("backends/miles_config.py"))
-
-
-def test_only_changed_worker_is_deployed(registry, monkeypatch):
-    row = deployment()
-    calls = []
-
-    def run(command, **kwargs):
-        if "lilo.providers.modal.deployment_worker_app" in command:
-            calls.append(kwargs["env"]["LILO_WORKER_ROLE"])
-        else:
-            calls.append("frontend")
-
-    monkeypatch.setattr(subprocess, "run", run)
-    cli.deploy([row])
-    assert calls == ["trainer", "inference", "frontend"]
-
-    calls.clear()
-    cli.deploy([row])
-    assert calls == ["frontend"]
-
-    changed = deepcopy(row.spec)
-    changed.inference_max_replicas = 6
-    new = DeploymentRecord.create(changed, revision="a" * 40)
-    calls.clear()
-    cli.deploy([new])
-    assert calls == ["inference", "frontend"]
-    assert new.trainer_app_name == row.trainer_app_name
-    assert registry["manifest"][1]["active"] is False
-
-    newest = DeploymentRecord.create(changed, revision="a" * 40)
-    calls.clear()
-    cli.deploy([newest], refresh_trainers=[newest.spec.name])
-    assert calls == ["trainer", "frontend"]
-    assert newest.inference_app_name == new.inference_app_name
-
-
-def test_backend_update_does_not_redeploy_other_models(registry, monkeypatch):
-    miles = deployment()
-    fft = DeploymentRecord.create(
-        load(config_path("qwen35-4b-fft-64k")),
-        revision="a" * 40,
-    )
-    calls = []
-
-    def run(command, **kwargs):
-        if "LILO_WORKER_DEPLOYMENT" in kwargs["env"]:
-            calls.append(
-                (
-                    kwargs["env"]["LILO_WORKER_ROLE"],
-                    json.loads(kwargs["env"]["LILO_WORKER_DEPLOYMENT"])["spec"]["name"],
-                )
-            )
-
-    monkeypatch.setattr(subprocess, "run", run)
-    cli.deploy([miles, fft])
-    calls.clear()
-    spec = deepcopy(miles.spec)
-    cli.deploy(
-        [DeploymentRecord.create(spec, revision="a" * 40), fft],
-        refresh_trainers=[miles.spec.name],
-    )
-    assert calls == [("trainer", miles.spec.name)]
-
-
-def test_retry_preserves_successfully_deployed_workers(registry, monkeypatch):
-    row = deployment()
-    calls = []
-
-    def fail_frontend(command, **kwargs):
-        calls.append(kwargs["env"].get("LILO_WORKER_ROLE", "frontend"))
-        if "lilo.providers.modal.app" in command:
-            raise subprocess.CalledProcessError(1, command)
-
-    monkeypatch.setattr(subprocess, "run", fail_frontend)
-    with pytest.raises(subprocess.CalledProcessError):
-        cli.deploy([row])
-    assert len(registry["worker_apps"]) == 2
-    calls.clear()
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda command, **kwargs: calls.append(
-            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
-        ),
-    )
-    cli.deploy([row])
-    assert calls == ["frontend"]
-
-
-def test_recover_worker_deployed_before_registry_write(registry, monkeypatch):
-    row = deployment()
-    calls = []
-
-    def lookup(name, **kwargs):
-        if name == row.trainer_app_name:
-            return object()
-        raise modal.exception.NotFoundError("not deployed")
-
-    monkeypatch.setattr(modal.App, "lookup", lookup)
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda command, **kwargs: calls.append(
-            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
-        ),
-    )
-    cli.deploy([row])
-    assert calls == ["inference", "frontend"]
-
-
-def test_worker_refresh_is_retained_without_editing_config(registry, monkeypatch):
-    row = deployment()
-    calls = []
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda command, **kwargs: calls.append(
-            kwargs["env"].get("LILO_WORKER_ROLE", "frontend")
-        ),
-    )
-    cli.deploy([row])
-    cli.deploy([row], refresh_inference=[row.spec.name])
-    active = DeploymentRecord.model_validate(registry["manifest"][0])
-    assert active.inference_release != "initial"
-    assert active.trainer_release == "initial"
-    assert vars(active.spec) == vars(row.spec)
-    calls.clear()
-    cli.deploy([row])
-    assert calls == ["frontend"]
-    assert registry["manifest"][0]["inference_release"] == active.inference_release
 
 
 def test_deploy_command_owns_platform_settings(monkeypatch):

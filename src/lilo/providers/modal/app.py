@@ -106,6 +106,13 @@ image = (
     .env(TRAINER_DEPLOYMENT_ENV)
     .add_local_python_source("lilo", ignore=ignore_config_source)
 )
+
+
+@app.function(image=image)
+def deployment_manifest():
+    return [row.model_dump(mode="json") for row in manifest_from_env()]
+
+
 model_assets = modal.Volume.from_name(
     SETTINGS.platform["storage"]["assets"],
     create_if_missing=True,
