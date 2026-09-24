@@ -92,6 +92,23 @@ stage, comparable to Lilo's `time/train_step`) and add `cmp/fwd_bwd_time_s`, `cm
 Steady-state medians over steps ≥ 1. Groups match the originals (`baseline-miles-27b` for 16k/64k,
 `miles-27b` for the padded 30-step runs).
 
+### `--use-rollout-logprobs` reruns (equal work with Lilo's `ppo` loss)
+
+10-step reruns of each rung with `--use-rollout-logprobs` (`use_tis=False`; Miles forbids both), otherwise
+identical launcher args/topology/padding to the baselines. No `perf/log_probs_time` is emitted; the
+trainer stage is fwd/bwd + optimizer only. Steady-state medians over steps ≥ 1; Lilo column is the
+matching Lilo run's median.
+
+| Rung | Raw Miles run | `cmp/*` re-log | step | train = fwd/bwd | wait / non-train | Miles TIS step | Lilo step |
+|---|---|---|---|---|---|---|---|
+| 16k (TP4×CP1×DP2, 1 node) | `silly-cake-9c0327d8bb81` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/eol86o84 | 107 s | 106 s | ~1 s | 159 s | 138 s |
+| 64k (TP4×CP2×DP1, 1 node) | `glowing-sniffer-38665f78ee83` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/22lfaz1u | 563 s | 562 s | ~1 s | 819 s | 572 s |
+| 128k padded (TP2×CP4×DP1, 1 node) | `weary-rectangle-34decf096d16` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/ah3g2ee0 | 1329 s | 1326 s | ~3 s | 1655 s | 1667 s |
+| 256k padded (TP2×CP8×DP1, 2 nodes) | `orange-polygon-cc459a4d2028` | https://wandb.ai/modal-labs/miles-lora-longcontext/runs/v66s0jks | 2067 s | 2063 s | ~4 s | 2754 s | 2448 s |
+
+Reward over the first 10 steps (one seed, noisy): rollout-logprobs 0.49 / 0.46 / 0.48 / 0.51 vs TIS
+0.54 / 0.49 / 0.60 / 0.58 vs Lilo 0.53 / 0.53 / 0.57 / 0.46 at 16k / 64k / 128k / 256k.
+
 ## Exact launcher args per rung
 
 All from `/home/ubuntu/repos/lilo` with `MODAL_SERVER_URL=https://api.modal.com MODAL_ENVIRONMENT=micah-dev`:
