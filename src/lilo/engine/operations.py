@@ -5,10 +5,11 @@ from typing import Any, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field
 from tinker import AdamParams, LoraConfig
-from tinker.lib._pydantic_conv import to_pydantic_input
+from tinker.types._pydantic_types.datum import Datum as DatumModel
 from tinker.types._pydantic_types.forward_backward_input import (
     ForwardBackwardInput as TinkerForwardBackwardInputModel,
 )
+from tinker.types._pydantic_types.tensor_data import TensorData as TensorDataModel
 from tinker.types.forward_backward_input import ForwardBackwardInput
 
 from lilo.backends.contract import LossFn, ModelSpec
@@ -158,7 +159,26 @@ def parse_operation_payload(
 
 def serialize_operation_payload(payload: OperationPayload) -> dict[str, Any]:
     if isinstance(payload, ForwardBackwardInput):
-        return to_pydantic_input(payload).model_dump(
+        return ForwardBackwardInputModel.model_construct(
+            data=[
+                DatumModel.model_construct(
+                    model_input=datum.model_input,
+                    loss_fn_inputs={
+                        key: TensorDataModel(
+                            data=tensor.data,
+                            dtype=tensor.dtype,
+                            shape=tensor.shape,
+                            sparse_crow_indices=tensor.sparse_crow_indices,
+                            sparse_col_indices=tensor.sparse_col_indices,
+                        )
+                        for key, tensor in datum.loss_fn_inputs.items()
+                    },
+                )
+                for datum in payload.data
+            ],
+            loss_fn=payload.loss_fn,
+            loss_fn_config=payload.loss_fn_config,
+        ).model_dump(
             mode="json",
             exclude_defaults=True,
         )

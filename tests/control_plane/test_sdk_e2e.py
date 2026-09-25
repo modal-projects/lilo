@@ -536,3 +536,27 @@ def test_error_table_over_http() -> None:
         assert failed.status_code == 200
         assert failed.json()["category"] == "server"
         assert "lost" in failed.json()["error"]
+
+
+def test_real_sdk_forward_only(base_url: str) -> None:
+    service = tinker.ServiceClient(base_url=base_url, api_key=API_KEY)
+    training = service.create_lora_training_client(base_model=BASE_MODEL, rank=32)
+    datum = types.Datum(
+        model_input=types.ModelInput.from_ints([1, 2]),
+        loss_fn_inputs={"target_tokens": [2, 3], "weights": [1.0, 1.0]},
+    )
+    result = training.forward([datum], "cross_entropy").result(timeout=30)
+    assert result.metrics["loss:sum"] == 1.25
+    assert len(result.loss_fn_outputs) == 1
+
+
+def test_dynamic_config_requires_api_key(base_url: str) -> None:
+    with httpx.Client(base_url=base_url) as client:
+        assert client.post("/api/v1/client/dynamic_config", json={}).status_code == 401
+        response = client.post(
+            "/api/v1/client/dynamic_config",
+            json={"sdk_version": "0.25.0"},
+            headers={"x-api-key": API_KEY},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"refresh_interval_sec": 300}

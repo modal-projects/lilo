@@ -11,7 +11,7 @@ import httpx
 import zstandard
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from lilo.engine.api import JSON_OPERATIONS, OperationKind, submit_json_operation
@@ -23,6 +23,7 @@ from lilo.errors import (
     SequenceConflict,
 )
 from lilo.proto import tinker_public_pb2
+from lilo.proto.responses import encode_result
 from lilo.providers.contracts import Parameterization
 from lilo.request_timing import enabled as request_timing_enabled
 from lilo.request_timing import mark
@@ -310,6 +311,10 @@ def create_control_plane_app(
             "create_model_via_load_weights": True,
         }
 
+    @app.post("/api/v1/client/dynamic_config")
+    async def client_dynamic_config() -> dict[str, int]:
+        return {"refresh_interval_sec": 300}
+
     @app.post("/api/v1/telemetry")
     async def telemetry() -> dict[str, str]:
         return {"status": "accepted"}
@@ -593,7 +598,7 @@ def create_control_plane_app(
             operation_route(kind)
 
     @app.post("/api/v1/retrieve_future")
-    async def retrieve_future(body: RetrieveFutureBody) -> JSONResponse:
+    async def retrieve_future(body: RetrieveFutureBody, request: Request) -> Response:
         sampled = not body.request_id.startswith("sample-")
         if sampled:
             mark("cp.retrieve.begin", request_id=body.request_id)
@@ -619,6 +624,10 @@ def create_control_plane_app(
                 },
             )
         if resolution.status == FutureResolutionStatus.COMPLETE:
+            if "application/x-protobuf" in request.headers.get("accept", ""):
+                encoded = encode_result(resolution.result)
+                if encoded is not None:
+                    return Response(encoded, media_type="application/x-protobuf")
             return JSONResponse(resolution.result)
         if resolution.status == FutureResolutionStatus.RETRYABLE:
             return JSONResponse(
