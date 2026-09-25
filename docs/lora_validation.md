@@ -59,6 +59,17 @@ One experimental path we've been working on is having multi-tenant runs be fully
 
 The main source of trainer non-determinism was in the fa3 backwards kernel, as well as ensuring ordered gradient accumulation with multiple clients' packed microbatches. 
 
+## SWE-Gym: Qwen3.5-9B
+
+As a longer validation run for agentic RL, we run 8 r32 lora clients with async multi-turn RL on a subset of SWE-gym with 128k context, sharing a single 
+8-h200 trainer and eight h200 inference replicas. Batch size 32 groups x 8 per group
+
+![SWE-Gym average reward and full batch time for eight clients](assets/lora-validation/qwen3-5-9b-swe-gym-reward-time.png)
+
+Logprob diff: 
+
+![SWE-Gym mean and mean absolute logprob difference for eight clients](assets/lora-validation/qwen3-5-9b-swe-gym-logprob-diff.png)
+
 ## LongRLVR at 128k context: Qwen3.8-27B (2026-09-18)
 
 Qwen3.8-27B LoRA r32 on LongRLVR-Data, generation cap 4k, GRPO 16 groups × 8
