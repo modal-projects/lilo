@@ -1,0 +1,128 @@
+diff --git a/src/lilo/backends/miles_runtime/replay.py b/src/lilo/backends/miles_runtime/replay.py
+index e94eef1..c131ec8 100644
+--- a/src/lilo/backends/miles_runtime/replay.py
++++ b/src/lilo/backends/miles_runtime/replay.py
+@@ -8,9 +8,15 @@ from __future__ import annotations
+ 
+ from argparse import Namespace
+ from functools import wraps
++import hashlib
++import json
++import logging
++import os
+ 
+ import torch
+ 
++logger = logging.getLogger(__name__)
++
+ 
+ class TinkerSamplingMask:
+     """CSR support over target positions; empty rows leave logits unmasked."""
+@@ -150,6 +156,30 @@ def install_replay_hooks() -> None:
+     @wraps(original_run)
+     def run(args, batch_id, model, rollout_data, **kwargs):
+         replay = manager.data_key in rollout_data
++        audit = os.environ.get("LILO_REPLAY_AUDIT") == "1"
++        if audit and replay:
++            logger.info(
++                "lilo_replay_input %s",
++                json.dumps(
++                    {
++                        "batch_id": batch_id,
++                        "routes": [
++                            {
++                                "shape": list(route.shape),
++                                "sha256": hashlib.sha256(
++                                    torch.as_tensor(route)
++                                    .detach()
++                                    .cpu()
++                                    .numpy()
++                                    .astype("<i4")
++                                    .tobytes()
++                                ).hexdigest(),
++                            }
++                            for route in rollout_data[manager.data_key]
++                        ],
++                    }
++                ),
++            )
+         enabled, stage = manager.enabled, manager.stage
+         if replay and (not enabled or not manager.replays):
+             raise ValueError(
+@@ -161,7 +191,27 @@ def install_replay_hooks() -> None:
+             # Miles switches to replay_forward around each forward; recompute
+             # consumes the separate backward cursor after that stage restores.
+             manager.stage = "replay_backward"
+-            return original_run(args, batch_id, model, rollout_data, **kwargs)
++            result = original_run(args, batch_id, model, rollout_data, **kwargs)
++            if audit:
++                logger.info(
++                    "lilo_replay_consumed %s",
++                    json.dumps(
++                        {
++                            "batch_id": batch_id,
++                            "enabled": replay,
++                            "forward_only": kwargs.get("forward_only", False),
++                            "streams": [
++                                {
++                                    "queued": len(stream.top_indices_list),
++                                    "forward": stream.forward_index,
++                                    "backward": stream.backward_index,
++                                }
++                                for stream in manager.replays
++                            ],
++                        }
++                    ),
++                )
++            return result
+         finally:
+             manager.clear_all()
+             manager.enabled, manager.stage = enabled, stage
+diff --git a/src/lilo/backends/miles_runtime/runtime.py b/src/lilo/backends/miles_runtime/runtime.py
+index 51a0126..50547c9 100644
+--- a/src/lilo/backends/miles_runtime/runtime.py
++++ b/src/lilo/backends/miles_runtime/runtime.py
+@@ -352,7 +352,7 @@ def _allow_context_parallel_multi_lora() -> None:
+     full-length per-datum vectors against CP-sharded log probs. The Lilo actor
+     gathers those log probs back to full response length before the loss runs,
+     so the guard does not apply to this path."""
+-    from miles.utils import multi_lora
++    from miles.utils.lora import arguments as multi_lora
+ 
+     original = multi_lora.validate_multi_lora_args
+     if getattr(original, "__lilo_allows_cp__", False):
+diff --git a/tests/backends/test_miles_runtime.py b/tests/backends/test_miles_runtime.py
+index 10eb244..b39f1e1 100644
+--- a/tests/backends/test_miles_runtime.py
++++ b/tests/backends/test_miles_runtime.py
+@@ -1,4 +1,5 @@
+ import asyncio
++import sys
+ from types import SimpleNamespace
+ 
+ import pytest
+@@ -14,6 +15,24 @@ from lilo.backends.miles_runtime.runtime import (
+ from lilo.errors import BackendFailed
+ 
+ 
++def test_context_parallel_guard_uses_current_miles_lora_module(monkeypatch):
++    seen = []
++    arguments = SimpleNamespace(
++        validate_multi_lora_args=lambda args: seen.append(args.context_parallel_size)
++    )
++    monkeypatch.setitem(sys.modules, "miles", SimpleNamespace())
++    monkeypatch.setitem(sys.modules, "miles.utils", SimpleNamespace())
++    monkeypatch.setitem(sys.modules, "miles.utils.lora", SimpleNamespace(arguments=arguments))
++    miles_runtime._allow_context_parallel_multi_lora()
++    patched = arguments.validate_multi_lora_args
++    args = SimpleNamespace(context_parallel_size=4)
++    patched(args)
++    assert seen == [1]
++    assert args.context_parallel_size == 4
++    miles_runtime._allow_context_parallel_multi_lora()
++    assert arguments.validate_multi_lora_args is patched
++
++
+ def test_worker_env_carries_volume_names_to_other_nodes(monkeypatch):
+     """Actors on worker nodes only see what the pre-existing cluster was given."""
+     monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")

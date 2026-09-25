@@ -1,0 +1,279 @@
+{
+  "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+  "branch_revision": "ebeeac6bda259f4df523e379753ddd50f68d67a0",
+  "miles_revision": "cc76e23915b2132ecfff65b97331fd83b02637e6",
+  "runs": {
+    "replay_off": {
+      "aggregate": {
+        "steps": 10,
+        "generated_tokens": 559118,
+        "mean_abs_logprob_diff": 0.0172560558125299,
+        "paired_native_mean_abs": 0.0172560558125299,
+        "paired_replayed_mean_abs": 0.010810750956625668,
+        "mean_reward": 0.28125,
+        "paired_improved_steps": 10,
+        "successful_updates": 10,
+        "nonzero_gradient_updates": 6,
+        "truncated_fraction": 0.7125,
+        "raw_route_bytes": 891915264
+      },
+      "steps": [
+        {
+          "step": 1,
+          "tokens/generated": 56751,
+          "logprob_diff/mean_abs": 0.022432436534628723,
+          "paired/replay_off_mean_abs": 0.022432436534628723,
+          "paired/replay_on_mean_abs": 0.013439624078239242,
+          "reward/mean": 0.1875,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1049.142333984375
+        },
+        {
+          "step": 2,
+          "tokens/generated": 53856,
+          "logprob_diff/mean_abs": 0.012576910809088918,
+          "paired/replay_off_mean_abs": 0.012576910809088918,
+          "paired/replay_on_mean_abs": 0.008320260236857946,
+          "reward/mean": 0.25,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 3,
+          "tokens/generated": 58170,
+          "logprob_diff/mean_abs": 0.014025794152182683,
+          "paired/replay_off_mean_abs": 0.014025794152182683,
+          "paired/replay_on_mean_abs": 0.009145005781400126,
+          "reward/mean": 0.3125,
+          "sampling/truncated_fraction": 0.6875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1783.1590576171875
+        },
+        {
+          "step": 4,
+          "tokens/generated": 56871,
+          "logprob_diff/mean_abs": 0.0209341027976104,
+          "paired/replay_off_mean_abs": 0.0209341027976104,
+          "paired/replay_on_mean_abs": 0.013500430921869075,
+          "reward/mean": 0.3125,
+          "sampling/truncated_fraction": 0.6875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 2350.589599609375
+        },
+        {
+          "step": 5,
+          "tokens/generated": 63153,
+          "logprob_diff/mean_abs": 0.016661928996816896,
+          "paired/replay_off_mean_abs": 0.016661928996816896,
+          "paired/replay_on_mean_abs": 0.010332047043723046,
+          "reward/mean": 0.1875,
+          "sampling/truncated_fraction": 0.8125,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1887.67333984375
+        },
+        {
+          "step": 6,
+          "tokens/generated": 65536,
+          "logprob_diff/mean_abs": 0.016941517164791774,
+          "paired/replay_off_mean_abs": 0.016941517164791774,
+          "paired/replay_on_mean_abs": 0.010524435299885147,
+          "reward/mean": 0.0,
+          "sampling/truncated_fraction": 1.0,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 7,
+          "tokens/generated": 51281,
+          "logprob_diff/mean_abs": 0.017756752964927642,
+          "paired/replay_off_mean_abs": 0.017756752964927642,
+          "paired/replay_on_mean_abs": 0.01103525934107575,
+          "reward/mean": 0.5,
+          "sampling/truncated_fraction": 0.5,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 8,
+          "tokens/generated": 41262,
+          "logprob_diff/mean_abs": 0.016346721167235005,
+          "paired/replay_off_mean_abs": 0.016346721167235005,
+          "paired/replay_on_mean_abs": 0.01006505655769875,
+          "reward/mean": 0.5,
+          "sampling/truncated_fraction": 0.5,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 9,
+          "tokens/generated": 57588,
+          "logprob_diff/mean_abs": 0.018418569659022093,
+          "paired/replay_off_mean_abs": 0.018418569659022093,
+          "paired/replay_on_mean_abs": 0.01119544845734215,
+          "reward/mean": 0.25,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1904.8974609375
+        },
+        {
+          "step": 10,
+          "tokens/generated": 54650,
+          "logprob_diff/mean_abs": 0.016158118489940997,
+          "paired/replay_off_mean_abs": 0.016158118489940997,
+          "paired/replay_on_mean_abs": 0.010352667451860703,
+          "reward/mean": 0.3125,
+          "sampling/truncated_fraction": 0.6875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1249.853759765625
+        }
+      ]
+    },
+    "replay_on": {
+      "aggregate": {
+        "steps": 10,
+        "generated_tokens": 553406,
+        "mean_abs_logprob_diff": 0.010491666520399484,
+        "paired_native_mean_abs": 0.016740227678821783,
+        "paired_replayed_mean_abs": 0.010491666520399484,
+        "mean_reward": 0.28125,
+        "paired_improved_steps": 10,
+        "successful_updates": 10,
+        "nonzero_gradient_updates": 7,
+        "truncated_fraction": 0.70625,
+        "raw_route_bytes": 883141632
+      },
+      "steps": [
+        {
+          "step": 1,
+          "tokens/generated": 55429,
+          "logprob_diff/mean_abs": 0.012324459483321216,
+          "paired/replay_off_mean_abs": 0.020539483447320463,
+          "paired/replay_on_mean_abs": 0.012324459483321216,
+          "reward/mean": 0.0625,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1074.65380859375
+        },
+        {
+          "step": 2,
+          "tokens/generated": 53963,
+          "logprob_diff/mean_abs": 0.007972316886849093,
+          "paired/replay_off_mean_abs": 0.012022391500967353,
+          "paired/replay_on_mean_abs": 0.007972316886849093,
+          "reward/mean": 0.25,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 3,
+          "tokens/generated": 55522,
+          "logprob_diff/mean_abs": 0.009493703937444292,
+          "paired/replay_off_mean_abs": 0.014293435480998512,
+          "paired/replay_on_mean_abs": 0.009493703937444292,
+          "reward/mean": 0.4375,
+          "sampling/truncated_fraction": 0.625,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 2640.52392578125
+        },
+        {
+          "step": 4,
+          "tokens/generated": 54623,
+          "logprob_diff/mean_abs": 0.013098621371148426,
+          "paired/replay_off_mean_abs": 0.020845843964621264,
+          "paired/replay_on_mean_abs": 0.013098621371148426,
+          "reward/mean": 0.375,
+          "sampling/truncated_fraction": 0.625,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1599.5009765625
+        },
+        {
+          "step": 5,
+          "tokens/generated": 62925,
+          "logprob_diff/mean_abs": 0.01024032825984477,
+          "paired/replay_off_mean_abs": 0.016821761220775368,
+          "paired/replay_on_mean_abs": 0.01024032825984477,
+          "reward/mean": 0.125,
+          "sampling/truncated_fraction": 0.875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1423.560791015625
+        },
+        {
+          "step": 6,
+          "tokens/generated": 64526,
+          "logprob_diff/mean_abs": 0.010712480323738378,
+          "paired/replay_off_mean_abs": 0.016780080518424487,
+          "paired/replay_on_mean_abs": 0.010712480323738378,
+          "reward/mean": 0.125,
+          "sampling/truncated_fraction": 0.875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1426.9395751953125
+        },
+        {
+          "step": 7,
+          "tokens/generated": 50753,
+          "logprob_diff/mean_abs": 0.010190905488109182,
+          "paired/replay_off_mean_abs": 0.01663790352078089,
+          "paired/replay_on_mean_abs": 0.010190905488109182,
+          "reward/mean": 0.375,
+          "sampling/truncated_fraction": 0.625,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 1478.79931640625
+        },
+        {
+          "step": 8,
+          "tokens/generated": 41137,
+          "logprob_diff/mean_abs": 0.009680344146469733,
+          "paired/replay_off_mean_abs": 0.01576117616492943,
+          "paired/replay_on_mean_abs": 0.009680344146469733,
+          "reward/mean": 0.5,
+          "sampling/truncated_fraction": 0.5,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        },
+        {
+          "step": 9,
+          "tokens/generated": 59932,
+          "logprob_diff/mean_abs": 0.010743567652468396,
+          "paired/replay_off_mean_abs": 0.017506779895942466,
+          "paired/replay_on_mean_abs": 0.010743567652468396,
+          "reward/mean": 0.3125,
+          "sampling/truncated_fraction": 0.6875,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 2061.80810546875
+        },
+        {
+          "step": 10,
+          "tokens/generated": 54596,
+          "logprob_diff/mean_abs": 0.010170784952959611,
+          "paired/replay_off_mean_abs": 0.01577705847026608,
+          "paired/replay_on_mean_abs": 0.010170784952959611,
+          "reward/mean": 0.25,
+          "sampling/truncated_fraction": 0.75,
+          "optim/update_successful:mean": 1.0,
+          "optim/grad_norm:mean": 0.0
+        }
+      ]
+    }
+  },
+  "route_audit": {
+    "status": "completed",
+    "validated_sequences": 320,
+    "unique_sampler_route_hashes": 320,
+    "trainer_input_audit_records": 1284,
+    "missing_hashes": [],
+    "incomplete_rank_hashes": [],
+    "expected_ranks": 4,
+    "replay_consumption_records": 1284,
+    "incomplete_consumption_records": 0,
+    "disabled_replay_nonempty_records": 0,
+    "unconsumed_input_batches": [],
+    "negative_control": {
+      "shifted_expert_mae": 4.660218422404073,
+      "correct_expert_mae": 0.008589016661543998,
+      "native_expert_mae": 0.017058654552686927
+    }
+  }
+}
