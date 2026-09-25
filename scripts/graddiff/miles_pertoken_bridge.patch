@@ -1,0 +1,56 @@
+From 7b813e3c8dba12c78388fcb2fe11488272fe0864 Mon Sep 17 00:00:00 2001
+From: micah <micah@modal.com>
+Date: Fri, 18 Sep 2026 15:43:30 +0000
+Subject: [PATCH 1/2] lora/bridge: propagate calculate_per_token_loss to the
+ Bridge provider
+
+Co-Authored-By: Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+---
+ miles/backends/megatron_utils/lora/bridge.py | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/miles/backends/megatron_utils/lora/bridge.py b/miles/backends/megatron_utils/lora/bridge.py
+index b3f2779aa..da4c69abd 100644
+--- a/miles/backends/megatron_utils/lora/bridge.py
++++ b/miles/backends/megatron_utils/lora/bridge.py
+@@ -146,6 +146,7 @@ def _setup_lora_model_via_bridge(args: Namespace) -> list:
+     provider.distribute_saved_activations = args.distribute_saved_activations
+     provider.attention_backend = args.attention_backend
+     provider.variable_seq_lengths = True
++    provider.calculate_per_token_loss = args.calculate_per_token_loss
+     provider.moe_token_dispatcher_type = "alltoall"
+     provider.moe_router_load_balancing_type = "none"
+     if is_multi_lora_enabled(args) and targets_expert_leaves(args.target_modules):
+-- 
+2.34.1
+
+
+From aed5b24a30b4a48a9351d244066511b55a178e8d Mon Sep 17 00:00:00 2001
+From: micah <micah@modal.com>
+Date: Fri, 18 Sep 2026 15:43:40 +0000
+Subject: [PATCH 2/2] lora/bridge: log effective calculate_per_token_loss
+
+Co-Authored-By: Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>
+---
+ miles/backends/megatron_utils/lora/bridge.py | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/miles/backends/megatron_utils/lora/bridge.py b/miles/backends/megatron_utils/lora/bridge.py
+index da4c69abd..6fe1f82d1 100644
+--- a/miles/backends/megatron_utils/lora/bridge.py
++++ b/miles/backends/megatron_utils/lora/bridge.py
+@@ -165,6 +165,11 @@ def _setup_lora_model_via_bridge(args: Namespace) -> list:
+     if hasattr(provider, "dsa_attention_backend"):
+         provider.dsa_attention_backend = getattr(args, "dsa_attention_backend", "megatron")
+     provider.finalize()
++    logger.info(
++        "[lora/bridge] model_config.calculate_per_token_loss=%s (args=%s)",
++        provider.calculate_per_token_loss,
++        args.calculate_per_token_loss,
++    )
+ 
+     if is_multi_lora_enabled(args):
+         _validate_multi_lora_moe_support(args, provider)
+-- 
+2.34.1
+
