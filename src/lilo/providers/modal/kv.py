@@ -41,6 +41,7 @@ KEY_STORES = {
     "placement_claim": "models",
     "trainer_demand": "models",
     "engine_instance": "engines",
+    "engine_strikes": "engines",
     "lora_pool": "engines",
     "engine_call": "engines",
     "engine_current": "engines",
