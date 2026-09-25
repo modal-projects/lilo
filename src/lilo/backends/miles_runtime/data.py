@@ -114,6 +114,11 @@ def build_outputs(
         grouped[item_index][datum_index] = {
             "loss": float(output["loss"]),
             "logprobs": logprobs,
+            **{
+                name: float(output[name])
+                for name in ("clipped_tokens", "loss_tokens")
+                if name in output
+            },
         }
 
     results = []
@@ -147,10 +152,24 @@ def build_outputs(
                     "tokens:sum": float(tokens),
                     "n_sequences:sum": float(len(complete)),
                     "response_length:mean": tokens / max(len(complete), 1),
+                    **_clip_metrics(complete),
                 },
             )
         )
     return tuple(results)
+
+
+def _clip_metrics(records: list[dict[str, Any]]) -> dict[str, float]:
+    """Clip fraction over this client's masked tokens; empty unless the loss clips."""
+    if not any("clipped_tokens" in record for record in records):
+        return {}
+    clipped = sum(record.get("clipped_tokens", 0.0) for record in records)
+    loss_tokens = sum(record.get("loss_tokens", 0.0) for record in records)
+    return {
+        "clipped_tokens:sum": clipped,
+        "loss_tokens:sum": loss_tokens,
+        "clip_fraction:mean": clipped / loss_tokens if loss_tokens else 0.0,
+    }
 
 
 def _datum_row(datum, loss_fn: str, datum_index: int) -> dict[str, Any]:

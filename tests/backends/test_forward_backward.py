@@ -67,7 +67,7 @@ def test_importance_sampling_loss_and_gradient() -> None:
     )[0]
     target_logprobs = torch.tensor([0.0, -0.5, -0.2], requires_grad=True)
 
-    loss, token_count = _loss(target_logprobs, batch)
+    loss, token_count, _ = _loss(target_logprobs, batch)
     loss.backward()
 
     assert loss.item() == pytest.approx(-(math.exp(0.2) - math.exp(0.1)))
@@ -111,10 +111,11 @@ def test_cross_entropy_loss_is_unchanged() -> None:
         max_seq_length=8,
     )[0]
 
-    loss, token_count = _loss(torch.tensor([-0.2, -0.4]), batch)
+    loss, token_count, clipped_tokens = _loss(torch.tensor([-0.2, -0.4]), batch)
 
     assert loss.item() == pytest.approx(0.4)
     assert token_count.item() == 2
+    assert clipped_tokens.item() == 0
 
 
 def test_zero_weight_targets_still_produce_logprobs() -> None:
@@ -210,10 +211,71 @@ def test_rl_loss_matches_tinker_formula(
         max_seq_length=8,
     )[0]
 
-    loss, token_count = _loss(torch.tensor(target_logprobs), batch)
+    loss, token_count, _ = _loss(torch.tensor(target_logprobs), batch)
 
     assert loss.item() == pytest.approx(expected)
     assert token_count.item() == length
+
+
+@pytest.mark.parametrize(
+    ("loss_name", "config", "expected_clipped"),
+    [
+        # ratios 2.0, 0.5, 1.1, 0.9 with advantages +1, -1, +1, -1:
+        # the clamped branch only wins on the first two
+        ("ppo", {}, 2),
+        ("cispo", {"clip_low_threshold": 0.8, "clip_high_threshold": 1.2}, 2),
+        ("importance_sampling", {}, 0),
+    ],
+)
+def test_clipped_token_count(
+    loss_name: str,
+    config: dict[str, float],
+    expected_clipped: int,
+) -> None:
+    target_logprobs = [math.log(2.0), math.log(0.5), math.log(1.1), math.log(0.9)]
+    datum = training_datum(
+        input_ids=(0, 1, 2, 3),
+        target_tokens=(1, 2, 3, 4),
+        weights=(),
+        loss_inputs={
+            "logprobs": (0.0,) * 4,
+            "advantages": (1.0, -1.0, 1.0, -1.0),
+        },
+    )
+    batch = build_microbatches(
+        forward_batch(loss_name, datum, config),
+        {"model": 0},
+        max_slots=1,
+        max_seq_length=8,
+    )[0]
+
+    _, _, clipped_tokens = _loss(torch.tensor(target_logprobs), batch)
+
+    assert clipped_tokens.item() == expected_clipped
+
+
+def test_masked_tokens_are_not_counted_as_clipped() -> None:
+    datum = training_datum(
+        input_ids=(0, 1),
+        target_tokens=(1, 2),
+        weights=(),
+        loss_inputs={"logprobs": (0.0, 0.0), "advantages": (1.0, 1.0)},
+    )
+    batch = build_microbatches(
+        forward_batch("ppo", datum, {}),
+        {"model": 0},
+        max_slots=1,
+        max_seq_length=8,
+    )[0]
+    batch["loss_mask"] = torch.tensor([1.0, 0.0])
+
+    _, token_count, clipped_tokens = _loss(
+        torch.tensor([math.log(2.0), math.log(2.0)]),
+        batch,
+    )
+
+    assert token_count.item() == 1
+    assert clipped_tokens.item() == 1
 
 
 @pytest.mark.parametrize(
