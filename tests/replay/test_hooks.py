@@ -1,7 +1,6 @@
 """Check our adapter hooks at the Miles boundary without loading Megatron."""
 
-import sys
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -10,30 +9,7 @@ from lilo.backends.miles_runtime.replay import install_replay_hooks
 
 
 @pytest.fixture
-def miles(monkeypatch):
-    names = [
-        "miles",
-        "miles.backends",
-        "miles.backends.megatron_utils",
-        "miles.backends.megatron_utils.model",
-        "miles.backends.megatron_utils.lora",
-        "miles.backends.megatron_utils.lora.model",
-        "miles.backends.training_utils",
-        "miles.backends.training_utils.loss_hub",
-        "miles.backends.training_utils.loss_hub.logit_processors",
-        "miles.backends.training_utils.loss_hub.tinker_losses",
-        "miles.backends.training_utils.replay_data",
-        "miles.utils",
-        "miles.utils.replay_base",
-    ]
-    modules = {}
-    for name in names:
-        module = ModuleType(name)
-        modules[name] = module
-        monkeypatch.setitem(sys.modules, name, module)
-        if "." in name:
-            parent, attr = name.rsplit(".", 1)
-            setattr(modules[parent], attr, module)
+def miles():
     manager = SimpleNamespace(
         enabled=True,
         stage="fallthrough",
@@ -44,7 +20,6 @@ def miles(monkeypatch):
         register_replay_list_func=object(),
     )
     manager.clear_all = lambda: manager.replays[0].clear()
-    modules["miles.utils.replay_base"].routing_replay_manager = manager
     events = []
 
     def fill(**kwargs):
@@ -54,8 +29,7 @@ def miles(monkeypatch):
         manager.replays[0].append(kwargs["rollout_data"].pop(manager.data_key))
         events.append("fill")
 
-    modules["miles.backends.training_utils.replay_data"].fill_replay_data = fill
-    lora = modules["miles.backends.megatron_utils.lora.model"]
+    lora = SimpleNamespace()
     lora.get_data_iterator = lambda *args: ([object()], [1])
 
     def run(args, batch_id, model, data, **kwargs):
@@ -66,16 +40,29 @@ def miles(monkeypatch):
         return "result"
 
     lora.run_forward_backward = run
-    model = modules["miles.backends.megatron_utils.model"]
+    model = SimpleNamespace()
     model.get_batch = lambda iterator, keys: keys
-    logit = modules["miles.backends.training_utils.loss_hub.logit_processors"]
+    logit = SimpleNamespace()
     logit.build_local_sampling_mask = lambda *args, **kwargs: None
-    loss = modules["miles.backends.training_utils.loss_hub.tinker_losses"]
+    loss = SimpleNamespace()
     loss._target_logprobs = lambda *args: "ordinary"
     loss.get_log_probs_and_entropy = lambda logits, **kwargs: {"log_probs": kwargs}
-    install_replay_hooks()
+    dependencies = dict(
+        megatron_model=model,
+        lora_model=lora,
+        logit_processors=logit,
+        tinker_losses=loss,
+        fill_replay_data=fill,
+        manager=manager,
+    )
+    install_replay_hooks(**dependencies)
     return SimpleNamespace(
-        manager=manager, events=events, lora=lora, model=model, loss=loss
+        manager=manager,
+        events=events,
+        lora=lora,
+        model=model,
+        loss=loss,
+        dependencies=dependencies,
     )
 
 
@@ -99,7 +86,7 @@ def test_router_queues_cleared_and_normal_request_does_not_replay(miles, fail):
 
 def test_hooks_idempotent_and_replay_requires_registered_routers(miles):
     original = miles.lora.run_forward_backward
-    install_replay_hooks()
+    install_replay_hooks(**miles.dependencies)
     assert miles.lora.run_forward_backward is original
     miles.manager.enabled = False
     with pytest.raises(ValueError, match="MoE trainer"):

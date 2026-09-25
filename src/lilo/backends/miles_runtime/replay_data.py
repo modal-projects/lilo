@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from math import prod
 
+import numpy as np
+
 from lilo.replay import REPLAY_FIELDS
+
+_replay_builder = None
 
 
 def replay_row(inputs, targets: list[int]) -> dict:
@@ -60,9 +64,44 @@ def replay_row(inputs, targets: list[int]) -> dict:
     return row
 
 
-def add_replay_to_train_data(train_data: dict, datums: list[dict]) -> None:
-    import numpy as np
+def validate_routed_experts(
+    slot_rows, *, num_layers: int, num_experts: int | None, topk: int
+) -> None:
+    """Check model-specific route constraints before dispatching to any GPU rank.
 
+    replay_row owns tensor encoding and token alignment. Here the resolved Miles
+    model dimensions determine which layer streams and expert IDs are legal.
+    """
+    for _, datum in slot_rows:
+        if "routed_experts" not in datum:
+            continue
+        if num_experts is None or num_experts <= 0:
+            raise ValueError("routed_experts requires an MoE model")
+        routes = datum["routed_experts"]
+        if routes["shape"][1:] != [num_layers, topk]:
+            raise ValueError(
+                f"routed_experts must have {num_layers} layers and {topk} experts per token"
+            )
+        values = routes["values"]
+        if any(expert >= num_experts for expert in values):
+            raise ValueError(
+                f"routed_experts IDs must be below the model's expert count ({num_experts})"
+            )
+        for offset in range(0, len(values), topk):
+            experts = values[offset : offset + topk]
+            if all(expert == -1 for expert in experts):
+                continue
+            if -1 in experts:
+                raise ValueError(
+                    "routed_experts padding must fill the entire top-k row with -1"
+                )
+            if len(set(experts)) != topk:
+                raise ValueError(
+                    "routed_experts IDs must be distinct within each top-k row"
+                )
+
+
+def add_replay_to_train_data(train_data: dict, datums: list[dict]) -> None:
     routes = [datum.get("routed_experts") for datum in datums]
     if any(r is not None for r in routes):
         if not all(r is not None for r in routes):
@@ -85,11 +124,10 @@ def add_replay_to_train_data(train_data: dict, datums: list[dict]) -> None:
         ]
 
 
-def install_bridge_replay() -> None:
-    from miles.tinker import runtime
-
+def install_bridge_replay(runtime) -> None:
+    global _replay_builder
     original = runtime._build_train_data
-    if getattr(original, "_lilo_replay", False):
+    if original is _replay_builder:
         return
 
     def build(slot_datums):
@@ -97,5 +135,5 @@ def install_bridge_replay() -> None:
         add_replay_to_train_data(result, [datum for _, datum in slot_datums])
         return result
 
-    build._lilo_replay = True
+    _replay_builder = build
     runtime._build_train_data = build

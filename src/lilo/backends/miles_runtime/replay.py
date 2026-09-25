@@ -11,6 +11,8 @@ from functools import wraps
 
 import torch
 
+_replayed_run = None
+
 
 class TinkerSamplingMask:
     """CSR support over target positions; empty rows leave logits unmasked."""
@@ -48,14 +50,18 @@ def build_tinker_sampling_mask(
     return mask
 
 
-def install_replay_hooks() -> None:
-    from miles.backends.megatron_utils import model as megatron_model
-    from miles.backends.megatron_utils.lora import model as lora_model
-    from miles.backends.training_utils.loss_hub import logit_processors, tinker_losses
-    from miles.backends.training_utils.replay_data import fill_replay_data
-    from miles.utils.replay_base import routing_replay_manager as manager
-
-    if getattr(lora_model.run_forward_backward, "_lilo_replay", False):
+def install_replay_hooks(
+    *,
+    megatron_model,
+    lora_model,
+    logit_processors,
+    tinker_losses,
+    fill_replay_data,
+    manager,
+) -> None:
+    # The GPU actor imports Miles; this module also serves CPU-side mask tests.
+    global _replayed_run
+    if lora_model.run_forward_backward is _replayed_run:
         return
 
     original_mask = logit_processors.build_local_sampling_mask
@@ -92,7 +98,7 @@ def install_replay_hooks() -> None:
                 strict=True,
             )
         ]
-        vocab_size = getattr(args, "vocab_size", None)
+        vocab_size = args.vocab_size
         if vocab_size is None:
             raise ValueError("sampling replay requires the true model vocabulary size")
         if any(torch.any(mask._ids >= vocab_size) for mask in masks):
@@ -166,5 +172,5 @@ def install_replay_hooks() -> None:
             manager.clear_all()
             manager.enabled, manager.stage = enabled, stage
 
-    run._lilo_replay = True
+    _replayed_run = run
     lora_model.run_forward_backward = run

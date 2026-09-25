@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 
 import modal
 import modal.experimental
+from modal.config import config
 
 from ..checkpoint_storage import (
     CHECKPOINT_ROOT,
@@ -11,6 +13,8 @@ from ..checkpoint_storage import (
     checkpoint_volume,
 )
 from ..deployment import trainer_deployment_env, trainer_max_containers
+from ..kv import shared_kv
+from ..serve import run_engine_with_backend
 
 MODEL_NAME = "Qwen/Qwen3.8-27B"
 HF_CHECKPOINT = "/assets/Qwen3.8-27B"
@@ -85,6 +89,11 @@ if modal.is_local():
 else:
     image = modal.Image.debian_slim()
 
+with image.imports():
+    from huggingface_hub import snapshot_download
+
+    from ..ray_cluster import start_trainer_cluster
+
 assets = modal.Volume.from_name("lilo-model-assets", create_if_missing=True)
 bulletin = modal.Volume.from_name(
     BULLETIN_VOLUME_NAME,
@@ -108,8 +117,6 @@ huggingface_secret = modal.Secret.from_name("huggingface-secret")
 
 
 def ensure_assets() -> None:
-    from huggingface_hub import snapshot_download
-
     if not os.path.exists(HF_CHECKPOINT):
         snapshot_download(repo_id=MODEL_NAME, local_dir=HF_CHECKPOINT)
         assets.commit()
@@ -128,8 +135,6 @@ def ensure_assets() -> None:
 )
 @modal.experimental.clustered(TRAINER_NODES, rdma=True)
 def qwen3_8_27b_miles_lora_256k(instance_id: str) -> None:
-    from lilo.providers.modal.ray_cluster import start_trainer_cluster
-
     ray_address = start_trainer_cluster(
         TRAINER_NODES,
         before_head=ensure_assets,
@@ -189,13 +194,6 @@ def run_trainer(
     deterministic_training: bool = False,
     ray_address: str | None = None,
 ) -> None:
-    import json
-
-    from modal.config import config
-
-    from lilo.providers.modal.kv import shared_kv
-    from lilo.providers.modal.serve import run_engine_with_backend
-
     ensure_assets()
     config_payload = backend_config(
         instance_id,

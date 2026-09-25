@@ -13,6 +13,15 @@ import subprocess
 import time
 from collections.abc import Callable
 
+import modal.experimental
+
+try:
+    import ray
+except ModuleNotFoundError as exc:
+    if exc.name != "ray":
+        raise
+    ray = None
+
 RAY_PORT = 6379
 
 _GCS_HEALTH_CHECK_ENV = {
@@ -43,8 +52,6 @@ def discover_topology(nodes: int) -> ClusterTopology:
         return ClusterTopology(
             nodes=1, rank=0, head_addr="127.0.0.1", node_ip="127.0.0.1"
         )
-    import modal.experimental
-
     info = modal.experimental.get_cluster_info()
     ips = list(info.container_ipv4_ips or [])
     if len(ips) != nodes:
@@ -102,8 +109,8 @@ def _configure_cluster_env(topology: ClusterTopology) -> None:
 
 
 def _start_head(topology: ClusterTopology, *, join_timeout: float) -> None:
-    import ray
-
+    if ray is None:
+        raise ImportError("The trainer image must include Ray to start a cluster")
     subprocess.run(
         [
             "ray",

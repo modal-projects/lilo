@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import modal
 import torch
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
@@ -689,8 +690,6 @@ def _install_capture(
         _install_directory(source, target, overwrite=overwrite)
         return
 
-    import modal
-
     volume = modal.Volume.from_name(volume_name)
     volume.commit()
     entries = [entry.path for entry in volume.listdir(relative[0])]
@@ -732,16 +731,12 @@ def _install_directory(source: Path, target: Path, *, overwrite: bool) -> None:
 def _commit_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).commit()
 
 
 def _reload_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).reload()
 
 
