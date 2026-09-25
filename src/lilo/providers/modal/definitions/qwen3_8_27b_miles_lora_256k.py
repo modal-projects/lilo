@@ -13,6 +13,7 @@ from ..checkpoint_storage import (
     checkpoint_volume,
 )
 from ..deployment import trainer_deployment_env, trainer_max_containers
+from ..kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
 from ..kv import shared_kv
 from ..serve import run_engine_with_backend
 
@@ -51,11 +52,6 @@ TRAINER_MODELS_PER_INSTANCE = MAX_LORA_SLOTS
 # all-to-all runs behind a straggler's recompute, so a rank can sit in one
 # collective far longer than ten minutes without anything being wrong.
 DISTRIBUTED_TIMEOUT_MINUTES = 120
-# Coalescing a whole rollout's datums into one Miles call turns a step into a
-# single multi-thousand-collective forward_backward across both nodes, where
-# one desynchronized rank wedges every process group. One datum per call keeps
-# the collective chains short; gradients still accumulate until optim_step.
-MAX_FORWARD_BACKWARD_BATCH = 1
 
 ROLLOUT_GPU_TYPE = "H200"
 ROLLOUT_GPUS = 4
@@ -104,6 +100,7 @@ TRAINER_VOLUMES = {
     "/assets": assets,
     BULLETIN_ROOT: bulletin,
     CHECKPOINT_ROOT: checkpoint_volume,
+    KERNEL_CACHE_ROOT: kernel_cache_volume,
 }
 api_secret = modal.Secret.from_name(
     "lilo-api",
@@ -206,6 +203,7 @@ def run_trainer(
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env={
+            **KERNEL_CACHE_ENV,
             "LILO_BACKEND_CONFIG": json.dumps(config_payload),
             "LILO_BASE_MODEL": MODEL_NAME,
             "LILO_DEFINITION_ID": definition_id,
@@ -220,7 +218,6 @@ def run_trainer(
         nproc=1,
         max_models=max_models,
         sampler_persistence_concurrency=8,
-        max_forward_backward_batch=MAX_FORWARD_BACKWARD_BATCH,
     )
 
 

@@ -26,7 +26,11 @@ from .contract import (
     ModelSpec,
     SamplerPublication,
 )
-from .miles_config import MilesBackendConfig, parse_backend_config
+from .miles_config import (
+    MilesBackendConfig,
+    lora_target_flags,
+    parse_backend_config,
+)
 from .miles_runtime.data import build_outputs, pad_slot_rows, prepare_batch
 from .miles_runtime.profiling import RankProfiler, StepPhaseTimer, TorchProfileConfig
 from .miles_runtime.runtime import MilesRuntime
@@ -569,18 +573,7 @@ class MilesCommandBackend(Backend):
             )
         if state.seed is not None:
             raise ValueError("Miles multi-LoRA does not support per-model seeds")
-        leaves = {module.rsplit(".", 1)[-1] for module in self.config.target_modules}
-        configured = (
-            bool(
-                leaves
-                & {"linear_qkv", "linear_q", "linear_k", "linear_v", "linear_proj"}
-            ),
-            bool(
-                leaves
-                & {"linear_fc1", "linear_fc1_gate", "linear_fc1_up", "linear_fc2"}
-            ),
-            bool(leaves & {"output_layer"}),
-        )
+        configured = lora_target_flags(self.config.target_modules)
         requested = (state.train_attn, state.train_mlp, state.train_unembed)
         if requested != configured:
             raise ValueError(

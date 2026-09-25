@@ -21,9 +21,13 @@ def test_worker_env_carries_volume_names_to_other_nodes(monkeypatch):
     monkeypatch.setenv("LILO_BULLETIN_VOLUME", "lilo-bulletin")
     monkeypatch.delenv("LILO_BULLETIN_ROOT", raising=False)
     monkeypatch.setenv("LILO_BACKEND_CONFIG", "{}")
+    monkeypatch.setenv("TRITON_CACHE_DIR", "/root/.cache/kernel-cache/triton")
+    monkeypatch.setenv("TORCHINDUCTOR_CACHE_DIR", "/root/.cache/kernel-cache/inductor")
     assert _worker_env() == {
         "LILO_CHECKPOINT_VOLUME": "lilo-checkpoints",
         "LILO_BULLETIN_VOLUME": "lilo-bulletin",
+        "TRITON_CACHE_DIR": "/root/.cache/kernel-cache/triton",
+        "TORCHINDUCTOR_CACHE_DIR": "/root/.cache/kernel-cache/inductor",
     }
 
 

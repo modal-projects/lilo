@@ -10,6 +10,7 @@ from ..checkpoint_storage import (
     checkpoint_volume,
 )
 from ..deployment import trainer_max_containers
+from ..kernel_cache import KERNEL_CACHE_ENV, KERNEL_CACHE_ROOT, kernel_cache_volume
 
 MODEL_NAME = "Qwen/Qwen3.5-4B"
 HF_CHECKPOINT = "/assets/Qwen3.5-4B"
@@ -61,6 +62,7 @@ TRAINER_VOLUMES = {
     "/assets": assets,
     BULLETIN_ROOT: bulletin,
     CHECKPOINT_ROOT: checkpoint_volume,
+    KERNEL_CACHE_ROOT: kernel_cache_volume,
 }
 api_secret = modal.Secret.from_name(
     "lilo-api",
@@ -126,6 +128,7 @@ def qwen3_5_4b_full_64k(instance_id: str) -> None:
         revision=config["image_id"],
         instance_id=instance_id,
         backend_env={
+            **KERNEL_CACHE_ENV,
             "LILO_BACKEND_CONFIG": json.dumps(backend_config),
             "LILO_BASE_MODEL": MODEL_NAME,
             "LILO_DEFINITION_ID": DEFINITION_ID,

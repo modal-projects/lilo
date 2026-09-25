@@ -18,6 +18,23 @@ _PEFT_TARGETS = {
     "linear_fc2": ("down_proj",),
     "output_layer": ("lm_head",),
 }
+_ATTN_LEAVES = frozenset(
+    {"linear_qkv", "linear_q", "linear_k", "linear_v", "linear_proj"}
+)
+_MLP_LEAVES = frozenset(
+    {"linear_fc1", "linear_fc1_gate", "linear_fc1_up", "linear_fc2"}
+)
+_UNEMBED_LEAVES = frozenset({"output_layer"})
+
+
+def lora_target_flags(target_modules: tuple[str, ...]) -> tuple[bool, bool, bool]:
+    """Return ``(train_attn, train_mlp, train_unembed)`` implied by target modules."""
+    leaves = {module.rsplit(".", 1)[-1] for module in target_modules}
+    return (
+        bool(leaves & _ATTN_LEAVES),
+        bool(leaves & _MLP_LEAVES),
+        bool(leaves & _UNEMBED_LEAVES),
+    )
 
 
 @dataclass(frozen=True, slots=True)
