@@ -1,18 +1,27 @@
+import asyncio
 import json
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 
+import modal
 import pytest
 from stitch.types import VersionRef
 from tinker import AdamParams, Datum, LoraConfig, ModelInput, TensorData
 
-from lilo.backends import ForwardBatch, ForwardItem, ModelSpec
+from lilo.backends import ForwardBatch, ForwardItem, ModelSpec, miles_lora
 from lilo.backends.miles_config import MilesBackendConfig, parse_backend_config
-from lilo.backends.miles_lora import MilesCommandBackend
-from lilo.backends.miles_runtime.data import pad_slot_rows
+from lilo.backends.miles_lora import (
+    MilesCommandBackend,
+    _adam_parameters,
+    _install_capture,
+)
+from lilo.backends.miles_runtime.data import _datum_row, pad_slot_rows, prepare_batch
+from lilo.control_plane.service import ControlPlane
+from lilo.errors import BackendFailed
 from lilo.inference.bulletin import SnapshotBulletin
+from lilo.providers.modal.checkpoint_storage import ModalCheckpointStorage
 
 
 class FakeMilesRuntime:
@@ -396,8 +405,6 @@ def test_checkpoint_capture_persist_and_restore(tmp_path, monkeypatch) -> None:
 def test_checkpoint_restore_refreshes_files_saved_by_another_container(
     tmp_path, monkeypatch
 ):
-    from lilo.backends import miles_lora
-
     runtime = FakeMilesRuntime()
     backend = _backend(tmp_path, runtime)
     backend.accept_model("model-a", _spec())
@@ -520,8 +527,6 @@ def test_sampler_capture_publishes_existing_lilo_format(tmp_path, monkeypatch) -
 def test_sampler_snapshots_persist_concurrently_without_crossing_adapters(
     tmp_path, monkeypatch
 ) -> None:
-    from lilo.backends import miles_lora
-
     backend = _backend(tmp_path, FakeMilesRuntime())
     root = tmp_path / "bulletin"
     monkeypatch.setenv("LILO_BULLETIN_ROOT", str(root))
@@ -566,8 +571,6 @@ def test_backend_rejects_unsupported_per_model_miles_options(tmp_path) -> None:
 
 
 def test_build_executor_uses_single_process_mode(monkeypatch, tmp_path) -> None:
-    from lilo.backends import miles_lora
-
     config = _config()
     captured = {}
 
@@ -612,8 +615,6 @@ def test_nonfinite_optimizer_skip_does_not_advance_policy(tmp_path):
 
 
 def test_datum_preserves_explicit_targets_for_upstream():
-    from lilo.backends.miles_runtime.data import _datum_row
-
     row = _datum_row(_datum([1, 2, 3], 4), "cross_entropy", 0)
     assert row["tokens"] == [1, 2, 3, 4]
     assert row["target_tokens"] == [2, 3, 4]
@@ -648,12 +649,6 @@ def test_checkpoint_rejects_different_resolved_main_commit(tmp_path):
 
 
 def test_miles_checkpoint_storage_lifecycle_uses_control_plane_layout(tmp_path):
-    import asyncio
-    from types import SimpleNamespace
-
-    from lilo.control_plane.service import ControlPlane
-    from lilo.providers.modal.checkpoint_storage import ModalCheckpointStorage
-
     backend = _backend(tmp_path, FakeMilesRuntime())
     storage = ModalCheckpointStorage(
         SimpleNamespace(reload=lambda: None, commit=lambda: None),
@@ -686,8 +681,6 @@ def test_miles_checkpoint_storage_lifecycle_uses_control_plane_layout(tmp_path):
 
 @pytest.mark.parametrize("loss_fn", ["cross_entropy", "importance_sampling"])
 def test_mixed_clients_only_forward_fields_consumed_by_loss(tmp_path, loss_fn):
-    from lilo.backends.miles_runtime.data import prepare_batch
-
     first = _datum([1, 2, 3], 4)
     second = _datum([1, 2, 3], 4)
     inputs = first.loss_fn_inputs
@@ -746,8 +739,6 @@ def test_sequence_alignment_pads_rows_and_trims_returned_logprobs(tmp_path) -> N
 
 
 def test_sequence_alignment_is_off_by_default() -> None:
-    from lilo.backends.miles_runtime.data import prepare_batch
-
     assert _config().sequence_alignment == 1
     batch = ForwardBatch(
         items=(ForwardItem("a", (_datum([1, 2, 3], 4),)),),
@@ -763,10 +754,6 @@ def test_sequence_alignment_is_off_by_default() -> None:
 )
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 def test_nonfinite_adam_parameters_rejected_before_runtime(name, value):
-    from types import SimpleNamespace
-
-    from lilo.backends.miles_lora import _adam_parameters
-
     values = {
         "learning_rate": 1e-4,
         "beta1": 0.9,
@@ -782,8 +769,6 @@ def test_nonfinite_adam_parameters_rejected_before_runtime(name, value):
 
 @pytest.mark.parametrize("outcome", [{"error": "worker update failed"}, {}])
 def test_optimizer_worker_failure_is_fatal(tmp_path, outcome):
-    from lilo.errors import BackendFailed
-
     runtime = FakeMilesRuntime()
     backend = _backend(tmp_path, runtime)
     backend.accept_model("a", _spec())
@@ -814,8 +799,6 @@ class _FakeCheckpointVolume:
 
 
 def _install_environment(monkeypatch, tmp_path, entries, copies) -> None:
-    import modal
-
     monkeypatch.setenv("LILO_CHECKPOINT_VOLUME", "lilo-checkpoints")
     monkeypatch.setenv("LILO_CHECKPOINT_ROOT", str(tmp_path))
     monkeypatch.setattr(
@@ -826,8 +809,6 @@ def _install_environment(monkeypatch, tmp_path, entries, copies) -> None:
 
 
 def test_installing_a_capture_copies_the_shards_of_every_node(monkeypatch, tmp_path):
-    from lilo.backends.miles_lora import _install_capture
-
     entries = ["__0_0.distcp", "__1_0.distcp", "metadata.json"]
     copies: list = []
     _install_environment(monkeypatch, tmp_path, entries, copies)
@@ -853,8 +834,6 @@ def test_installing_a_capture_copies_the_shards_of_every_node(monkeypatch, tmp_p
 
 
 def test_a_capture_short_of_a_nodes_shards_is_refused(monkeypatch, tmp_path):
-    from lilo.backends.miles_lora import _install_capture
-
     copies: list = []
     _install_environment(monkeypatch, tmp_path, ["__0_0.distcp"], copies)
     source = tmp_path / ".captures" / "engine" / "capture-a"

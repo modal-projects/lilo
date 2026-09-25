@@ -82,6 +82,9 @@ class Server:
             parallel_world_size=definition.ROLLOUT_GPUS,
             lora_target_modules=definition.ROLLOUT_LORA_TARGET_MODULES,
             enable_lora=True,
+            enable_return_routed_experts=getattr(
+                definition, "ROLLOUT_RETURN_ROUTED_EXPERTS", False
+            ),
             memory_fraction=definition.ROLLOUT_MEMORY_FRACTION,
             schedule_policy="lpm",
         )

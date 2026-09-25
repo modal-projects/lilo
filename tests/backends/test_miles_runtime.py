@@ -6,6 +6,7 @@ import pytest
 from lilo.backends.miles_runtime import runtime as miles_runtime
 from lilo.backends.miles_runtime.runtime import (
     MilesRuntime,
+    _allow_context_parallel_multi_lora,
     _configure_actor_spec,
     _materialize_capture,
     _require_cluster_nodes,
@@ -175,3 +176,27 @@ def test_weights_only_worker_error_invalidates_runtime_before_capture(
         runtime.save_slot(0, capture, include_optimizer=False)
     assert calls == ["save_slot_weights"]
     assert not (tmp_path / "capture").exists()
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_context_parallel_guard_restores_args_and_installs_once(fails):
+    seen = []
+
+    def validate(args):
+        seen.append(args.context_parallel_size)
+        if fails:
+            raise ValueError("another LoRA constraint failed")
+
+    lora_arguments = SimpleNamespace(validate_multi_lora_args=validate)
+    _allow_context_parallel_multi_lora(lora_arguments)
+    once = lora_arguments.validate_multi_lora_args
+    _allow_context_parallel_multi_lora(lora_arguments)
+    assert lora_arguments.validate_multi_lora_args is once
+    args = SimpleNamespace(context_parallel_size=8)
+    if fails:
+        with pytest.raises(ValueError, match="another LoRA constraint"):
+            once(args)
+    else:
+        once(args)
+    assert seen == [1]
+    assert args.context_parallel_size == 8

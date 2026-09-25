@@ -15,6 +15,7 @@ from miles.backends.fsdp_utils import actor as fsdp_actor
 from miles.backends.megatron_utils import actor as megatron_actor
 from miles.backends.megatron_utils import model as megatron_model
 from miles.backends.megatron_utils.lora import checkpoint
+from miles.backends.megatron_utils.lora import model as lora_model
 from miles.backends.megatron_utils.lora.actor import MultiLoRATrainRayActor
 from miles.backends.training_utils import checkpoint_io, cp_utils, data, loss, mm_data
 from miles.backends.training_utils.loss_hub import (
@@ -23,9 +24,12 @@ from miles.backends.training_utils.loss_hub import (
     tinker_losses,
 )
 from miles.backends.training_utils.parallel import get_parallel_state
+from miles.backends.training_utils.replay_data import fill_replay_data
 from miles.backends.training_utils.weight_update import snapshot_publisher
+from miles.utils.replay_base import routing_replay_manager
 
 from .profiling import RankProfiler, TorchProfileConfig
+from .replay import install_replay_hooks
 
 
 def _pad_local_shard(
@@ -113,7 +117,7 @@ def _gather_tinker_logprobs_across_cp() -> None:
             rollout_sampling_mask=rollout_sampling_mask,
         )
         parallel_state = get_parallel_state()
-        if parallel_state.cp.size == 1 or getattr(args, "allgather_cp", False):
+        if parallel_state.cp.size == 1 or args.allgather_cp:
             return out
         log_probs = []
         for index, (lp, total_length, response_length) in enumerate(
@@ -142,10 +146,9 @@ def _gather_tinker_logprobs_across_cp() -> None:
         loss,
         tinker_losses,
         megatron_actor,
-        megatron_model,
         fsdp_actor,
     ):
-        if getattr(module, "get_log_probs_and_entropy", None) is original:
+        if module.get_log_probs_and_entropy is original:
             module.get_log_probs_and_entropy = get_log_probs_and_entropy
 
     # get_rollout_data slices rollout_log_probs/teacher_log_probs to the CP
@@ -164,11 +167,20 @@ def _gather_tinker_logprobs_across_cp() -> None:
     slice_log_prob_with_cp.__lilo_unslices_cp__ = True
     cp_utils.slice_log_prob_with_cp = slice_log_prob_with_cp
     for module in (data, mm_data, math_utils):
-        if getattr(module, "slice_log_prob_with_cp", None) is original_slice:
+        if module.slice_log_prob_with_cp is original_slice:
             module.slice_log_prob_with_cp = slice_log_prob_with_cp
 
 
 _gather_tinker_logprobs_across_cp()
+
+install_replay_hooks(
+    megatron_model=megatron_model,
+    lora_model=lora_model,
+    logit_processors=logit_processors,
+    tinker_losses=tinker_losses,
+    fill_replay_data=fill_replay_data,
+    manager=routing_replay_manager,
+)
 
 
 def _checkpoint_volume_path(path: Path) -> str | None:
@@ -264,7 +276,7 @@ def _publish_checkpoints_across_nodes() -> None:
     write_checkpoint_dir.__lilo_publishes_across_nodes__ = True
     checkpoint_io.write_checkpoint_dir = write_checkpoint_dir
     for module in (checkpoint, snapshot_publisher):
-        if getattr(module, "write_checkpoint_dir", None) is original:
+        if module.write_checkpoint_dir is original:
             module.write_checkpoint_dir = write_checkpoint_dir
 
 

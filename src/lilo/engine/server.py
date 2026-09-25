@@ -811,5 +811,8 @@ class Engine:
             {
                 "loss_fn": payload.loss_fn,
                 "loss_fn_config": payload.loss_fn_config,
+                "router_replay": any(
+                    "routed_experts" in datum.loss_fn_inputs for datum in payload.data
+                ),
             },
         )

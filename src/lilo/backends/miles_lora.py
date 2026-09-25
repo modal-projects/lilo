@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import modal
 import torch
 from stitch.types import VersionRef
 from tinker import AdamParams, ForwardBackwardOutput, OptimStepResponse
@@ -180,6 +181,22 @@ class MilesCommandBackend(Backend):
                 self.job_to_slot,
                 sequence_alignment=self.config.sequence_alignment,
             )
+            rows = [row for _, row in prepared.slot_rows]
+            if any("routed_experts" in row for row in rows):
+                if not all("routed_experts" in row for row in rows):
+                    raise ValueError(
+                        "router replay is required for every datum in a batch"
+                    )
+                if "--use-rollout-routing-replay" not in self.config.extra_args:
+                    raise ValueError(
+                        "router replay requires --use-rollout-routing-replay in the Miles configuration"
+                    )
+            if any("sampling_mask_ids" in row for row in rows):
+                temperature = batch.loss_fn_config.get("sampling_temperature")
+                if temperature is None or not 0 < temperature < float("inf"):
+                    raise ValueError(
+                        "sampling replay requires a positive finite sampling_temperature in loss_fn_config"
+                    )
         phase_name = "forward_only" if batch.forward_only else "forward_backward"
         with (
             self._timer.phase(phase_name, step, model_id=batch.items[0].model_id),
@@ -666,8 +683,6 @@ def _install_capture(
         _install_directory(source, target, overwrite=overwrite)
         return
 
-    import modal
-
     volume = modal.Volume.from_name(volume_name)
     volume.commit()
     entries = [entry.path for entry in volume.listdir(relative[0])]
@@ -709,16 +724,12 @@ def _install_directory(source: Path, target: Path, *, overwrite: bool) -> None:
 def _commit_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).commit()
 
 
 def _reload_volume(name: str | None) -> None:
     if name is None:
         return
-    import modal
-
     modal.Volume.from_name(name).reload()
 
 

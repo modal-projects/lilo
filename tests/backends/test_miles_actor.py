@@ -113,6 +113,13 @@ def _load_actor(monkeypatch):
     megatron_actor = _module(monkeypatch, "miles.backends.megatron_utils.actor")
     megatron_model = _module(monkeypatch, "miles.backends.megatron_utils.model")
     checkpoint = _module(monkeypatch, "miles.backends.megatron_utils.lora.checkpoint")
+    _module(monkeypatch, "miles.backends.megatron_utils.lora.model")
+    _module(
+        monkeypatch, "miles.backends.training_utils.replay_data"
+    ).fill_replay_data = lambda **kwargs: None
+    _module(
+        monkeypatch, "miles.utils.replay_base"
+    ).routing_replay_manager = types.SimpleNamespace()
     lora_actor = _module(monkeypatch, "miles.backends.megatron_utils.lora.actor")
     lora_actor.MultiLoRATrainRayActor = type("MultiLoRATrainRayActor", (), {})
     training_cp_utils = _module(monkeypatch, "miles.backends.training_utils.cp_utils")
@@ -138,6 +145,12 @@ def _load_actor(monkeypatch):
     loss_hub.tinker_losses = _module(
         monkeypatch, "miles.backends.training_utils.loss_hub.tinker_losses"
     )
+    for module in (training_loss, loss_hub.tinker_losses, megatron_actor, fsdp_actor):
+        module.get_log_probs_and_entropy = (
+            loss_hub.logit_processors.get_log_probs_and_entropy
+        )
+    for module in (training_data, training_mm_data, loss_hub.math_utils):
+        module.slice_log_prob_with_cp = training_cp_utils.slice_log_prob_with_cp
     _module(
         monkeypatch, "miles.backends.training_utils.parallel"
     ).get_parallel_state = lambda: None
@@ -156,6 +169,11 @@ def _load_actor(monkeypatch):
     sys.modules["miles.backends.fsdp_utils"].actor = fsdp_actor
     sys.modules["miles.backends.megatron_utils"].actor = megatron_actor
     sys.modules["miles.backends.megatron_utils"].model = megatron_model
+
+    # Replay hook behavior is covered separately with its Miles interfaces.
+    _module(monkeypatch, "lilo.backends.miles_runtime.replay").install_replay_hooks = (
+        lambda **kwargs: None
+    )
 
     path = Path(__file__).parents[2] / "src/lilo/backends/miles_runtime/actor.py"
     spec = importlib.util.spec_from_file_location(

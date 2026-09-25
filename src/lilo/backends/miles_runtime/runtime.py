@@ -16,11 +16,36 @@ from typing import Any
 from lilo.backends.miles_config import MilesBackendConfig
 from lilo.errors import BackendFailed
 
+from .replay_data import install_bridge_replay, validate_routed_experts
+
+# CPU-side data helpers can be imported without the optional GPU runtime.
+_runtime_import_error = None
+try:
+    import ray
+    from miles.ray.specs import train as train_specs
+    from miles.ray.train.group import TrainerController
+    from miles.ray.wiring import launch_worker_manager
+    from miles.tinker import runtime as tinker_runtime
+    from miles.utils import object_store
+    from miles.utils.arguments import parse_args
+    from miles.utils.audit_utils.process_identity import MainProcessIdentity
+    from miles.utils.external_utils.model_args_utils import load_model_args
+    from miles.utils.logging_utils import configure_logger
+    from miles.utils.lora import arguments as lora_arguments
+except ModuleNotFoundError as exc:
+    if exc.name not in {"ray", "miles"}:
+        raise
+    _runtime_import_error = exc
+
 
 class MilesRuntime:
     """Synchronous owner of Miles's asynchronous Ray trainer controller."""
 
     def __init__(self, config: MilesBackendConfig) -> None:
+        if _runtime_import_error is not None:
+            raise ImportError(
+                "MilesRuntime requires Miles and Ray in the trainer image"
+            ) from _runtime_import_error
         self.config = config
         # Baked into the image after resolving main, never the moving ref name.
         self.revision = os.environ["LILO_MILES_COMMIT"]
@@ -77,6 +102,13 @@ class MilesRuntime:
         loss_fn_config: dict[str, float],
         forward_only: bool,
     ) -> list[dict[str, Any]]:
+        if any("routed_experts" in row for _, row in slot_rows):
+            validate_routed_experts(
+                slot_rows,
+                num_layers=self._args.num_layers,
+                num_experts=self._args.num_experts,
+                topk=self._args.moe_router_topk,
+            )
         unit_id = next(self._unit_ids)
         method = (
             self._bridge.forward_only if forward_only else self._bridge.forward_backward
@@ -180,22 +212,13 @@ class MilesRuntime:
         os.environ.setdefault("CUDA_DEVICE_MAX_CONNECTIONS", "1")
         os.environ.setdefault("no_proxy", "127.0.0.1")
 
-        import ray
-        from miles.ray.specs import train as train_specs
-        from miles.ray.train.group import TrainerController
-        from miles.ray.wiring import launch_worker_manager
-        from miles.tinker.runtime import MilesBackend
-        from miles.utils import object_store
-        from miles.utils.arguments import parse_args
-        from miles.utils.audit_utils.process_identity import MainProcessIdentity
-        from miles.utils.external_utils.model_args_utils import load_model_args
-        from miles.utils.logging_utils import configure_logger
-
+        install_bridge_replay(tinker_runtime)
         _configure_actor_spec(train_specs)
-        _allow_context_parallel_multi_lora()
+        _allow_context_parallel_multi_lora(lora_arguments)
         architecture = shlex.split(load_model_args(self.config.model_type))
         with _temporary_argv([*architecture, *self.config.miles_arguments()]):
             args = parse_args(entry="serve")
+        self._args = args
         args.use_dynamic_global_batch_size = True
         args.delay_split_train_data_by_dp = True
         configure_logger(args, source=MainProcessIdentity())
@@ -238,12 +261,11 @@ class MilesRuntime:
             rollout_executor=None,
         )
         await self._trainer.init()
-        self._bridge = MilesBackend(self._trainer, router_url="", dp_size=1)
+        self._bridge = tinker_runtime.MilesBackend(
+            self._trainer, router_url="", dp_size=1
+        )
 
     async def _close(self) -> None:
-        import ray
-        from miles.utils import object_store
-
         try:
             if self._trainer is not None:
                 cell_ids = list(self._trainer.cell_ids)
@@ -346,20 +368,18 @@ def _configure_actor_spec(train_specs) -> None:
     train_specs._compute_spec_trainer = compute
 
 
-def _allow_context_parallel_multi_lora() -> None:
+def _allow_context_parallel_multi_lora(lora_arguments) -> None:
     """Miles rejects multi-LoRA with CP>1 because its Tinker losses zip
     full-length per-datum vectors against CP-sharded log probs. The Lilo actor
     gathers those log probs back to full response length before the loss runs,
     so the guard does not apply to this path."""
-    from miles.utils import multi_lora
-
-    original = multi_lora.validate_multi_lora_args
+    original = lora_arguments.validate_multi_lora_args
     if getattr(original, "__lilo_allows_cp__", False):
         return
 
     @wraps(original)
     def validate(args) -> None:
-        context_parallel_size = getattr(args, "context_parallel_size", 1)
+        context_parallel_size = args.context_parallel_size
         args.context_parallel_size = 1
         try:
             original(args)
@@ -367,7 +387,7 @@ def _allow_context_parallel_multi_lora() -> None:
             args.context_parallel_size = context_parallel_size
 
     validate.__lilo_allows_cp__ = True
-    multi_lora.validate_multi_lora_args = validate
+    lora_arguments.validate_multi_lora_args = validate
 
 
 def _materialize_capture(path: str) -> None:
