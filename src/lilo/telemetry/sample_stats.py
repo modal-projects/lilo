@@ -73,6 +73,7 @@ TIMING_KEYS = (
     "decode_throughput",
     "num_retractions",
     "cached_tokens",
+    "lilo_admission_retries",
     "completion_tokens",
     "prompt_tokens",
     "weight_version_start",

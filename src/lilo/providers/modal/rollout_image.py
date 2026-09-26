@@ -210,6 +210,96 @@ SGLANG_LORA_LIFETIME_PATCH = (
     '         """\n'
 )
 
+# Avoid serializing new publications behind an active LRU victim when an idle
+# victim is available. Never choose the adapter being registered as its own victim.
+SGLANG_LORA_IDLE_EVICTION_PATCH = (
+    "--- a/python/sglang/srt/lora/lora_registry.py\n"
+    "+++ b/python/sglang/srt/lora/lora_registry.py\n"
+    "@@ -218,20 +218,26 @@\n"
+    " \n"
+    "             return unregistered_loras\n"
+    " \n"
+    "-    async def lru_lora_name(self, exclude_pinned=False):\n"
+    "+    async def lru_lora_name(self, exclude_pinned=False, exclude_names=None):\n"
+    '         """\n'
+    "         Returns the least recently used LoRA adapter.\n"
+    "         If exclude_pinned is True, then return the LRU LoRA adapter that isn't pinned.\n"
+    '         """\n'
+    "         async with self._registry_lock.reader_lock:\n"
+    "-            if not exclude_pinned:\n"
+    "-                return next(iter(self._registry), None)\n"
+    "-\n"
+    "+            fallback = None\n"
+    "             for lora_name, lora_ref in self._registry.items():\n"
+    "-                if not lora_ref.pinned:\n"
+    "+                if (exclude_names and lora_name in exclude_names) or (\n"
+    "+                    exclude_pinned and lora_ref.pinned\n"
+    "+                ):\n"
+    "+                    continue\n"
+    "+                if fallback is None:\n"
+    "+                    fallback = lora_name\n"
+    "+                # Prefer idle LRU victims so an unrelated long decode doesn't\n"
+    "+                # hold the global adapter-update lock. If every eligible adapter\n"
+    "+                # is busy, retain the existing safe wait-for-unload behavior.\n"
+    "+                if not exclude_pinned or self._counters[lora_ref.lora_id].value() == 0:\n"
+    "                     return lora_name\n"
+    "-            else:\n"
+    "-                return None\n"
+    "+            return fallback\n"
+    " \n"
+    "     def _register_adapter(self, lora_ref: LoRARef):\n"
+    '         """\n'
+    "--- a/python/sglang/srt/managers/tokenizer_control_mixin.py\n"
+    "+++ b/python/sglang/srt/managers/tokenizer_control_mixin.py\n"
+    "@@ -637,7 +637,7 @@\n"
+    "                         > self.server_args.max_loaded_loras\n"
+    "                     ):\n"
+    "                         lru_lora_name = await self.lora_registry.lru_lora_name(\n"
+    "-                            exclude_pinned=True\n"
+    "+                            exclude_pinned=True, exclude_names={obj.lora_name}\n"
+    "                         )\n"
+    "                         if lru_lora_name is None:\n"
+    "                             raise ValueError(\n"
+    "@@ -713,7 +713,7 @@\n"
+    "                         > self.server_args.max_loaded_loras\n"
+    "                     ):\n"
+    "                         lru_lora_name = await self.lora_registry.lru_lora_name(\n"
+    "-                            exclude_pinned=True\n"
+    "+                            exclude_pinned=True, exclude_names={obj.lora_name}\n"
+    "                         )\n"
+    "                         if lru_lora_name is None:\n"
+    "                             raise ValueError(\n"
+)
+
+# Coordinate implicit CPU-cache reloads with the sidecar snapshot read barrier.
+SGLANG_LORA_RELOAD_GUARD_PATCH = (
+    "--- a/python/sglang/srt/managers/tokenizer_manager.py\n"
+    "+++ b/python/sglang/srt/managers/tokenizer_manager.py\n"
+    "@@ -3368,6 +3368,22 @@\n"
+    "                 )\n"
+    " \n"
+    '             logger.info(f"Reloading evicted adapter: {lora_path}")\n'
+    "+            # Let the snapshot owner guard file reads against mount reloads.\n"
+    "+            # Cached, CPU-resident requests never take this callback path.\n"
+    '+            reload_url = os.environ.get("LILO_LORA_RELOAD_URL")\n'
+    "+            if reload_url:\n"
+    "+                import httpx\n"
+    "+\n"
+    "+                async with httpx.AsyncClient(timeout=3000, trust_env=False) as client:\n"
+    "+                    response = await client.post(\n"
+    '+                        reload_url, json={"lora_name": lora_path}\n'
+    "+                    )\n"
+    "+                # Concurrent misses may race with a completed registration.\n"
+    "+                if not await self.lora_registry.get_unregistered_loras({lora_path}):\n"
+    "+                    continue\n"
+    "+                response.raise_for_status()\n"
+    '+                raise ValueError(f"Guarded reload did not register adapter: {lora_path}")\n'
+    "+\n"
+    "             new_lora_ref = self.lora_ref_cache[lora_path]\n"
+    "             load_result = await self.load_lora_adapter(\n"
+    "                 LoadLoRAAdapterReqInput(\n"
+)
+
 image = (
     modal.Image.from_registry(SGLANG_IMAGE)
     .entrypoint([])
@@ -224,6 +314,18 @@ image = (
         + "PATCH\n",
         "cd /tmp/stitch-sglang-overlay && git apply - <<'PATCH'\n"
         + SGLANG_LORA_LIFETIME_PATCH
+        + "PATCH\n",
+        "cd /tmp/stitch-sglang-overlay && git apply --check - <<'PATCH'\n"
+        + SGLANG_LORA_IDLE_EVICTION_PATCH
+        + "PATCH\n",
+        "cd /tmp/stitch-sglang-overlay && git apply - <<'PATCH'\n"
+        + SGLANG_LORA_IDLE_EVICTION_PATCH
+        + "PATCH\n",
+        "cd /tmp/stitch-sglang-overlay && git apply --check - <<'PATCH'\n"
+        + SGLANG_LORA_RELOAD_GUARD_PATCH
+        + "PATCH\n",
+        "cd /tmp/stitch-sglang-overlay && git apply - <<'PATCH'\n"
+        + SGLANG_LORA_RELOAD_GUARD_PATCH
         + "PATCH\n",
         "rm -rf /sgl-workspace/sglang/python/sglang"
         " && cp -a /tmp/stitch-sglang-overlay/python/. /sgl-workspace/sglang/python/"

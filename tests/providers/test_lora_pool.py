@@ -47,7 +47,11 @@ def test_pool_revision_tracks_inherited_settings_and_bulletin(monkeypatch):
     monkeypatch.setattr(Path, "read_bytes", read)
     name = "qwen3_5_9b_base_miles_lora_16k_single"
     original_pool = LoraPoolSpec(name).app_name
-    for changed in ("qwen3_5_9b_base_miles_lora_16k.py", "bulletin.py"):
+    for changed in (
+        "qwen3_5_9b_base_miles_lora_16k.py",
+        "bulletin.py",
+        "snapshot_access.py",
+    ):
         assert LoraPoolSpec(name).app_name != original_pool
     changed = "qwen3_5_4b_full_64k.py"
     assert LoraPoolSpec(name).app_name == original_pool
